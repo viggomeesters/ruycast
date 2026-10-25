@@ -32,3 +32,92 @@ Use a branch and pull request for a focused change. Run the local checks in [Con
 ## Downloadable app distribution
 
 A prebuilt app release requires a maintained Developer ID identity, hardened runtime configuration, notarization/stapling, clean-machine installation and update tests. Preserve its bundle identity and designated requirement between releases. Local certificates are for source builds on your own Mac. No updater is shipped in this preview.
+
+### Candidate preparation (issue #1, not yet a binary release)
+
+Use the reviewed **public** checkout, never a private development checkout or an installed personal app. `package-app.py` checks the public manifest and release-build receipt, copies only the app executable, CLI and icon, and writes an explicitly non-publishable candidate receipt. It does not install, sign, upload, publish, copy configuration or include personal adapters. Existing output is preserved.
+
+```sh
+make check
+bash scripts/build-native.sh -c release
+python3 scripts/package-app.py --out .dist/public-candidate --build-number 26
+```
+
+Choose a fresh candidate directory and a numeric build greater than the previous distributed build. The manifest supplies the product version. Candidate preparation does **not** prove Developer ID signing, notarization, supported architectures or clean-Mac acceptance.
+
+### Distribution prerequisites
+
+- A valid **Developer ID Application** identity with its private key in the maintainer's keychain. Inspect with `security find-identity -v -p codesigning`. A local/self-signed identity is insufficient.
+- The intended Apple Developer team and a working `notarytool` keychain profile. Provision credentials interactively with `xcrun notarytool store-credentials`; never put passwords, keys or keychain databases in scripts, issues, archives or Git.
+- A clean macOS test environment and an upgrade fixture. Record exact macOS versions and CPU architectures actually tested. Apple silicon development builds do not establish Intel support.
+
+These are open acceptance gates for issue #1, not completed checks. See Apple's [notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) and [custom workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
+
+### Signing and notarization procedure (pending live validation)
+
+Only continue once the prerequisites exist. Set `RUYCAST_SIGNING_IDENTITY` to the Developer ID certificate SHA-1, `RUYCAST_TEAM_ID` to its team, and `RUYCAST_NOTARY_PROFILE` to the credential profile name. Work on the staged copy; do not sign over `/Applications/Ruycast.app`.
+
+```sh
+set -euo pipefail
+: "${RUYCAST_SIGNING_IDENTITY:?Developer ID identity required}"
+: "${RUYCAST_TEAM_ID:?Developer team required}"
+: "${RUYCAST_NOTARY_PROFILE:?Notary keychain profile required}"
+RUYCAST_CANDIDATE=".dist/public-candidate"
+RUYCAST_APP="$RUYCAST_CANDIDATE/Ruycast.app"
+# A candidate may enter this procedure once, including after an interrupted run.
+mkdir "$RUYCAST_CANDIDATE/.distribution-run"
+set -C
+for RUYCAST_OUTPUT in notary-upload.zip notary-result.json Ruycast-macOS.zip Ruycast-macOS.zip.sha256 release-receipt.json; do
+  if [ -e "$RUYCAST_CANDIDATE/$RUYCAST_OUTPUT" ] || [ -L "$RUYCAST_CANDIDATE/$RUYCAST_OUTPUT" ]; then
+    printf 'Existing artifact preserved: %s\n' "$RUYCAST_OUTPUT" >&2
+    exit 1
+  fi
+done
+python3 scripts/package-app.py --verify "$RUYCAST_CANDIDATE"
+codesign --force --options runtime --timestamp --sign "$RUYCAST_SIGNING_IDENTITY" \
+  "$RUYCAST_APP/Contents/Resources/ruycast"
+codesign --force --options runtime --timestamp --sign "$RUYCAST_SIGNING_IDENTITY" "$RUYCAST_APP"
+codesign --verify --deep --strict -R "=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf[subject.OU] = \"$RUYCAST_TEAM_ID\"" "$RUYCAST_APP"
+codesign --display --verbose=4 "$RUYCAST_APP"
+lipo -archs "$RUYCAST_APP/Contents/MacOS/RuycastApp"
+lipo -archs "$RUYCAST_APP/Contents/Resources/ruycast"
+ditto -c -k --keepParent "$RUYCAST_APP" "$RUYCAST_CANDIDATE/notary-upload.zip"
+xcrun notarytool submit "$RUYCAST_CANDIDATE/notary-upload.zip" \
+  --keychain-profile "$RUYCAST_NOTARY_PROFILE" --wait --output-format json \
+  > "$RUYCAST_CANDIDATE/notary-result.json"
+python3 - "$RUYCAST_CANDIDATE/notary-result.json" <<'PY'
+import json, sys
+result = json.load(open(sys.argv[1]))
+if result.get('status') != 'Accepted':
+    raise SystemExit('Notarization not accepted; inspect the submission log.')
+print(result['id'])
+PY
+# Download and inspect that submission's notarytool log, including warnings.
+xcrun stapler staple "$RUYCAST_APP"
+xcrun stapler validate "$RUYCAST_APP"
+spctl --assess --type execute --verbose=2 "$RUYCAST_APP"
+ditto -c -k --keepParent "$RUYCAST_APP" "$RUYCAST_CANDIDATE/Ruycast-macOS.zip"
+(cd "$RUYCAST_CANDIDATE" && shasum -a 256 Ruycast-macOS.zip > Ruycast-macOS.zip.sha256)
+python3 - "$RUYCAST_CANDIDATE" <<'PY'
+import hashlib, json, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+record = {'unsignedCandidate': json.loads((root/'candidate.json').read_text()),
+          'notarization': json.loads((root/'notary-result.json').read_text()),
+          'zipSHA256': hashlib.sha256((root/'Ruycast-macOS.zip').read_bytes()).hexdigest(),
+          'publicCommit': subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip(),
+          'signature': subprocess.check_output(['codesign','--display','--verbose=4',str(root/'Ruycast.app')], stderr=subprocess.STDOUT, text=True)}
+target = root/'release-receipt.json'
+with target.open('x') as output:
+    json.dump(record, output, indent=2)
+PY
+```
+
+The final ZIP must be created **after** stapling. Keep the separate final receipt with the source/build binding, signature, notarization ID and ZIP hash. The original upload ZIP and unsigned `candidate.json` are not release assets. Before retrying, use a fresh candidate instead of silently overwriting any ZIP or receipt. No signing/notarization command above has been validated with distribution credentials yet.
+
+### Required acceptance before publication
+
+Test the downloaded final ZIP on a clean Mac with Gatekeeper and quarantine intact, including an offline launch after stapling. Verify first launch, Accessibility/Input Monitoring enrollment, launcher/app activation, clipboard, snippets, window management and login startup with one silent instance. Record exact OS/architecture, signature/team, notarization ID, final checksum and test results. A successful `spctl` assessment on the build host alone is insufficient.
+
+Test upgrades with preexisting configuration/history and permissions. Preserve `nl.viggomeesters.ruycast` and the distribution team's designated requirement in subsequent releases. The first transition from a local certificate to Developer ID changes the signing requirement and may need one new permission enrollment; do not promise zero prompts. The source installer deliberately refuses an unexpected signing identity: it must not overwrite a distribution installation. Prepare and validate that transition separately before changing the maintainer's daily app.
+
+Only after all gates pass: finish the linked PR review, merge, publish versioned ZIP/checksum and matching source assets from that public commit, download them again, verify hashes/signature/stapling, and update the original issue/note. Until then keep issue #1 open and describe the current release as source-only. No GitHub Actions or updater is introduced.
