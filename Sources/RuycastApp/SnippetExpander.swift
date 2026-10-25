@@ -30,7 +30,8 @@ final class SnippetExpander {
         else if !state.windows.trusted {reason="Allow Accessibility to expand keywords"}
         else {reason=""}
         if !reason.isEmpty {stop();if state.expansionStatus != reason {state.expansionStatus=reason};return}
-        if tap != nil {if state.expansionStatus != "On" {state.expansionStatus="On"};return}
+        if let tap,CGEvent.tapIsEnabled(tap:tap) {if state.expansionStatus != "On" {state.expansionStatus="On"};return}
+        stop()
         let mask:CGEventMask=(1<<CGEventType.keyDown.rawValue)|(1<<CGEventType.leftMouseDown.rawValue)|(1<<CGEventType.rightMouseDown.rawValue)
         let callback:CGEventTapCallBack={_,type,event,context in
             guard let context else {return Unmanaged.passUnretained(event)}
@@ -44,7 +45,7 @@ final class SnippetExpander {
     private func handle(_ type:CGEventType,_ event:CGEvent)->Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {matcher.reset();if let tap {CGEvent.tapEnable(tap:tap,enable:true)};return Unmanaged.passUnretained(event)}
         if event.getIntegerValueField(.eventSourceUserData)==Self.generatedTag {return Unmanaged.passUnretained(event)}
-        guard type == .keyDown,let state,!state.paletteVisible,!IsSecureEventInputEnabled(),!event.flags.contains(.maskCommand),!event.flags.contains(.maskControl),!event.flags.contains(.maskAlternate),event.getIntegerValueField(.keyboardEventAutorepeat)==0,
+        guard type == .keyDown,let state,!state.paletteVisible,state.windows.trusted,!IsSecureEventInputEnabled(),!event.flags.contains(.maskCommand),!event.flags.contains(.maskControl),!event.flags.contains(.maskAlternate),event.getIntegerValueField(.keyboardEventAutorepeat)==0,
             let active=NSWorkspace.shared.frontmostApplication,active.processIdentifier != getpid(),!state.config.clipboard.excludedApps.contains(active.bundleIdentifier ?? ""),!secureField() else {matcher.reset();return Unmanaged.passUnretained(event)}
         if lastPID != active.processIdentifier {matcher.reset();lastPID=active.processIdentifier}
         let code=event.getIntegerValueField(.keyboardEventKeycode)
@@ -78,10 +79,17 @@ final class SnippetExpander {
     private static func key(_ code:CGKeyCode) {for down in [true,false] {let event=CGEvent(keyboardEventSource:nil,virtualKey:code,keyDown:down);event?.flags=[];event?.setIntegerValueField(.eventSourceUserData,value:generatedTag);event?.post(tap:.cghidEventTap)}}
     private func secureField()->Bool {
         var element:CFTypeRef?
-        let result=AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(),kAXFocusedUIElementAttribute as CFString,&element)
-        guard result == .success,let element,CFGetTypeID(element)==AXUIElementGetTypeID() else {return true}
-        var role:CFTypeRef?
-        AXUIElementCopyAttributeValue(unsafeBitCast(element,to:AXUIElement.self),kAXSubroleAttribute as CFString,&role)
-        return role as? String==kAXSecureTextFieldSubrole
+        let system=AXUIElementCreateSystemWide()
+        // A slow/unavailable AX implementation must not stall the event tap.
+        AXUIElementSetMessagingTimeout(system,0.01)
+        let result=AXUIElementCopyAttributeValue(system,kAXFocusedUIElementAttribute as CFString,&element)
+        guard AXIsProcessTrusted() else {return true}
+        var subrole:CFTypeRef?
+        if result == .success,let element,CFGetTypeID(element)==AXUIElementGetTypeID() {
+            let focused=unsafeBitCast(element,to:AXUIElement.self)
+            AXUIElementSetMessagingTimeout(focused,0.01)
+            AXUIElementCopyAttributeValue(focused,kAXSubroleAttribute as CFString,&subrole)
+        }
+        return !SnippetFocusPolicy.allowsExpansion(secureInput:IsSecureEventInputEnabled(),subrole:subrole as? String)
     }
 }
