@@ -25,3 +25,6 @@ cat "$directory/visual-assets.json"
 
 .build/swift/debug/RuycastApp --check-command-log > "$directory/command-log.json"
 cat "$directory/command-log.json"
+
+.build/swift/debug/RuycastApp --check-polish "$directory/polish" > "$directory/polish.json"
+cat "$directory/polish.json"

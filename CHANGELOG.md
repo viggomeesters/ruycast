@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — 2026-10-25 · Launcher polish
+
+- Enter one-field command input directly in the launcher; expand to a form when needed.
+- Choose System, Light, Dark or Graphite appearance and hide the menu bar icon.
+- New app and menu bar identity, with an attention indicator for runtime problems.
+- Larger clipboard previews, a quieter command editor and hourly Dashboard activity.
+- Open Settings, configuration and System Monitor from the launcher; assign Settings a shortcut.
+
 ## 0.6.3 — 2026-10-25 · First public source preview
 
 - Retain command errors locally with trace IDs, timings, provider details and original exit status.

@@ -18,11 +18,19 @@ struct CommandEditor:View {
     @State var form:CommandForm
     var onBack:(()->Void)?=nil
     @FocusState private var focused:Bool
+    @Environment(\.colorScheme) private var scheme
+    @State var advancedExpanded=false
+    private var theme:SettingsTheme {SettingsTheme(dark:(state.preferredColorScheme ?? scheme) == .dark,graphite:state.config.theme=="graphite")}
     var body:some View {
         VStack(alignment:.leading,spacing:16) {
-            HStack {Button {if let onBack {onBack()} else {state.form=nil}} label:{Label("Back",systemImage:"chevron.left")}.buttonStyle(.plain).disabled(state.busy);Spacer();Text(form.command.title).font(.headline);Spacer()}
+            HStack(spacing:12) {
+                Button {if let onBack {onBack()} else {state.form=nil}} label:{Label("Back",systemImage:"chevron.left")}
+                    .buttonStyle(.plain).foregroundStyle(theme.muted).disabled(state.busy)
+                Text(form.command.title).font(.system(size:16,weight:.semibold)).lineLimit(2)
+                Spacer()
+            }.padding(.bottom,4)
             ScrollView {
-                VStack(alignment:.leading,spacing:14) {
+                VStack(alignment:.leading,spacing:20) {
                     if form.isRun {
                         ForEach(Templates.fields(form.command)) {field in
                             VStack(alignment:.leading,spacing:5) {
@@ -38,42 +46,83 @@ struct CommandEditor:View {
                         }
                     } else {
                         if !form.bindingsOnly {
-                        field("Name",text:$form.command.title)
-                        if form.command.kind=="snippet" {
-                            Text("Text").font(.caption).foregroundStyle(.secondary)
-                            TextEditor(text:$form.command.target).font(.system(size:13)).frame(minHeight:130).border(Color.secondary.opacity(0.2))
-                            field("Keyword",text:Binding(get:{form.command.keyword ?? ""},set:{form.command.keyword=$0.isEmpty ? nil:$0}))
-                        } else {field(form.command.kind=="url" ? "Link":"Target",text:$form.command.target)}
-                        if form.command.kind=="url" || form.command.kind=="path" {
-                            Picker("Open with",selection:Binding(get:{form.command.applicationID ?? ""},set:{form.command.applicationID=$0.isEmpty ? nil:$0})) {
-                                Text("Default app").tag("")
-                                ForEach(state.applications) {app in Text(app.title).tag(app.target)}
-                            }
-                        }
-                        if form.command.kind=="script" {
-                            VStack(alignment:.leading,spacing:8) {
-                                HStack {Text("Arguments").font(.caption).foregroundStyle(.secondary);Spacer();Button("Add Argument") {form.command.arguments.append("")}.controlSize(.small)}
-                                ForEach(form.command.arguments.indices,id:\.self) {index in
-                                    HStack {
-                                        TextField("Argument",text:$form.command.arguments[index],axis:.vertical).textFieldStyle(.roundedBorder)
-                                        Button {form.command.arguments.remove(at:index)} label:{Image(systemName:"minus.circle")}.buttonStyle(.plain).help("Remove argument")
-                                    }
+                            field("Name",text:$form.command.title)
+                            if form.command.kind=="snippet" {
+                                VStack(alignment:.leading,spacing:7) {
+                                    fieldLabel("Text")
+                                    TextEditor(text:$form.command.target).font(.system(size:13))
+                                        .scrollContentBackground(.hidden).padding(8).frame(minHeight:150)
+                                        .background(theme.surface,in:RoundedRectangle(cornerRadius:7))
+                                        .overlay(RoundedRectangle(cornerRadius:7).strokeBorder(theme.ink.opacity(0.12)))
+                                        .accessibilityLabel("Text")
                                 }
-                                HStack {Text("Timeout").font(.caption).foregroundStyle(.secondary);TextField("Seconds",value:Binding(get:{form.command.timeout ?? 30},set:{form.command.timeout=$0}),format:.number).textFieldStyle(.roundedBorder).frame(width:80);Text("seconds").font(.caption).foregroundStyle(.secondary)}
+                                field("Keyword",text:Binding(get:{form.command.keyword ?? ""},set:{form.command.keyword=$0.isEmpty ? nil:$0}))
+                            } else if form.command.kind != "script" {
+                                field(destinationLabel,text:$form.command.target)
                             }
-                        }
+                            if form.command.kind=="url" || form.command.kind=="path" {
+                                VStack(alignment:.leading,spacing:7) {
+                                    fieldLabel("Open with")
+                                    Picker("Open with",selection:Binding(get:{form.command.applicationID ?? ""},set:{form.command.applicationID=$0.isEmpty ? nil:$0})) {
+                                        Text("Default app").tag("")
+                                        ForEach(state.applications) {app in Text(app.title).tag(app.target)}
+                                    }
+                                    .labelsHidden().frame(maxWidth:.infinity,alignment:.leading)
+                                }
+                            }
                         }
                         field("Aliases",text:Binding(get:{form.command.aliases.joined(separator:", ")},set:{form.command.aliases=$0.split(separator:",").map {$0.trimmingCharacters(in:.whitespaces)}.filter {!$0.isEmpty}}))
-                        HStack {Text("Shortcut").font(.caption).foregroundStyle(.secondary);Spacer();ShortcutRecorder(state:state,value:form.command.hotkey,onSave:{form.command.hotkey=$0}).frame(width:170,height:28)}
+                        HStack {fieldLabel("Shortcut");Spacer();ShortcutRecorder(state:state,value:form.command.hotkey,onSave:{form.command.hotkey=$0}).frame(width:170,height:28)}
                         if form.bindingsOnly {Toggle("Enabled",isOn:Binding(get:{form.command.isEnabled},set:{form.command.enabled=$0})).toggleStyle(.switch)}
+                        if !form.bindingsOnly && form.command.kind=="script" {
+                            Divider()
+                            DisclosureGroup("Advanced",isExpanded:$advancedExpanded) {
+                                VStack(alignment:.leading,spacing:18) {
+                                    field("Target",text:$form.command.target)
+                                    VStack(alignment:.leading,spacing:8) {
+                                        HStack {
+                                            fieldLabel("Arguments")
+                                            Spacer()
+                                            Button {form.command.arguments.append("")} label:{Label("Add Argument",systemImage:"plus")}.controlSize(.small)
+                                        }
+                                        ForEach(form.command.arguments.indices,id:\.self) {index in
+                                            HStack(spacing:10) {
+                                                TextField("Argument",text:$form.command.arguments[index],axis:.vertical).textFieldStyle(.roundedBorder)
+                                                    .accessibilityLabel("Argument \(index+1)")
+                                                Button {form.command.arguments.remove(at:index)} label:{Image(systemName:"minus.circle")}
+                                                    .buttonStyle(.plain).foregroundStyle(theme.muted)
+                                                    .help("Remove argument").accessibilityLabel("Remove argument \(index+1)")
+                                            }
+                                        }
+                                    }
+                                    HStack(spacing:10) {
+                                        fieldLabel("Timeout")
+                                        Spacer()
+                                        TextField("Seconds",value:Binding(get:{form.command.timeout ?? 30},set:{form.command.timeout=$0}),format:.number)
+                                            .textFieldStyle(.roundedBorder).frame(width:80).accessibilityLabel("Timeout in seconds")
+                                        Text("seconds").font(.caption).foregroundStyle(theme.muted)
+                                    }
+                                }.padding(.top,14).padding(.leading,4)
+                            }.font(.system(size:12,weight:.medium))
+                        }
                     }
-                }.padding(.vertical,6)
+                }.padding(.vertical,6).padding(.horizontal,2)
             }
             if !state.message.isEmpty {Text(state.message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)}
             HStack {if form.isRun && (form.command.id.hasPrefix("capture.") || form.command.target=="utility-set-text") {Text("⇧↵ New line").font(.caption).foregroundStyle(.secondary)};Spacer();if state.busy {ProgressView().controlSize(.small)};Button(form.isRun ? (form.command.id.hasPrefix("capture.") ? "Save":form.command.kind=="snippet" ? "Insert":form.command.kind=="url" ? "Open":"Run"):"Save") {submit()}.keyboardShortcut(.return,modifiers:.command).disabled(state.busy)}
-        }.padding(22).onAppear {focused = !["capture.quick-note","capture.quick-task"].contains(form.command.id)}.onSubmit {submit()}
+        }.padding(22).foregroundStyle(theme.ink).tint(theme.accent)
+            .onAppear {focused = !["capture.quick-note","capture.quick-task"].contains(form.command.id)}.onSubmit {submit()}
     }
-    private func field(_ label:String,text:Binding<String>)->some View {VStack(alignment:.leading,spacing:5) {Text(label).font(.caption).foregroundStyle(.secondary);TextField(label,text:text).textFieldStyle(.roundedBorder)}}
+    private var destinationLabel:String {
+        switch form.command.kind {
+        case "url":return "Website"
+        case "path":return "Folder"
+        case "app":return "Application"
+        default:return "Action"
+        }
+    }
+    private func fieldLabel(_ label:String)->some View {Text(label).font(.system(size:12,weight:.medium)).foregroundStyle(theme.muted)}
+    private func field(_ label:String,text:Binding<String>)->some View {VStack(alignment:.leading,spacing:7) {fieldLabel(label);TextField(label,text:text).textFieldStyle(.roundedBorder).accessibilityLabel(label)}}
     private func submit() {
         guard !state.busy else {return}
         state.message=""
@@ -87,6 +136,7 @@ struct CommandEditor:View {
 }
 extension AppState {
     var visibleCommands:[Command] {
+        if let inlineCommand {return [inlineCommand]}
         if mode=="processes" {return processOrder}
         switch mode {case "snippets":return results.filter {$0.kind=="snippet"};case "quicklinks":return results.filter {$0.kind=="url" || $0.kind=="path"};default:return results}
     }
@@ -102,11 +152,15 @@ extension AppState {
         if mode=="clipboard" {
             guard filteredClips.indices.contains(selection) else {return}
             do {try copyClip(filteredClips[selection].id,paste:true)} catch {message=error.localizedDescription}
-        } else if let cmd=selectedCommand {begin(cmd)}
+        } else if inlineCommand != nil {submitInlineInput()}
+        else if let cmd=selectedCommand {begin(cmd)}
     }
     func begin(_ command:Command,source:String="launcher") {
         actionsOpen=false;message=""
-        if !Templates.fields(command).isEmpty {form=CommandForm(command:command,isRun:true,source:source)}
+        if inlineCommand?.id==command.id {submitInlineInput();return}
+        let fields=Templates.fields(command)
+        if fields.count==1,let field=fields.first,field.options.isEmpty,["launcher","hotkey"].contains(source) {inlineSource=source;selection=0;inlineCommand=command;inlineInput=field.defaultValue;restoreSearchFocus?()}
+        else if !fields.isEmpty {form=CommandForm(command:command,isRun:true,source:source)}
         else {perform(command.id,source:source)}
     }
     func newCommand(_ kind:String) {
@@ -165,8 +219,8 @@ func ruycastCLI()->URL {
 
 extension AppState {
     var systemCommands:[Command] {
-        var builtins=[Command(id:"builtin.settings",title:"Ruycast Settings",kind:"builtin",target:"settings",aliases:["settings","preferences","manage","beheer","instellingen"]),Command(id:"builtin.dashboard",title:"Ruycast Dashboard",kind:"builtin",target:"analytics",aliases:["analytics","dashboard","activity"])]
-        builtins.removeAll {candidate in config.commands.contains {$0.id==candidate.id}}
+        var builtins=[Command(id:"builtin.settings",title:"Ruycast Settings",kind:"builtin",target:"settings",aliases:["settings","preferences","manage","beheer","instellingen"]),Command(id:"builtin.dashboard",title:"Ruycast Dashboard",kind:"builtin",target:"analytics",aliases:["analytics","dashboard","activity"]),Command(id:"builtin.open-config",title:"Open Configuration",kind:"builtin",target:"open-config",aliases:["open-config"]),Command(id:"builtin.reload-config",title:"Reload Configuration",kind:"builtin",target:"reload-config",aliases:["reload-config"]),Command(id:"builtin.system-monitor",title:"System Monitor",kind:"builtin",target:"system-monitor",aliases:["system-monitor"])]
+        builtins.removeAll {candidate in config.commands.contains {$0.id==candidate.id || ($0.kind=="builtin" && $0.target==candidate.target)}}
         return builtins
     }
     func resolveCommand(_ id:String)->Command? {

@@ -1,6 +1,6 @@
 # Local analytics
 
-Open **Ruycast Dashboard** from the launcher, menu bar or the Dashboard tab in Settings. It shows command uses, successes/failures, recent daily activity, command latency and recent errors. All records stay in the local profile, in `analytics.json` (0600), with no telemetry service.
+Open **Ruycast Dashboard** from the launcher or the Dashboard tab in Settings. It shows command uses, successes/failures, hourly and daily activity, command latency and recent errors. All records stay in the local profile, in `analytics.json` (0600), with no telemetry service.
 
 ```sh
 ruycast analytics                         # local command-level data
@@ -35,3 +35,7 @@ The diagnostic export omits command IDs, titles, dates of individual events, pro
 ## Development checks
 
 `RuycastApp --check-analytics OUTPUT` checks concurrent aggregation, import-once, limits, pause/in-flight behavior, retention, corrupt/overflow files, private file permissions, real script/CLI instrumentation, payload exclusion, reset isolation and four native light/dark/minimum-width renders. It uses an isolated profile and never injects desktop input.
+
+## Hourly activity
+
+The last 24 hours use UTC hour buckets with local time labels, including repeated daylight-saving hours. An action outcome is counted in the hour its attempt began. Existing schema-1 totals migrate without changes; hourly recording starts at migration, and earlier hours remain unavailable. Hourly buckets follow the configured retention period and are capped at 2,161 entries. They are excluded from summary exports.

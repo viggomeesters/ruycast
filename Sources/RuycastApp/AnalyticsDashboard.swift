@@ -20,6 +20,9 @@ struct AnalyticsDashboard:View {
                     stat("Successful",String(d.totalSuccesses+d.priorSuccesses))
                     stat("Failed",String(d.totalFailures))
                 }
+                TimelineView(.periodic(from:.now,by:60)) {context in
+                    hourlyChart(now:context.date)
+                }
                 if !d.days.isEmpty {
                     VStack(alignment:.leading,spacing:12) {
                         Text("Recorded daily activity").font(.headline)
@@ -69,6 +72,42 @@ struct AnalyticsDashboard:View {
             Button("Reset Analytics",role:.destructive) {store.reset();store.flush()}
             Button("Cancel",role:.cancel) {}
         } message:{Text("Deletes analytics only. Commands and clipboard history are kept.")}
+    }
+    private func hourlyChart(now:Date)->some View {
+        let document=d,points=document.hourlyActivity(now:now)
+        let start=points.first!.date,end=points.last!.date.addingTimeInterval(3600)
+        return VStack(alignment:.leading,spacing:12) {
+            HStack {
+                Text("Last 24 hours").font(.headline)
+                Spacer()
+                Text("\(points.compactMap { $0.activity?.uses }.reduce(0,+)) uses").font(.caption).foregroundStyle(theme.muted).monospacedDigit()
+            }
+            Chart(points) {point in
+                if let activity=point.activity {
+                    BarMark(x:.value("Hour",point.date),y:.value("Uses",activity.uses),width:.ratio(0.72))
+                        .foregroundStyle(theme.accent)
+                        .accessibilityLabel(Text(hourDescription(point.date)))
+                        .accessibilityValue(Text("\(activity.uses) uses"))
+                }
+            }
+            .chartXScale(domain:start...end)
+            .chartXAxis {AxisMarks(values:.stride(by:.hour,count:4)) {value in
+                AxisGridLine();AxisTick();AxisValueLabel(format:.dateTime.hour().minute())
+            }}
+            .chartYAxis {AxisMarks(position:.leading,values:.automatic(desiredCount:4))}
+            .frame(height:150)
+            HStack(alignment:.top) {
+                Text("Per hour · current hour included").font(.caption).foregroundStyle(theme.muted)
+                Spacer()
+                if let started=document.hourlyStartedAt,started>start {
+                    Text("Recording since \(started.formatted(date:.abbreviated,time:.shortened))").font(.caption).foregroundStyle(theme.muted)
+                }
+            }
+        }.padding(16).background(theme.surface,in:RoundedRectangle(cornerRadius:9))
+    }
+    private func hourDescription(_ date:Date)->String {
+        let formatter=DateFormatter();formatter.locale=Locale.current;formatter.dateFormat="MMM d, HH:mm z"
+        return formatter.string(from:date)
     }
     private var dayKeys:[String] {
         let calendar=Calendar.current,today=calendar.startOfDay(for:Date()),start=calendar.startOfDay(for:d.startedAt)

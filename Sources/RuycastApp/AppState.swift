@@ -11,8 +11,8 @@ final class AppState:ObservableObject {
     let headless:Bool
     @Published var config:Configuration {didSet {rebuildCatalog()}}
     @Published var clips:[Clip]=[] {didSet {clipboardWork.invalidate();refreshClips(preserveSelection:paletteVisible)}}
-    @Published var query="" {didSet {if query != oldValue {refreshResults();refreshClips()}}}
-    @Published var mode="commands" {didSet {if mode != oldValue {query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips()}}}
+    @Published var query="" {didSet {if query != oldValue {captureInlineQuery();refreshResults();refreshClips()}}}
+    @Published var mode="commands" {didSet {if mode != oldValue {inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips()}}}
     @Published var selection=0
     @Published var actionSelection=0
     @Published var pendingRemoval:Command?
@@ -21,6 +21,9 @@ final class AppState:ObservableObject {
         if actionsOpen && !oldValue {actionSelection=0}
         if !actionsOpen && oldValue {restoreSearchFocus?()}
     }}
+    @Published var inlineCommand:Command?
+    var inlineSource="launcher"
+    @Published var inlineInput=""
     @Published var form:CommandForm?
     @Published var confirmationCommand:Command?
     let commandLog:CommandLog
@@ -372,6 +375,8 @@ final class AppState:ObservableObject {
                 } else {guard NSWorkspace.shared.open(url) else {throw LauncherError("macOS could not open \(cmd.title).")};finish(["ok":true,"result":["command":cmd.id,"state":"opened"]])}
             case "window": let f=try windows.move(cmd.target,pid:targetPID());finish(["ok":true,"result":jsonValue(f)])
             case "builtin":
+                if cmd.target=="reload-config" {try reload();showToast?("Configuration reloaded",true);finish(["ok":true,"result":["state":"reloaded"]]);return}
+                if cmd.target=="open-config" {guard !headless else {throw LauncherError("Open Configuration requires the app interface.")};NSWorkspace.shared.open(configURL);finish(["ok":true,"result":["state":"opened"]]);return}
                 if cmd.target.hasPrefix("utility-") || cmd.target.hasPrefix("utility.history:") {
                     if cmd.target.hasSuffix("history") {showPalette?(cmd.target);finish(["ok":true]);return}
                     switch try utilities.execute(target:cmd.target,input:values["input"]) {
@@ -464,7 +469,8 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                let status:[String:Any]=["version":"0.6.3","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.7.0","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":
                 let query=req["query"] as? String ?? "",scope=req["mode"] as? String ?? "commands"

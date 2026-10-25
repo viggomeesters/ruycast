@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Combine
 import LauncherCore
 
 func defaultProfilePath()->String {NSString(string:"~/.config/ruycast").expandingTildeInPath}
@@ -7,6 +8,12 @@ let args=Array(CommandLine.arguments.dropFirst())
 let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["RUYCAST_HOME"] ?? ProcessInfo.processInfo.environment["RUSTCAST_HOME"] ?? defaultProfilePath())
 func output(_ value:[String:Any]) {if let data=try? JSONSerialization.data(withJSONObject:value,options:[.sortedKeys]),let s=String(data:data,encoding:.utf8) {print(s)}}
 
+if args.first=="--check-polish" {
+    do {guard args.count==2 else {throw LauncherError("Expected output directory")};output(try checkLauncherPolish(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
+}
+if args.first=="--render-brand" {
+    do {guard args.count==2 else {throw LauncherError("Expected output directory")};output(try renderBrandAssets(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
+}
 if args.first=="--render-public" {
     do {guard args.count==2 else {throw LauncherError("Expected assets directory")};output(try renderPublicPreview(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
@@ -127,6 +134,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
     var management:ManagementController?
     var monitor:SystemMonitorController?
     var statusItem:NSStatusItem?
+    var subscriptions:Set<AnyCancellable>=[]
     func applicationDidFinishLaunching(_ notification:Notification) {
         do {
             // Claim the profile before starting any observers or clipboard work.
@@ -138,14 +146,27 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
                 palette=PaletteController(state:s)
                 management=ManagementController(state:s)
                 monitor=SystemMonitorController(state:s)
-                let item=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength)
-                item.button?.image=NSImage(systemSymbolName:"command",accessibilityDescription:"Ruycast")
-                item.button?.image?.isTemplate=true;item.button?.toolTip="Ruycast";statusItem=item
-                let menu=NSMenu()
-                for (title,action) in [("Open Launcher",#selector(openLauncher)),("Clipboard History",#selector(openClipboard)),("Dashboard",#selector(openDashboard)),("Settings…",#selector(openSettings)),("System Monitor",#selector(openMonitor)),("Open Configuration",#selector(openConfig)),("Reload Configuration",#selector(reload)),("Quit",#selector(quit))] {let mi=NSMenuItem(title:title,action:action,keyEquivalent:"");mi.target=self;menu.addItem(mi)}
-                item.menu=menu
+                updateMenuBar()
+                s.$config.receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
+                s.$configError.combineLatest(s.$clipboardCleanupError).receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
+                for name in [NSWorkspace.didLaunchApplicationNotification,NSWorkspace.didTerminateApplicationNotification] {NSWorkspace.shared.notificationCenter.publisher(for:name).receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)}
+                s.analytics.objectWillChange.debounce(for:.seconds(2),scheduler:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
+
             }
         } catch {fputs(error.localizedDescription+"\n",stderr);NSApp.terminate(nil)}
+    }
+    func updateMenuBar() {
+        guard let state else {return}
+        guard state.config.menuBarVisible ?? true else {if let statusItem {NSStatusBar.system.removeStatusItem(statusItem)};statusItem=nil;return}
+        if statusItem==nil {
+            let item=NSStatusBar.system.statusItem(withLength:NSStatusItem.squareLength),menu=NSMenu()
+            for (title,action) in [("Open Launcher",#selector(openLauncher)),("Settings…",#selector(openSettings)),("Quit",#selector(quit))] {let row=NSMenuItem(title:title,action:action,keyEquivalent:"");row.target=self;menu.addItem(row)}
+            item.menu=menu;statusItem=item
+        }
+        let healthy=state.runtimeHealthy
+        statusItem?.button?.image=AppBrand.menuIcon(healthy:healthy)
+        statusItem?.button?.toolTip=healthy ? "Ruycast · Running":"Ruycast · Needs attention"
+        statusItem?.button?.setAccessibilityLabel(healthy ? "Ruycast, running":"Ruycast, needs attention")
     }
     @objc func openLauncher() {palette?.show("commands")}
     @objc func openClipboard() {palette?.show("clipboard")}

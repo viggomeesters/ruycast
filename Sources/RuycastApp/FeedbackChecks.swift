@@ -22,7 +22,7 @@ func checkFeedback(_ outputPath:String) throws -> [String:Any] {
     let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     func capture(_ name:String) throws {pump();host.layoutSubtreeIfNeeded();guard let bitmap=host.bitmapImageRepForCachingDisplay(in:host.bounds) else {throw LauncherError("No feedback preview")};host.cacheDisplay(in:host.bounds,to:bitmap);try bitmap.representation(using:.png,properties:[:])!.write(to:directory.appendingPathComponent(name+".png"))}
     for id in ["capture.quick-note","capture.quick-task"] {
-        state.begin(state.config.commands.first {$0.id==id}!);pump();host.layoutSubtreeIfNeeded()
+        state.begin(state.config.commands.first {$0.id==id}!);try require(state.inlineCommand?.id==id && state.form==nil,"Capture did not start inline");state.expandInlineInput();pump();host.layoutSubtreeIfNeeded()
         guard let editor=input(host) else {throw LauncherError("Quick capture did not render multiline editor")}
         try require(window.firstResponder===editor,"Quick capture editor did not acquire native focus")
         editor.insertText("First line",replacementRange:editor.selectedRange());editor.keyDown(with:NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.shift,timestamp:0,windowNumber:window.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!);editor.insertText("Second line Ω",replacementRange:editor.selectedRange())

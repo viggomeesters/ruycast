@@ -5,7 +5,8 @@ import LauncherCore
 // Shared native palette for the launcher’s management surfaces. Settings remains a dense work surface.
 struct SettingsTheme {
     let dark:Bool
-    var background:Color {dark ? Color(red:0.10,green:0.12,blue:0.17):Color(red:0.98,green:0.97,blue:0.94)}
+    var graphite=false
+    var background:Color {graphite ? Color(white:0.15):dark ? Color(red:0.10,green:0.12,blue:0.17):Color(red:0.98,green:0.97,blue:0.94)}
     var ink:Color {dark ? Color(red:0.96,green:0.95,blue:0.91):Color(red:0.18,green:0.20,blue:0.25)}
     var muted:Color {dark ? Color(red:0.68,green:0.71,blue:0.77):Color(red:0.42,green:0.44,blue:0.48)}
     var surface:Color {ink.opacity(dark ? 0.045:0.035)}
@@ -53,8 +54,8 @@ struct ManagementView:View {
     @Environment(\.colorScheme) private var scheme
     @State private var pendingRemove:Command?
     @State private var confirmRemove=false
-    private var theme:SettingsTheme {SettingsTheme(dark:scheme == .dark)}
-    private var commands:[Command] {navigation.commands(in:state.config)}
+    private var theme:SettingsTheme {SettingsTheme(dark:(state.preferredColorScheme ?? scheme) == .dark,graphite:state.config.theme=="graphite")}
+    private var commands:[Command] {var catalog=state.config;catalog.commands += state.systemCommands;return navigation.commands(in:catalog)}
     var body:some View {
         VStack(spacing:0) {
             HStack(spacing:4) {
@@ -85,7 +86,7 @@ struct ManagementView:View {
             if let error=state.configError {feedback(error)}
             if let error=state.clipboardCleanupError {feedback(error)}
             if !state.message.isEmpty {feedback(state.message)}
-        }.frame(minWidth:680,minHeight:480).foregroundStyle(theme.ink).tint(theme.accent).background(theme.background)
+        }.environment(\.colorScheme,state.preferredColorScheme ?? scheme).preferredColorScheme(state.preferredColorScheme).frame(minWidth:680,minHeight:480).foregroundStyle(theme.ink).tint(theme.accent).background(theme.background)
             .confirmationDialog("Remove \(pendingRemove?.title ?? "command")?",isPresented:$confirmRemove) {
                 Button("Remove",role:.destructive) {if let command=pendingRemove {state.saveCommand(command,remove:true);pendingRemove=nil}}
                 Button("Cancel",role:.cancel) {pendingRemove=nil}
@@ -149,6 +150,8 @@ struct ManagementView:View {
             preferenceRow("Open Launcher") {ShortcutRecorder(state:state,value:state.config.launcherHotkey,onSave:{if let value=$0 {state.setSetting("launcherHotkey",jsonString(value))}}).frame(width:180,height:28)}
             preferenceRow("Clipboard History") {ShortcutRecorder(state:state,value:state.config.clipboardHotkey,onSave:{if let value=$0 {state.setSetting("clipboardHotkey",jsonString(value))}}).frame(width:180,height:28)}
             preferenceRow("Caps Lock as Hyper") {Toggle("Caps Lock as Hyper",isOn:Binding(get:{state.config.hyperKeyEnabled==true},set:state.setHyperEnabled)).labelsHidden().toggleStyle(.switch)}
+            preferenceRow("Theme") {Picker("Theme",selection:Binding(get:{state.config.theme ?? "system"},set:{state.setSetting("theme",jsonString($0))})) {Text("System").tag("system");Text("Light").tag("light");Text("Dark").tag("dark");Text("Graphite").tag("graphite")}.labelsHidden().frame(width:180)}
+            preferenceRow("Menu Bar Icon") {Toggle("Show menu bar icon",isOn:Binding(get:{state.config.menuBarVisible ?? true},set:{state.setPreference("menuBarVisible",$0)})).labelsHidden().toggleStyle(.switch)}
             permissionNotice
         }
     }
@@ -163,7 +166,7 @@ struct ManagementView:View {
             preferenceRow("Configuration Folder") {VStack(alignment:.trailing,spacing:6) {Text(state.configDirectory.path).font(.caption).foregroundStyle(theme.muted).lineLimit(2).truncationMode(.middle).textSelection(.enabled);Button("Choose Folder…",action:state.chooseConfigurationDirectory)}}
             preferenceRow("Reload") {Button("Reload Configuration") {do {try state.reload();state.message="";state.showToast?("Configuration reloaded",true)} catch {state.message=error.localizedDescription}}}
             preferenceRow("Permissions") {Button("Accessibility…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)}}
-            preferenceRow("Version") {Text("Ruycast 0.6.3").foregroundStyle(theme.muted)}
+            preferenceRow("Version") {Text("Ruycast 0.7.0").foregroundStyle(theme.muted)}
         }
     }
     private func preferences<Content:View>(_ title:String,@ViewBuilder content:()->Content)->some View {
@@ -244,7 +247,7 @@ final class ManagementController:NSObject,NSWindowDelegate {
         super.init()
         window.title="Ruycast Settings";window.minSize=NSSize(width:680,height:480)
         window.isReleasedWhenClosed=false;window.delegate=self
-        window.contentView=NSHostingView(rootView:ManagementView(state:state,navigation:navigation))
+        window.contentView=NSHostingView(rootView:ManagementView(state:state,navigation:navigation).preferredColorScheme(state.preferredColorScheme))
         state.showManagement={ [weak self] in self?.show() }
         state.showAnalytics={ [weak self] in self?.navigation.select(.dashboard);self?.state.analytics.flush();self?.show()}
     }

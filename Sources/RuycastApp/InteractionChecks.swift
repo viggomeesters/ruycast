@@ -34,7 +34,7 @@ func checkInteractions() throws -> [String:Any] {
     panel.actions={state.actionsOpen.toggle()}
     let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.command,timestamp:0,windowNumber:panel.windowNumber,context:nil,characters:"k",charactersIgnoringModifiers:"k",isARepeat:false,keyCode:40)!
     guard panel.performKeyEquivalent(with:event),state.actionsOpen else {throw LauncherError("Command K did not open actions.")}
-    state.query="quick note";state.begin(state.selectedCommand!)
+    state.query="quick note";state.begin(state.selectedCommand!);state.expandInlineInput()
     guard state.form?.command.id=="capture.quick-note",state.form?.isRun==true else {throw LauncherError("Quick Note did not request input.")}
     state.form=nil;state.newCommand("url")
     guard state.form?.isNew==true,state.form?.command.kind=="url" else {throw LauncherError("Quicklink editor did not open.")}
