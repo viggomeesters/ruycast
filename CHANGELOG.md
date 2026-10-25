@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3 — 2026-10-25 · Command-side shortcuts
+
+- Bind left and right Command independently, record and display their side, and keep generic Command shortcuts through “Use Either Command”.
+
 ## 0.7.2 — 2026-10-25 · Native lifecycle stability
 
 - Keep command and clipboard hosting views attached across mode changes to avoid growing AppKit dependency bookkeeping.

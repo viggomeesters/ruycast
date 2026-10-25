@@ -20,11 +20,13 @@ final class HyperKey {
     private var state=KeyboardState()
     private var hyperEnabled=false
     private var bindings:[UInt32:String]=[:]
+    private var commandBindings:[String:String]=[:]
+    private var commandFilter=CommandShortcutFilter()
     private var sleeping=false
     private(set) var status="Off"
     var onAction:((String)->Void)?
     var hyperStatus:String {hyperEnabled ? status:"Off"}
-    var modifierStatus:String {bindings.isEmpty ? "Off":status}
+    var modifierStatus:String {bindings.isEmpty && commandBindings.isEmpty ? "Off":status}
     init() {
         let center=NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.willSleepNotification,NSWorkspace.sessionDidResignActiveNotification] {
@@ -36,10 +38,18 @@ final class HyperKey {
         timer=Timer.scheduledTimer(withTimeInterval:2,repeats:true) {[weak self] _ in self?.refresh()}
     }
     deinit {timer?.invalidate();for observer in observers {NSWorkspace.shared.notificationCenter.removeObserver(observer)};stop()}
-    func update(hyper:Bool,bindings:[UInt32:String]) {if hyperEnabled != hyper || self.bindings != bindings {stop()};hyperEnabled=hyper;self.bindings=bindings;refresh()}
+    func update(hyper:Bool,bindings:[UInt32:String],commandBindings:[String:String]=[:]) {
+        if hyperEnabled != hyper || self.bindings != bindings || self.commandBindings != commandBindings {stop()}
+        hyperEnabled=hyper;self.bindings=bindings;self.commandBindings=commandBindings
+        commandFilter.bindings=commandBindings.compactMap {key,action in
+            guard let shortcut=try? Shortcut(key) else {return nil}
+            return CommandShortcutFilter.Binding(shortcut:shortcut,action:action)
+        }
+        refresh()
+    }
     func refresh() {
         let reason:String
-        if !hyperEnabled && bindings.isEmpty {reason="Off"}
+        if !hyperEnabled && bindings.isEmpty && commandBindings.isEmpty {reason="Off"}
         else if sleeping {reason="Paused"}
         else if !NSRunningApplication.runningApplications(withBundleIdentifier:"com.raycast.macos").isEmpty {reason="Quit Raycast to use keyboard shortcuts"}
         else if IsSecureEventInputEnabled() {reason="Paused during secure input"}
@@ -155,11 +165,18 @@ final class HyperKey {
             // right-Command remapping. Only add Hyper while physically held.
             event.flags=Self.rewrittenFlags(event.flags,held:state.capsHeld)
         }
-        return Unmanaged.passUnretained(event)
+        let result=commandFilter.handle(type,key:UInt16(event.getIntegerValueField(.keyboardEventKeycode)),flags:event.flags,repeatKey:event.getIntegerValueField(.keyboardEventAutorepeat) != 0)
+        if let action=result.action {
+            DispatchQueue.main.async {[weak self] in
+                guard let self,self.status=="On",!IsSecureEventInputEnabled(),self.commandBindings.values.contains(action) else {return}
+                self.onAction?(action)
+            }
+        }
+        return result.consumed ? nil:Unmanaged.passUnretained(event)
     }
     func stop() {
         let was=state.capsHeld,physical=physicalModifiers
-        state.reset()
+        state.reset();commandFilter.reset()
         if was && hyperEnabled {emitModifiers(flags:physical)}
         if let manager {IOHIDManagerClose(manager,0);IOHIDManagerUnscheduleFromRunLoop(manager,CFRunLoopGetMain(),CFRunLoopMode.commonModes.rawValue)}
         manager=nil
@@ -170,5 +187,37 @@ final class HyperKey {
             _=IOHIDSetModifierLockState(capsConnection,Int32(kIOHIDCapsLockState),originalCaps)
             IOServiceClose(capsConnection);capsConnection=0
         }
+    }
+}
+
+/// Session event flags contain Apple's device-specific Command bits. Match them
+/// here before Carbon dispatch; never rewrite flags on unmatched keystrokes.
+struct CommandShortcutFilter {
+    static let leftMask=UInt64(NX_DEVICELCMDKEYMASK),rightMask=UInt64(NX_DEVICERCMDKEYMASK)
+    struct Binding {
+        let key:UInt16
+        let flags:CGEventFlags
+        let side:UInt64
+        let action:String
+        init(shortcut:Shortcut,action:String) {
+            key=UInt16(Shortcut.keyCodes[shortcut.key]!)
+            side=shortcut.commandSide=="right-cmd" ? CommandShortcutFilter.rightMask:CommandShortcutFilter.leftMask
+            var value:CGEventFlags=[.maskCommand]
+            for (name,flag) in [("ctrl",CGEventFlags.maskControl),("alt",.maskAlternate),("shift",.maskShift)] where shortcut.modifiers.contains(name) {value.insert(flag)}
+            flags=value;self.action=action
+        }
+    }
+    var bindings:[Binding]=[]
+    private var swallowed=Set<UInt16>()
+    mutating func reset() {swallowed.removeAll()}
+    mutating func handle(_ type:CGEventType,key:UInt16,flags:CGEventFlags,repeatKey:Bool=false)->(consumed:Bool,action:String?) {
+        if type == .keyUp {return (swallowed.remove(key) != nil,nil)}
+        guard type == .keyDown else {return (false,nil)}
+        if swallowed.contains(key) {return (true,nil)}
+        let side=flags.rawValue & (Self.leftMask | Self.rightMask)
+        let modifiers=flags.intersection([.maskCommand,.maskControl,.maskAlternate,.maskShift,.maskSecondaryFn])
+        guard !repeatKey,let binding=bindings.first(where:{$0.key==key && $0.side==side && $0.flags==modifiers}) else {return (false,nil)}
+        swallowed.insert(key)
+        return (true,binding.action)
     }
 }

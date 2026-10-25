@@ -85,3 +85,21 @@ Search Settings, Open Configuration, Reload Configuration or System Monitor in t
 Commands with one free-text input stay in the launcher: select one and press Return or Tab, or type its exact alias followed by a space and input. Return runs it; Escape returns to search. Shift–Return or Actions → Expand Input opens the larger editor and preserves the text. Commands with multiple fields or options retain their forms. Technical script fields are under Advanced when editing a command.
 
 Missing focused-field accessibility metadata (for example in Electron or web-backed editors) does not by itself disable snippets. OS secure input and recognized password fields still block expansion; Accessibility permission and excluded-app settings remain required. Unknown fields cannot provide the extra password-subrole check, so use excluded apps for editors that do not expose their password fields or enable macOS secure input.
+
+## Left and right Command
+
+Use `right-cmd+s` or `left-cmd+s` to bind the two Command keys independently.
+In Settings, record a shortcut while holding the desired Command key. Its
+badge shows `R⌘` or `L⌘`. Right-click a recorded sided shortcut and choose
+**Use Either Command** for a generic binding. Hyper recording stays generic.
+
+Existing `cmd+s` bindings accept either Command key. A matching sided shortcut
+takes priority over a generic binding for the same key. Unbound keys keep their
+normal behavior. Both Command keys together do not match a single-side binding;
+key repeat launches the app once per press. Extra modifiers must match exactly.
+
+Sided shortcuts require Accessibility and Input Monitoring; keyboard status
+appears in Settings. They pause during secure input and while Raycast is running.
+Quit another shortcut manager (such as rcmd) before using overlapping bindings.
+Configure and test your replacement bindings before removing it. Ruycast opens
+or activates configured apps; it does not import rcmd bindings or assign letters.

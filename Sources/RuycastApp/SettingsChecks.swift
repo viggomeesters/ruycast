@@ -45,6 +45,33 @@ func checkSettings(_ outputPath:String) throws -> [String:Any] {
     try require(state.config.commands[0].hotkey==nil,"Delete did not clear recorded shortcut.")
     button.beginRecording();try require(button.performKeyEquivalent(with:event(40,.command)),"Command key equivalent escaped recorder.");try wait()
     try require(state.config.commands[0].hotkey=="cmd+k","Command shortcut did not persist.")
+    // Drive the production recorder and filter without posting global input.
+    for (mask,binding) in [(CommandShortcutFilter.rightMask,"right-cmd+k"),(CommandShortcutFilter.leftMask,"left-cmd+k")] {
+        button.beginRecording()
+        button.keyDown(with:event(40,NSEvent.ModifierFlags(rawValue:NSEvent.ModifierFlags.command.rawValue | UInt(mask))))
+        try wait()
+        try require(state.config.commands[0].hotkey==binding,"Command side was lost during save/reload.")
+    }
+    button.configure("right-cmd+k");button.useEitherCommand();try wait()
+    try require(state.config.commands[0].hotkey=="cmd+k","Either Command action did not preserve a generic shortcut.")
+    var filter=CommandShortcutFilter()
+    filter.bindings=try [("right-cmd+k","right"),("left-cmd+k","left"),("shift+right-cmd+k","shifted")].map {CommandShortcutFilter.Binding(shortcut:try Shortcut($0.0),action:$0.1)}
+    let right=CGEventFlags(rawValue:CGEventFlags.maskCommand.rawValue | CommandShortcutFilter.rightMask)
+    let left=CGEventFlags(rawValue:CGEventFlags.maskCommand.rawValue | CommandShortcutFilter.leftMask)
+    try require(filter.handle(.keyDown,key:40,flags:right).action=="right","Right Command did not route.")
+    try require(filter.handle(.keyDown,key:40,flags:right,repeatKey:true).action==nil,"Repeat launched the app again.")
+    try require(filter.handle(.keyUp,key:40,flags:[]).consumed,"Key release leaked after Command release.")
+    try require(filter.handle(.keyDown,key:40,flags:left).action=="left","Left Command did not route separately.")
+    _=filter.handle(.keyUp,key:40,flags:left)
+    try require(!filter.handle(.keyDown,key:40,flags:.maskCommand).consumed,"Generic Command was captured.")
+    try require(!filter.handle(.keyDown,key:40,flags:right.union(left)).consumed,"Both Command keys matched a single-side shortcut.")
+    try require(!filter.handle(.keyDown,key:41,flags:right).consumed,"Unbound key was swallowed.")
+    try require(!filter.handle(.keyDown,key:40,flags:right.union(.maskAlternate)).consumed,"Extra modifier matched.")
+    try require(filter.handle(.keyDown,key:40,flags:right.union(.maskShift)).action=="shifted","Additional modifier binding failed.")
+    filter.reset()
+    try require(!filter.handle(.keyUp,key:40,flags:[]).consumed,"Stopped filter retained key state.")
+    filter.bindings=[]
+    try require(!filter.handle(.keyDown,key:40,flags:right).consumed,"Disabled bindings remained active.")
     var changed=state.config.commands[0];changed.aliases=["myfinder","files-home"];changed.enabled=false
     state.saveCommand(changed);try wait()
     try require(!state.searchCommands("myfinder").contains(where:{$0.id==changed.id}) && nav.commands(in:state.config).contains(changed),"Disabled command disappeared from Settings or remained in launcher.")

@@ -39,7 +39,13 @@ final class ShortcutRecordButton:NSButton {
     }
     static func shortcut(for event:NSEvent)->String? {
         let mods:[(NSEvent.ModifierFlags,String)]=[(.control,"ctrl"),(.option,"alt"),(.shift,"shift"),(.command,"cmd")]
-        let names=mods.filter {event.modifierFlags.contains($0.0)}.map(\.1)
+        var names=mods.filter {event.modifierFlags.contains($0.0)}.map(\.1)
+        let side=event.modifierFlags.rawValue & UInt(CommandShortcutFilter.leftMask | CommandShortcutFilter.rightMask)
+        // Keep the existing compact Hyper binding when all four modifiers are held.
+        if names.count != 4,let index=names.firstIndex(of:"cmd") {
+            if side==CommandShortcutFilter.rightMask {names[index]="right-cmd"}
+            else if side==CommandShortcutFilter.leftMask {names[index]="left-cmd"}
+        }
         guard !names.isEmpty,let key=Shortcut.keyCodes.filter({!["left-control","left-option","backspace"].contains($0.key)}).first(where:{$0.value==UInt32(event.keyCode)})?.key else {return nil}
         return names.joined(separator:"+")+"+"+key
     }
@@ -50,6 +56,16 @@ final class ShortcutRecordButton:NSButton {
         if event.keyCode==51,event.modifierFlags.intersection([.control,.option,.shift,.command]).isEmpty {end();save?(nil);return}
         guard let value=Self.shortcut(for:event) else {NSSound.beep();return}
         end();save?(value)
+    }
+    override func menu(for event:NSEvent)->NSMenu? {
+        guard !recording,let value,(try? Shortcut(value).commandSide) != nil else {return nil}
+        let menu=NSMenu()
+        let item=NSMenuItem(title:"Use Either Command",action:#selector(useEitherCommand),keyEquivalent:"")
+        item.target=self;menu.addItem(item);return menu
+    }
+    @objc func useEitherCommand() {
+        guard !recording,let value,let shortcut=try? Shortcut(value),let side=shortcut.commandSide else {return}
+        save?(value.replacingOccurrences(of:side,with:"cmd"))
     }
     override func flagsChanged(with event:NSEvent) {
         guard recording else {super.flagsChanged(with:event);return}

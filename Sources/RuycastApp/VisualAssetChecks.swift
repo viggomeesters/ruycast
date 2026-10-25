@@ -9,6 +9,8 @@ func checkVisualAssets() throws -> [String:Any] {
     try require(ShortcutPresentation("cmd+alt+n").keys==["⌥","⌘","N"],"Modifier order or glyphs changed.")
     try require(ShortcutPresentation("ctrl+left-control").keys==["⌃"],"Solo modifier is duplicated.")
     try require(ShortcutPresentation("ctrl+alt+delete").keys==["⌃","⌥","⌫"],"Delete key is unreadable.")
+    try require(ShortcutPresentation("right-cmd+a").keys==["R⌘","A"],"Right Command badge lost its side.")
+    try require(ShortcutPresentation("left-cmd+a").label=="Left Command + a","Left Command accessibility label lost its side.")
     try require(WebsiteIcons.origin("https://user:secret@example.com:8443/private/path?q=secret#fragment")?.absoluteString=="https://example.com:8443/","Quicklink secrets reached icon request.")
     try require(WebsiteIcons.origin("obsidian://open?path=private")==nil && WebsiteIcons.origin("https://{query}.example.com")==nil,"Unsupported origin accepted.")
     let origin=URL(string:"https://example.com/")!
@@ -65,9 +67,11 @@ func renderVisualAssets(_ directory:String) throws {
             HStack {Text("Clipboard History");Spacer();ShortcutBadge(value:"ctrl+alt+shift+cmd+v")}
             HStack {Text("Force Quit");Spacer();ShortcutBadge(value:"ctrl+alt+delete")}
             HStack {Text("Dictate Voice");Spacer();ShortcutBadge(value:"ctrl+left-control")}
+            HStack {Text("Safari");Spacer();ShortcutBadge(value:"right-cmd+s")}
+            HStack {Text("Finder");Spacer();ShortcutBadge(value:"left-cmd+f")}
             HStack {Text("App Settings");Spacer();ShortcutBadge(value:"cmd+,")}
-        }.font(.system(size:13,weight:.medium)).padding(22).frame(width:420,height:270).background(Color(nsColor:.windowBackgroundColor)))
-        view.appearance=NSAppearance(named:dark ? .darkAqua:.aqua);view.frame=NSRect(x:0,y:0,width:420,height:270);view.layoutSubtreeIfNeeded()
+        }.font(.system(size:13,weight:.medium)).padding(22).frame(width:420,height:340).background(Color(nsColor:.windowBackgroundColor)))
+        view.appearance=NSAppearance(named:dark ? .darkAqua:.aqua);view.frame=NSRect(x:0,y:0,width:420,height:340);view.layoutSubtreeIfNeeded()
         guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("Could not render shortcut preview.")};view.cacheDisplay(in:view.bounds,to:bitmap)
         guard let png=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Could not encode shortcut preview.")}
         try png.write(to:output.appendingPathComponent(dark ? "shortcuts-dark.png":"shortcuts-light.png"))
