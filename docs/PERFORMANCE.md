@@ -50,7 +50,7 @@ Full Xcode/Instruments was unavailable on the measurement host. Physical hotkey/
 
 See Apple's [Instruments tutorials](https://developer.apple.com/tutorials/instruments) and [hang investigation guide](https://developer.apple.com/documentation/xcode/understanding-hangs-in-your-app) for the full desktop profiling route.
 
-## Initial measured round — 25 October 2026
+## Initial measured round — 0.6.1, 25 October 2026
 
 Three alternating release pairs on one M4 Mac reduced command typing with10,000 commands plus200 long clipboard entries from p95 **15.1–15.4 ms to4.0–4.1 ms**. Reading1000 process results fell from about10.9 ms to0.0011 ms by reusing materialized order. Clipboard enqueue work is below0.01 ms; completed filtering still takes about14 ms on the worker. Moving work is not eliminating it.
 
@@ -73,17 +73,23 @@ The first investigation and improvement round is complete. The full desktop acce
 
 The installed0.6.1 performance build retained the same binary throughout its600-second passive sample. The later0.6.2 source preview adds neutral defaults and packaging provenance; it is not a second full desktop timing run. Passive observation does not prove that every timer or external clipboard provider is idle.
 
-## Background acceptance follow-up — 25 October 2026
+## Background acceptance follow-up — 0.7.2, 25 October 2026
 
 Repeating the old 0.7.0 native fixture retained **34.88 MiB** across 10,000 mode/search/action cycles. macOS heap and allocation-history samples identified growing `NSKeyValueDependency` / `NSKeyValueDependencyContext` bookkeeping through AppKit control/view attachment and SwiftUI display-list updates. A custom button style and a replacement text view did not solve the problem and were discarded.
 
 The launcher now creates its native command and clipboard hosting containers once, keeps them attached, and switches visibility. Hidden command typing does not invalidate the clipboard subtree; history changes still reconcile deleted items. Leaving clipboard mode cancels image work, generation tokens reject delayed results, and preview ownership includes the clip identity. Metadata from cancelled or failed decodes is not presented as current.
 
-The final-logic release fixture settled at **+1.52 MiB** over 10,000 cycles (42.74 → 44.25 MiB). Checkpoints at 1,000/5,000/10,000 cycles stayed within the 10 MiB gate. Another earlier persistent-container run settled below its starting footprint; allocator variation is why the gate uses a ceiling rather than requiring negative growth. The fixture also verifies container identity, a hidden panel and 1,000 monitor start/stop cancellation cycles. These are same-data hidden native results, not physical launcher-open timing or a universal leak claim.
+The final-logic release fixture settled at **+1.52 MiB** over 10,000 cycles (42.74 → 44.25 MiB). Checkpoints at 1,000/5,000/10,000 cycles stayed within the 10 MiB gate. An independent build of the exported public source repeated the gate at **+5.34 MiB**; both final-logic builds passed every checkpoint. Another earlier persistent-container run settled below its starting footprint; allocator variation is why the gate uses a ceiling rather than requiring negative growth. The fixture also verifies container identity, a hidden panel and 1,000 monitor start/stop cancellation cycles. These are same-data hidden native results, not physical launcher-open timing or a universal leak claim.
 
 An isolated offscreen CPU chart ran for 30 minutes at its ordinary two-second interval, rendering 901 frames. Independent `getrusage` counters measured 0.679% of one core while active and **0.535 percentage points extra CPU** versus the mean of one-minute idle windows before and after. Peak physical footprint was 19.08 MiB; history stayed at 60 samples and no new sample arrived after stop. This does not measure display presentation, battery power or external pasteboard providers.
 
-The 30-minute active / 60-minute idle host soak and final-logic idle observation are still running; their completed results will be recorded before this round is accepted.
+The compatible frozen headless base completed **30 minutes active + 60 minutes idle**: 31,131 active requests, then 0.086% of one core and 1.542 interrupt wakeups/s while idle. Its idle footprint peaked at 41.80 MiB and ended at 31.75 MiB; it did not remain at one fixed size. This binary was frozen before the native lifecycle and snippet fixes, so it is a headless reference run rather than an exact final-app soak. A separate final-logic build completed two active minutes and **60 idle minutes**: idle 0.087% of one core, 1.540 interrupt wakeups/s, maximum 43.56 MiB footprint and 43.06 → 40.72 MiB start/end. This frozen fixture still carries the 0.7.1 label; every production source matches 0.7.2 after normalizing only the three version literals. Both host and CLI hashes were independently verified unchanged. No native UI logic differs.
+
+The exact 0.7.2 executable completed two active minutes and ten idle minutes: idle 0.075% of one core, 1.548 interrupt wakeups/s, maximum 41.93 MiB footprint. Across 30 cold starts, headless RPC readiness was p95 121.9 ms; 1,000 subprocess samples per operation gave warm status/search p95 3.18/3.07 ms. These are absolute budget observations, not an alternating paired CLI speed comparison. Delayed analytics flushes and OS I/O are included; no zero-I/O claim is made.
+
+A separate ten-minute passive observation of the installed 0.7.2 personal profile (343 commands, keyboard/snippet services enabled) averaged 0.226% of one core and 2.643 interrupt wakeups/s. Footprint moved from 57.63 to 58.00 MiB, maximum 58.05 MiB. Ordinary user activity was allowed; this is not an enforced idle session. The executable and PID were unchanged throughout. The host was an M4 with 16 GB; a mid-run environment observation reported battery power and no recorded thermal warning, without establishing a controlled battery comparison.
+
+The selected background acceptance is complete. Physical hotkey/focus/frame latency, Energy/battery and a live Raycast comparison remain unmeasured by explicit scope choice; they are not successful measurements.
 
 Reproduce the bounded native gate with `bash scripts/check-performance.sh`. Longer background probes are opt-in:
 
