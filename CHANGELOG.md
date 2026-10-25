@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 — 2026-10-25 · Native lifecycle stability
+
+- Keep command and clipboard hosting views attached across mode changes to avoid growing AppKit dependency bookkeeping.
+- Skip hidden clipboard redraws during command typing while reconciling deletions and clear operations.
+- Cancel image previews on mode exit and reject stale deliveries, including reopening the same item.
+- Restore search focus after mode changes; strengthen native lifecycle and clipboard correctness checks.
+
 ## 0.7.0 — 2026-10-25 · Launcher polish
 
 - Enter one-field command input directly in the launcher; expand to a form when needed.

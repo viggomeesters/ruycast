@@ -10,7 +10,7 @@ host_sha=hashlib.sha256(a.host.read_bytes()).hexdigest();cli_sha=hashlib.sha256(
 def stats(values):
  s=sorted(values);return {'samples':len(s),'medianMS':s[len(s)//2],'p95MS':s[int((len(s)-1)*.95)],'p99MS':s[int((len(s)-1)*.99)] if len(s)>=1000 else None,'maxMS':s[-1]}
 with tempfile.TemporaryDirectory(prefix='rc-h-') as folder:
- root=Path(folder);env={**os.environ,'RUYCAST_HOME':folder};host=None
+ root=Path(folder);env={k:v for k,v in os.environ.items() if k not in ['RUYCAST_HOME','RUSTCAST_HOME','RUYCAST_CONFIG_DIR','RUYCAST_APP_BINARY']};env['RUYCAST_HOME']=folder;host=None
  def rpc(op,**args):
   with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as s:
    s.settimeout(5);s.connect(str(root/'control.sock'));s.sendall(json.dumps({'op':op,**args}).encode()+b'\n');chunks=[]
@@ -26,7 +26,10 @@ with tempfile.TemporaryDirectory(prefix='rc-h-') as folder:
   began=time.monotonic();host=subprocess.Popen([str(a.host),'--headless'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
   while time.monotonic()-began<10:
    if host.poll() is not None:raise RuntimeError('Host exited during startup')
-   try:rpc('status');return (time.monotonic()-began)*1000
+   try:
+    status=rpc('status')['result']
+    assert status['headless'] and Path(status['configPath']).resolve()==config_path.resolve() and status['commands']==500, 'Benchmark escaped fixture profile'
+    return (time.monotonic()-began)*1000
    except (OSError,AssertionError,ValueError):time.sleep(.002)
   raise RuntimeError('Cold host startup timed out')
  def stop():
@@ -62,6 +65,6 @@ with tempfile.TemporaryDirectory(prefix='rc-h-') as folder:
   active=observe(a.active_seconds,True) if a.active_seconds>0 else None
   if active:print(json.dumps({'phase':'active','durationS':active['durationS'],'requests':active['requests']}),flush=True)
   idle=observe(a.idle_seconds,False) if a.idle_seconds>0 else None
-  result={'ok':True,'scope':'500 commands /200 text fixtures, headless isolated host, no hotkey/discovery/display/pasteboard or physical energy claim; active includes monitor RPC every2seconds','coldReady':stats(cold),'warmCLI':timings,'active':active,'idle':idle,'hostSHA256':host_sha,'cliSHA256':cli_sha,'onDiskHostChangedDuringRun':hashlib.sha256(a.host.read_bytes()).hexdigest()!=host_sha}
+  result={'ok':True,'fixtureConfigurationIsolated':True,'scope':'500 commands /200 text fixtures, headless isolated host, no hotkey/discovery/display/pasteboard or physical energy claim; active includes monitor RPC every2seconds','coldReady':stats(cold),'warmCLI':timings,'active':active,'idle':idle,'hostSHA256':host_sha,'cliSHA256':cli_sha,'onDiskHostChangedDuringRun':hashlib.sha256(a.host.read_bytes()).hexdigest()!=host_sha}
   a.out.parent.mkdir(parents=True,exist_ok=True);a.out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({'phase':'done','ok':True}),flush=True)
  finally:stop()

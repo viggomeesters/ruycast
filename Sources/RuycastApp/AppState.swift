@@ -10,9 +10,17 @@ final class AppState:ObservableObject {
     @Published var configDirectory:URL
     let headless:Bool
     @Published var config:Configuration {didSet {rebuildCatalog()}}
-    @Published var clips:[Clip]=[] {didSet {clipboardWork.invalidate();refreshClips(preserveSelection:paletteVisible)}}
+    var clipboardDataRevision=0
+    @Published var clips:[Clip]=[] {didSet {
+        clipboardDataRevision+=1;clipboardWork.invalidate()
+        if mode != "clipboard" {
+            let current=Dictionary(clips.map {($0.id,$0)},uniquingKeysWith:{$1})
+            filteredClips=filteredClips.compactMap {current[$0.id]}
+        }
+        refreshClips(preserveSelection:paletteVisible)
+    }}
     @Published var query="" {didSet {if query != oldValue {captureInlineQuery();refreshResults();refreshClips()}}}
-    @Published var mode="commands" {didSet {if mode != oldValue {inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips()}}}
+    @Published var mode="commands" {didSet {if mode != oldValue {inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
     @Published var selection=0
     @Published var actionSelection=0
     @Published var pendingRemoval:Command?
@@ -167,12 +175,12 @@ final class AppState:ObservableObject {
     private func refreshClips(preserveSelection:Bool=false) {
         let selectedID=preserveSelection && filteredClips.indices.contains(selection) ? filteredClips[selection].id:nil
         clipboardSearch.cancel();clipboardSearchBusy=false
-        guard mode=="clipboard" else {if !filteredClips.isEmpty {filteredClips=[]};return}
+        guard mode=="clipboard" else {return}
         if query.isEmpty {filteredClips=clips;if let selectedID {selection=filteredClips.firstIndex {$0.id==selectedID} ?? -1};return}
         let started=DispatchTime.now().uptimeNanoseconds
         clipboardSearchBusy=true;filteredClips=[]
         clipboardSearch.search(clips,query:query) { [weak self] next in
-            guard let self,self.mode=="clipboard" else {return};self.clipboardSearchBusy=false;self.filteredClips=next
+            guard let self,self.mode=="clipboard" else {return};self.filteredClips=next;self.clipboardSearchBusy=false
             if let selectedID {self.selection=next.firstIndex {$0.id==selectedID} ?? -1}
             self.analytics.recordTiming("search.clipboard",ms:AnalyticsStore.elapsed(started))
         }
@@ -469,7 +477,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.7.0","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.7.1","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":

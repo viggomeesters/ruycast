@@ -56,7 +56,8 @@ if args.first=="--set-config-directory" {
 if args.first=="--init-config" {
     do {let p=try ConfigurationLocation.initialize(root:root);output(["ok":true,"path":p.path]);exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if args.first=="--benchmark-lifecycle" {do {output(try benchmarkLifecycle(blocks:args.count>1 ? max(1,min(100,Int(args[1]) ?? 10)):10,render:!args.contains("model")));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
+if args.first=="--benchmark-monitor" {do {output(try benchmarkMonitor(activeSeconds:args.count>1 ? max(1,min(3600,Double(args[1]) ?? 1800)):1800,idleSeconds:args.count>2 ? max(1,min(600,Double(args[2]) ?? 60)):60));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
+if args.first=="--benchmark-lifecycle" {do {output(try benchmarkLifecycle(blocks:args.count>1 ? max(1,min(100,Int(args[1]) ?? 10)):10,render:!args.contains("model"),component:["search","preview","label"].first(where:args.contains) ?? "palette"));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-performance-pipeline" {do {output(try checkPerformancePipeline());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--benchmark-performance" {let result=benchmarkPerformance();output(result);exit(result["ok"] as? Bool==true ? 0:1)}
 if args.first=="--benchmark-search" {

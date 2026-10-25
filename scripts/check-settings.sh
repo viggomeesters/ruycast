@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-directory="${RUYCAST_CHECK_OUTPUT:-.go/evidence/feedback-process-monitor-clipboard}"
+directory="${RUYCAST_CHECK_OUTPUT:-.build/native-checks}"
 mkdir -p "$directory"
 .build/swift/debug/RuycastApp --check-settings "$directory" > "$directory/interaction.json"
 .build/swift/debug/RuycastApp --check-interactions > "$directory/launcher-interaction.json"

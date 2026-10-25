@@ -28,7 +28,6 @@ struct Palette:View {
             .overlay(RoundedRectangle(cornerRadius:18).strokeBorder(Color.primary.opacity(0.12),lineWidth:1))
     }
     @ViewBuilder private var content:some View {
-        let commands=state.visibleCommands
         VStack(spacing:0) {
             HStack(spacing:12) {
                 Image(systemName:isClipboard ? "doc.on.clipboard":"command")
@@ -37,46 +36,7 @@ struct Palette:View {
                 PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
             }.padding(.horizontal,20).frame(height:62)
 
-            if isClipboard {ClipboardHistoryView(state:state)} else {
-                ScrollViewReader {proxy in ScrollView {
-                    LazyVStack(alignment:.leading,spacing:2) {
-                        HStack {
-                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
-                            Spacer()
-                            if state.mode=="processes" {Picker("Sort processes",selection:Binding(get:{state.processSort},set:state.setProcessSort)) {ForEach(ProcessSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}.labelsHidden().frame(width:135)}
-                        }.padding(.horizontal,8).padding(.top,6).padding(.bottom,8)
-                            if commands.isEmpty {empty("No commands found",symbol:"magnifyingglass")}
-                            ForEach(Array(commands.enumerated()),id:\.element.id) { index,cmd in
-                                Button {state.selection=index;state.activateSelection()} label:{
-                                    HStack(spacing:12) {
-                                        if let process=state.processResources[cmd.id],state.mode=="processes" {ProcessIcon(resource:process)} else {commandIcon(cmd)}
-                                        HStack(spacing:8) {
-                                            Text(cmd.title).font(.system(size:13,weight:.semibold)).lineLimit(1).layoutPriority(2)
-                                            if state.mode=="processes",let process=state.processResources[cmd.id] {Text(String(process.id)).font(.system(size:11)).foregroundStyle(.tertiary)}
-                                            if let alias=cmd.aliases.first {
-                                                Text(alias).font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
-                                                    .padding(.horizontal,5).padding(.vertical,2)
-                                                    .background(Color.primary.opacity(0.08),in:RoundedRectangle(cornerRadius:4))
-                                                    .lineLimit(1).frame(maxWidth:120,alignment:.leading).fixedSize(horizontal:false,vertical:true)
-                                            }
-                                        }
-                                        Spacer(minLength:10)
-                                        if let key=cmd.hotkey {
-                                            ShortcutBadge(value:key)
-                                        }
-                                        if let process=state.processResources[cmd.id],state.mode=="processes" {
-                                            HStack(spacing:5) {Image(systemName:"cpu");Text(String(format:"%.1f%%",process.cpuPercent)).frame(width:52,alignment:.trailing);Image(systemName:"memorychip");Text(memoryLabel(process.memoryBytes)).frame(width:68,alignment:.trailing)}.font(.system(size:12)).monospacedDigit().foregroundStyle(.secondary)
-                                        } else {Text(kindLabel(cmd.kind)).font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
-                                    }.padding(.horizontal,10).frame(height:38)
-                                        .frame(maxWidth:.infinity,alignment:.leading)
-                                        .background(index==state.selection ? highlight:Color.clear,in:RoundedRectangle(cornerRadius:8))
-                                        .contentShape(Rectangle())
-                                }.buttonStyle(PaletteRowButtonStyle()).id(cmd.id)
-                            }
-
-                    }.padding(.horizontal,8).padding(.bottom,12)
-                }.scrollIndicators(.hidden).onChange(of:state.selection) {_,index in if commands.indices.contains(index) {proxy.scrollTo(commands[index].id)}}}
-            }
+            PersistentLauncherResults(state:state)
             if let error=state.configError {
                 Text("Config: \(error)").font(.caption).foregroundStyle(.red).padding(.horizontal,18).padding(.vertical,8)
             }
@@ -203,10 +163,4 @@ final class PaletteController {
         p.orderFrontRegardless();toast=p
         toastTimer=Timer.scheduledTimer(withTimeInterval:5,repeats:false) {[weak self] _ in self?.toast?.orderOut(nil);self?.toast=nil}
     }
-}
-
-/// A SwiftUI-drawn row keeps native Button accessibility without creating an
-/// AppKit NSCell for every transient search result.
-struct PaletteRowButtonStyle:ButtonStyle {
-    func makeBody(configuration:Configuration)->some View {configuration.label.opacity(configuration.isPressed ? 0.8:1)}
 }

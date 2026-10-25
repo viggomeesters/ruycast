@@ -26,7 +26,7 @@ public enum Templates {
         }
         return fields
     }
-    public static func render(_ command:Command,values:[String:String],clipboard:String?=nil,now:Date=Date()) throws -> (String,Int?) {
+    public static func render(_ command:Command,values:[String:String],clipboard:String?=nil,now:Date=Date(),locale:Locale = .current,timeZone:TimeZone = .current) throws -> (String,Int?) {
         var text=command.target
         var cursor:Int?
         for match in pattern.matches(in:text,range:NSRange(text.startIndex...,in:text)).reversed() {
@@ -36,10 +36,10 @@ public enum Templates {
             case "cursor":replacement=""
             case "clipboard":guard let clipboard else {throw LauncherError("Clipboard text is unavailable.")};replacement=clipboard
             case "date","time","datetime","day":
-                let f=DateFormatter();f.dateFormat=["date":"yyyy-MM-dd","time":"HH:mm","datetime":"yyyy-MM-dd HH:mm","day":"EEEE"][token]!;replacement=f.string(from:now)
+                let f=DateFormatter();f.locale=locale;f.timeZone=timeZone;f.dateFormat=["date":"yyyy-MM-dd","time":"HH:mm","datetime":"d MMMM yyyy HH:mm","day":"EEEE"][token]!;replacement=f.string(from:now)
             default:
                 if token.hasPrefix("date ") || token.hasPrefix("datetime:") {
-                    let f=DateFormatter();f.dateFormat=attribute("format",in:token) ?? String(token.dropFirst("datetime:".count));replacement=f.string(from:now)
+                    let f=DateFormatter();f.locale=locale;f.timeZone=timeZone;f.dateFormat=attribute("format",in:token) ?? String(token.dropFirst("datetime:".count));replacement=f.string(from:now)
                 } else {
                     let name=attribute("name",in:token) ?? (token=="query" || token=="argument" ? "Query":token)
                     let value=values[name] ?? attribute("default",in:token) ?? ""

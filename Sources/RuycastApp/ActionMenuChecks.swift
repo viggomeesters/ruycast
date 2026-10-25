@@ -55,6 +55,9 @@ func checkActionsMenu(output:String?=nil) throws -> [String:Any] {
     try require(state.actionItems.prefix(3).map(\.id)==["paste","copy-clip","delete-clip"],"Clipboard action catalog changed.")
     state.actionSelection=2;input.keyDown(with:event(36))
     try require(state.clips.isEmpty && !state.actionsOpen,"Clipboard menu Return did not delete selected fixture item.")
+    state.actionsOpen=false;state.mode="commands";pump()
+    let restored=controller.panel.firstResponder
+    try require(restored is SearchInput || ((restored as? NSTextView)?.delegate is SearchInput),"Mode switch did not restore search focus")
     if let output {
         let directory=URL(fileURLWithPath:output);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
         state.mode="commands";state.selection=4;state.actionsOpen=true
@@ -68,5 +71,5 @@ func checkActionsMenu(output:String?=nil) throws -> [String:Any] {
         }
     }
     state.paletteVisible=false;state.actionsOpen=false
-    return ["ok":true,"commandKOpensAtFirstAction":true,"nativeMenuFirstResponder":true,"arrowsStayInMenu":true,"fieldEditorFallback":true,"returnExecutesHighlightedAction":true,"escapeRestoresSearchFocus":true,"commandKTogglesClosed":true,"clipboardActions":true,"removalPayloadPreserved":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["ok":true,"commandKOpensAtFirstAction":true,"nativeMenuFirstResponder":true,"arrowsStayInMenu":true,"modeSwitchRestoresSearchFocus":true,"fieldEditorFallback":true,"returnExecutesHighlightedAction":true,"escapeRestoresSearchFocus":true,"commandKTogglesClosed":true,"clipboardActions":true,"removalPayloadPreserved":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }

@@ -3,6 +3,7 @@ import SwiftUI
 import ImageIO
 import LauncherCore
 import Darwin
+import Combine
 
 struct ClipboardImage {
     let image:CGImage
@@ -38,16 +39,22 @@ final class ClipboardPreviewModel:ObservableObject {
     @Published var loading=false
     private let queue:OperationQueue={let q=OperationQueue();q.maxConcurrentOperationCount=1;q.qualityOfService = .userInitiated;return q}()
     private var selectedID:String?
+    private var generation=0
+    private let decode:(Clip,ClipboardStore)throws->ClipboardImage?
+    private let deliver:(@escaping ()->Void)->Void
+    init(decode:@escaping (Clip,ClipboardStore)throws->ClipboardImage?={try $1.preview($0)},deliver:@escaping (@escaping ()->Void)->Void={DispatchQueue.main.async(execute:$0)}) {self.decode=decode;self.deliver=deliver}
     func load(_ clip:Clip?,store:ClipboardStore) {
+        if clip==nil,selectedID==nil,asset==nil,error==nil,!loading {return}
+        generation+=1;let version=generation,decode=decode,deliver=deliver
         queue.cancelAllOperations();selectedID=clip?.id;asset=nil;error=nil;loading=false
         guard let clip,clip.contentType=="image" || clip.contentType=="files" else {return}
         loading=true;let job=BlockOperation()
         job.addExecutionBlock { [weak self,weak job] in
             guard job?.isCancelled==false else {return}
-            let result=Result {try store.preview(clip)}
+            let result=Result {try decode(clip,store)}
             guard job?.isCancelled==false else {return}
-            DispatchQueue.main.async { [weak self] in
-                guard let self,self.selectedID==clip.id else {return};self.loading=false
+            deliver { [weak self] in
+                guard let self,self.generation==version,self.selectedID==clip.id else {return};self.loading=false
                 switch result {case .success(let asset):self.asset=asset;case .failure(let error):self.error=error.localizedDescription}
             }
         }
@@ -55,10 +62,39 @@ final class ClipboardPreviewModel:ObservableObject {
     }
     deinit {queue.cancelAllOperations()}
 }
+/// Hidden command typing does not invalidate the clipboard subtree. Data
+/// changes still invalidate it so deleted content cannot remain in previews.
+final class ClipboardRenderGate:ObservableObject {
+    weak var state:AppState?
+    private var subscription:AnyCancellable?
+    private var pending=false
+    private var active:Bool
+    private var dataRevision:Int
+    private(set) var invalidations=0
+    init(state:AppState) {
+        self.state=state;active=state.mode=="clipboard";dataRevision=state.clipboardDataRevision
+        subscription=state.objectWillChange.sink { [weak self] _ in
+            guard let self,!self.pending else {return};self.pending=true
+            DispatchQueue.main.async { [weak self] in self?.refresh() }
+        }
+    }
+    private func refresh() {
+        pending=false;guard let state else {return}
+        let visible=state.mode=="clipboard",revision=state.clipboardDataRevision
+        guard visible || visible != active || revision != dataRevision else {return}
+        active=visible;dataRevision=revision;invalidations+=1;objectWillChange.send()
+    }
+}
 struct ClipboardHistoryView:View {
-    @ObservedObject var state:AppState
+    let state:AppState
+    @StateObject private var updates:ClipboardRenderGate
     @StateObject private var preview=ClipboardPreviewModel()
-    private var selected:Clip? {state.filteredClips.indices.contains(state.selection) ? state.filteredClips[state.selection]:nil}
+    @State private var retainedSelectionID:String?
+    @State private var imageMetadata:(id:String,width:Int,height:Int,bytes:Int)?
+    init(state:AppState) {self.state=state;_updates=StateObject(wrappedValue:ClipboardRenderGate(state:state))}
+    @Environment(\.colorScheme) private var scheme
+    private var actualSelection:Clip? {state.mode=="clipboard" && !state.clipboardSearchBusy && state.filteredClips.indices.contains(state.selection) ? state.filteredClips[state.selection]:nil}
+    private var selected:Clip? {actualSelection ?? retainedSelectionID.flatMap {id in state.clips.first(where:{$0.id==id})}}
     var body:some View {
         GeometryReader {geometry in
             let contentWidth=max(0,geometry.size.width-1)
@@ -75,15 +111,25 @@ struct ClipboardHistoryView:View {
                                         Text(clip.date.formatted(date:.omitted,time:.shortened)).font(.system(size:11)).foregroundStyle(.secondary)
                                     };Spacer(minLength:0)
                                 }.padding(.horizontal,9).padding(.vertical,9).frame(maxWidth:.infinity,alignment:.leading).background(index==state.selection ? Color.primary.opacity(0.09):.clear,in:RoundedRectangle(cornerRadius:7)).contentShape(Rectangle())
-                            }.buttonStyle(PaletteRowButtonStyle()).id(clip.id)
+                            }.buttonStyle(.plain).id(clip.id)
                         }
                         if state.filteredClips.isEmpty {Text(state.clipboardSearchBusy ? "Searching…":state.query.isEmpty ? "Clipboard is empty":"No clipboard items found").foregroundStyle(.secondary).font(.caption).padding(24)}
                     }.padding(.horizontal,8).padding(.bottom,10)
-                }.onChange(of:state.selection) {_,_ in if let selected {proxy.scrollTo(selected.id)}}}.frame(width:contentWidth*0.4)
+                }.onChange(of:state.selection) {_,_ in if state.mode=="clipboard",let actualSelection {proxy.scrollTo(actualSelection.id)}}}.frame(width:contentWidth*0.4)
                 Divider()
-                detail(padding:min(24,contentWidth*0.04)).frame(width:contentWidth*0.6,height:max(0,geometry.size.height),alignment:.topLeading).clipped()
+                detail(padding:min(24,contentWidth*0.04))
+                    .disabled(actualSelection==nil).accessibilityHidden(actualSelection==nil)
+                    .overlay {if actualSelection==nil {Text(state.clipboardSearchBusy ? "Searching…":"Select an item").foregroundStyle(.secondary).frame(maxWidth:.infinity,maxHeight:.infinity).background(SettingsTheme(dark:scheme == .dark,graphite:state.config.theme=="graphite").background)}}.frame(width:contentWidth*0.6,height:max(0,geometry.size.height),alignment:.topLeading).clipped()
             }
-        }.onChange(of:selected?.id,initial:true) {_,_ in preview.load(selected,store:state.clipboardStore)}
+        }.onChange(of:actualSelection?.id,initial:true) {_,_ in
+            if let actualSelection {retainedSelectionID=actualSelection.id;preview.load(actualSelection,store:state.clipboardStore)}
+        }.onChange(of:preview.asset.map {"\($0.width):\($0.height):\($0.bytes)"}) {_,_ in
+            if let asset=preview.asset,let actualSelection {imageMetadata=(actualSelection.id,asset.width,asset.height,asset.bytes)}
+        }.onChange(of:state.mode) {_,mode in
+            if mode != "clipboard" {preview.load(nil,store:state.clipboardStore)}
+        }.onChange(of:state.clips.map(\.id)) {_,ids in
+            if let retainedSelectionID,!ids.contains(retainedSelectionID) {self.retainedSelectionID=nil;imageMetadata=nil;preview.load(nil,store:state.clipboardStore)}
+        }
     }
     @ViewBuilder private func detail(padding:CGFloat)->some View {
         if let clip=selected {
@@ -102,7 +148,7 @@ struct ClipboardHistoryView:View {
                 VStack(spacing:7) {
                     info("Source",sourceName(clip.source))
                     info("Type",preview.asset != nil ? "Image":clip.contentType=="files" ? "Files":clip.contentType=="image" ? "Image":"Text")
-                    if let asset=preview.asset {info("Dimensions","\(asset.width) × \(asset.height)");info("Size",memoryLabel(UInt64(asset.bytes)))}
+                    if let asset=imageMetadata,asset.id==clip.id {info("Dimensions","\(asset.width) × \(asset.height)");info("Size",memoryLabel(UInt64(asset.bytes)))}
                     else if clip.contentType != "files" && clip.contentType != "image" {info("Characters",String(clip.text.count))}
                     info("Copied",clip.date.formatted(date:.abbreviated,time:.shortened))
                 }.font(.system(size:12))
