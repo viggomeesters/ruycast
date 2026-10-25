@@ -79,6 +79,7 @@
     "Tests/test_config_directory.py": "6c5a0cf54b6d24a68fd3c47802dbebcec12647fa8a6ad98c459f2cb9bd1986f4",
     "Tests/test_install_migration.py": "0e5f397bf2a72e2d8f0d8aa5b93552ee3cb218b3b32942d7de8880d13b7c57b6",
     "Tests/test_local_signing.py": "67c6c1e43acb2d1be13f259b0e9ba09252e2fdb4d7bead5e0a08ef88269a93f2",
+    "Tests/test_package_app.py": "7fa8b833349b20ce0aa02912f9f6d7e22a2adecd2cba4cf4aead895f57473e52",
     "Tests/test_public_contract.py": "cb0eb12028b685060b4ca183224c9ee19a98bedc095f68492d0bf4949037f5ed",
     "assets/AppIcon.icns": "ade017ae129d4610935ce5ac49077afa239f975cbc686fd0e9e75edfe19501e5",
     "assets/app-icon.png": "2cc22c4aae255bdc777524156df87910706ae6c09851dc31ac47ddecc127762f",
@@ -95,7 +96,7 @@
     "docs/IMPLEMENTATION-REFERENCES.md": "7ebd7944d2ddc5216ccd5525676d1fdd6b876386635deb3734624ebf7f0a4550",
     "docs/INSTALLATION.md": "8da15e4ae19f1fba54b7acc1402d87abbe6ee0d4f52852da29eae5160283d62f",
     "docs/PERFORMANCE.md": "9c39de66b742c881821b97db3f0e6ba47369deed8a06a21c14ee64b2e18090e0",
-    "docs/RELEASING.md": "1e67290e5538f6399542948841c760fbb4b3d84de01543885b1d6709953e99a8",
+    "docs/RELEASING.md": "8671b3c4fd858270c7ad589c0778012ba1de70bbf6c608072430ed7e9a4861f3",
     "docs/VISUALS.md": "8bfb5594a25e4a0b4866092f56638f3fc6ca3cfc919a299f4bec767771913c5f",
     "docs/public-readiness-review.md": "7b88ee4167ef4e9f74bb4fe37233884a14200d2adca580b8bd9a304603516ad5",
     "docs/schemas/repo-vision-contract.schema.json": "8e933b6b587ca2d8deb9b88159cbb081686701c73aa113afbff1ee9bcda02474",
@@ -118,8 +119,9 @@
     "scripts/install.sh": "03d065970a744866b177e499a9e8fce152ce4c8a0ea64e7258c70c534eacc217",
     "scripts/install_support.py": "645a62444627a99e5e9d6cad367344dd10b3df8c07d0367267b0908eaaed72a4",
     "scripts/local_signing.py": "c32e5ffa852298d22ba15ec9f2218775ce11fdb9d5aff36bd1e3812cdb8fc8e2",
+    "scripts/package-app.py": "f8c79f915d76eceae8fb1621eac80b81470debeb2ee6d9f46a3e2254b415f292",
     "scripts/perf-probe.c": "565b2dbc18aaf03d9311b1d90a51a1e55a5d81a5769b2064cf9246cdb16a2d6a",
-    "scripts/prepare-public.py": "54ae90e66d7c8f19ceb7fda5c1fb82366003ac9f26acc600af2208e8b641b0da",
+    "scripts/prepare-public.py": "0ad3d71640d131e5461de651f7eda68db0730ecde1cb8c33bb52c24b0a4655ac",
     "scripts/sample-performance.py": "1e5976f4b7de2eeb23aa43688bc969a3e0ef5f6436fd5e3383a070e88af03031"
   },
   "exclusions": [
