@@ -1,0 +1,9 @@
+# Implementation references · 24 October 2026
+
+Three related launchers informed implementation reviews. They are references, separate from Ruycast; no third-party implementation code was copied into the referenced changes.
+
+- [Tinycast](https://github.com/abue-ammar/tinycast): native Swift/AppKit, snippets, quicklinks and Raycast import. Inspected `Features/TextInjection/Service/TextInjector.swift`, `InProcessInjection.swift` and its LICENSE (AGPL-3.0-or-later). Its layered input delivery, scalar-safe Unicode batching, secure-entry guards and clipboard ownership checks informed the review checklist. Our shared synchronous edit executor and offscreen NSTextView tests were implemented independently before source inspection. [Snippet docs](https://abue-ammar.github.io/tinycast/docs/features/snippets/) and [quicklink docs](https://tinycast.dev/docs/launcher/quicklinks/) explain its behavior; they are not proof of our own installed behavior.
+- [RustCast](https://github.com/MystikoLab/rustcast): Rust/iced reference for app search, shell commands and keyboard navigation. Its public README was read; its implementation was not incorporated or installed.
+- [Vicinae](https://github.com/vicinaehq/vicinae): a broader launcher with extension compatibility. Its own [docs](https://docs.vicinae.com/) describe compatibility as partial; introducing an extension runtime is outside the six supplied tasks.
+
+[Apple's Unicode event API](https://developer.apple.com/documentation/coregraphics/cgevent/keyboardsetunicodestring(stringlength:unicodestring:)) explicitly notes that app frameworks may ignore the provided string. Our tests set/get payloads without posting them, preserve complete long Unicode text through <=16-unit batches, and exercise the same executor in an offscreen native editor. External app acceptance remains a live human check.

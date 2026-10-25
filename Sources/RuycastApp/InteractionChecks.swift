@@ -1,0 +1,193 @@
+import AppKit
+import SwiftUI
+import LauncherCore
+import Vision
+
+func featureFixture()->[Command] {
+    [Command(id:"app.finder",title:"Finder",kind:"app",target:"com.apple.finder",aliases:["finder"]),
+     Command(id:"app.obsidian",title:"Obsidian",kind:"app",target:"md.obsidian",aliases:["obsidian"]),
+     Command(id:"capture.quick-note",title:"Quick Note",kind:"script",target:"/usr/bin/printf",arguments:["%s","{input}"],inputPrompt:"Note"),
+     Command(id:"capture.quick-task",title:"Quick Task",kind:"script",target:"/usr/bin/printf",arguments:["%s","{input}"],inputPrompt:"Task"),
+     Command(id:"link.search",title:"Search Google Maps",kind:"url",target:"https://maps.google.com/?q={query}",aliases:["gmaps"]),
+     Command(id:"snippet.greeting",title:"Greeting",kind:"snippet",target:"Hi {cursor},\nThanks for your message.",keyword:";hello")]
+}
+func checkInteractions() throws -> [String:Any] {
+    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
+    let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rc-"+String(UUID().uuidString.prefix(8)))
+    defer {try? FileManager.default.removeItem(at:sandbox)}
+    let state=try AppState(root:sandbox,headless:true);state.config.commands=featureFixture()
+    var submitted=false,cancelled=false
+    let field=PaletteSearchField(text:Binding(get:{state.query},set:{state.query=$0}),placeholder:"Search",onMove:state.moveSelection,onSubmit:{submitted=true},onCancel:{cancelled=true},onActions:{state.actionsOpen.toggle()})
+    let coordinator=PaletteSearchField.Coordinator(field),input=SearchInput(),editor=NSTextView()
+    input.stringValue="obsidian";coordinator.controlTextDidChange(Notification(name:NSControl.textDidChangeNotification,object:input))
+    guard state.query=="obsidian",state.visibleCommands.map(\.id)==["app.obsidian"] else {throw LauncherError("Native text input did not filter results.")}
+    input.stringValue="";coordinator.controlTextDidChange(Notification(name:NSControl.textDidChangeNotification,object:input))
+    for _ in 0..<2 {_=coordinator.control(input,textView:editor,doCommandBy:NSSelectorFromString("moveDown:"))}
+    guard state.selection==2,state.selectedCommand?.id=="capture.quick-note" else {throw LauncherError("Down arrow did not select Quick Note.")}
+    _=coordinator.control(input,textView:editor,doCommandBy:NSSelectorFromString("moveUp:"))
+    guard state.selection==1 else {throw LauncherError("Up arrow did not move selection.")}
+    _=coordinator.control(input,textView:editor,doCommandBy:NSSelectorFromString("insertNewline:"))
+    _=coordinator.control(input,textView:editor,doCommandBy:NSSelectorFromString("cancelOperation:"))
+    guard submitted,cancelled else {throw LauncherError("Return/Escape did not reach the field delegate.")}
+    let panel=PalettePanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless],backing:.buffered,defer:false)
+    panel.isReleasedWhenClosed=false
+    panel.actions={state.actionsOpen.toggle()}
+    let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.command,timestamp:0,windowNumber:panel.windowNumber,context:nil,characters:"k",charactersIgnoringModifiers:"k",isARepeat:false,keyCode:40)!
+    guard panel.performKeyEquivalent(with:event),state.actionsOpen else {throw LauncherError("Command K did not open actions.")}
+    state.query="quick note";state.begin(state.selectedCommand!)
+    guard state.form?.command.id=="capture.quick-note",state.form?.isRun==true else {throw LauncherError("Quick Note did not request input.")}
+    state.form=nil;state.newCommand("url")
+    guard state.form?.isNew==true,state.form?.command.kind=="url" else {throw LauncherError("Quicklink editor did not open.")}
+    state.form=nil;state.mode="snippets"
+    guard state.visibleCommands.map(\.id)==["snippet.greeting"] else {throw LauncherError("Snippet navigation failed.")}
+    state.mode="quicklinks";state.query="gmaps"
+    guard state.selectedCommand?.id=="link.search" else {throw LauncherError("Quicklink alias search failed.")}
+    let all=state.searchCommands("",mode:"snippets",limit:0)
+    guard all.count==1 else {throw LauncherError("Filtered list failed.")}
+    let server=ControlServer(root:sandbox)
+    try server.start {request,reply in state.handle(request,reply:reply)}
+    defer {server.stop()}
+    state.mode="commands"
+    let created=Command(id:"saved.link",title:"Saved Quicklink",kind:"url",target:"https://example.com/?q={query}",aliases:["saved"])
+    var saveClosedEditor=false
+    state.saveCommand(created,isNew:true,onSuccess:{saveClosedEditor=true})
+    let deadline=Date().addingTimeInterval(8)
+    while state.busy,Date()<deadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
+    guard !state.busy,saveClosedEditor,state.config.resolve("saved")?.id=="saved.link",state.message.isEmpty else {throw LauncherError("Native editor save/reload failed: \(state.message)")}
+    func waitForSave() throws {
+        let deadline=Date().addingTimeInterval(8)
+        while state.busy,Date()<deadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
+        guard !state.busy,state.message.isEmpty else {throw LauncherError("Settings save failed: \(state.message)")}
+    }
+    state.setExpansionEnabled(true);try waitForSave()
+    guard state.config.snippetExpansionEnabled==true else {throw LauncherError("Expansion setting did not reload.")}
+    state.setClipboardEnabled(false);try waitForSave()
+    guard !state.config.clipboard.enabled else {throw LauncherError("Clipboard setting did not reload.")}
+    state.setClipboardEnabled(true);try waitForSave()
+    let palette=PaletteController(state:state)
+    var settingsOpened=false;state.showManagement={settingsOpened=true}
+    palette.show("settings")
+    guard settingsOpened,!palette.panel.isVisible,state.resolveCommand("settings")?.target=="settings" else {throw LauncherError("Settings routing failed.")}
+    // A concurrent manual edit must survive an editor save based on an old snapshot.
+    let configPath=sandbox.appendingPathComponent("config.json"),external=try Data(contentsOf:configPath)+Data("\n".utf8)
+    try external.write(to:configPath)
+    state.saveCommand(Command(id:"blocked.link",title:"Blocked",kind:"url",target:"https://example.com"),isNew:true)
+    let nextDeadline=Date().addingTimeInterval(8)
+    while state.busy,Date()<nextDeadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
+    guard try Data(contentsOf:configPath)==external,state.message.contains("changed") else {throw LauncherError("Concurrent edit was overwritten.")}
+    // The production replacement executor edits a real offscreen text editor;
+    // no CGEvent is posted and no app receives input during this check.
+    let document=NSTextView();document.string="prefix ;hell";document.setSelectedRange(NSRange(location:document.string.utf16.count,length:0))
+    let plan=SnippetReplacement(keyword:";hello",finalInput:"o",text:"Hi Ω!",cursor:3)
+    plan.apply(key:{code in if code==51 {document.deleteBackward(nil)} else if code==123 {document.moveLeft(nil)}},insert:{document.insertText($0,replacementRange:document.selectedRange())})
+    guard document.string=="prefix Hi Ω!",document.selectedRange().location=="prefix Hi ".utf16.count else {throw LauncherError("Snippet replacement or cursor placement failed.")}
+    var roundTrip="",eventPayloadValid=true
+    let longText=String(repeating:"Line Ω 👨‍👩‍👧‍👦\n",count:40)
+    SnippetReplacement(keyword:";test",finalInput:"t",text:longText,cursor:nil).apply(key:{_ in},insert:{chunk in
+        let units=Array(chunk.utf16)
+        guard let event=CGEvent(keyboardEventSource:nil,virtualKey:0,keyDown:true) else {eventPayloadValid=false;return}
+        event.keyboardSetUnicodeString(stringLength:units.count,unicodeString:units)
+        var outputUnits=[UniChar](repeating:0,count:32),length=0
+        event.keyboardGetUnicodeString(maxStringLength:32,actualStringLength:&length,unicodeString:&outputUnits)
+        let decoded=String(utf16CodeUnits:outputUnits,count:length)
+        eventPayloadValid = eventPayloadValid && decoded==chunk && length<=16
+        roundTrip+=decoded
+    })
+    guard eventPayloadValid,roundTrip==longText else {throw LauncherError("CGEvent Unicode payload changed or truncated.")}
+    panel.close()
+    return ["ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+}
+func renderFeatures(_ path:String,theme:String,mode:String) throws {
+    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
+    let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rustcast-feature-render-"+UUID().uuidString)
+    defer {try? FileManager.default.removeItem(at:sandbox)}
+    let state=try AppState(root:sandbox,headless:true);state.config.commands=featureFixture()
+    if mode=="search" {state.query="obsidian"}
+    if mode=="note-form" {state.begin(state.config.commands[2])}
+    if mode=="snippet-editor" {state.newCommand("snippet");state.form?.command.title="Greeting";state.form?.command.target="Hi {cursor},\nThanks for your message.";state.form?.command.keyword=";hello"}
+    if mode=="quicklink-form" {state.begin(state.config.commands[4])}
+    if mode=="snippets" {state.mode="snippets"}
+    let root:AnyView=mode=="actions" ? AnyView(PaletteActions(state:state).background(Color(nsColor:.windowBackgroundColor))):AnyView(Palette(state:state))
+    let view=NSHostingView(rootView:root);view.appearance=NSAppearance(named:theme=="dark" ? .darkAqua:.aqua)
+    view.frame=NSRect(x:0,y:0,width:mode=="actions" ? 256:760,height:mode=="actions" ? 380:490);view.layoutSubtreeIfNeeded()
+    guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("Could not render features.")}
+    view.cacheDisplay(in:view.bounds,to:bitmap)
+    guard let data=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Could not encode features.")}
+    try data.write(to:URL(fileURLWithPath:path))
+}
+
+// Exercise one retained hosting tree, not only the model or a fresh screenshot.
+// Vision reads actual rendered labels; no production window or desktop input is used.
+func checkRenderedUpdates(_ outputPath:String) throws -> [String:Any] {
+    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
+    let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rc-render-"+String(UUID().uuidString.prefix(8)))
+    defer {try? FileManager.default.removeItem(at:sandbox)}
+    let state=try AppState(root:sandbox,headless:true);state.config.commands=featureFixture()
+    let host=NSHostingView(rootView:Palette(state:state));host.appearance=NSAppearance(named:.darkAqua)
+    let panel=NSPanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
+    panel.isReleasedWhenClosed=false;panel.contentView=host
+    host.frame=NSRect(x:0,y:0,width:760,height:490)
+    defer {panel.close()}
+    var capturedHost:NSView=host
+    let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
+    func capture(_ name:String) throws -> [String] {
+        let deadline=Date().addingTimeInterval(0.15)
+        while Date()<deadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
+        capturedHost.layoutSubtreeIfNeeded()
+        guard let bitmap=capturedHost.bitmapImageRepForCachingDisplay(in:capturedHost.bounds) else {throw LauncherError("No render bitmap.")}
+        capturedHost.cacheDisplay(in:capturedHost.bounds,to:bitmap)
+        guard let data=bitmap.representation(using:.png,properties:[:]),let cg=bitmap.cgImage else {throw LauncherError("No render image.")}
+        try data.write(to:directory.appendingPathComponent(name+".png"))
+        let request=VNRecognizeTextRequest();request.recognitionLevel = .accurate
+        try VNImageRequestHandler(cgImage:cg).perform([request])
+        return (request.results ?? []).compactMap {$0.topCandidates(1).first?.string}
+    }
+    let initial=try capture("initial")
+    guard initial.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Initial view did not render rows: \(initial)")}
+    func searchField(_ view:NSView)->SearchInput? {if let field=view as? SearchInput {return field};return view.subviews.lazy.compactMap {searchField($0)}.first}
+    guard let input=searchField(host) else {throw LauncherError("Rendered search field missing.")}
+    for query in ["o","ob","obs","obsidian"] {
+        input.stringValue=query
+        input.delegate?.controlTextDidChange?(Notification(name:NSControl.textDidChangeNotification,object:input))
+    }
+    guard state.query=="obsidian" else {throw LauncherError("Hosting field delegate did not write binding.")}
+    let filtered=try capture("filtered")
+    guard filtered.contains(where:{$0.contains("Obsidian")}),!filtered.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Rendered search rows are stale: \(filtered)")}
+    state.query="missing zzxx"
+    let empty=try capture("empty")
+    guard empty.contains(where:{$0.contains("No commands found")}),!empty.contains(where:{$0.contains("Obsidian")}) else {throw LauncherError("Rendered empty search is stale: \(empty)")}
+    state.query="";state.mode="snippets"
+    let snippets=try capture("snippets")
+    guard snippets.contains(where:{$0.contains("Greeting")}),!snippets.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Rendered snippets are stale: \(snippets)")}
+    state.mode="commands"
+    let restored=try capture("restored")
+    guard restored.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Clearing search did not restore rows.")}
+    let beforeMove=try Data(contentsOf:directory.appendingPathComponent("restored.png"))
+    state.moveSelection(1);_=try capture("arrow-selection")
+    guard try Data(contentsOf:directory.appendingPathComponent("arrow-selection.png")) != beforeMove else {throw LauncherError("Arrow selection did not redraw.")}
+    let controller=ManagementController(state:state)
+    guard !controller.window.isVisible,let management=controller.window.contentView else {throw LauncherError("Management opened automatically.")}
+    defer {controller.window.close()}
+    capturedHost=management
+    controller.window.appearance=NSAppearance(named:.darkAqua);management.appearance=NSAppearance(named:.darkAqua)
+    state.query="obsidian"
+    let settings=try capture("settings-dark")
+    guard settings.contains(where:{$0.contains("General")}),settings.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Settings did not render: \(settings)")}
+    controller.navigation.query="gmaps"
+    let managedSearch=try capture("settings-search")
+    guard managedSearch.contains(where:{$0.contains("Search Google Maps")}),!managedSearch.contains(where:{$0.contains("Finder")}),state.query=="obsidian" else {throw LauncherError("Management search stale or changed launcher query: \(managedSearch)")}
+    controller.navigation.query="";controller.navigation.kind="snippets"
+    let managedSnippets=try capture("settings-snippets")
+    guard managedSnippets.contains(where:{$0.contains("Greeting")}),!managedSnippets.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Management library stale: \(managedSnippets)")}
+    controller.navigation.form=CommandForm(command:state.config.commands.last!,isRun:false)
+    let editor=try capture("settings-editor")
+    guard editor.contains(where:{$0.contains("Keyword")}) else {throw LauncherError("Management editor missing: \(editor)")}
+    controller.navigation.form=nil;controller.window.appearance=NSAppearance(named:.aqua);management.appearance=NSAppearance(named:.aqua)
+    controller.window.setContentSize(NSSize(width:680,height:480))
+    _=try capture("settings-light-small")
+    panel.contentView=host;capturedHost=host;host.appearance=NSAppearance(named:.aqua)
+    state.query="obsidian";panel.setContentSize(NSSize(width:640,height:400))
+    let small=try capture("launcher-light-small")
+    guard small.contains(where:{$0.contains("Obsidian")}),!small.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Small launcher results stale.")}
+    return ["ok":true,"persistentHostingView":true,"renderedTextChecks":12,"nativeHostingFieldDelegate":true,"separateManagementNavigation":true,"managementDoesNotOpenAutomatically":true,"desktopInputSent":false,"visibleWindowOpened":false]
+}

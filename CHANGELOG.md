@@ -1,0 +1,107 @@
+# Changelog
+
+## 0.6.3 — 2026-10-25 · First public source preview
+
+- Retain command errors locally with trace IDs, timings, provider details and original exit status.
+- Inspect recent failures with `ruycast logs`; keep private inputs and successful script output out of logs.
+- Choose a persistent configuration folder through Settings or `ruycast config directory`, independently of private local history and runtime files.
+- Preserve configuration bytes when changing folders, refuse existing destination configs, and keep the app’s live configuration observer connected to the selected folder.
+- Publish a clean MIT-licensed source repository, source release, public-safe native visuals and issue/pull-request templates.
+
+## 0.6.2
+
+- Neutral first-run commands, portable source installation and optional personal integrations.
+- Product-first documentation, native visual examples and a clean source export.
+- Build receipts prevent installing binaries from changed or incomplete builds.
+
+## 0.6.1 — Responsive clipboard and background work
+
+- Ordinary command typing no longer scans clipboard history. Clipboard searches run on a coalescing background worker and discard stale results.
+- Clipboard image conversion, retention and persistence run on one bounded worker; imports, deletion and settings changes preserve accepted captures.
+- Cache process ordering, observe configuration changes without rereading unchanged files, and avoid unchanged startup/history/asset writes.
+- Bound website-icon requests/retry bookkeeping and CLI connection workers; move bulk clipboard CLI reads off the main thread.
+- Reproducible release benchmarks, hidden lifecycle fixtures and passive resource sampling. Measurement boundaries are documented in docs/PERFORMANCE.md.
+
+## 0.6.0 — Local Dashboard and diagnostics
+
+- Command use, sources, success/failure and recent latency summaries in a native Dashboard; prior successful uses are preserved separately.
+- Bounded private local storage with pause, retention, reset and a summary-only diagnostic export. No query/input/URL/clipboard payloads or remote telemetry.
+- Real runner and CLI checks, corrupt-data preservation, concurrent aggregation and native light/dark renders.
+
+## 0.5.1 — Quick capture keyboard flow
+
+- Enter saves Quick Note, Quick Task and text-capture forms; Shift–Enter adds a line. Command–Enter remains available.
+- IME confirmation commits composed text before submission; busy saves ignore duplicate submissions.
+
+## 0.5.0 — Processes, System Monitor and clipboard previews
+
+- Kill Process displays native app icons, CPU, memory and PID with stable selection across sorting and refresh. Kill executes immediately; PID/start-time/owner checks remain enforced.
+- Separate native System Monitor with six pages, bounded history and background sampling that stops when closed or minimized. Read-only monitor/processes JSON CLI operations.
+- Clipboard text/image/local image-file previews and metadata, serial background decoding, and fixed copied timestamps.
+- Native fixture checks cover direct Kill without real termination, selection changes, previews, monitor lifecycle, all six pages in both themes and CLI integration.
+
+## 0.4.1 — Capture and binding feedback
+
+- Quick Note/Quick Task open a focused native multiline editor; Return adds a line, Command–Return saves.
+- Command–K adds Alias & Shortcut and Disable. Creation moves to a global footer menu and never inherits the selected command.
+- Quick binding saves merge only changed fields, preserving concurrent definition edits and refusing resurrection of removed commands.
+- Raycast RAYCFG3 JSON binding audit/repair maps stable extension identities and stages reassignment before collision checks. Existing content and approved modifier taps remain intact.
+- Native checks cover editor focus/newlines, quick binding saves, disable, independent creation and process adapter behavior.
+
+## 0.4.0 — Classic Settings
+
+- Six icon tabs above a compact grouped command table; Commands opens first.
+- Viggo navy/cream palette, inline aliases, focused shortcut recording and contextual editors, including script arguments.
+- Disable commands without losing data; release their hotkeys and prevent search, execution and snippet expansion. App discovery cannot reintroduce disabled applications.
+- Clipboard retention/exclusions and general shortcut controls use guarded CLI writes. Failed runtime activation rolls back an unchanged proposed configuration.
+- Native offscreen light/dark and minimum-size checks exercise recorder cancellation, modifier taps, conflicts, CLI saves and independent navigation.
+
+## 0.3.2 — Actions keyboard navigation
+
+- Command–K gives Actions its own highlighted keyboard selection; arrows and Return stay inside the menu.
+- Escape and Command–K close Actions and return focus to search; background results stay selected.
+- Mouse and keyboard share actions, with stable payloads for removal confirmation.
+
+## 0.3.1 — Shortcut badges and website icons
+
+- Compact native keycaps, with one Hyper symbol and clear arrow/letter keys.
+- Website favicon/touch-icon discovery and bounded background loading, with a persistent local cache and native fallbacks.
+- Full quicklink paths, queries, credentials and cookies are excluded from origin icon requests.
+
+## 0.3.0 — Personal Raycast transition
+
+- Native physical Caps Hyper and solo modifier gestures, with permission/sleep recovery.
+- Personal command migration: preserved snippet/link content, preferred apps, aliases and hotkeys.
+- Existing native app and Obsidian task providers connected through a checked bridge.
+- Native file, menu, window and process search; explicit process termination confirmation.
+- Text/image/file clipboard storage and bounded history migration.
+- Saved text, generators and histories, with existing Keychain password history preserved.
+- Persistent certificate installation; update permission continuity checked separately.
+
+## 0.2.3 — 2026-10-24
+
+Persistent app-specific local certificate signing replaces ad-hoc releases. Pin bundle identifier and certificate in the designated requirement, preserve the private identity outside the repository, and reject missing/changed signing state before stopping the installed host. Native two-build proof and installer-failure tests prevent silent identity changes. Transitioning from the old ad-hoc identity requires one final OS enrollment.
+
+## 0.2.2 — 2026-10-24
+
+Fix stale rendered search/library rows by using stable command and clipboard IDs throughout list rendering and scrolling. Remove footer category tabs. Keep one launcher with searchable actions and a separate reusable Settings window for browsing/editing commands and controlling snippet expansion/clipboard history. Add persistent native rendering regression with OCR, including management navigation and editor views.
+
+## 0.2.1 — 2026-10-24
+
+Rename app, CLI, login identity and canonical profile/repository to Ruycast. Preserve private data and old CLI/environment/path aliases. Installer checks owned destinations, migrates under the exclusive profile lock, verifies data hashes and restores previous app/links/service if startup fails. Permissions are handled separately after the rename.
+
+## 0.2.0 — 2026-10-24
+
+Native field-editor search and arrow navigation, selected-item Command–K actions, input forms for existing Quick Note/Quick Task providers, editable quicklinks and snippets, complete library CLI operations, named quicklink/template arguments, and guarded automatic keyword expansion. Raycast import now supports enabled parameterized/custom-scheme links and all existing snippets without modifying Raycast. Config edits reject concurrent changes. Rust archive changes invalidate Swift artifacts to prevent stale links.
+
+## 0.1.2 — 2026-10-24
+
+Persistent normalized Rust search index; query-only bridging returns indices instead of retransmitting whole commands. Published search results are reused during navigation and unrelated renders. CLI search leaves palette state untouched. Config reload, discovered apps and usage ranking refresh cached results. Consistent neutral command glyphs with distinct halves, thirds, maximize/restore and display directions; genuine app icons retained.
+
+## 0.1.1 — 2026-10-24
+
+Real macOS application icons with cached lookup and missing-app fallback. Centered palette placement on the cursor display, including smaller and offset displays. Raycast-inspired compact neutral rows, inline alias badges and action kinds; commands/clipboard switching remains in the footer.
+
+## 0.1.0 — 2026-10-24
+
+Initial Rustcast MVP: Rust domain core and JSON CLI; native Mac launcher; configurable aliases/hotkeys and app/link/script actions; bounded text clipboard history; Accessibility window layouts; read-only Raycast export importer; silent login startup and local usage counters.

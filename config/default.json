@@ -1,0 +1,208 @@
+{
+  "clipboard": {
+    "enabled": true,
+    "excludedApps": [
+      "com.apple.Passwords",
+      "com.agilebits.onepassword7",
+      "com.1password.1password"
+    ],
+    "limit": 200,
+    "maxTextBytes": 100000,
+    "retentionDays": 30
+  },
+  "clipboardHotkey": "ctrl+alt+v",
+  "commands": [
+    {
+      "aliases": [
+        "finder"
+      ],
+      "arguments": [],
+      "id": "app.finder",
+      "kind": "app",
+      "target": "com.apple.finder",
+      "title": "Finder"
+    },
+    {
+      "aliases": [
+        "safari"
+      ],
+      "arguments": [],
+      "id": "app.safari",
+      "kind": "app",
+      "target": "com.apple.Safari",
+      "title": "Safari"
+    },
+    {
+      "aliases": [
+        "terminal"
+      ],
+      "arguments": [],
+      "id": "app.terminal",
+      "kind": "app",
+      "target": "com.apple.Terminal",
+      "title": "Terminal"
+    },
+    {
+      "id": "path.documents",
+      "title": "Documents",
+      "kind": "path",
+      "target": "~/Documents",
+      "aliases": [
+        "documents"
+      ],
+      "arguments": []
+    },
+    {
+      "aliases": [
+        "clip"
+      ],
+      "arguments": [],
+      "id": "clipboard",
+      "kind": "builtin",
+      "target": "clipboard",
+      "title": "Clipboard History"
+    },
+    {
+      "aliases": [
+        "left-half"
+      ],
+      "arguments": [],
+      "id": "window.left-half",
+      "kind": "window",
+      "target": "left-half",
+      "title": "Left Half"
+    },
+    {
+      "aliases": [
+        "right-half"
+      ],
+      "arguments": [],
+      "id": "window.right-half",
+      "kind": "window",
+      "target": "right-half",
+      "title": "Right Half"
+    },
+    {
+      "aliases": [
+        "first-third"
+      ],
+      "arguments": [],
+      "id": "window.first-third",
+      "kind": "window",
+      "target": "first-third",
+      "title": "First Third"
+    },
+    {
+      "aliases": [
+        "center-third"
+      ],
+      "arguments": [],
+      "id": "window.center-third",
+      "kind": "window",
+      "target": "center-third",
+      "title": "Center Third"
+    },
+    {
+      "aliases": [
+        "last-third"
+      ],
+      "arguments": [],
+      "id": "window.last-third",
+      "kind": "window",
+      "target": "last-third",
+      "title": "Last Third"
+    },
+    {
+      "aliases": [
+        "first-two-thirds"
+      ],
+      "arguments": [],
+      "id": "window.first-two-thirds",
+      "kind": "window",
+      "target": "first-two-thirds",
+      "title": "First Two Thirds"
+    },
+    {
+      "aliases": [
+        "last-two-thirds"
+      ],
+      "arguments": [],
+      "id": "window.last-two-thirds",
+      "kind": "window",
+      "target": "last-two-thirds",
+      "title": "Last Two Thirds"
+    },
+    {
+      "aliases": [
+        "maximize"
+      ],
+      "arguments": [],
+      "id": "window.maximize",
+      "kind": "window",
+      "target": "maximize",
+      "title": "Maximize"
+    },
+    {
+      "aliases": [
+        "restore"
+      ],
+      "arguments": [],
+      "id": "window.restore",
+      "kind": "window",
+      "target": "restore",
+      "title": "Restore"
+    },
+    {
+      "aliases": [
+        "next-screen"
+      ],
+      "arguments": [],
+      "id": "window.next-screen",
+      "kind": "window",
+      "target": "next-screen",
+      "title": "Next Screen"
+    },
+    {
+      "aliases": [
+        "previous-screen"
+      ],
+      "arguments": [],
+      "id": "window.previous-screen",
+      "kind": "window",
+      "target": "previous-screen",
+      "title": "Previous Screen"
+    },
+    {
+      "id": "builtin.snippets",
+      "title": "Search Snippets",
+      "kind": "builtin",
+      "target": "snippets",
+      "aliases": []
+    },
+    {
+      "id": "builtin.quicklinks",
+      "title": "Search Quicklinks",
+      "kind": "builtin",
+      "target": "quicklinks",
+      "aliases": []
+    },
+    {
+      "id": "builtin.create-snippet",
+      "title": "Create Snippet",
+      "kind": "builtin",
+      "target": "create-snippet",
+      "aliases": []
+    },
+    {
+      "id": "builtin.create-quicklink",
+      "title": "Create Quicklink",
+      "kind": "builtin",
+      "target": "create-quicklink",
+      "aliases": []
+    }
+  ],
+  "launcherHotkey": "ctrl+alt+space",
+  "version": 1,
+  "snippetExpansionEnabled": false,
+  "hyperKeyEnabled": false
+}

@@ -1,0 +1,106 @@
+func XCTAssertEqual<T:Equatable>(_ a:T,_ b:T) {precondition(a==b,"Expected \(a) == \(b)")}
+func XCTAssertEqual(_ a:Double,_ b:Double,accuracy:Double) {precondition(abs(a-b)<=accuracy)}
+func XCTAssertThrowsError<T>(_ expression:@autoclosure () throws -> T) {do {_ = try expression();preconditionFailure("Expected an error")} catch {}}
+import Foundation
+import LauncherCore
+struct CoreTests {
+    func testConfigRejectsAmbiguousAliasesAndHotkeys() throws {
+        var c=Configuration.initial;try c.validate()
+        c.commands.append(Command(id:"collision",title:"Collision",kind:"path",target:"/",aliases:["FiNdEr"]))
+        XCTAssertThrowsError(try c.validate())
+        c=Configuration.initial;c.commands[0].hotkey="alt+ctrl+space";XCTAssertThrowsError(try c.validate())
+        c=Configuration.initial;c.version=2;XCTAssertThrowsError(try c.validate())
+    }
+    func testExactAliasBeatsTitleAndSupportsMultipleTerms() throws {
+        var c=Configuration.initial;c.commands.append(Command(id:"link",title:"Finder documentation",kind:"url",target:"https://example.com",aliases:["docs"]))
+        XCTAssertEqual(c.search("finder").first?.id,"app.finder");XCTAssertEqual(c.search("finder documentation").first?.id,"link")
+        XCTAssertEqual(c.resolve("DOCS")?.id,"link")
+    }
+    func testPersistentIndexRankingAndUnicode() throws {
+        let commands=[
+            Command(id:"z",title:"Beta",kind:"url",target:"https://example.com/one",aliases:["go"]),
+            Command(id:"a",title:"Go Alpha",kind:"url",target:"https://example.com/two"),
+            Command(id:"b",title:"Ångström Notes",kind:"url",target:"https://example.com/three",aliases:["nul\0alias"]),
+            Command(id:"c",title:"Beta",kind:"url",target:"https://example.com/four")]
+        let index=try CommandSearchIndex(commands:commands)
+        XCTAssertEqual(index.search("go").map(\.id),["z","a"])
+        XCTAssertEqual(index.search(" BETA ").map(\.id),["z","c"])
+        XCTAssertEqual(index.search("ÅNGSTRÖM notes").map(\.id),["b"])
+        XCTAssertEqual(index.search("nul\0alias").map(\.id),["b"])
+        XCTAssertEqual(index.search("   "),commands)
+        XCTAssertEqual(index.search("does not exist"),[])
+        XCTAssertEqual(try CommandSearchIndex(commands:[]).search(""),[])
+        for _ in 0..<100 {let temporary=try CommandSearchIndex(commands:commands);XCTAssertEqual(temporary.search("go").first?.id,"z")}
+    }
+    func testTemplatesAndSnippetMatching() throws {
+        let link=Command(id:"link",title:"Maps",kind:"url",target:"https://example.com/search?q={query}&place={Place}")
+        XCTAssertEqual(Templates.fields(link).map(\.id),["Query","Place"])
+        let rendered=try Templates.render(link,values:["Query":"a&b #/Ω","Place":"New York"]).0
+        let url=URLComponents(string:rendered)!
+        XCTAssertEqual(url.queryItems?.first?.value,"a&b #/Ω")
+        XCTAssertEqual(url.queryItems?.last?.value,"New York")
+        XCTAssertThrowsError(try Templates.render(link,values:[:]))
+        let snippet=Command(id:"s",title:"Greeting",kind:"snippet",target:#"Hi {clipboard}, {cursor}{argument name="Tone" options="Hello,Hi" default="Hello"}"#,keyword:";hi")
+        let result=try Templates.render(snippet,values:[:],clipboard:"Ω")
+        XCTAssertEqual(result.0,"Hi Ω, Hello")
+        XCTAssertEqual((result.0 as NSString).substring(to:result.1!),"Hi Ω, ")
+        XCTAssertThrowsError(try Templates.render(snippet,values:[:]))
+        var matcher=SnippetMatcher()
+        XCTAssertEqual(matcher.type(";h",commands:[snippet]),nil)
+        XCTAssertEqual(matcher.type("i",commands:[snippet]),snippet)
+        XCTAssertEqual(matcher.type("i",commands:[snippet]),nil)
+        matcher.reset();_ = matcher.type(";hx",commands:[snippet]);matcher.backspace()
+        XCTAssertEqual(matcher.type("i",commands:[snippet]),snippet)
+        let word=Command(id:"w",title:"Word",kind:"snippet",target:"expanded",keyword:"abc")
+        matcher.reset();XCTAssertEqual(matcher.type("xabc",commands:[word]),nil)
+        matcher.reset();XCTAssertEqual(matcher.type("abc",commands:[word]),word)
+        let interactive=Command(id:"i",title:"Input",kind:"snippet",target:#"{argument name="Name"}"#,keyword:";name")
+        matcher.reset();XCTAssertEqual(matcher.type(";name",commands:[interactive]),nil)
+        let longText=String(repeating:"Hello Ω 👨‍👩‍👧‍👦\n",count:100)
+        var chunks:[String]=[]
+        SnippetReplacement(keyword:";long",finalInput:"g",text:longText,cursor:nil).apply(key:{_ in},insert:{chunks.append($0)})
+        XCTAssertEqual(chunks.joined(),longText)
+        XCTAssertEqual(chunks.allSatisfy {$0.utf16.count<=16},true)
+        var c=Configuration.initial;c.commands.append(word);c.commands.append(Command(id:"w2",title:"Word 2",kind:"snippet",target:"other",keyword:"abc"));XCTAssertThrowsError(try c.validate())
+    }
+    func testHistoryDeduplicatesBoundsAndExpires() {
+        let now=Date();let s=ClipboardSettings(limit:2,maxTextBytes:20,retentionDays:1,excludedApps:["secret"])
+        let a=Clip(text:"a",source:"app"),b=Clip(text:"b",source:"app")
+        let items=History.insert(a,into:[b,a,Clip(text:"expired",source:"app",date:now.addingTimeInterval(-90000))],settings:s,now:now)
+        XCTAssertEqual(items.map(\.text),["a","b"])
+        XCTAssertEqual(History.insert(Clip(text:"password",source:"secret"),into:items,settings:s),items)
+        XCTAssertEqual(History.insert(Clip(text:String(repeating:"x",count:21),source:"app"),into:items,settings:s),items)
+        XCTAssertEqual(History.insert(Clip(text:"  ",source:"app"),into:items,settings:s),items)
+    }
+    func testThirdsOnNegativeOriginDisplay() throws {
+        let screen=Frame(x:-3440,y:-200,width:3440,height:1400)
+        let r=try screen.layout("last-two-thirds")
+        XCTAssertEqual(r.x,-3440+3440.0/3,accuracy:0.01);XCTAssertEqual(r.width,3440*2.0/3,accuracy:0.01)
+        XCTAssertThrowsError(try screen.layout("other"))
+    }
+    func testScriptAndSettingsValidation() throws {
+        var c=Configuration.initial;c.commands.append(Command(id:"s",title:"Script",kind:"script",target:"relative"));XCTAssertThrowsError(try c.validate())
+        c=Configuration.initial;c.clipboard.limit=1001;XCTAssertThrowsError(try c.validate())
+        XCTAssertThrowsError(try Shortcut("ctrl+ctrl+v"));XCTAssertThrowsError(try Shortcut("space"))
+    }
+    func testRoundTripAndPrivateStorage() throws {
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        let p=root.appendingPathComponent("config.json");try Files.save(Configuration.initial,to:p)
+        XCTAssertEqual(try Files.config(p),Configuration.initial)
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath:p.path)[.posixPermissions] as? NSNumber)?.intValue,0o600)
+    }
+}
+
+@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("8 core behavior checks passed")
+        let args=Array(CommandLine.arguments.dropFirst())
+        if args.count==2,args[0]=="--library" {
+            let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
+            var rendered=0
+            for command in config.commands where command.kind=="snippet" || command.kind=="url" {
+                let values=Dictionary(uniqueKeysWithValues:Templates.fields(command).map {($0.id,$0.defaultValue.isEmpty ? ($0.options.first ?? "Fixture"):$0.defaultValue)})
+                _=try Templates.render(command,values:values,clipboard:"Fixture",now:Date(timeIntervalSince1970:0));rendered+=1
+                if let keyword=command.keyword {precondition(index.search(keyword).contains(where:{$0.id==command.id}),"Imported keyword is not searchable")}
+            }
+            print("Private library verified: \(config.commands.count) commands, \(rendered) link/snippet templates; no private text printed")
+        }}}

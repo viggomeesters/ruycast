@@ -1,0 +1,133 @@
+{
+  "$schema": "https://viggomeesters.github.io/schemas/repo-vision-contract.schema.json",
+  "schema_version": "1.0.0",
+  "artifact_kind": "repo_design_vision_contract",
+  "repo": {
+    "name": "Ruycast",
+    "primary_users": [
+      "Mac keyboard users",
+      "local coding agents"
+    ],
+    "product_surface": "Native macOS launcher, Settings, CLI and readable configuration"
+  },
+  "vision": {
+    "one_line": "A fast native Mac launcher that people and their AI tools can customize.",
+    "north_star": "Daily keyboard actions stay predictable, private and easy to automate.",
+    "promise": "A fresh build works with a neutral profile; management is available through validated local interfaces."
+  },
+  "principles": [
+    {
+      "id": "agent-first",
+      "rule": "Every management action should have a safe CLI or file interface.",
+      "good": [
+        "CLI JSON status and guarded config changes"
+      ],
+      "bad": [
+        "UI-only configuration"
+      ],
+      "title": "Agent First"
+    },
+    {
+      "id": "json-first",
+      "rule": "Keep configuration, command definitions and measurement outputs structured.",
+      "good": [
+        "Validated JSON profiles and machine-readable results"
+      ],
+      "bad": [
+        "Scraping human prose to run an action"
+      ],
+      "title": "Json First"
+    },
+    {
+      "id": "native-and-responsive",
+      "rule": "Keep everyday input responsive and show one launcher panel.",
+      "good": [
+        "Bounded workers and cached results"
+      ],
+      "bad": [
+        "Synchronous image encoding during typing"
+      ],
+      "title": "Native And Responsive"
+    },
+    {
+      "id": "local-first",
+      "rule": "Store history and analytics locally with explicit privacy boundaries.",
+      "good": [
+        "Retention and analytics reset"
+      ],
+      "bad": [
+        "Remote clipboard telemetry"
+      ],
+      "title": "Local First"
+    },
+    {
+      "id": "honest-evidence",
+      "rule": "Distinguish fixtures from desktop behavior and source previews from signed releases.",
+      "good": [
+        "Explicit unmet performance budgets"
+      ],
+      "bad": [
+        "Declaring leak freedom from a short test"
+      ],
+      "title": "Honest Evidence"
+    }
+  ],
+  "non_goals": [
+    "Embedded AI chat service",
+    "Full compatibility with every Raycast extension",
+    "Bundling personal vault or customer integrations"
+  ],
+  "public_safety": {
+    "forbidden": [
+      "Signing keys or tokens",
+      "Personal profiles and clipboard history",
+      "Private development Git history"
+    ],
+    "required_boundaries": [
+      "Clean allowlisted source export",
+      "Stable per-install signing identity",
+      "Explicit unmeasured performance and distribution gaps"
+    ]
+  },
+  "acceptance_scorecard": [
+    {
+      "id": "fresh-profile",
+      "question": "Does the app work without private infrastructure?",
+      "pass_condition": "Neutral configuration and isolated host/native checks pass."
+    },
+    {
+      "id": "agent-first",
+      "question": "Can an agent manage configuration safely?",
+      "pass_condition": "CLI JSON and compare-and-swap configuration checks pass."
+    },
+    {
+      "id": "public-source",
+      "question": "Can the declared source set be shared?",
+      "pass_condition": "Manifest, privacy inspection and fresh-export validation pass; public remote/release remain separate."
+    }
+  ],
+  "review_checklist": [
+    "Run local functional and relevant native checks.",
+    "Inspect visible copy and real UI renders.",
+    "Preserve profile data and signing identity.",
+    "Report unmet measurement budgets and publication status."
+  ],
+  "maturity_model": [
+    {
+      "level": "L0",
+      "state": "present",
+      "meaning": "Contract and schemas are included."
+    },
+    {
+      "level": "L1",
+      "state": "tested",
+      "meaning": "Local functional/native gates validate key behavior."
+    },
+    {
+      "level": "L2",
+      "state": "source-preview",
+      "meaning": "Clean source is prepared; public distribution acceptance remains separate."
+    }
+  ],
+  "residual_risk_wording": "This source preview does not establish notarized distribution, end-to-end desktop latency or leak freedom."
+}
