@@ -149,6 +149,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
                 updateMenuBar()
                 s.$config.receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
                 s.$configError.combineLatest(s.$clipboardCleanupError).receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
+                for name in [NSWorkspace.didLaunchApplicationNotification,NSWorkspace.didTerminateApplicationNotification] {NSWorkspace.shared.notificationCenter.publisher(for:name).receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)}
                 s.analytics.objectWillChange.debounce(for:.seconds(2),scheduler:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
 
             }

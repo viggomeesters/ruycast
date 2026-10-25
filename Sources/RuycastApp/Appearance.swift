@@ -1,8 +1,15 @@
 import SwiftUI
+import AppKit
 import LauncherCore
 
 extension AppState {
-    var runtimeHealthy:Bool {configError==nil && clipboardCleanupError==nil && analytics.storageError==nil && (hotkeys?.warnings.isEmpty ?? true)}
+    static func keyboardHealth(hyperEnabled:Bool,snippetsEnabled:Bool,trusted:Bool,raycastRunning:Bool)->Bool {
+        !(hyperEnabled || snippetsEnabled) || (trusted && !raycastRunning)
+    }
+    var runtimeHealthy:Bool {
+        configError==nil && clipboardCleanupError==nil && analytics.storageError==nil && (hotkeys?.warnings.isEmpty ?? true) &&
+        (headless || Self.keyboardHealth(hyperEnabled:config.hyperKeyEnabled==true,snippetsEnabled:config.snippetExpansionEnabled==true,trusted:windows.trusted,raycastRunning:!NSRunningApplication.runningApplications(withBundleIdentifier:"com.raycast.macos").isEmpty))
+    }
     var preferredColorScheme:ColorScheme? {
         switch config.theme ?? "system" {case "light":return .light;case "dark","graphite":return .dark;default:return nil}
     }
