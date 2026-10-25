@@ -75,7 +75,7 @@ struct ClipboardHistoryView:View {
                                         Text(clip.date.formatted(date:.omitted,time:.shortened)).font(.system(size:11)).foregroundStyle(.secondary)
                                     };Spacer(minLength:0)
                                 }.padding(.horizontal,9).padding(.vertical,9).frame(maxWidth:.infinity,alignment:.leading).background(index==state.selection ? Color.primary.opacity(0.09):.clear,in:RoundedRectangle(cornerRadius:7)).contentShape(Rectangle())
-                            }.buttonStyle(.plain).id(clip.id)
+                            }.buttonStyle(PaletteRowButtonStyle()).id(clip.id)
                         }
                         if state.filteredClips.isEmpty {Text(state.clipboardSearchBusy ? "Searching…":state.query.isEmpty ? "Clipboard is empty":"No clipboard items found").foregroundStyle(.secondary).font(.caption).padding(24)}
                     }.padding(.horizontal,8).padding(.bottom,10)

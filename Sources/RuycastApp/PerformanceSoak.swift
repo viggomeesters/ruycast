@@ -33,7 +33,7 @@ func benchmarkLifecycle(blocks:Int=10,render:Bool=true) throws -> [String:Any] {
     }}
     try block(100);pump(1);drawFrame()
     var samples:[[String:Any]]=[["cycles":0,"footprintBytes":footprint()]]
-    for i in 1...blocks {try block(100);pump(0.2);drawFrame();samples.append(["cycles":i*100,"footprintBytes":footprint()])}
+    for i in 1...blocks {try block(100);pump(0.2);drawFrame();samples.append(["cycles":i*100,"footprintBytes":footprint()]);if i%10==0 {fputs("lifecycle cycles=\(i*100) footprintMiB=\(Double(footprint())/1048576)\n",stderr)}}
     pump(2);let end=footprint(),start=samples[0]["footprintBytes"] as! UInt64
     let monitor=SystemMonitorModel()
     for _ in 0..<1000 {monitor.start();monitor.stop()}

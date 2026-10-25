@@ -71,7 +71,7 @@ struct Palette:View {
                                         .frame(maxWidth:.infinity,alignment:.leading)
                                         .background(index==state.selection ? highlight:Color.clear,in:RoundedRectangle(cornerRadius:8))
                                         .contentShape(Rectangle())
-                                }.buttonStyle(.plain).id(cmd.id)
+                                }.buttonStyle(PaletteRowButtonStyle()).id(cmd.id)
                             }
 
                     }.padding(.horizontal,8).padding(.bottom,12)
@@ -203,4 +203,10 @@ final class PaletteController {
         p.orderFrontRegardless();toast=p
         toastTimer=Timer.scheduledTimer(withTimeInterval:5,repeats:false) {[weak self] _ in self?.toast?.orderOut(nil);self?.toast=nil}
     }
+}
+
+/// A SwiftUI-drawn row keeps native Button accessibility without creating an
+/// AppKit NSCell for every transient search result.
+struct PaletteRowButtonStyle:ButtonStyle {
+    func makeBody(configuration:Configuration)->some View {configuration.label.opacity(configuration.isPressed ? 0.8:1)}
 }

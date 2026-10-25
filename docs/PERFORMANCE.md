@@ -72,3 +72,7 @@ Three alternating release pairs on one M4 Mac reduced command typing with10,000 
 The first investigation and improvement round is complete. The full desktop acceptance is open: the native stress growth and unmeasured rows above are explicit follow-up work, rather than successful measurements.
 
 The installed0.6.1 performance build retained the same binary throughout its600-second passive sample. The later0.6.2 source preview adds neutral defaults and packaging provenance; it is not a second full desktop timing run. Passive observation does not prove that every timer or external clipboard provider is idle.
+
+## Background acceptance follow-up
+
+The follow-up compares the same 1,000/5,000/10,000 hidden native cycles, records allocation owners with the macOS heap/malloc-history tools, and measures an isolated 30-minute active plus 60-minute idle host. Physical keyboard-to-display timing, battery behavior and a live Raycast comparison require a separate practice session; background tests do not establish those outcomes. The candidate is under investigation until its measured results are recorded here.
