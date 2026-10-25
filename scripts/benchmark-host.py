@@ -7,6 +7,9 @@ from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('--host',type=Path,required=True);p.add_argument('--cli',type=Path,required=True);p.add_argument('--probe',type=Path,required=True);p.add_argument('--out',type=Path,required=True);p.add_argument('--active-seconds',type=float,default=600);p.add_argument('--idle-seconds',type=float,default=600);p.add_argument('--cold-starts',type=int,default=30);p.add_argument('--samples',type=int,default=1000);a=p.parse_args()
 a.host=a.host.resolve();a.cli=a.cli.resolve();a.probe=a.probe.resolve()
 host_sha=hashlib.sha256(a.host.read_bytes()).hexdigest();cli_sha=hashlib.sha256(a.cli.read_bytes()).hexdigest()
+def verify_binaries():
+ for path,digest,label in [(a.host,host_sha,'Host'),(a.cli,cli_sha,'CLI')]:
+  if hashlib.sha256(path.read_bytes()).hexdigest()!=digest:raise RuntimeError(label+' binary changed during measurement')
 def stats(values):
  s=sorted(values);return {'samples':len(s),'medianMS':s[len(s)//2],'p95MS':s[int((len(s)-1)*.95)],'p99MS':s[int((len(s)-1)*.99)] if len(s)>=1000 else None,'maxMS':s[-1]}
 with tempfile.TemporaryDirectory(prefix='rc-h-') as folder:
@@ -22,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix='rc-h-') as folder:
    obj=json.loads(b''.join(chunks));assert obj['ok'],obj;return obj
  def start():
   global host
-  if hashlib.sha256(a.host.read_bytes()).hexdigest()!=host_sha:raise RuntimeError("Host binary changed between cold starts")
+  verify_binaries()
   began=time.monotonic();host=subprocess.Popen([str(a.host),'--headless'],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
   while time.monotonic()-began<10:
    if host.poll() is not None:raise RuntimeError('Host exited during startup')
@@ -45,26 +48,27 @@ with tempfile.TemporaryDirectory(prefix='rc-h-') as folder:
   print(json.dumps({'phase':'cold','p95MS':stats(cold)['p95MS']}),flush=True)
   start();timings={}
   for name,args in [('status',['status']),('search',['search','Project 42'])]:
-   values=[]
+   verify_binaries();values=[]
    for i in range(a.samples+10):
     began=time.monotonic();result=subprocess.run([str(a.cli),*args],env=env,capture_output=True,check=True);obj=json.loads(result.stdout);assert obj['ok'];elapsed=(time.monotonic()-began)*1000
     if i>=10:values.append(elapsed)
-   timings[name]=stats(values);print(json.dumps({'phase':name,**timings[name]}),flush=True)
+   verify_binaries();timings[name]=stats(values);print(json.dumps({'phase':name,**timings[name]}),flush=True)
   def sample():
    row=json.loads(subprocess.check_output([str(a.probe),str(host.pid)]));row['time']=time.monotonic();return row
   def observe(seconds,active):
-   rows=[sample()];began=time.monotonic();last_sample=began;last_monitor=began;requests=0
+   verify_binaries();rows=[sample()];began=time.monotonic();last_sample=began;last_monitor=began;requests=0
    while time.monotonic()-began<seconds:
     if active:
      rpc('search',query=f'Project {requests%100}');rpc('clipboard.list',query=f'Fixture {requests%100}');requests+=2
      if time.monotonic()-last_monitor>=2:rpc('monitor');requests+=1;last_monitor=time.monotonic()
     time.sleep(min(.1,max(.001,seconds-(time.monotonic()-began))))
     if time.monotonic()-last_sample>=5:rows.append(sample());last_sample=time.monotonic()
-   rows.append(sample());first,last=rows[0],rows[-1];duration=last['time']-first['time']
+   verify_binaries();rows.append(sample());first,last=rows[0],rows[-1];duration=last['time']-first['time']
    return {'durationS':duration,'requests':requests,'cpuPercentOneCore':100*(last['cpuNS']-first['cpuNS'])/1e9/duration,'packageIdleWakeupsPerSecond':(last['packageIdleWakeups']-first['packageIdleWakeups'])/duration,'interruptWakeupsPerSecond':(last['interruptWakeups']-first['interruptWakeups'])/duration,'footprintStartMiB':first['footprintBytes']/1048576,'footprintEndMiB':last['footprintBytes']/1048576,'footprintMaxMiB':max(r['footprintBytes'] for r in rows)/1048576,'diskReadBytes':last['diskReadBytes']-first['diskReadBytes'],'diskWriteBytes':last['diskWriteBytes']-first['diskWriteBytes'],'logicalWriteBytes':last['logicalWriteBytes']-first['logicalWriteBytes'],'samples':rows}
   active=observe(a.active_seconds,True) if a.active_seconds>0 else None
   if active:print(json.dumps({'phase':'active','durationS':active['durationS'],'requests':active['requests']}),flush=True)
   idle=observe(a.idle_seconds,False) if a.idle_seconds>0 else None
-  result={'ok':True,'fixtureConfigurationIsolated':True,'scope':'500 commands /200 text fixtures, headless isolated host, no hotkey/discovery/display/pasteboard or physical energy claim; active includes monitor RPC every2seconds','coldReady':stats(cold),'warmCLI':timings,'active':active,'idle':idle,'hostSHA256':host_sha,'cliSHA256':cli_sha,'onDiskHostChangedDuringRun':hashlib.sha256(a.host.read_bytes()).hexdigest()!=host_sha}
+  verify_binaries()
+  result={'ok':True,'fixtureConfigurationIsolated':True,'scope':'500 commands /200 text fixtures, headless isolated host, no hotkey/discovery/display/pasteboard or physical energy claim; active includes monitor RPC every2seconds','coldReady':stats(cold),'warmCLI':timings,'active':active,'idle':idle,'hostSHA256':host_sha,'cliSHA256':cli_sha,'onDiskHostChangedDuringRun':False,'onDiskCLIChangedDuringRun':False}
   a.out.parent.mkdir(parents=True,exist_ok=True);a.out.write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({'phase':'done','ok':True}),flush=True)
  finally:stop()

@@ -44,9 +44,9 @@ Named-pasteboard and isolated-profile checks cover accepted capture followed by 
 
 ## Known measurement limits
 
-The1000-cycle footprint gate is not a proof of leak freedom. A harsher10000-cycle hidden native mode-switch experiment still showed approximately39MiB growth; the same model-only test stayed near its starting footprint. Reusing both mode views and removing selectable text did not resolve that experiment, so neither UI simplification was retained. Native source-label lookups are cached, but a complete root cause for the stress growth remains open. No zero-leak or long-session stability claim is made.
+The current 10,000-cycle native gate checks settled growth and the 1,000/5,000/10,000 checkpoints against a 10 MiB ceiling. It is a bounded regression test, not a proof of leak freedom. The earlier roughly 39 MiB result belongs to the initial round below; the follow-up identifies and repairs the native container lifecycle involved.
 
-Full Xcode/Instruments was unavailable on the measurement host. Physical hotkey/focus/frame latency, Energy/Allocations traces, secure-entry/sleep/wake behavior, battery-versus-mains comparison, a90-minute soak and an honest separate-session Raycast comparison remain unmeasured. Native rendering fixtures and measured headless readiness do not substitute for those checks. Pasteboard providers, icon misses and external apps can introduce platform-owned delays.
+Full Xcode/Instruments was unavailable on the measurement host. Physical hotkey/focus/frame latency, Energy traces, secure-entry/sleep/wake behavior, battery-versus-mains comparison and a separate-session Raycast comparison remain unmeasured. This follow-up was explicitly limited to background measurements. Hidden native rendering and headless readiness do not establish physical presentation latency. Pasteboard providers, icon misses and external apps can introduce platform-owned delays.
 
 See Apple's [Instruments tutorials](https://developer.apple.com/tutorials/instruments) and [hang investigation guide](https://developer.apple.com/documentation/xcode/understanding-hangs-in-your-app) for the full desktop profiling route.
 
@@ -73,6 +73,25 @@ The first investigation and improvement round is complete. The full desktop acce
 
 The installed0.6.1 performance build retained the same binary throughout its600-second passive sample. The later0.6.2 source preview adds neutral defaults and packaging provenance; it is not a second full desktop timing run. Passive observation does not prove that every timer or external clipboard provider is idle.
 
-## Background acceptance follow-up
+## Background acceptance follow-up — 25 October 2026
 
-The follow-up compares the same 1,000/5,000/10,000 hidden native cycles, records allocation owners with the macOS heap/malloc-history tools, and measures an isolated 30-minute active plus 60-minute idle host. Physical keyboard-to-display timing, battery behavior and a live Raycast comparison require a separate practice session; background tests do not establish those outcomes. The candidate is under investigation until its measured results are recorded here.
+Repeating the old 0.7.0 native fixture retained **34.88 MiB** across 10,000 mode/search/action cycles. macOS heap and allocation-history samples identified growing `NSKeyValueDependency` / `NSKeyValueDependencyContext` bookkeeping through AppKit control/view attachment and SwiftUI display-list updates. A custom button style and a replacement text view did not solve the problem and were discarded.
+
+The launcher now creates its native command and clipboard hosting containers once, keeps them attached, and switches visibility. Hidden command typing does not invalidate the clipboard subtree; history changes still reconcile deleted items. Leaving clipboard mode cancels image work, generation tokens reject delayed results, and preview ownership includes the clip identity. Metadata from cancelled or failed decodes is not presented as current.
+
+The final-logic release fixture settled at **+1.52 MiB** over 10,000 cycles (42.74 → 44.25 MiB). Checkpoints at 1,000/5,000/10,000 cycles stayed within the 10 MiB gate. Another earlier persistent-container run settled below its starting footprint; allocator variation is why the gate uses a ceiling rather than requiring negative growth. The fixture also verifies container identity, a hidden panel and 1,000 monitor start/stop cancellation cycles. These are same-data hidden native results, not physical launcher-open timing or a universal leak claim.
+
+An isolated offscreen CPU chart ran for 30 minutes at its ordinary two-second interval, rendering 901 frames. Independent `getrusage` counters measured 0.679% of one core while active and **0.535 percentage points extra CPU** versus the mean of one-minute idle windows before and after. Peak physical footprint was 19.08 MiB; history stayed at 60 samples and no new sample arrived after stop. This does not measure display presentation, battery power or external pasteboard providers.
+
+The 30-minute active / 60-minute idle host soak and final-logic idle observation are still running; their completed results will be recorded before this round is accepted.
+
+Reproduce the bounded native gate with `bash scripts/check-performance.sh`. Longer background probes are opt-in:
+
+```sh
+.build/swift/release/RuycastApp --benchmark-monitor 1800 60
+python3 scripts/benchmark-host.py --host .build/swift/release/RuycastApp \
+  --cli .build/rust/release/ruycast --probe .build/perf-probe \
+  --out .build/performance/host-90min.json --active-seconds 1800 --idle-seconds 3600
+```
+
+Use frozen copies of binaries for long probes. The host script strips external profile/config overrides, asserts its isolated fixture profile and checks that the host file did not change during measurement. The probe never opens the launcher, installs global input hooks or uses the general clipboard. Do not substitute these numbers for the deliberately excluded physical latency, battery and Raycast practice checks.

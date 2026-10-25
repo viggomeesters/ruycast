@@ -35,6 +35,8 @@ extension ClipboardStore {
 }
 final class ClipboardPreviewModel:ObservableObject {
     @Published var asset:ClipboardImage?
+    private(set) var assetID:String?
+    var assetIdentity:String? {guard let asset,let assetID else {return nil};return "\(assetID):\(asset.width):\(asset.height):\(asset.bytes)"}
     @Published var error:String?
     @Published var loading=false
     private let queue:OperationQueue={let q=OperationQueue();q.maxConcurrentOperationCount=1;q.qualityOfService = .userInitiated;return q}()
@@ -46,7 +48,7 @@ final class ClipboardPreviewModel:ObservableObject {
     func load(_ clip:Clip?,store:ClipboardStore) {
         if clip==nil,selectedID==nil,asset==nil,error==nil,!loading {return}
         generation+=1;let version=generation,decode=decode,deliver=deliver
-        queue.cancelAllOperations();selectedID=clip?.id;asset=nil;error=nil;loading=false
+        queue.cancelAllOperations();selectedID=clip?.id;assetID=nil;asset=nil;error=nil;loading=false
         guard let clip,clip.contentType=="image" || clip.contentType=="files" else {return}
         loading=true;let job=BlockOperation()
         job.addExecutionBlock { [weak self,weak job] in
@@ -55,7 +57,7 @@ final class ClipboardPreviewModel:ObservableObject {
             guard job?.isCancelled==false else {return}
             deliver { [weak self] in
                 guard let self,self.generation==version,self.selectedID==clip.id else {return};self.loading=false
-                switch result {case .success(let asset):self.asset=asset;case .failure(let error):self.error=error.localizedDescription}
+                switch result {case .success(let asset):self.assetID=asset == nil ? nil:clip.id;self.asset=asset;case .failure(let error):self.error=error.localizedDescription}
             }
         }
         queue.addOperation(job)
@@ -123,8 +125,8 @@ struct ClipboardHistoryView:View {
             }
         }.onChange(of:actualSelection?.id,initial:true) {_,_ in
             if let actualSelection {retainedSelectionID=actualSelection.id;preview.load(actualSelection,store:state.clipboardStore)}
-        }.onChange(of:preview.asset.map {"\($0.width):\($0.height):\($0.bytes)"}) {_,_ in
-            if let asset=preview.asset,let actualSelection {imageMetadata=(actualSelection.id,asset.width,asset.height,asset.bytes)}
+        }.onChange(of:preview.assetIdentity) {_,_ in
+            if let asset=preview.asset,let assetID=preview.assetID,actualSelection?.id==assetID {imageMetadata=(assetID,asset.width,asset.height,asset.bytes)}
         }.onChange(of:state.mode) {_,mode in
             if mode != "clipboard" {preview.load(nil,store:state.clipboardStore)}
         }.onChange(of:state.clips.map(\.id)) {_,ids in
@@ -148,7 +150,13 @@ struct ClipboardHistoryView:View {
                 VStack(spacing:7) {
                     info("Source",sourceName(clip.source))
                     info("Type",preview.asset != nil ? "Image":clip.contentType=="files" ? "Files":clip.contentType=="image" ? "Image":"Text")
-                    if let asset=imageMetadata,asset.id==clip.id {info("Dimensions","\(asset.width) × \(asset.height)");info("Size",memoryLabel(UInt64(asset.bytes)))}
+                    if let asset=imageMetadata,asset.id==clip.id {
+                        // Retain row structure across native mode switches, but never
+                        // expose values belonging to a cancelled or failed decode.
+                        let ready=preview.assetID==clip.id && preview.asset != nil
+                        info("Dimensions",ready ? "\(asset.width) × \(asset.height)":"—")
+                        info("Size",ready ? memoryLabel(UInt64(asset.bytes)):"—")
+                    }
                     else if clip.contentType != "files" && clip.contentType != "image" {info("Characters",String(clip.text.count))}
                     info("Copied",clip.date.formatted(date:.abbreviated,time:.shortened))
                 }.font(.system(size:12))
