@@ -33,7 +33,11 @@ Allow Ruycast in **System Settings → Privacy & Security → Accessibility** fo
 
 ## Usage
 
+Choose your theme and menu bar visibility in Settings → General.
+
 Press **Control–Option–Space**, type an app name or alias, then Return. Open clipboard history with **Control–Option–V**. Command–K opens actions; arrow keys navigate them.
+
+For a quicklink with one input, type its alias followed by a space and your query, then Return.
 
 Create quicklinks in Settings or through the CLI:
 

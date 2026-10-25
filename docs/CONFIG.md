@@ -75,3 +75,11 @@ URL quicklinks support `{query}`, `{argument}`, named `{Place}` and `{argument n
 Script commands can declare `inputPrompt` and include exact `{input}` or `{uuid}` argument tokens. Tokens substitute whole argv elements, with no shell expansion. `ruycast run ID --input '123'` preserves literal text; a JSON object supplies named fields, e.g. `--input '{"Query":"coffee & tea"}'`. Missing required values fail before execution. `--dry-run` resolves the definition without executing it.
 
 Use `ruycast snippets list [query]`, `ruycast quicklinks list [query]`, `... add JSON`, `... remove ID`, and the existing SHA-guarded `config` commands. List commands return the complete filtered library. GUI editors use the same locked CLI with an expected SHA; conflicts preserve external edits.
+
+## Appearance and launcher input
+
+Settings → General offers System, Light, Dark and Graphite themes and a Menu Bar Icon toggle. CLI equivalents are `ruycast config set theme '"graphite"'` and `ruycast config set menuBarVisible false`. Old configurations default to the system theme and a visible icon.
+
+Search Settings, Open Configuration, Reload Configuration or System Monitor in the launcher. Settings also appears in the Commands library, where Alias & Shortcut assigns a hotkey. The menu bar contains only Open Launcher, Settings and Quit; its orange icon indicates a reported runtime problem.
+
+Commands with one free-text input stay in the launcher: select one and press Return or Tab, or type its exact alias followed by a space and input. Return runs it; Escape returns to search. Shift–Return or Actions → Expand Input opens the larger editor and preserves the text. Commands with multiple fields or options retain their forms. Technical script fields are under Advanced when editing a command.

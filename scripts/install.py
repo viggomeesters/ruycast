@@ -66,6 +66,8 @@ with build_receipt.artifact_lock(REPO):
     for directory in ['Contents/MacOS','Contents/Resources']:(stage/directory).mkdir(parents=True,exist_ok=True)
     shutil.copy2(REPO/'.build/swift/release/RuycastApp',stage/'Contents/MacOS/RuycastApp')
     shutil.copy2(REPO/'.build/rust/release/ruycast',stage/'Contents/Resources/ruycast')
+    icon=REPO/'assets/AppIcon.icns'
+    if icon.is_file():shutil.copy2(icon,stage/'Contents/Resources/AppIcon.icns')
     bridge=REPO/'scripts/personal_bridge.py'
     if bridge.is_file():shutil.copy2(bridge,stage/'Contents/Resources/personal_bridge.py')
     if build_receipt.sha(stage/'Contents/MacOS/RuycastApp')!=receipt['binaries']['.build/swift/release/RuycastApp'] or build_receipt.sha(stage/'Contents/Resources/ruycast')!=receipt['binaries']['.build/rust/release/ruycast']:
@@ -76,8 +78,9 @@ if APP.exists():
     if not str(prior).isdigit():raise RuntimeError('Existing build number is not numeric; installation preserved.')
     previous_build=int(prior)
 info={'CFBundleIdentifier':NEW_ID,'CFBundleName':'Ruycast','CFBundleDisplayName':'Ruycast',
-      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.6.3',
+      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.7.0',
       'CFBundleVersion':str(max(7,previous_build+1)),'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True}
+if (stage/'Contents/Resources/AppIcon.icns').is_file():info['CFBundleIconFile']='AppIcon'
 (stage/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
 signing=local_signing.sign(stage)
 subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict',str(stage)],check=True)

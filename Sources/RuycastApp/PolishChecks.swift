@@ -1,0 +1,57 @@
+import AppKit
+import SwiftUI
+import Vision
+import LauncherCore
+
+func checkLauncherPolish(_ outputPath:String)throws->[String:Any] {
+    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
+    let directory=URL(fileURLWithPath:outputPath,isDirectory:true)
+    try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
+    let root=directory.appendingPathComponent("profile"),state=try AppState(root:root,headless:true)
+    defer {state.shutdown();try? FileManager.default.removeItem(at:root)}
+    func require(_ condition:Bool,_ message:String)throws {if !condition {throw LauncherError(message)}}
+    func pump(_ seconds:Double=0.12) {let end=Date().addingTimeInterval(seconds);while Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}}
+    func capture<V:View>(_ view:V,_ name:String,_ size:NSSize,required:[String]=[],absent:[String]=[])throws {
+        let host=NSHostingView(rootView:view);host.appearance=NSAppearance(named:.darkAqua);host.frame=NSRect(origin:.zero,size:size);pump();host.layoutSubtreeIfNeeded()
+        guard let bitmap=host.bitmapImageRepForCachingDisplay(in:host.bounds) else {throw LauncherError("No polish preview")};host.cacheDisplay(in:host.bounds,to:bitmap)
+        guard let image=bitmap.cgImage,let png=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("No polish pixels")}
+        try png.write(to:directory.appendingPathComponent(name+".png"))
+        let request=VNRecognizeTextRequest();request.recognitionLevel = .accurate;try VNImageRequestHandler(cgImage:image).perform([request])
+        let text=(request.results ?? []).compactMap {$0.topCandidates(1).first?.string}.joined(separator:" ")
+        try require(required.allSatisfy{text.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")).contains($0.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")))},"Missing polish labels in \(name): \(text)")
+        try require(absent.allSatisfy{!text.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")).contains($0.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")))},"Technical field leaked in \(name): \(text)")
+    }
+    var config=state.config;config.commands=featureFixture()
+    config.commands.append(Command(id:"fixture.inline",title:"Inline Input",kind:"script",target:"/usr/bin/printf",aliases:["echo-inline"],arguments:["%s","{input}"],inputPrompt:"Text"))
+    try Files.save(config,to:state.configURL);try state.reload()
+    for theme in ["system","light","dark","graphite"] {
+        state.config.theme=theme;state.query=""
+        try capture(Palette(state:state),"launcher-"+theme,NSSize(width:760,height:490),absent:["Create"])
+        let navigation=ManagementNavigation();navigation.select(.general)
+        try capture(ManagementView(state:state,navigation:navigation),"settings-"+theme,NSSize(width:980,height:680),required:["Theme","Menu Bar Icon"])
+    }
+    state.inlineSource="hotkey";state.selection=4;state.query="echo-inline Café & spaces"
+    try require(state.inlineCommand?.id=="fixture.inline" && state.inlineInput=="Café & spaces" && state.form==nil && state.inlineSource=="launcher" && state.selection==0,"Alias argument did not enter inline mode")
+    try capture(Palette(state:state),"inline-query",NSSize(width:760,height:490),required:["Inline Input","Café"])
+    state.activateSelection();state.activateSelection()
+    let end=Date().addingTimeInterval(8);while state.busy,Date()<end {pump(0.02)}
+    try require(!state.busy && state.message.isEmpty && state.counts["fixture.inline"]==1,"Inline Enter failed or duplicated execution")
+    state.cancelPaletteInput();try require(state.inlineCommand==nil && state.query=="echo-inline","Escape did not restore search")
+    state.begin(state.config.resolve("echo-inline")!);state.inlineInput="First line";state.expandInlineInput()
+    try require(state.inlineCommand==nil && state.form?.values["input"]=="First line","Expanded input lost text")
+    state.form=nil;state.query=""
+    let script=Command(id:"fixture.edit",title:"Example Action",kind:"script",target:"/bin/sh",aliases:["example"],arguments:["-c","printf sample"])
+    try capture(CommandEditor(state:state,form:CommandForm(command:script,isRun:false)),"editor-closed",NSSize(width:760,height:490),required:["Name","Advanced"],absent:["Arguments","Timeout","Executable"])
+    try capture(CommandEditor(state:state,form:CommandForm(command:script,isRun:false),advancedExpanded:true),"editor-expanded",NSSize(width:760,height:620),required:["Advanced","Arguments","Timeout"])
+    state.clips=[Clip(text:String(repeating:"Readable clipboard text. ",count:80),source:"Fixture")];state.mode="clipboard"
+    try capture(Palette(state:state),"clipboard-large",NSSize(width:1080,height:700),required:["Readable clipboard text"])
+    try capture(Palette(state:state),"clipboard-small",NSSize(width:600,height:400))
+    let screen=NSRect(x:-1920,y:0,width:1920,height:1080),normal=PaletteGeometry.frame(in:screen),clip=PaletteGeometry.frame(in:screen,mode:"clipboard")
+    try require(clip.width>normal.width && clip.height>normal.height && screen.contains(clip),"Clipboard geometry did not grow safely")
+    try require(AppBrand.menuIcon().isTemplate && !AppBrand.menuIcon(healthy:false).isTemplate,"Health glyph states are missing")
+    state.configError="Fixture configuration failure";try require(!state.runtimeHealthy,"Runtime health ignored config failure");state.configError=nil
+    try require(["builtin.settings","builtin.open-config","builtin.reload-config","builtin.system-monitor"].allSatisfy{id in state.systemCommands.contains{$0.id==id}},"Launcher management actions missing")
+    var catalog=state.config;catalog.commands.append(Command(id:"existing.monitor",title:"My Monitor",kind:"builtin",target:"system-monitor"));state.config=catalog
+    try require(!state.systemCommands.contains {$0.target=="system-monitor"},"Duplicate built-in target in catalog")
+    return ["ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"inlineAliasAndEnter":true,"inlineSubmitOnce":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
+}

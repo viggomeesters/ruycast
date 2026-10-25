@@ -23,12 +23,13 @@ extension AppState {
             if config.commands.contains(where:{$0.id==command.id}) {items.append(PaletteActionItem(id:"remove",title:"Remove",symbol:"trash"))}
             }
         }
+        if inlineCommand != nil {items.append(PaletteActionItem(id:"expand-input",title:"Expand Input…",symbol:"arrow.up.left.and.arrow.down.right"))}
         items.append(PaletteActionItem(id:"settings",title:"Settings",symbol:"gearshape",section:2))
         return items
     }
     func moveActionSelection(_ delta:Int) {actionSelection=max(0,min(max(0,actionItems.count-1),actionSelection+delta))}
     func activateActionSelection() {let items=actionItems;guard items.indices.contains(actionSelection) else {return};performMenuAction(items[actionSelection].id)}
-    func cancelPaletteInput() {if actionsOpen {actionsOpen=false} else {hidePalette?()}}
+    func cancelPaletteInput() {if actionsOpen {actionsOpen=false} else if inlineCommand != nil {cancelInlineInput()} else {hidePalette?()}}
     func performMenuAction(_ id:String) {
         guard actionItems.contains(where:{$0.id==id}) else {return}
         let command=selectedCommand
@@ -44,6 +45,7 @@ extension AppState {
         case "bindings":if let command {message="";var edit=CommandForm(command:command,isRun:false);edit.bindingsOnly=true;edit.bindingBase=command;edit.isNew = !config.commands.contains(where:{$0.id==command.id});form=edit}
         case "disable":if var command {command.enabled=false;saveCommand(command)}
         case "remove":pendingRemoval=command
+        case "expand-input":expandInlineInput()
         case "settings":hidePalette?();showManagement?()
         default:break
         }

@@ -89,6 +89,28 @@ class CLIIntegration(unittest.TestCase):
         result = self.cli('run', 'builtin.settings', ok=False)
         self.assertIn('headless', result['error'])
 
+    def test_appearance_preferences_validate_and_persist(self):
+        for theme in ['system', 'light', 'dark', 'graphite']:
+            self.cli('config', 'set', 'theme', json.dumps(theme), ok=True)
+            self.assertEqual(self.cli('config', 'get', ok=True)['result']['theme'], theme)
+        before = self.cli('config', 'get', ok=True)['sha256']
+        self.cli('config', 'set', 'theme', '"unknown"', ok=False)
+        self.assertEqual(self.cli('config', 'get', ok=True)['sha256'], before)
+        for visible in [False, True]:
+            self.cli('config', 'set', 'menuBarVisible', json.dumps(visible), ok=True)
+            self.assertEqual(self.cli('config', 'get', ok=True)['result']['menuBarVisible'], visible)
+        self.cli('config', 'set', 'menuBarVisible', '"yes"', ok=False)
+
+    def test_launcher_management_commands_and_settings_hotkey(self):
+        for alias, identifier in [('open-config', 'builtin.open-config'), ('reload-config', 'builtin.reload-config'), ('settings', 'builtin.settings')]:
+            self.assertIn(identifier, [r['id'] for r in self.cli('search', alias, ok=True)['result']])
+        snapshot = self.cli('config', 'get', ok=True)['result']
+        settings = {'id':'builtin.settings','title':'Ruycast Settings','kind':'builtin','target':'settings','hotkey':'ctrl+alt+cmd+s'}
+        commands = [c for c in snapshot['commands'] if c['id'] != settings['id']] + [settings]
+        self.cli('config', 'set', 'commands', json.dumps(commands), ok=True)
+        self.assertEqual(next(c for c in self.cli('config','get',ok=True)['result']['commands'] if c['id']==settings['id'])['hotkey'],settings['hotkey'])
+        self.assertEqual(sum(r['id']==settings['id'] for r in self.cli('search','settings',ok=True)['result']),1)
+
     @classmethod
     def tearDownClass(cls):
         try:

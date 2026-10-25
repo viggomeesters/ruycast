@@ -73,6 +73,10 @@ pub struct Config {
     pub snippet_expansion_enabled: bool,
     #[serde(default)]
     pub hyper_key_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub menu_bar_visible: Option<bool>,
     pub commands: Vec<Command>,
 }
 pub fn default_config() -> Value {
@@ -113,6 +117,7 @@ pub fn validate(value: &Value) -> Result<Config, String> {
     if c.clipboard.max_asset_bytes.is_some_and(|n|n==0 || n>100_000_000) || c.clipboard.max_total_asset_bytes.is_some_and(|n|n==0 || n>1_000_000_000) {
         return Err("Clipboard image limits must be positive, maxAssetBytes <=100MB and maxTotalAssetBytes <=1GB.".into());
     }
+    if c.theme.as_ref().is_some_and(|theme| !["system","light","dark","graphite"].contains(&theme.as_str())) {return Err("Theme must be system, light, dark or graphite.".into());}
     let mut keys = HashSet::new();
     let mut names = HashSet::new();
     let mut keywords = HashSet::new();
@@ -197,7 +202,7 @@ pub fn validate(value: &Value) -> Result<Config, String> {
                     "snippets",
                     "quicklinks",
                     "create-snippet",
-                    "create-quicklink", "settings", "analytics", "search-files", "search-menu-items", "switch-windows", "kill-process", "system-monitor", "lock-screen", "utility-set-text", "utility-paste-text", "utility-text-history", "utility-password", "utility-username", "utility-password-history", "utility-username-history",
+                    "create-quicklink", "settings", "open-config", "reload-config", "analytics", "search-files", "search-menu-items", "switch-windows", "kill-process", "system-monitor", "lock-screen", "utility-set-text", "utility-paste-text", "utility-text-history", "utility-password", "utility-username", "utility-password-history", "utility-username-history",
                 ]
                 .contains(&cmd.target.as_str())
                 {

@@ -5,11 +5,14 @@ import SwiftUI
 /// which an editing TextField consumes before its parent sees them.
 struct PaletteSearchField:NSViewRepresentable {
     @Binding var text:String
+    @Environment(\.colorScheme) private var scheme
     var placeholder:String
     var onMove:(Int)->Void
     var onSubmit:()->Void
     var onCancel:()->Void
     var onActions:()->Void
+    var onTab:(()->Void)?=nil
+    var onExpand:(()->Void)?=nil
     func makeCoordinator()->Coordinator {Coordinator(self)}
     func makeNSView(context:Context)->SearchInput {
         let field=SearchInput();field.isBordered=false;field.drawsBackground=false
@@ -21,6 +24,7 @@ struct PaletteSearchField:NSViewRepresentable {
     }
     func updateNSView(_ field:SearchInput,context:Context) {
         context.coordinator.parent=self;field.placeholderString=placeholder;field.actions=onActions
+        field.appearance=NSAppearance(named:scheme == .dark ? .darkAqua:.aqua)
         if field.stringValue != text {field.stringValue=text}
     }
     final class Coordinator:NSObject,NSTextFieldDelegate {
@@ -36,6 +40,8 @@ struct PaletteSearchField:NSViewRepresentable {
             case "moveUp:":parent.onMove(-1)
             case "insertNewline:":parent.onSubmit()
             case "cancelOperation:":parent.onCancel()
+            case "insertLineBreak:","insertNewlineIgnoringFieldEditor:":guard let action=parent.onExpand else {return false};action()
+            case "insertTab:":guard let action=parent.onTab else {return false};action()
             default:return false
             }
             return true

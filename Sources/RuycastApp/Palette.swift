@@ -12,7 +12,7 @@ struct Palette:View {
         return state.confirmationCommand.map {PaletteConfirmation(command:$0,removing:false)}
     }
     private var isClipboard:Bool {state.mode=="clipboard"}
-    private var surface:Color {colorScheme == .dark ? Color(white:0.215):Color(white:0.97)}
+    private var surface:Color {SettingsTheme(dark:(state.preferredColorScheme ?? colorScheme) == .dark,graphite:state.config.theme=="graphite").background}
     private var highlight:Color {Color.primary.opacity(colorScheme == .dark ? 0.085:0.065)}
 
     var body:some View {
@@ -22,6 +22,8 @@ struct Palette:View {
                 VStack(alignment:.leading,spacing:12) {Button("Back") {state.detail=nil;state.mode="commands"}.buttonStyle(.plain);ScrollView {Text(detail).font(.system(size:13,design:.monospaced)).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)}}.padding(20)
             } else {content}
         }.frame(maxWidth:.infinity,maxHeight:.infinity).background(surface)
+            .environment(\.colorScheme,state.preferredColorScheme ?? colorScheme)
+            .preferredColorScheme(state.preferredColorScheme)
             .clipShape(RoundedRectangle(cornerRadius:18))
             .overlay(RoundedRectangle(cornerRadius:18).strokeBorder(Color.primary.opacity(0.12),lineWidth:1))
     }
@@ -31,7 +33,8 @@ struct Palette:View {
             HStack(spacing:12) {
                 Image(systemName:isClipboard ? "doc.on.clipboard":"command")
                     .font(.system(size:18,weight:.medium)).foregroundStyle(.tertiary).frame(width:22)
-                PaletteSearchField(text:$state.query,placeholder:isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":"Search for apps or commands…",onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()}).frame(height:28)
+                if let command=state.inlineCommand {Text(command.title).font(.system(size:12,weight:.semibold)).lineLimit(1).padding(6).background(Color.primary.opacity(0.08),in:RoundedRectangle(cornerRadius:5))}
+                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
             }.padding(.horizontal,20).frame(height:62)
 
             if isClipboard {ClipboardHistoryView(state:state)} else {
@@ -85,10 +88,6 @@ struct Palette:View {
                 if state.mode != "commands" {
                     Button {state.mode="commands"} label:{Label("Back",systemImage:"chevron.left")}.buttonStyle(.plain)
                 }
-                Menu {
-                    Button("Create Quicklink") {state.newCommand("url")}
-                    Button("Create Snippet") {state.newCommand("snippet")}
-                } label:{Label("Create",systemImage:"plus")}.menuStyle(.borderlessButton).fixedSize()
                 Spacer()
                 if state.busy {ProgressView().controlSize(.small)}
                 if isClipboard {
@@ -174,10 +173,10 @@ final class PaletteController {
         if mode=="system-monitor" || mode=="monitor" {hide();state.showSystemMonitor?();return}
         if state.paletteVisible,state.mode==mode {hide();return}
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {state.previousPID=app.processIdentifier}
-        state.query="";state.message="";state.mode=mode;state.detail=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
+        state.inlineCommand=nil;state.inlineInput="";state.query="";state.message="";state.mode=mode;state.detail=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
         let mouse=NSEvent.mouseLocation
         let screen=NSScreen.screens.first {$0.frame.contains(mouse)} ?? NSScreen.main
-        if let frame=screen?.visibleFrame {panel.setFrame(PaletteGeometry.frame(in:frame),display:false)}
+        if let frame=screen?.visibleFrame {panel.setFrame(PaletteGeometry.frame(in:frame,mode:mode),display:false)}
         panel.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self] in
             guard let self else {return}
