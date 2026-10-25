@@ -5,6 +5,10 @@ import Foundation
 import LauncherCore
 struct CoreTests {
     func testConfigRejectsAmbiguousAliasesAndHotkeys() throws {
+        XCTAssertEqual(try Shortcut("right-cmd+a").commandSide,"right-cmd")
+        XCTAssertEqual(try Shortcut("left-cmd+a").commandSide,"left-cmd")
+        XCTAssertEqual(try Shortcut("cmd+a").commandSide,nil)
+        XCTAssertThrowsError(try Shortcut("cmd+right-cmd+a"))
         var c=Configuration.initial;try c.validate()
         c.commands.append(Command(id:"collision",title:"Collision",kind:"path",target:"/",aliases:["FiNdEr"]))
         XCTAssertThrowsError(try c.validate())

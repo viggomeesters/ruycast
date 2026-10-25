@@ -94,9 +94,12 @@ pub fn shortcut(s: &str) -> Result<String, String> {
         || parts.is_empty()
         || parts
             .iter()
-            .any(|m| !["ctrl", "alt", "shift", "cmd"].contains(m) || !mods.insert(*m))
+            .any(|m| !["ctrl", "alt", "shift", "cmd", "left-cmd", "right-cmd"].contains(m) || !mods.insert(*m))
     {
         return Err(format!("Invalid hotkey: {s}. Use e.g. ctrl+alt+space."));
+    }
+    if ["cmd", "left-cmd", "right-cmd"].iter().filter(|m| mods.contains(**m)).count() > 1 {
+        return Err("Choose cmd, left-cmd or right-cmd, not a combination.".into());
     }
     parts.sort();
     Ok(format!("{}+{key}", parts.join("+")))
@@ -486,6 +489,21 @@ mod tests {
             shortcut("ctrl+alt+space").unwrap(),
             shortcut("alt+ctrl+space").unwrap()
         );
+    }
+    #[test]
+    fn command_sides_are_independent() {
+        assert_eq!(shortcut("RIGHT-CMD+a").unwrap(), "right-cmd+a");
+        assert_eq!(shortcut("shift+left-cmd+a").unwrap(), "left-cmd+shift+a");
+        for invalid in ["cmd+right-cmd+a", "left-cmd+right-cmd+a", "right-cmd+right-cmd+a"] {
+            assert!(shortcut(invalid).is_err());
+        }
+        let mut v = default_config();
+        for (i, binding) in ["cmd+a", "right-cmd+a", "left-cmd+a"].iter().enumerate() {
+            v["commands"][i]["hotkey"] = json!(binding);
+        }
+        validate(&v).unwrap();
+        v["commands"][1]["hotkey"] = json!("left-cmd+a");
+        assert!(validate(&v).is_err());
     }
     #[test]
     fn rejects_unknown_config_and_relative_scripts() {

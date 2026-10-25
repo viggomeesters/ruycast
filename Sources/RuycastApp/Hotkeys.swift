@@ -41,8 +41,10 @@ final class Hotkeys {
         desired[(try Shortcut(config.clipboardHotkey)).canonical]="@clipboard"
         for c in config.commands where c.isEnabled {if let h=c.hotkey {desired[(try Shortcut(h)).canonical]=c.id}}
         var modifierBindings:[UInt32:String]=[:]
+        var commandBindings:[String:String]=[:]
         for key in Array(desired.keys) {
             let shortcut=try Shortcut(key)
+            if shortcut.commandSide != nil {commandBindings[key]=desired.removeValue(forKey:key);continue}
             if shortcut.key=="left-control" || shortcut.key=="left-option" {
                 let expected:Set<String>=shortcut.key=="left-control" ? ["ctrl"]:["alt"]
                 guard shortcut.modifiers==expected else {throw LauncherError("Use Ctrl+Left-Control or Alt+Left-Option for modifier taps.")}
@@ -67,7 +69,7 @@ final class Hotkeys {
         refs.merge(staged) {_,new in new};ids.merge(stagedIDs) {_,new in new}
         routes=Dictionary(uniqueKeysWithValues:desired.compactMap {key,action in ids[key].map {($0,action)}})
         latest=config
-        keyboard.update(hyper:config.hyperKeyEnabled==true,bindings:modifierBindings)
+        keyboard.update(hyper:config.hyperKeyEnabled==true,bindings:modifierBindings,commandBindings:commandBindings)
     }
     deinit {for ref in refs.values {UnregisterEventHotKey(ref)};if let handler {RemoveEventHandler(handler)}}
 }
