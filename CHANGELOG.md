@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0 — Unreleased
+## 0.7.0 — 2026-10-25 · Launcher polish
 
 - Enter one-field command input directly in the launcher; expand to a form when needed.
 - Choose System, Light, Dark or Graphite appearance and hide the menu bar icon.
