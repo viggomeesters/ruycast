@@ -43,3 +43,11 @@ public struct SnippetReplacement {
         }
     }
 }
+
+/// Missing accessibility metadata is common in web-backed editors; it is not
+/// evidence of secure entry. The OS secure-input flag always takes precedence.
+public enum SnippetFocusPolicy {
+    public static func allowsExpansion(secureInput:Bool,subrole:String?)->Bool {
+        !secureInput && subrole != "AXSecureTextField"
+    }
+}

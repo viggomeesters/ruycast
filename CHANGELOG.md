@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — 2026-10-25 · Snippet expansion
+
+- Expand snippet keywords in editors that do not expose their focused accessibility element, including Codex and Obsidian.
+- Keep OS secure input, recognized password fields, permission and excluded-app guards; bound accessibility waits and recover disabled event taps.
+- Render `{datetime}` with a written month and local 24-hour time; retain explicit numeric formats.
+
 ## 0.7.0 — 2026-10-25 · Launcher polish
 
 - Enter one-field command input directly in the launcher; expand to a form when needed.
