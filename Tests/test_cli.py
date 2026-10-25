@@ -89,6 +89,15 @@ class CLIIntegration(unittest.TestCase):
         result = self.cli('run', 'builtin.settings', ok=False)
         self.assertIn('headless', result['error'])
 
+    def test_performance_fixture_ignores_external_configuration_override(self):
+        external=self.root/'external-config';external.mkdir(exist_ok=True)
+        authored=external/'config.json';original=json.dumps(self.config).encode();authored.write_bytes(original)
+        out=self.root/'isolated-benchmark.json'
+        result=subprocess.run(['python3',str(REPO/'scripts/benchmark-host.py'),'--host',str(BINARY),'--cli',str(CLI),'--probe','/usr/bin/true','--out',str(out),'--cold-starts','1','--samples','1','--active-seconds','0','--idle-seconds','0'],env=dict(self.env,RUYCAST_CONFIG_DIR=str(external)),capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertTrue(json.loads(out.read_text())['fixtureConfigurationIsolated'])
+        self.assertEqual(authored.read_bytes(),original)
+
     def test_appearance_preferences_validate_and_persist(self):
         for theme in ['system', 'light', 'dark', 'graphite']:
             self.cli('config', 'set', 'theme', json.dumps(theme), ok=True)
@@ -254,6 +263,16 @@ class CLIIntegration(unittest.TestCase):
         start = time.monotonic()
         self.cli('run', 'test.pipes', ok=True)
         self.assertLess(time.monotonic() - start, 2)
+
+    def test_host_benchmark_rejects_changed_cli(self):
+        cli=self.root/'changing-cli'
+        cli.write_text('#!/usr/bin/env python3\nfrom pathlib import Path\np=Path(__file__)\np.write_text(p.read_text()+"# changed\\n")\nprint(\'{"ok":true}\')\n')
+        cli.chmod(0o700)
+        out=self.root/'changed-benchmark.json'
+        result=subprocess.run(['python3',str(REPO/'scripts/benchmark-host.py'),'--host',str(BINARY),'--cli',str(cli),'--probe','/usr/bin/true','--out',str(out),'--cold-starts','1','--samples','1','--active-seconds','0','--idle-seconds','0'],env=self.env,capture_output=True,text=True,timeout=30)
+        self.assertNotEqual(result.returncode,0,result.stdout)
+        self.assertIn('CLI binary changed during measurement',result.stderr)
+        self.assertFalse(out.exists())
 
     def test_unknown_config_field_is_rejected_by_rust_and_native_bridge(self):
         bad = dict(self.config, misspelledSetting=True)

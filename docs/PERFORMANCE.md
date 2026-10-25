@@ -44,13 +44,13 @@ Named-pasteboard and isolated-profile checks cover accepted capture followed by 
 
 ## Known measurement limits
 
-The1000-cycle footprint gate is not a proof of leak freedom. A harsher10000-cycle hidden native mode-switch experiment still showed approximately39MiB growth; the same model-only test stayed near its starting footprint. Reusing both mode views and removing selectable text did not resolve that experiment, so neither UI simplification was retained. Native source-label lookups are cached, but a complete root cause for the stress growth remains open. No zero-leak or long-session stability claim is made.
+The current 10,000-cycle native gate checks settled growth and the 1,000/5,000/10,000 checkpoints against a 10 MiB ceiling. It is a bounded regression test, not a proof of leak freedom. The earlier roughly 39 MiB result belongs to the initial round below; the follow-up identifies and repairs the native container lifecycle involved.
 
-Full Xcode/Instruments was unavailable on the measurement host. Physical hotkey/focus/frame latency, Energy/Allocations traces, secure-entry/sleep/wake behavior, battery-versus-mains comparison, a90-minute soak and an honest separate-session Raycast comparison remain unmeasured. Native rendering fixtures and measured headless readiness do not substitute for those checks. Pasteboard providers, icon misses and external apps can introduce platform-owned delays.
+Full Xcode/Instruments was unavailable on the measurement host. Physical hotkey/focus/frame latency, Energy traces, secure-entry/sleep/wake behavior, battery-versus-mains comparison and a separate-session Raycast comparison remain unmeasured. This follow-up was explicitly limited to background measurements. Hidden native rendering and headless readiness do not establish physical presentation latency. Pasteboard providers, icon misses and external apps can introduce platform-owned delays.
 
 See Apple's [Instruments tutorials](https://developer.apple.com/tutorials/instruments) and [hang investigation guide](https://developer.apple.com/documentation/xcode/understanding-hangs-in-your-app) for the full desktop profiling route.
 
-## Initial measured round — 25 October 2026
+## Initial measured round — 0.6.1, 25 October 2026
 
 Three alternating release pairs on one M4 Mac reduced command typing with10,000 commands plus200 long clipboard entries from p95 **15.1–15.4 ms to4.0–4.1 ms**. Reading1000 process results fell from about10.9 ms to0.0011 ms by reusing materialized order. Clipboard enqueue work is below0.01 ms; completed filtering still takes about14 ms on the worker. Moving work is not eliminating it.
 
@@ -72,3 +72,32 @@ Three alternating release pairs on one M4 Mac reduced command typing with10,000 
 The first investigation and improvement round is complete. The full desktop acceptance is open: the native stress growth and unmeasured rows above are explicit follow-up work, rather than successful measurements.
 
 The installed0.6.1 performance build retained the same binary throughout its600-second passive sample. The later0.6.2 source preview adds neutral defaults and packaging provenance; it is not a second full desktop timing run. Passive observation does not prove that every timer or external clipboard provider is idle.
+
+## Background acceptance follow-up — 0.7.2, 25 October 2026
+
+Repeating the old 0.7.0 native fixture retained **34.88 MiB** across 10,000 mode/search/action cycles. macOS heap and allocation-history samples identified growing `NSKeyValueDependency` / `NSKeyValueDependencyContext` bookkeeping through AppKit control/view attachment and SwiftUI display-list updates. A custom button style and a replacement text view did not solve the problem and were discarded.
+
+The launcher now creates its native command and clipboard hosting containers once, keeps them attached, and switches visibility. Hidden command typing does not invalidate the clipboard subtree; history changes still reconcile deleted items. Leaving clipboard mode cancels image work, generation tokens reject delayed results, and preview ownership includes the clip identity. Metadata from cancelled or failed decodes is not presented as current.
+
+The final-logic release fixture settled at **+1.52 MiB** over 10,000 cycles (42.74 → 44.25 MiB). Checkpoints at 1,000/5,000/10,000 cycles stayed within the 10 MiB gate. An independent build of the exported public source repeated the gate at **+5.34 MiB**; both final-logic builds passed every checkpoint. Another earlier persistent-container run settled below its starting footprint; allocator variation is why the gate uses a ceiling rather than requiring negative growth. The fixture also verifies container identity, a hidden panel and 1,000 monitor start/stop cancellation cycles. These are same-data hidden native results, not physical launcher-open timing or a universal leak claim.
+
+An isolated offscreen CPU chart ran for 30 minutes at its ordinary two-second interval, rendering 901 frames. Independent `getrusage` counters measured 0.679% of one core while active and **0.535 percentage points extra CPU** versus the mean of one-minute idle windows before and after. Peak physical footprint was 19.08 MiB; history stayed at 60 samples and no new sample arrived after stop. This does not measure display presentation, battery power or external pasteboard providers.
+
+The compatible frozen headless base completed **30 minutes active + 60 minutes idle**: 31,131 active requests, then 0.086% of one core and 1.542 interrupt wakeups/s while idle. Its idle footprint peaked at 41.80 MiB and ended at 31.75 MiB; it did not remain at one fixed size. This binary was frozen before the native lifecycle and snippet fixes, so it is a headless reference run rather than an exact final-app soak. A separate final-logic build completed two active minutes and **60 idle minutes**: idle 0.087% of one core, 1.540 interrupt wakeups/s, maximum 43.56 MiB footprint and 43.06 → 40.72 MiB start/end. This frozen fixture still carries the 0.7.1 label; every production source matches 0.7.2 after normalizing only the three version literals. Both host and CLI hashes were independently verified unchanged. No native UI logic differs.
+
+The exact 0.7.2 executable completed two active minutes and ten idle minutes: idle 0.075% of one core, 1.548 interrupt wakeups/s, maximum 41.93 MiB footprint. Across 30 cold starts, headless RPC readiness was p95 121.9 ms; 1,000 subprocess samples per operation gave warm status/search p95 3.18/3.07 ms. These are absolute budget observations, not an alternating paired CLI speed comparison. Delayed analytics flushes and OS I/O are included; no zero-I/O claim is made.
+
+A separate ten-minute passive observation of the installed 0.7.2 personal profile (343 commands, keyboard/snippet services enabled) averaged 0.226% of one core and 2.643 interrupt wakeups/s. Footprint moved from 57.63 to 58.00 MiB, maximum 58.05 MiB. Ordinary user activity was allowed; this is not an enforced idle session. The executable and PID were unchanged throughout. The host was an M4 with 16 GB; a mid-run environment observation reported battery power and no recorded thermal warning, without establishing a controlled battery comparison.
+
+The selected background acceptance is complete. Physical hotkey/focus/frame latency, Energy/battery and a live Raycast comparison remain unmeasured by explicit scope choice; they are not successful measurements.
+
+Reproduce the bounded native gate with `bash scripts/check-performance.sh`. Longer background probes are opt-in:
+
+```sh
+.build/swift/release/RuycastApp --benchmark-monitor 1800 60
+python3 scripts/benchmark-host.py --host .build/swift/release/RuycastApp \
+  --cli .build/rust/release/ruycast --probe .build/perf-probe \
+  --out .build/performance/host-90min.json --active-seconds 1800 --idle-seconds 3600
+```
+
+Use frozen copies of binaries for long probes. The host script strips external profile/config overrides, asserts its isolated fixture profile and checks that the host file did not change during measurement. The probe never opens the launcher, installs global input hooks or uses the general clipboard. Do not substitute these numbers for the deliberately excluded physical latency, battery and Raycast practice checks.

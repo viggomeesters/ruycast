@@ -44,7 +44,19 @@ func checkPerformancePipeline() throws -> [String:Any] {
     state.paletteVisible=true;state.selection=0;let selected=state.filteredClips[0].id
     state.clips.insert(Clip(text:"Fixture 42: new",source:"fixture"),at:0)
     try wait {!state.clipboardSearchBusy};try require(state.filteredClips[state.selection].id==selected,"Capture moved the selected clipboard identity")
-    state.mode="commands";state.query="terminal";try require(state.filteredClips.isEmpty && !state.clipboardSearchBusy,"Command typing searched clipboard history")
+    let retained=state.filteredClips
+    let gate=ClipboardRenderGate(state:state)
+    state.mode="commands";state.query="terminal"
+    let settleGate=Date().addingTimeInterval(0.05);while Date()<settleGate {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.005))}
+    let beforeGate=gate.invalidations
+    for i in 0..<1000 {state.query="terminal \(i)"}
+    let settleTyping=Date().addingTimeInterval(0.05);while Date()<settleTyping {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.005))}
+    try require(state.filteredClips==retained && !state.clipboardSearchBusy && gate.invalidations==beforeGate,"Hidden clipboard redrew or searched while command typing")
+    state.clips.removeAll {$0.id==selected}
+    try require(!state.filteredClips.contains {$0.id==selected},"Deleted item remained in retained clipboard snapshot")
+    let preservedClips=state.clips
+    state.clips=[];try require(state.filteredClips.isEmpty,"Hidden clipboard clear retained deleted content")
+    state.clips=preservedClips
     state.mode="clipboard";try require(state.filteredClips==state.clips,"Mode re-entry left clipboard empty")
     state.mode="commands";state.paletteVisible=false
     var observed=state.config;observed.commands.append(Command(id:"fixture.atomic",title:"Atomic update",kind:"url",target:"https://example.com"))

@@ -43,9 +43,17 @@ func checkRichResources(_ outputPath:String) throws -> [String:Any] {
         let data=bitmap.representation(using:.png,properties:[:])!
         try! data.write(to:directory.appendingPathComponent(name+".png"))
         if name.hasPrefix("clipboard-"),(name.hasSuffix("-1") || name.hasSuffix("-2")) {
-            var colored=0
-            for y in stride(from:0,to:bitmap.pixelsHigh,by:4) {for x in stride(from:bitmap.pixelsWide*2/5,to:bitmap.pixelsWide,by:4) {
-                if let c=bitmap.colorAt(x:x,y:y)?.usingColorSpace(.deviceRGB),c.alphaComponent>0.9,((c.redComponent>0.8 && c.blueComponent<0.2) || (c.blueComponent>0.8 && c.redComponent<0.2)) {colored+=1}
+            // Nested native hosts can return an extended/float display bitmap.
+            // Normalize to RGBA8 rather than relying on NSBitmapImageRep.colorAt.
+            let width=bitmap.pixelsWide,height=bitmap.pixelsHigh
+            var pixels=[UInt8](repeating:0,count:width*height*4),colored=0
+            pixels.withUnsafeMutableBytes {buffer in
+                let context=CGContext(data:buffer.baseAddress,width:width,height:height,bitsPerComponent:8,bytesPerRow:width*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue)!
+                context.draw(bitmap.cgImage!,in:CGRect(x:0,y:0,width:width,height:height))
+            }
+            for y in stride(from:0,to:height,by:4) {for x in stride(from:width*2/5,to:width,by:4) {
+                let i=(y*width+x)*4
+                if pixels[i+3]>229 && ((pixels[i]>204 && pixels[i+2]<51) || (pixels[i+2]>204 && pixels[i]<51)) {colored+=1}
             }}
             precondition(colored>300,"Clipboard image pixels are absent from the rendered view: \(name)")
         }
