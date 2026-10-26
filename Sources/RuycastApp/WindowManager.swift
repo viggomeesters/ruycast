@@ -17,12 +17,22 @@ final class WindowManager {
         guard AXValueGetValue(p,.cgPoint,&point),AXValueGetValue(s,.cgSize,&size) else { throw LauncherError("Cannot read the window frame.") }
         return Frame(x:point.x,y:point.y,width:size.width,height:size.height)
     }
-    private func apply(_ f:Frame,to w:AXUIElement) throws {
-        var point=CGPoint(x:f.x,y:f.y);var size=CGSize(width:f.width,height:f.height)
-        // Size first allows a window to cross from a large screen to a smaller one.
-        let s=AXUIElementSetAttributeValue(w,kAXSizeAttribute as CFString,AXValueCreate(.cgSize,&size)!)
-        let p=AXUIElementSetAttributeValue(w,kAXPositionAttribute as CFString,AXValueCreate(.cgPoint,&point)!)
-        guard s == .success,p == .success else { throw LauncherError("This window cannot be moved or resized (\(p.rawValue)/\(s.rawValue)).") }
+    private func apply(_ f:Frame,to w:AXUIElement) throws -> Frame {
+        func write(_ key:String,_ value:AXValue) throws {
+            let status=AXUIElementSetAttributeValue(w,key as CFString,value)
+            // cannotComplete can be transient or arrive after a partial change.
+            // Accept only verified geometry, never the status code alone.
+            guard status == .success || status == .cannotComplete else {
+                throw LauncherError("This window does not allow changing \(key) (\(status.rawValue)).")
+            }
+        }
+        return try WindowPlacement.apply(f,read:{try self.frame(w)},resize:{ target in
+            var size=CGSize(width:target.width,height:target.height)
+            try write(kAXSizeAttribute,AXValueCreate(.cgSize,&size)!)
+        },position:{ target in
+            var point=CGPoint(x:target.x,y:target.y)
+            try write(kAXPositionAttribute,AXValueCreate(.cgPoint,&point)!)
+        })
     }
     func move(_ layout:String,pid:pid_t?) throws -> Frame {
         guard trusted else { throw LauncherError("Allow Ruycast in System Settings → Privacy & Security → Accessibility, then retry.") }
@@ -51,9 +61,7 @@ final class WindowManager {
             dest=Frame(x:min(max(b.x+(old.x-a.x)/a.width*b.width,b.x),b.x+b.width-width),y:min(max(b.y+(old.y-a.y)/a.height*b.height,b.y),b.y+b.height-height),width:width,height:height)
         } else { dest=try available(screens[index]).layout(layout) }
         if layout != "restore",saved[key]==nil { if saved.count>500 {saved.removeAll()};saved[key]=old }
-        try apply(dest,to:window)
-        let actual=try frame(window)
-        guard abs(actual.x-dest.x)<8,abs(actual.y-dest.y)<8,abs(actual.width-dest.width)<8,abs(actual.height-dest.height)<8 else { throw LauncherError("The app constrained the window size or position; the requested layout was not fully applied.") }
+        let actual=try apply(dest,to:window)
         if layout=="restore" {saved.removeValue(forKey:key)}
         return actual
     }

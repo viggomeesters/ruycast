@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.5 — 2026-10-26 · Window placement
+
+- Reapply window size after moving so half-screen layouts fill the available height on the first shortcut.
+- Retry transient Accessibility write failures with bounded frame verification; report persistent constraints accurately.
+
 ## 0.7.4 — 2026-10-26 · Command key settings
 
 - Add a General Settings switch for separate Left and Right Command shortcuts. Off pauses retained sided shortcuts and records generic Command; existing configurations keep their behavior.
