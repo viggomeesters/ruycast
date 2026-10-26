@@ -57,5 +57,25 @@ func checkLauncherPolish(_ outputPath:String)throws->[String:Any] {
     try require(["builtin.settings","builtin.open-config","builtin.reload-config","builtin.system-monitor"].allSatisfy{id in state.systemCommands.contains{$0.id==id}},"Launcher management actions missing")
     var catalog=state.config;catalog.commands.append(Command(id:"existing.monitor",title:"My Monitor",kind:"builtin",target:"system-monitor"));state.config=catalog
     try require(!state.systemCommands.contains {$0.target=="system-monitor"},"Duplicate built-in target in catalog")
+    state.mode="commands";state.query=""
+    let dateCommand=Command(id:"fixture.date",title:"Task Deadline",kind:"script",target:"/bin/echo",arguments:["{input}"],inputPrompt:"Deadline (YYYY-MM-DD of clear)")
+    state.config.commands.append(dateCommand);state.begin(dateCommand);state.inlineInput="morgen"
+    try require(state.inlineDatePreview?.isValid==true,"Natural date preview missing")
+    let frozen=state.inlineDatePreview!
+    try capture(Palette(state:state),"date-valid",NSSize(width:760,height:480),required:[frozen.label],absent:["YYYY-MM-DD"])
+    state.inlineInput="in 3";try require(state.inlineDatePreview?.isValid==false,"Partial date accepted")
+    state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id,"Invalid date executed or discarded input")
+    try capture(Palette(state:state),"date-invalid",NSSize(width:760,height:480),required:["Datum niet herkend"])
+    state.message="";state.inlineInput="clear";try capture(Palette(state:state),"date-clear",NSSize(width:760,height:480),required:["Datum wissen"])
+    let savedDate=root.appendingPathComponent("date-result.txt")
+    var dateWriter=dateCommand;dateWriter.id="fixture.date-write";dateWriter.target="/bin/sh"
+    dateWriter.arguments=["-c","printf '%s' \"$1\" > \"$2\"","date-preview","{input}",savedDate.path]
+    state.config.commands.append(dateWriter);state.cancelInlineInput();state.begin(dateWriter);state.inlineInput="morgen"
+    let frozenDate=TaskDateInput.resolve("morgen",now:Date(timeIntervalSince1970:946728000))
+    state.inlineDatePreview=frozenDate;state.submitInlineInput();state.submitInlineInput()
+    let dateEnd=Date().addingTimeInterval(8);while state.busy,Date()<dateEnd {pump(0.02)}
+    try require(!state.busy && state.message.isEmpty && state.counts[dateWriter.id]==1,"Date Enter failed or ran twice")
+    try require(try String(contentsOf:savedDate,encoding:.utf8)==frozenDate.value,"Enter did not send the displayed date")
+    state.cancelInlineInput();state.message=""
     return ["ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"inlineAliasAndEnter":true,"inlineSubmitOnce":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"previewCancellation":cancellation,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }

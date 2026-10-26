@@ -123,3 +123,7 @@ A keyword can open a choice menu using the existing Raycast-compatible syntax:
 Type the keyword, select a value and press Return to insert it. Escape cancels and leaves the keyword unchanged. Choices are trimmed, empty entries removed and duplicates collapsed. A choice with a default still asks before inserting. Existing imported templates and configuration remain usable without conversion.
 
 The choice is tied to the original app. Switching apps, clicking outside or typing into the editor while the menu is pending cancels it. When Accessibility exposes the field, selection and text, they are checked again before replacement. Editors without that metadata use the app and input guards; a background programmatic field change in such an editor cannot be verified. Secure input, known password fields and excluded apps remain blocked. The menu stays local and choice values are not logged.
+
+### Natural dates for script inputs
+
+Script commands whose `inputPrompt` includes the existing `YYYY-MM-DD` hint accept natural dates in the launcher. The launcher shows a live calendar date and passes that exact ISO value to the script on Enter. Examples: `tomorrow`, `morgen`, `next month`, `in 3 days`, `over 3 dagen`, `vrijdag`, `5 november` and `2026-11-05`. `clear` or `wissen` removes a date. Partial or unrecognized dates keep the input open without running the command. Relative dates use the Europe/Amsterdam calendar; “next month” means the same day next month, clipped to the last day when needed. Weekdays select the next occurrence.

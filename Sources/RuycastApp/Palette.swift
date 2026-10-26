@@ -33,9 +33,18 @@ struct Palette:View {
                 Image(systemName:isClipboard ? "doc.on.clipboard":"command")
                     .font(.system(size:18,weight:.medium)).foregroundStyle(.tertiary).frame(width:22)
                 if let command=state.inlineCommand {Text(command.title).font(.system(size:12,weight:.semibold)).lineLimit(1).padding(6).background(Color.primary.opacity(0.08),in:RoundedRectangle(cornerRadius:5))}
-                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
+                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {TaskDateInput.supports($0) ? "Datum, bijv. morgen of in 3 days":Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
             }.padding(.horizontal,20).frame(height:62)
 
+            if let preview=state.inlineDatePreview,state.inlineCommand.map(TaskDateInput.supports)==true {
+                HStack(spacing:8) {
+                    Image(systemName:preview.isValid ? "calendar":"calendar.badge.questionmark")
+                    Text(preview.label)
+                    Spacer()
+                }.font(.system(size:13)).foregroundStyle(preview.isValid ? Color.primary:Color.secondary)
+                    .padding(.horizontal,20).padding(.vertical,10)
+                    .accessibilityElement(children:.combine)
+            }
             PersistentLauncherResults(state:state)
             if let error=state.configError {
                 Text("Config: \(error)").font(.caption).foregroundStyle(.red).padding(.horizontal,18).padding(.vertical,8)

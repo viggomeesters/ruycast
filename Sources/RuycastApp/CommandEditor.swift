@@ -5,6 +5,7 @@ import LauncherCore
 
 struct CommandForm:Identifiable {
     let id=UUID()
+    let dateReference=Date()
     var command:Command
     var isRun:Bool
     var isNew=false
@@ -34,13 +35,16 @@ struct CommandEditor:View {
                     if form.isRun {
                         ForEach(Templates.fields(form.command)) {field in
                             VStack(alignment:.leading,spacing:5) {
-                                Text(field.label).font(.caption).foregroundStyle(.secondary)
+                                Text(TaskDateInput.supports(form.command) ? "Datum":field.label).font(.caption).foregroundStyle(.secondary)
                                 if field.options.isEmpty {
                                     if ["capture.quick-note","capture.quick-task"].contains(form.command.id) || form.command.target=="utility-set-text" {CaptureTextEditor(text:Binding(get:{form.values[field.id] ?? field.defaultValue},set:{form.values[field.id]=$0}),placeholder:field.label,onSubmit:submit).frame(minHeight:240).background(Color.primary.opacity(0.035),in:RoundedRectangle(cornerRadius:7))} else {
-                                        TextField(field.label,text:Binding(get:{form.values[field.id] ?? field.defaultValue},set:{form.values[field.id]=$0})).textFieldStyle(.roundedBorder).focused($focused)
+                                        TextField(TaskDateInput.supports(form.command) ? "Morgen, next month of in 3 days":field.label,text:Binding(get:{form.values[field.id] ?? field.defaultValue},set:{form.values[field.id]=$0})).textFieldStyle(.roundedBorder).focused($focused)
                                     }
                                 } else {
                                     Picker(field.label,selection:Binding(get:{form.values[field.id] ?? field.defaultValue},set:{form.values[field.id]=$0})) {ForEach(field.options,id:\.self) {Text($0).tag($0)}}.labelsHidden()
+                                }
+                                if TaskDateInput.supports(form.command) {
+                                    Text(TaskDateInput.resolve(form.values[field.id] ?? field.defaultValue,now:form.dateReference).label).font(.caption).foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -129,6 +133,11 @@ struct CommandEditor:View {
         if form.isRun {
             var values=form.values
             for field in Templates.fields(form.command) where values[field.id]==nil {values[field.id]=field.defaultValue}
+            if TaskDateInput.supports(form.command) {
+                let preview=TaskDateInput.resolve(values["input"] ?? "",now:form.dateReference)
+                guard let date=preview.value else {state.message=preview.label;return}
+                values["input"]=date
+            }
             state.perform(form.command.id,values:values,source:form.source)
         } else if form.bindingsOnly {state.saveBindings(form.command,original:form.bindingBase ?? form.command,isNew:form.isNew,onSuccess:onBack)}
         else {state.saveCommand(form.command,isNew:form.isNew,onSuccess:onBack)}

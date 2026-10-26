@@ -31,7 +31,11 @@ final class AppState:ObservableObject {
     }}
     @Published var inlineCommand:Command?
     var inlineSource="launcher"
-    @Published var inlineInput=""
+    @Published var inlineInput="" {didSet {
+        if let command=inlineCommand,TaskDateInput.supports(command) {inlineDatePreview=TaskDateInput.resolve(inlineInput);message=""}
+        else {inlineDatePreview=nil}
+    }}
+    @Published var inlineDatePreview:TaskDateInput?
     @Published var form:CommandForm?
     @Published var confirmationCommand:Command?
     let commandLog:CommandLog
@@ -321,6 +325,13 @@ final class AppState:ObservableObject {
         } else {hidePalette?();showToast?("Copied",true)}
     }
     func perform(_ id:String,values:[String:String]=[:],confirmed:Bool=false,source:String="launcher") {
+        var values=values
+        if let command=resolveCommand(id),TaskDateInput.supports(command) {
+            let input=values["input"] ?? ""
+            let preview=(inlineCommand?.id==id && inlineDatePreview?.input==input ? inlineDatePreview:nil) ?? TaskDateInput.resolve(input)
+            guard let date=preview.value else {if inlineCommand?.id != id {message=preview.label};return}
+            values["input"]=date
+        }
         if let command=resolveCommand(id),systemServices.requiresConfirmation(target:command.target),!confirmed {confirmationCommand=command;return}
         guard !busy else {return};busy=true
         execute(id,dryRun:false,values:values,openResult:true,confirmed:confirmed,source:source) { [weak self] response in
@@ -477,7 +488,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.7.7","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.7.8","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":
