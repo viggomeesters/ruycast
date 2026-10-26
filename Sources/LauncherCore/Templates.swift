@@ -13,6 +13,9 @@ public enum Templates {
         guard let m=r.firstMatch(in:text,range:NSRange(text.startIndex...,in:text)),let range=Range(m.range(at:1),in:text) else {return nil}
         return String(text[range])
     }
+    public static func needsInteraction(_ command:Command)->Bool {
+        fields(command).contains {!$0.options.isEmpty || $0.defaultValue.isEmpty}
+    }
     public static func fields(_ command:Command)->[TemplateField] {
         var fields:[TemplateField]=[]
         if let prompt=command.inputPrompt {fields.append(TemplateField(id:"input",label:prompt,defaultValue:"",options:[]))}
@@ -22,7 +25,7 @@ public enum Templates {
             let token=String(command.target[range])
             if ["clipboard","cursor","date","time","datetime","day"].contains(token) || token.hasPrefix("date ") || token.hasPrefix("datetime:") {continue}
             let name=attribute("name",in:token) ?? (token=="query" || token=="argument" ? "Query":token)
-            if !fields.contains(where:{$0.id==name}) {fields.append(TemplateField(id:name,label:name,defaultValue:attribute("default",in:token) ?? "",options:(attribute("options",in:token) ?? "").split(separator:",").map(String.init)))}
+            if !fields.contains(where:{$0.id==name}) {fields.append(TemplateField(id:name,label:name,defaultValue:attribute("default",in:token) ?? "",options:(attribute("options",in:token) ?? "").split(separator:",").map {$0.trimmingCharacters(in:.whitespacesAndNewlines)}.filter {!$0.isEmpty}.reduce(into:[String]()) {if !$0.contains($1) {$0.append($1)}}))}
         }
         return fields
     }

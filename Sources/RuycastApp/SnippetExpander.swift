@@ -11,6 +11,7 @@ final class SnippetExpander {
     private var matcher=SnippetMatcher()
     private var lastPID:pid_t?
     private var poll:Timer?
+    private var choice:SnippetChoiceController?
     init(state:AppState) {
         self.state=state
         poll=Timer.scheduledTimer(withTimeInterval:2,repeats:true) { [weak self] _ in self?.refresh() }
@@ -18,6 +19,7 @@ final class SnippetExpander {
     }
     deinit {poll?.invalidate();stop()}
     func stop() {
+        choice?.cancel(restore:false);choice=nil
         if let tap {CGEvent.tapEnable(tap:tap,enable:false);CFMachPortInvalidate(tap)}
         if let source {CFRunLoopRemoveSource(CFRunLoopGetMain(),source,.commonModes)}
         tap=nil;source=nil;matcher.reset()
@@ -43,8 +45,12 @@ final class SnippetExpander {
         state.expansionStatus="On"
     }
     private func handle(_ type:CGEventType,_ event:CGEvent)->Unmanaged<CGEvent>? {
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {matcher.reset();if let tap {CGEvent.tapEnable(tap:tap,enable:true)};return Unmanaged.passUnretained(event)}
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {choice?.cancel(restore:false);matcher.reset();if let tap {CGEvent.tapEnable(tap:tap,enable:true)};return Unmanaged.passUnretained(event)}
         if event.getIntegerValueField(.eventSourceUserData)==Self.generatedTag {return Unmanaged.passUnretained(event)}
+        if let choice {
+            choice.input(type,event)
+            matcher.reset();return Unmanaged.passUnretained(event)
+        }
         guard type == .keyDown,let state,!state.paletteVisible,state.windows.trusted,!IsSecureEventInputEnabled(),!event.flags.contains(.maskCommand),!event.flags.contains(.maskControl),!event.flags.contains(.maskAlternate),event.getIntegerValueField(.keyboardEventAutorepeat)==0,
             let active=NSWorkspace.shared.frontmostApplication,active.processIdentifier != getpid(),!state.config.clipboard.excludedApps.contains(active.bundleIdentifier ?? ""),!secureField() else {matcher.reset();return Unmanaged.passUnretained(event)}
         if lastPID != active.processIdentifier {matcher.reset();lastPID=active.processIdentifier}
@@ -58,6 +64,19 @@ final class SnippetExpander {
         guard !state.recordingShortcut else {matcher.reset();return Unmanaged.passUnretained(event)}
         guard let command=matcher.type(text,commands:state.config.commands),let keyword=command.keyword else {return Unmanaged.passUnretained(event)}
         let pid=active.processIdentifier
+        if Templates.needsInteraction(command) {
+            let controller=SnippetChoiceController(command:command,pid:pid,safe:{ [weak self,weak state] in
+                guard let self,let state else {return false}
+                return !state.paletteVisible && state.config.snippetExpansionEnabled==true && state.windows.trusted && !IsSecureEventInputEnabled() && !self.secureField() && !state.config.clipboard.excludedApps.contains(active.bundleIdentifier ?? "") && state.config.commands.contains(command)
+            },apply:{ [weak state] replacement in
+                let started=DispatchTime.now().uptimeNanoseconds,tracked=state?.analytics.recordAttempt(command.id,source:"snippet")
+                replacement.apply(key:Self.key,insert:Self.insert)
+                if let tracked {state?.analytics.recordCompletion(tracked,success:true,ms:AnalyticsStore.elapsed(started))}
+            },failure:{ [weak state] in state?.showToast?($0,false) })
+            choice=controller;controller.onFinish={ [weak self] in self?.choice=nil;self?.matcher.reset() }
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.03) { [weak controller] in controller?.present() }
+            return Unmanaged.passUnretained(event)
+        }
         // Render before swallowing the last key; unavailable templates leave typing unchanged.
         guard let rendered=try? Templates.render(command,values:[:],clipboard:command.target.contains("{clipboard}") ? NSPasteboard.general.string(forType:.string):nil) else {return Unmanaged.passUnretained(event)}
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier==pid,!IsSecureEventInputEnabled(),!secureField() else {return Unmanaged.passUnretained(event)}

@@ -28,7 +28,7 @@ def prepare(root,destination):
     manifest={}
     for name in files:
         path=destination/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(root/name,path);manifest[name]=hashlib.sha256(path.read_bytes()).hexdigest()
-    receipt={'schema':'ruycast.public-source.v1','version':'0.7.6','files':manifest,'exclusions':['Development Git history and workflow state','Build output, profiles, analytics and clipboard data','Optional private adapters and their tests','Local signing material'],'publication':'export-only; see docs/RELEASING.md for release status'}
+    receipt={'schema':'ruycast.public-source.v1','version':'0.7.7','files':manifest,'exclusions':['Development Git history and workflow state','Build output, profiles, analytics and clipboard data','Optional private adapters and their tests','Local signing material'],'publication':'export-only; see docs/RELEASING.md for release status'}
     (destination/'PUBLIC-SOURCE.json').write_text(json.dumps(receipt,indent=2)+'\n')
     with tarfile.open(archive,'x:gz') as tar:
         for name in sorted([*files,'PUBLIC-SOURCE.json']):
