@@ -96,6 +96,45 @@ struct CoreTests {
         XCTAssertEqual(History.insert(Clip(text:String(repeating:"x",count:21),source:"app"),into:items,settings:s),items)
         XCTAssertEqual(History.insert(Clip(text:"  ",source:"app"),into:items,settings:s),items)
     }
+    func testWindowReadsRetryOnlyTemporaryFailures() throws {
+        var calls=0;var waits:[Double]=[]
+        let window:String=try WindowRead.perform("AXFocusedWindow",retryingStatus:-25204,read:{
+            calls+=1;return calls<3 ? (-25204,nil):(0,"window-1")
+        },pause:{waits.append($0)})
+        XCTAssertEqual(window,"window-1");XCTAssertEqual(calls,3);XCTAssertEqual(waits,[0.02,0.04])
+
+        // Exercise the same attribute-read boundary inside placement readback.
+        let target=Frame(x:1720,y:0,width:1720,height:1400)
+        calls=0;waits=[]
+        let placed=try WindowPlacement.apply(target,read:{
+            try WindowRead.perform("AXPosition",retryingStatus:-25204,read:{
+                calls+=1;return calls<4 ? (-25204,nil):(0,target)
+            },pause:{waits.append($0)})
+        },resize:{_ in},position:{_ in},pause:{})
+        XCTAssertEqual(placed,target);XCTAssertEqual(calls,4);XCTAssertEqual(waits,[0.02,0.04,0.08])
+
+        calls=0;waits=[]
+        do {
+            let _:String=try WindowRead.perform("AXPosition",retryingStatus:-25204,read:{
+                calls+=1;return (-25204,nil)
+            },pause:{waits.append($0)})
+            preconditionFailure("Persistent temporary error must fail")
+        } catch {
+            XCTAssertEqual(String(describing:error).contains("did not respond"),true)
+        }
+        XCTAssertEqual(calls,4);XCTAssertEqual(waits,[0.02,0.04,0.08])
+
+        for status:Int32 in [-25205,-25212,-25202,0] {
+            calls=0;waits=[]
+            XCTAssertThrowsError(try WindowRead.perform("AXFocusedWindow",retryingStatus:-25204,read:{() -> (Int32,String?) in
+                calls+=1;return (status,nil)
+            },pause:{waits.append($0)}))
+            XCTAssertEqual(calls,1);XCTAssertEqual(waits,[])
+        }
+        calls=0;waits=[]
+        let immediate:Int=try WindowRead.perform("AXSize",retryingStatus:-25204,read:{calls+=1;return (0,42)},pause:{waits.append($0)})
+        XCTAssertEqual(immediate,42);XCTAssertEqual(calls,1);XCTAssertEqual(waits,[])
+    }
     func testWindowPlacementConvergesAfterClampingAndTransientFailure() throws {
         let target=Frame(x:1720,y:0,width:1720,height:1400)
         var current=Frame(x:100,y:400,width:900,height:600)
@@ -142,7 +181,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("10 core behavior checks passed")
+@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("11 core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
