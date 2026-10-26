@@ -26,13 +26,17 @@ struct PaletteSearchField:NSViewRepresentable {
         context.coordinator.parent=self;field.placeholderString=placeholder;field.actions=onActions
         field.appearance=NSAppearance(named:scheme == .dark ? .darkAqua:.aqua)
         if field.stringValue != text {field.stringValue=text}
+        PerformanceTrace.shared.didReconcileField(fieldID:ObjectIdentifier(field))
+    }
+    static func dismantleNSView(_ field:SearchInput,coordinator:Coordinator) {
+        PerformanceTrace.shared.cancelInput(fieldID:ObjectIdentifier(field));field.delegate=nil
     }
     final class Coordinator:NSObject,NSTextFieldDelegate {
         var parent:PaletteSearchField
         init(_ parent:PaletteSearchField) {self.parent=parent}
         func controlTextDidChange(_ notification:Notification) {
             guard let field=notification.object as? NSTextField else {return}
-            PerformanceTrace.shared.inputChanged()
+            PerformanceTrace.shared.inputChanged(fieldID:ObjectIdentifier(field))
             PerformanceTrace.shared.measure(.inputModel) {parent.text=field.stringValue}
         }
         func control(_ control:NSControl,textView:NSTextView,doCommandBy selector:Selector)->Bool {

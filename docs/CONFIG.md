@@ -140,3 +140,6 @@ Interaction durations are available through `ruycast performance`; `performance 
 Search supports title word starts (`mic tea` → Microsoft Teams), initials (`mt`) and ordered title subsequences (`mft`). Exact IDs, aliases and snippet keywords keep first priority, followed by exact titles. Recent successful choices from the launcher break ties only within the same relevance tier. Existing empty-query usage ordering remains available.
 
 `ruycast search-ranking` shows the local entry count and bounds; `ruycast search-ranking reset --confirm` clears these choice timestamps. This does not reset existing usage counters. At most 512 IDs/timestamps are stored in the runtime profile's private `search-ranking.json`; 90-day retention is applied at load/save. CLI/hotkey execution, dry runs and failed actions do not add entries. Query and argument text are never recorded here. The configuration file does not change.
+
+
+Interaction diagnostics use schema 2 from 0.7.16: `input.reconcile` ends when SwiftUI applies the binding to the same native field; `host.drawCallback` counts an optional hosting draw override that normal layer-backed display may skip. Neither is result rendering or physical screen latency. The old input.draw/native.draw stages are retired.

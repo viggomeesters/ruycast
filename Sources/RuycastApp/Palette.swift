@@ -168,7 +168,7 @@ final class PaletteController {
             if let view=self.panel.contentView,let input=field(view) {self.panel.makeFirstResponder(input)}
         }
     }
-    func hide() {if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true);self.openTrace=nil};PerformanceTrace.shared.cancelDisplay();panel.orderOut(nil);state.paletteVisible=false;state.actionsOpen=false;if let outside {NSEvent.removeMonitor(outside);self.outside=nil};if let local {NSEvent.removeMonitor(local);self.local=nil}}
+    func hide() {if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true);self.openTrace=nil};PerformanceTrace.shared.cancelInput();panel.orderOut(nil);state.paletteVisible=false;state.actionsOpen=false;if let outside {NSEvent.removeMonitor(outside);self.outside=nil};if let local {NSEvent.removeMonitor(local);self.local=nil}}
     func showToast(_ text:String,_ success:Bool) {
         toastTimer?.invalidate();toast?.orderOut(nil)
         let p=NSPanel(contentRect:NSRect(x:0,y:0,width:340,height:65),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
@@ -182,7 +182,6 @@ final class PaletteController {
 
 final class TracedPaletteHost<Content:View>:NSHostingView<Content> {
     override func draw(_ dirtyRect:NSRect) {
-        PerformanceTrace.shared.measure(.nativeDraw) {super.draw(dirtyRect)}
-        PerformanceTrace.shared.didDraw()
+        PerformanceTrace.shared.measure(.hostDraw) {super.draw(dirtyRect)}
     }
 }

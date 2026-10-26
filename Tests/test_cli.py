@@ -58,7 +58,8 @@ class CLIIntegration(unittest.TestCase):
     def test_bounded_privacy_safe_performance_summary_and_confirmed_reset(self):
         summary=self.cli('performance',ok=True)['result']
         self.assertEqual(summary['sampleLimitPerStage'],256)
-        self.assertEqual(set(summary['stages']),{'search.model','input.model','input.draw','open.ready','native.draw','hotkey.handler'})
+        self.assertEqual(summary['schema'],2)
+        self.assertEqual(set(summary['stages']),{'search.model','input.model','input.reconcile','open.ready','host.drawCallback','hotkey.handler'})
         self.cli('performance','reset',ok=False)
         self.cli('performance','summary','unexpected',ok=False)
         self.cli('performance','reset','--confirm',ok=True)
