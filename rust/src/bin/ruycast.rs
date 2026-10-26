@@ -390,7 +390,7 @@ fn execute(args: &[String]) -> Result<Value> {
     let name = args.first().map(String::as_str).unwrap_or("--help");
     match name {
         "--help" | "help" | "-h" => Ok(
-            json!({"ok":true,"commands":["status","performance [summary|reset --confirm]","logs [--command ID] [--errors] [--limit N] | path | clear --confirm","analytics [summary|export|pause|resume|retention DAYS|reset --confirm]","monitor","processes [query]","commands","search [query] [--mode MODE]","run ID [--dry-run] [--input JSON_OR_TEXT] [--confirm]","snippets list [query]|add JSON|remove ID","quicklinks list [query]|add JSON|remove ID","window LAYOUT","show [commands|clipboard|snippets|quicklinks|files|menus|windows|processes|settings|analytics]","usage","reload","start [--headless]","quit","config path|get|init|validate [PATH]|reload", "config directory [ABSOLUTE_PATH]","config set KEY JSON [--expect-sha256 SHA]","config replace @FILE --expect-sha256 SHA","config add JSON_OR_@FILE [--expect-sha256 SHA]","config remove ID [--expect-sha256 SHA]","clipboard list [query]|copy ID|paste ID|delete ID|clear|pause|resume"],"profile":root(),"configFormat":"Readable JSON, version 1"}),
+            json!({"ok":true,"commands":["status","performance [summary|reset --confirm]","search-ranking [summary|reset --confirm]","logs [--command ID] [--errors] [--limit N] | path | clear --confirm","analytics [summary|export|pause|resume|retention DAYS|reset --confirm]","monitor","processes [query]","commands","search [query] [--mode MODE]","run ID [--dry-run] [--input JSON_OR_TEXT] [--confirm]","snippets list [query]|add JSON|remove ID","quicklinks list [query]|add JSON|remove ID","window LAYOUT","show [commands|clipboard|snippets|quicklinks|files|menus|windows|processes|settings|analytics]","usage","reload","start [--headless]","quit","config path|get|init|validate [PATH]|reload", "config directory [ABSOLUTE_PATH]","config set KEY JSON [--expect-sha256 SHA]","config replace @FILE --expect-sha256 SHA","config add JSON_OR_@FILE [--expect-sha256 SHA]","config remove ID [--expect-sha256 SHA]","clipboard list [query]|copy ID|paste ID|delete ID|clear|pause|resume"],"profile":root(),"configFormat":"Readable JSON, version 1"}),
         ),
         "__run-script" => {
             let mut data = String::new();
@@ -590,6 +590,11 @@ fn execute(args: &[String]) -> Result<Value> {
             None | Some("summary") if args.len() <= 2 => rpc(json!({"op":"performance"})),
             Some("reset") if args.len()==3 && args[2]=="--confirm" => rpc(json!({"op":"performance.reset"})),
             _ => Err("Use performance [summary|reset --confirm]".into()),
+        },
+        "search-ranking" => match args.get(1).map(String::as_str) {
+            None | Some("summary") if args.len()<=2 => rpc(json!({"op":"search-ranking"})),
+            Some("reset") if args.len()==3 && args[2]=="--confirm" => rpc(json!({"op":"search-ranking.reset","confirmed":true})),
+            _ => Err("Use search-ranking [summary|reset --confirm]".into()),
         },
         "analytics" => match args.get(1).map(String::as_str) {
             None | Some("summary") => rpc(json!({"op":"analytics"})),

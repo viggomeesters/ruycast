@@ -66,6 +66,13 @@ class CLIIntegration(unittest.TestCase):
         self.assertTrue(all(stage['count']==0 for stage in clean['stages'].values()))
         self.assertNotIn('query',clean)
 
+    def test_search_ranking_summary_and_confirmed_reset(self):
+        summary=self.cli('search-ranking',ok=True)['result']
+        self.assertEqual(summary,{'entries':0,'limit':512,'retentionDays':90})
+        self.cli('search-ranking','reset',ok=False)
+        self.cli('search-ranking','summary','unexpected',ok=False)
+        self.assertEqual(self.cli('search-ranking','reset','--confirm',ok=True)['result']['entries'],0)
+
     def test_command_separation_legacy_config_and_cli_toggle(self):
         snapshot=self.cli('config','get',ok=True)
         candidate=dict(snapshot['result']);candidate.pop('separateCommandKeys',None)

@@ -86,6 +86,7 @@ public enum Files {
 
 @_silgen_name("rustcast_index_new") private func rustcast_index_new(_ catalog:UnsafePointer<CChar>)->OpaquePointer?
 @_silgen_name("rustcast_index_search_into") private func rustcast_index_search_into(_ index:OpaquePointer,_ query:UnsafePointer<UInt8>,_ length:Int,_ output:UnsafeMutablePointer<Int>?,_ capacity:Int)->Int
+@_silgen_name("rustcast_index_search_ranked_into") private func rustcast_index_search_ranked_into(_ index:OpaquePointer,_ query:UnsafePointer<UInt8>,_ length:Int,_ recency:UnsafePointer<Double>?,_ recencyCount:Int,_ output:UnsafeMutablePointer<Int>?,_ capacity:Int)->Int
 @_silgen_name("rustcast_index_free") private func rustcast_index_free(_ index:OpaquePointer)
 
 /// Main-thread owned immutable catalog. Only query bytes and result indices cross the ABI.
@@ -99,13 +100,16 @@ public final class CommandSearchIndex {
         index=pointer
     }
     deinit {rustcast_index_free(index)}
-    public func search(_ query:String)->[Command] {
+    public func search(_ query:String,recency:[String:Double]=[:])->[Command] {
         guard !commands.isEmpty else {return []}
         let bytes=Array(query.utf8)+[0]
         // Caller owns a catalog-bounded buffer; results need no JSON/string round trip.
         var ids=[Int](repeating:0,count:commands.count)
+        let weights=recency.isEmpty || query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty ? []:commands.map {recency[$0.id] ?? 0}
         let count=ids.withUnsafeMutableBufferPointer {output in
-            bytes.withUnsafeBufferPointer {rustcast_index_search_into(index,$0.baseAddress!,bytes.count-1,output.baseAddress,output.count)}
+            weights.withUnsafeBufferPointer {weights in
+                bytes.withUnsafeBufferPointer {rustcast_index_search_ranked_into(index,$0.baseAddress!,bytes.count-1,weights.baseAddress,weights.count,output.baseAddress,output.count)}
+            }
         }
         guard count>=0,count<=ids.count,ids.prefix(count).allSatisfy({commands.indices.contains($0)}) else {return []}
         return ids.prefix(count).map {commands[$0]}

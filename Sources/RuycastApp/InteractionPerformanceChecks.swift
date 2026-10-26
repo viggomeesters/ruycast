@@ -22,6 +22,28 @@ func checkInteractionPerformance() throws -> [String:Any] {
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("trace-"+String(UUID().uuidString.prefix(8)))
     let state=try AppState(root:root,headless:true)
     defer {state.shutdown();try? FileManager.default.removeItem(at:root)}
+    state.config.commands=[Command(id:"fixture.success",title:"Success Fixture",kind:"script",target:"/usr/bin/true",aliases:["ranking-exact"]),Command(id:"fixture.failure",title:"Failure Fixture",kind:"script",target:"/usr/bin/false")]
+    func executeFixture(_ id:String,source:String,dryRun:Bool=false) throws -> Bool {
+        var response:[String:Any]?
+        state.execute(id,dryRun:dryRun,values:["input":"private ranking sentinel"],source:source) {response=$0}
+        let deadline=Date().addingTimeInterval(5)
+        while response==nil && Date()<deadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.001))}
+        guard let response else {throw LauncherError("Ranking fixture timed out")}
+        return response["ok"] as? Bool==true
+    }
+    try require(try executeFixture("fixture.success",source:"cli"),"CLI success fixture failed")
+    try require(try !executeFixture("fixture.failure",source:"launcher"),"Failure fixture unexpectedly succeeded")
+    try require(try executeFixture("fixture.success",source:"launcher",dryRun:true),"Dry-run fixture failed")
+    try require(state.searchRanking.entries.isEmpty,"CLI, failure or dry-run changed launcher recency")
+    try require(try executeFixture("fixture.success",source:"launcher"),"Launcher success fixture failed")
+    try require(state.searchRanking.entries.count==1 && state.searchRanking.entries["fixture.success"] != nil,"Successful launcher choice was not retained")
+    let rankingBytes=try Data(contentsOf:root.appendingPathComponent("search-ranking.json"))
+    try require(!String(decoding:rankingBytes,as:UTF8.self).contains("sentinel"),"Ranking retained argument text")
+    state.config.commands[0].enabled=false
+    try require(!state.searchCommands("ranking-exact",limit:0).contains(where:{$0.id=="fixture.success"}),"Disabled command appeared in ranking")
+    state.config.commands=[]
+    try require(!state.searchCommands("ranking-exact",limit:0).contains(where:{$0.id=="fixture.success"}),"Removed command appeared in ranking")
+    try state.searchRanking.reset()
     state.config.commands=(0..<500).map {Command(id:"fixture.\($0)",title:"Example \($0)",kind:"url",target:"https://example.com/\($0)")}
     let palette=PaletteController(state:state);defer {palette.panel.close()}
     guard let view=palette.panel.contentView else {throw LauncherError("No native palette host")}
@@ -51,5 +73,5 @@ func checkInteractionPerformance() throws -> [String:Any] {
     try require(!palette.panel.isVisible,"Background benchmark opened a window")
     let bytes=try JSONSerialization.data(withJSONObject:result),text=String(decoding:bytes,as:UTF8.self)
     try require(!text.contains("Example") && !text.contains("fixture.") && !text.contains("example.com"),"Trace retained input or command content")
-    return ["ok":true,"scope":"100 hidden native field/model/draw cycles; not physical hotkey or screen latency","desktopInputSent":false,"visibleWindowOpened":false,"boundedSamples":true,"cancelledAndResetSpans":true,"trace":result]
+    return ["ok":true,"scope":"100 hidden native field/model/draw cycles; not physical hotkey or screen latency","desktopInputSent":false,"visibleWindowOpened":false,"boundedSamples":true,"launcherRecencySuccessOnly":true,"cancelledAndResetSpans":true,"trace":result]
 }

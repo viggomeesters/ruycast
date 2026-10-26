@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.15 — 2026-10-26
+
+- Match title word starts, initials and subsequences. Exact command identifiers and aliases stay first, followed by exact titles. Recent successful launcher choices break ties within the same relevance tier.
+- Keep at most 512 local choice timestamps, bounded to 90 days at load/save, with `ruycast search-ranking reset --confirm`. Queries and argument text are never stored in ranking metadata.
+
 ## 0.7.14
 
 - Transfer indexed search results through a catalog-bounded native integer buffer, removing JSON serialization and decoding from each query. Existing matching, ordering, scope and limits remain unchanged.
