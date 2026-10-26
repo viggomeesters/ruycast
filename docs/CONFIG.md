@@ -120,7 +120,7 @@ A keyword can open a choice menu using the existing Raycast-compatible syntax:
 {"id":"snippet.contact","title":"Choose a contact","kind":"snippet","keyword":";contact","target":"{argument name=\"Contact\" options=\"Example A, Example B, Example C\"}"}
 ```
 
-Type the keyword, select a value and press Return to insert it. Escape cancels and leaves the keyword unchanged. Choices are trimmed, empty entries removed and duplicates collapsed. A choice with a default still asks before inserting. Existing imported templates and configuration remain usable without conversion.
+Type the keyword, use Up/Left for the previous option or Down/Right for the next, then press Return (or keypad Enter) to insert it. The arrow keys work immediately without opening the dropdown; selection stops at the first/last option. Mouse selection remains available. In forms with multiple fields, Tab changes focus and arrows keep their normal behavior in text fields. Escape cancels and leaves the keyword unchanged. Choices are trimmed, empty entries removed and duplicates collapsed. A choice with a default still asks before inserting. Existing imported templates and configuration remain usable without conversion.
 
 The choice is tied to the original app. Switching apps, clicking outside or typing into the editor while the menu is pending cancels it. When Accessibility exposes the field, selection and text, they are checked again before replacement. Editors without that metadata use the app and input guards; a background programmatic field change in such an editor cannot be verified. Secure input, known password fields and excluded apps remain blocked. The menu stays local and choice values are not logged.
 

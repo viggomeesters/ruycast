@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.9 — 2026-10-26 · Snippet keyboard controls
+
+- Switch snippet choices immediately with Up/Down or Left/Right after typing the keyword.
+- Insert with Return or keypad Enter and cancel with Escape, without opening the dropdown first.
+- Preserve free-text editing, IME composition and modifier shortcuts; suppress repeated insertion.
+
 ## 0.7.8 — 2026-10-26 · Natural dates
 
 - Accept English and Dutch natural dates in existing ISO date script inputs, with a live date preview before Enter. Invalid or incomplete dates keep the input open.
