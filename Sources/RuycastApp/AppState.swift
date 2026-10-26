@@ -152,7 +152,7 @@ final class AppState:ObservableObject {
     }
     func rememberServices(_ commands:[Command]) {if serviceCommands.count>2048 {serviceCommands=[:]};for command in commands {serviceCommands[command.id]=command}}
     func searchCommands(_ query:String,mode:String="commands",limit:Int=100)->[Command] {
-        let found=(searchIndex?.search(query) ?? []).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}
+        let found=PerformanceTrace.shared.measure(.searchModel) {(searchIndex?.search(query) ?? []).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}}
         if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
         return Array(found.enumerated().sorted {a,b in let x=counts[a.element.id] ?? 0,y=counts[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
     }
@@ -487,6 +487,8 @@ final class AppState:ObservableObject {
         defer {if !((req["op"] as? String ?? "")=="analytics" || (req["op"] as? String ?? "").hasPrefix("analytics.")) {analytics.recordTiming("cli.dispatch",ms:AnalyticsStore.elapsed(started))}}
         do {
             switch req["op"] as? String {
+            case "performance":reply(["ok":true,"result":PerformanceTrace.shared.snapshot()])
+            case "performance.reset":PerformanceTrace.shared.reset();reply(["ok":true,"result":PerformanceTrace.shared.snapshot()])
             case "logs":
                 reply(["ok":true,"result":jsonValue(commandLog.entries(commandID:req["commandID"] as? String,errorsOnly:req["errorsOnly"] as? Bool ?? false,limit:req["limit"] as? Int ?? 50)),"path":commandLog.url.path,"storageError":commandLog.storageError as Any? ?? NSNull()])
             case "logs.path":reply(["ok":true,"result":["path":commandLog.url.path]])
@@ -508,7 +510,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.7.12","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.7.13","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":

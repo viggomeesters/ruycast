@@ -8,6 +8,7 @@ let args=Array(CommandLine.arguments.dropFirst())
 let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["RUYCAST_HOME"] ?? ProcessInfo.processInfo.environment["RUSTCAST_HOME"] ?? defaultProfilePath())
 func output(_ value:[String:Any]) {if let data=try? JSONSerialization.data(withJSONObject:value,options:[.sortedKeys]),let s=String(data:data,encoding:.utf8) {print(s)}}
 
+if args.first=="--benchmark-interactions" {do {output(try checkInteractionPerformance());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-script-choices" {
     do {guard args.count==2 else {throw LauncherError("Expected output directory")};output(try checkScriptChoicesUI(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }

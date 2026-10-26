@@ -125,6 +125,7 @@ final class PaletteController {
     private var local:Any?
     private var toast:NSPanel?
     private var toastTimer:Timer?
+    private var openTrace:PerformanceTrace.Span?
     init(state:AppState) {
         self.state=state
         panel=PalettePanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
@@ -133,7 +134,7 @@ final class PaletteController {
         panel.isMovableByWindowBackground=true
         panel.standardWindowButton(.closeButton)?.isHidden=true;panel.standardWindowButton(.miniaturizeButton)?.isHidden=true;panel.standardWindowButton(.zoomButton)?.isHidden=true
         panel.level = .floating;panel.collectionBehavior=[.canJoinAllSpaces,.fullScreenAuxiliary];panel.isReleasedWhenClosed=false
-        panel.contentView=NSHostingView(rootView:Palette(state:state));panel.hidesOnDeactivate=false
+        panel.contentView=TracedPaletteHost(rootView:Palette(state:state));panel.hidesOnDeactivate=false
         state.restoreSearchFocus={ [weak self] in self?.restoreSearchFocus() }
         state.showPalette={ [weak self] mode in self?.show(mode) };state.hidePalette={ [weak self] in self?.hide() };state.showToast={ [weak self] text,success in self?.showToast(text,success) }
     }
@@ -142,6 +143,9 @@ final class PaletteController {
         if mode=="settings" {hide();state.showManagement?();return}
         if mode=="system-monitor" || mode=="monitor" {hide();state.showSystemMonitor?();return}
         if state.paletteVisible,state.mode==mode {hide();return}
+        if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true)}
+        openTrace=PerformanceTrace.shared.begin(.openReady)
+        let trace=openTrace!
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {state.previousPID=app.processIdentifier}
         state.inlineCommand=nil;state.inlineInput="";state.query="";state.message="";state.mode=mode;state.detail=nil;state.scriptChoices=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
         let mouse=NSEvent.mouseLocation
@@ -149,9 +153,10 @@ final class PaletteController {
         if let frame=screen?.visibleFrame {panel.setFrame(PaletteGeometry.frame(in:frame,mode:mode),display:false)}
         panel.makeKeyAndOrderFront(nil)
         DispatchQueue.main.async { [weak self] in
-            guard let self else {return}
+            guard let self,self.panel.isVisible,self.openTrace?.id==trace.id else {return}
+            defer {self.openTrace=nil}
             func field(_ view:NSView)->SearchInput? {if let input=view as? SearchInput {return input};return view.subviews.lazy.compactMap {field($0)}.first}
-            if let view=self.panel.contentView,let input=field(view) {self.panel.makeFirstResponder(input)}
+            if let view=self.panel.contentView,let input=field(view),self.panel.makeFirstResponder(input) {PerformanceTrace.shared.finish(trace)} else {PerformanceTrace.shared.finish(trace,cancelled:true)}
         }
         if outside==nil {outside=NSEvent.addGlobalMonitorForEvents(matching:[.leftMouseDown,.rightMouseDown]) {[weak self] _ in self?.hide()}}
         if local==nil {local=NSEvent.addLocalMonitorForEvents(matching:[.leftMouseDown,.rightMouseDown]) {[weak self] event in if event.window !== self?.panel,!(event.window?.contentView.map {ActionMenuKeyInput.contains(in:$0)} ?? false) {self?.hide()};return event}}
@@ -163,7 +168,7 @@ final class PaletteController {
             if let view=self.panel.contentView,let input=field(view) {self.panel.makeFirstResponder(input)}
         }
     }
-    func hide() {panel.orderOut(nil);state.paletteVisible=false;state.actionsOpen=false;if let outside {NSEvent.removeMonitor(outside);self.outside=nil};if let local {NSEvent.removeMonitor(local);self.local=nil}}
+    func hide() {if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true);self.openTrace=nil};PerformanceTrace.shared.cancelDisplay();panel.orderOut(nil);state.paletteVisible=false;state.actionsOpen=false;if let outside {NSEvent.removeMonitor(outside);self.outside=nil};if let local {NSEvent.removeMonitor(local);self.local=nil}}
     func showToast(_ text:String,_ success:Bool) {
         toastTimer?.invalidate();toast?.orderOut(nil)
         let p=NSPanel(contentRect:NSRect(x:0,y:0,width:340,height:65),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
@@ -172,5 +177,12 @@ final class PaletteController {
         if let f=(NSScreen.screens.first {$0.frame.contains(NSEvent.mouseLocation)} ?? NSScreen.main)?.visibleFrame {p.setFrameOrigin(NSPoint(x:f.maxX-360,y:f.maxY-85))}
         p.orderFrontRegardless();toast=p
         toastTimer=Timer.scheduledTimer(withTimeInterval:5,repeats:false) {[weak self] _ in self?.toast?.orderOut(nil);self?.toast=nil}
+    }
+}
+
+final class TracedPaletteHost<Content:View>:NSHostingView<Content> {
+    override func draw(_ dirtyRect:NSRect) {
+        PerformanceTrace.shared.measure(.nativeDraw) {super.draw(dirtyRect)}
+        PerformanceTrace.shared.didDraw()
     }
 }

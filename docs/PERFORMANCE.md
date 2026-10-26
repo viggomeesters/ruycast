@@ -101,3 +101,16 @@ python3 scripts/benchmark-host.py --host .build/swift/release/RuycastApp \
 ```
 
 Use frozen copies of binaries for long probes. The host script strips external profile/config overrides, asserts its isolated fixture profile and checks that the host file did not change during measurement. The probe never opens the launcher, installs global input hooks or uses the general clipboard. Do not substitute these numbers for the deliberately excluded physical latency, battery and Raycast practice checks.
+
+## Interaction stages (0.7.13)
+
+`ruycast performance` reports bounded in-memory software timings (last256 durations per fixed stage, count, cancellations, p50/p95/max). `ruycast performance reset --confirm` clears them. No query text, command identifiers, snippet bodies or clipboard data is recorded or written. Signposts use only fixed stage names in `nl.viggomeesters.ruycast/Interaction` and can be inspected with Instruments.
+
+- `hotkey.handler`: handler delivery to callback return; excludes hardware/OS delivery before the handler.
+- `open.ready`: show request through the queued native focus request; excludes compositor/display presentation. Closing or superseding an open cancels the interval.
+- `input.model`: native text-field delegate through synchronous model publication.
+- `search.model`: the shared Rust index call and Swift result conversion/filtering.
+- `native.draw`: the palette hosting view's native draw callback.
+- `input.draw`: latest native input through the next hosting draw callback. Superseded/hidden input is cancelled. This does not establish that a particular result reached the physical display.
+
+`RuycastApp --benchmark-interactions` exercises100 hidden native field/model/draw cycles with synthetic commands. It checks privacy, cancellation, reset identities and bounded retention. It never makes a window visible or emits desktop input. Rendering software stages is distinct from physical key-to-screen latency; a controlled visible acceptance slot is still needed for that claim. The existing model and lifecycle gates remain unchanged.
