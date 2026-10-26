@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.12 — 2026-10-26
+
+- Show snippet keywords, every alias and configured keyboard shortcuts directly in launcher results. Long bindings wrap without truncation.
+
 ## 0.7.11 — 2026-10-26 · Script replies and project choices
 
 - Add searchable keyboard selection for script-provided choices, retaining failed selections and provider reports.
