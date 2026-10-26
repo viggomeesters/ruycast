@@ -96,6 +96,32 @@ struct CoreTests {
         XCTAssertEqual(History.insert(Clip(text:String(repeating:"x",count:21),source:"app"),into:items,settings:s),items)
         XCTAssertEqual(History.insert(Clip(text:"  ",source:"app"),into:items,settings:s),items)
     }
+    func testWindowPlacementConvergesAfterClampingAndTransientFailure() throws {
+        let target=Frame(x:1720,y:0,width:1720,height:1400)
+        var current=Frame(x:100,y:400,width:900,height:600)
+        var writes=0
+        let actual=try WindowPlacement.apply(target,read:{current},resize:{ f in
+            writes+=1
+            // First request at the old position is clamped; its AX call may
+            // report cannotComplete despite having changed the window.
+            current.width=f.width;current.height=min(f.height,1400-current.y)
+        },position:{ f in current.x=f.x;current.y=f.y },pause:{})
+        XCTAssertEqual(actual,target);XCTAssertEqual(writes>=2,true)
+
+        current=Frame(x:0,y:0,width:500,height:500);writes=0
+        let retried=try WindowPlacement.apply(target,read:{current},resize:{ f in
+            writes+=1
+            if writes>2 {current.width=f.width;current.height=f.height}
+        },position:{ f in current.x=f.x;current.y=f.y },pause:{})
+        XCTAssertEqual(retried,target);XCTAssertEqual(writes,4)
+
+        var attempts=0
+        XCTAssertThrowsError(try WindowPlacement.apply(target,read:{Frame(x:0,y:0,width:800,height:600)},resize:{_ in attempts+=1},position:{_ in},pause:{}))
+        XCTAssertEqual(attempts,6)
+        attempts=0
+        XCTAssertThrowsError(try WindowPlacement.apply(target,read:{current},resize:{_ in attempts+=1;throw LauncherError("Not resizable")},position:{_ in},pause:{}))
+        XCTAssertEqual(attempts,1)
+    }
     func testThirdsOnNegativeOriginDisplay() throws {
         let screen=Frame(x:-3440,y:-200,width:3440,height:1400)
         let r=try screen.layout("last-two-thirds")
@@ -116,7 +142,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("9 core behavior checks passed")
+@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("10 core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
