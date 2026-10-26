@@ -114,3 +114,19 @@ Use frozen copies of binaries for long probes. The host script strips external p
 - `input.draw`: latest native input through the next hosting draw callback. Superseded/hidden input is cancelled. This does not establish that a particular result reached the physical display.
 
 `RuycastApp --benchmark-interactions` exercises100 hidden native field/model/draw cycles with synthetic commands. It checks privacy, cancellation, reset identities and bounded retention. It never makes a window visible or emits desktop input. Rendering software stages is distinct from physical key-to-screen latency; a controlled visible acceptance slot is still needed for that claim. The existing model and lifecycle gates remain unchanged.
+
+
+## 0.7.14: typed search transfer
+
+The indexed Swift path now receives native integer indices in a caller-owned, catalog-bounded buffer, avoiding JSON encoding in Rust and string/data/JSON decoding in Swift on every query. Matching, ordering, scope filtering and CLI limits are unchanged; the buffer is local to the synchronous call.
+
+Six alternating release runs on the same Apple M4 Mac (baseline, candidate, candidate, baseline, baseline, candidate), without concurrent agent builds, produced these medians of per-run model p95:
+
+| Commands | 0.7.13 baseline | 0.7.14 candidate | Reduction |
+| --- | --- | --- | --- |
+| 500 | 0.237 ms | 0.148 ms | 37.5% |
+| 1,000 | 0.456 ms | 0.278 ms | 39.0% |
+| 5,000 | 2.206 ms | 1.350 ms | 38.8% |
+| 10,000 | 4.382 ms | 2.768 ms | 36.8% |
+
+These are deterministic model fixtures with 1,000 samples per catalog per run, including empty queries. They establish a local model-cost reduction, not physical keyboard-to-display speed or a comparison with another launcher. The frozen baseline binary SHA-256 is `759699fe3081d8f23728f10beae8695de79c86a1cc30eaa84a97979cec7cdb0a`; candidate `89783a47474cf7ed5fc88e380ed4fc89483b935b2a077b54a3725d11f8944cca`.

@@ -332,6 +332,27 @@ pub unsafe extern "C" fn rustcast_index_search(
     .unwrap_or(std::ptr::null_mut())
 }
 /// # Safety
+/// Index must be live; query is `length` readable UTF-8 bytes. Output, when
+/// capacity > 0, is writable for `capacity` usize values and does not alias inputs.
+/// Writes at most capacity indices, returns written count, or -1 for invalid input.
+/// Swift Int and Rust usize have the same native word layout on supported macOS.
+#[no_mangle]
+pub unsafe extern "C" fn rustcast_index_search_into(
+    index: *const SearchIndex, query: *const u8, length: usize,
+    output: *mut usize, capacity: usize,
+) -> isize {
+    std::panic::catch_unwind(|| {
+        if index.is_null() || query.is_null() || (capacity > 0 && output.is_null()) {
+            return -1;
+        }
+        let Ok(q) = std::str::from_utf8(std::slice::from_raw_parts(query, length)) else { return -1; };
+        let found = (*index).search(q);
+        let count = found.len().min(capacity);
+        if count > 0 { std::ptr::copy_nonoverlapping(found.as_ptr(), output, count); }
+        count as isize
+    }).unwrap_or(-1)
+}
+/// # Safety
 /// Must receive an unfreed pointer from rustcast_index_new, or null.
 #[no_mangle]
 pub unsafe extern "C" fn rustcast_index_free(index: *mut SearchIndex) {
@@ -477,6 +498,20 @@ pub unsafe extern "C" fn rustcast_free(ptr: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn typed_search_respects_capacity_and_rejects_invalid_input() {
+        let commands=validate(&default_config()).unwrap().commands;
+        let index=SearchIndex::new(&commands);
+        let mut output=[usize::MAX;3];
+        unsafe {
+            assert_eq!(rustcast_index_search_into(&index,b"".as_ptr(),0,output.as_mut_ptr(),2),2);
+            assert_eq!(output,[0,1,usize::MAX]);
+            assert_eq!(rustcast_index_search_into(&index,b"".as_ptr(),0,std::ptr::null_mut(),0),0);
+            assert_eq!(rustcast_index_search_into(&index,b"".as_ptr(),0,std::ptr::null_mut(),1),-1);
+            assert_eq!(rustcast_index_search_into(&index,[255].as_ptr(),1,output.as_mut_ptr(),3),-1);
+            assert_eq!(rustcast_index_search_into(std::ptr::null(),b"x".as_ptr(),1,output.as_mut_ptr(),3),-1);
+        }
+    }
     #[test]
     fn default_is_valid() {
         validate(&default_config()).unwrap();
