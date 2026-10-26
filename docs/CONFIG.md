@@ -131,3 +131,5 @@ Script commands whose `inputPrompt` includes the existing `YYYY-MM-DD` hint acce
 ### Interactive script choices
 
 A script adapter can return `{"ok":true,"choices":{"title":"Choose","placeholder":"Search…","items":[{"id":"one","title":"Example","subtitle":"Group","value":"pinned-value"}]}}`. Ruycast opens a searchable keyboard list. Enter runs the same command with the selected opaque value as `{input}`; Escape leaves without running a selection. Failed selections keep the list and offer Reload. Scripts own validation and must reject stale context before changing data. A failed response can include `detail` to retain its report alongside the error.
+
+Interaction durations are available through `ruycast performance`; `performance reset --confirm` clears the bounded in-memory samples. These contain no command IDs, queries or clipboard contents and are not persisted.

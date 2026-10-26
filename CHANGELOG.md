@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.13 — 2026-10-26
+
+- Add bounded, privacy-safe interaction stage timings, Instruments signposts and a hidden native interaction benchmark.
+
 ## 0.7.12 — 2026-10-26
 
 - Show snippet keywords, every alias and configured keyboard shortcuts directly in launcher results. Long bindings wrap without truncation.

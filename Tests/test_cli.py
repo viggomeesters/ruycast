@@ -55,6 +55,17 @@ class CLIIntegration(unittest.TestCase):
             raise AssertionError(r)
         return r
 
+    def test_bounded_privacy_safe_performance_summary_and_confirmed_reset(self):
+        summary=self.cli('performance',ok=True)['result']
+        self.assertEqual(summary['sampleLimitPerStage'],256)
+        self.assertEqual(set(summary['stages']),{'search.model','input.model','input.draw','open.ready','native.draw','hotkey.handler'})
+        self.cli('performance','reset',ok=False)
+        self.cli('performance','summary','unexpected',ok=False)
+        self.cli('performance','reset','--confirm',ok=True)
+        clean=self.cli('performance',ok=True)['result']
+        self.assertTrue(all(stage['count']==0 for stage in clean['stages'].values()))
+        self.assertNotIn('query',clean)
+
     def test_command_separation_legacy_config_and_cli_toggle(self):
         snapshot=self.cli('config','get',ok=True)
         candidate=dict(snapshot['result']);candidate.pop('separateCommandKeys',None)

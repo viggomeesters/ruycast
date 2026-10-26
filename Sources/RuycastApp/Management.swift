@@ -175,7 +175,7 @@ struct ManagementView:View {
             preferenceRow("Configuration Folder") {VStack(alignment:.trailing,spacing:6) {Text(state.configDirectory.path).font(.caption).foregroundStyle(theme.muted).lineLimit(2).truncationMode(.middle).textSelection(.enabled);Button("Choose Folder…",action:state.chooseConfigurationDirectory)}}
             preferenceRow("Reload") {Button("Reload Configuration") {do {try state.reload();state.message="";state.showToast?("Configuration reloaded",true)} catch {state.message=error.localizedDescription}}}
             preferenceRow("Permissions") {Button("Accessibility…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)}}
-            preferenceRow("Version") {Text("Ruycast 0.7.12").foregroundStyle(theme.muted)}
+            preferenceRow("Version") {Text("Ruycast 0.7.13").foregroundStyle(theme.muted)}
         }
     }
     private func preferences<Content:View>(_ title:String,@ViewBuilder content:()->Content)->some View {

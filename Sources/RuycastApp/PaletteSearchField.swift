@@ -32,7 +32,8 @@ struct PaletteSearchField:NSViewRepresentable {
         init(_ parent:PaletteSearchField) {self.parent=parent}
         func controlTextDidChange(_ notification:Notification) {
             guard let field=notification.object as? NSTextField else {return}
-            parent.text=field.stringValue
+            PerformanceTrace.shared.inputChanged()
+            PerformanceTrace.shared.measure(.inputModel) {parent.text=field.stringValue}
         }
         func control(_ control:NSControl,textView:NSTextView,doCommandBy selector:Selector)->Bool {
             switch NSStringFromSelector(selector) {

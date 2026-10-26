@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 directory="${RUYCAST_CHECK_OUTPUT:-.build/performance}"
 mkdir -p "$directory"
 bash scripts/build-native.sh -c release
+ .build/swift/release/RuycastApp --benchmark-interactions > "$directory/interactions-release.json"
 clang -O2 -Wall -Wextra scripts/perf-probe.c -o .build/perf-probe
 .build/perf-probe --self-check > "$directory/counter-units.json"
 .build/swift/release/RuycastApp --check-performance-pipeline > "$directory/pipeline-release.json"
@@ -14,6 +15,7 @@ import json,sys
 from pathlib import Path
 root=Path(sys.argv[1]);b=json.loads((root/'benchmark-release.json').read_text());life=json.loads((root/'lifecycle-release.json').read_text())
 assert b['ok'] and b['releaseBuild'] and life['ok']
+assert json.loads((root/'interactions-release.json').read_text())['ok']
 assert b['queries']['500']['p95MS']<=5, '500-command model budget exceeded'
 assert b['queries']['5000']['p95MS']<=15, '5000-command model budget exceeded'
 assert b['processResultReads1000']['p95MS']<=.5, 'Process reads repeat expensive work'

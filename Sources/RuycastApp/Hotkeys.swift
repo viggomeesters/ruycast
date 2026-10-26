@@ -15,13 +15,13 @@ final class Hotkeys {
     var onAction:((String)->Void)?
     var warnings:[String]=[]
     init() {
-        keyboard.onAction={ [weak self] action in self?.onAction?(action) }
+        keyboard.onAction={ [weak self] action in PerformanceTrace.shared.measure(.hotkeyHandler) {self?.onAction?(action)} }
         var event=EventTypeSpec(eventClass:OSType(kEventClassKeyboard),eventKind:UInt32(kEventHotKeyPressed))
         InstallEventHandler(GetApplicationEventTarget(),{_,event,user in
             guard let event,let user else {return OSStatus(eventNotHandledErr)}
             let instance=Unmanaged<Hotkeys>.fromOpaque(user).takeUnretainedValue()
             var id=EventHotKeyID();GetEventParameter(event,EventParamName(kEventParamDirectObject),EventParamType(typeEventHotKeyID),nil,MemoryLayout<EventHotKeyID>.size,nil,&id)
-            if let action=instance.routes[id.id] {instance.onAction?(action)}
+            if let action=instance.routes[id.id] {PerformanceTrace.shared.measure(.hotkeyHandler) {instance.onAction?(action)}}
             return noErr
         },1,&event,Unmanaged.passUnretained(self).toOpaque(),&handler)
     }
