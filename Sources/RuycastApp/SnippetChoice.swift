@@ -2,44 +2,101 @@ import AppKit
 import SwiftUI
 import LauncherCore
 
-struct SnippetChoiceView:View {
+/// Owns both visible selection and keyboard submission; no focus in a popup is required.
+final class SnippetChoiceModel:ObservableObject {
     let command:Command
-    let submit:([String:String])->Void
-    let cancel:()->Void
-    @State private var values:[String:String]
+    let fields:[TemplateField]
+    @Published var values:[String:String]
+    var activeField:String?
+    private var finished=false
+    private let onSubmit:([String:String])->Void
+    private let onCancel:()->Void
     init(command:Command,submit:@escaping ([String:String])->Void,cancel:@escaping ()->Void) {
-        self.command=command;self.submit=submit;self.cancel=cancel
-        _values=State(initialValue:Dictionary(uniqueKeysWithValues:Templates.fields(command).map {field in
+        self.command=command;fields=Templates.fields(command);onSubmit=submit;onCancel=cancel
+        values=Dictionary(uniqueKeysWithValues:fields.map {field in
             (field.id,field.options.isEmpty ? field.defaultValue:(field.options.contains(field.defaultValue) ? field.defaultValue:field.options.first ?? ""))
-        }))
+        });activeField=fields.first?.id
+    }
+    var canSubmit:Bool {!fields.contains {(values[$0.id] ?? "").trimmingCharacters(in:.whitespacesAndNewlines).isEmpty}}
+    func submit() {
+        guard !finished,canSubmit,(try? Templates.render(command,values:values,clipboard:command.target.contains("{clipboard}") ? NSPasteboard.general.string(forType:.string):nil)) != nil else {return}
+        finished=true;onSubmit(values)
+    }
+    func cancel() {guard !finished else {return};finished=true;onCancel()}
+    func handle(_ event:NSEvent,editingText:Bool,composing:Bool=false)->Bool {
+        guard event.type == .keyDown,event.modifierFlags.intersection([.command,.control,.option,.shift]).isEmpty else {return false}
+        if composing {return false}
+        switch event.keyCode {
+        case 36,76:if !event.isARepeat {submit()};return true
+        case 53:cancel();return true
+        case 123,124,125,126:
+            guard !editingText,let field=fields.first(where:{$0.id==activeField}),!field.options.isEmpty else {return false}
+            guard !finished else {return true}
+            let index=field.options.firstIndex(of:values[field.id] ?? "") ?? 0
+            let delta=event.keyCode==123 || event.keyCode==126 ? -1:1
+            values[field.id]=field.options[max(0,min(field.options.count-1,index+delta))]
+            return true
+        default:return false
+        }
+    }
+}
+
+/// Intercepts keys before a dropdown, button or field editor can consume them.
+final class SnippetChoicePanel:NSPanel {
+    let model:SnippetChoiceModel
+    init(model:SnippetChoiceModel) {
+        self.model=model
+        super.init(contentRect:NSRect(x:0,y:0,width:456,height:min(440,130+CGFloat(model.fields.count)*70)),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
+        isReleasedWhenClosed=false
+    }
+    override var canBecomeKey:Bool {true}
+    override var canBecomeMain:Bool {false}
+    private func route(_ event:NSEvent)->Bool {
+        let editor=firstResponder as? NSTextView
+        return model.handle(event,editingText:editor != nil,composing:editor?.hasMarkedText() ?? false)
+    }
+    override func sendEvent(_ event:NSEvent) {if !route(event) {super.sendEvent(event)}}
+    override func performKeyEquivalent(with event:NSEvent)->Bool {route(event) || super.performKeyEquivalent(with:event)}
+    override func keyDown(with event:NSEvent) {if !route(event) {super.keyDown(with:event)}}
+}
+
+struct SnippetChoiceView:View {
+    @ObservedObject var model:SnippetChoiceModel
+    @FocusState private var focusedField:String?
+    init(model:SnippetChoiceModel) {self.model=model}
+    init(command:Command,submit:@escaping ([String:String])->Void,cancel:@escaping ()->Void) {
+        model=SnippetChoiceModel(command:command,submit:submit,cancel:cancel)
+    }
+    private func binding(_ field:TemplateField)->Binding<String> {
+        Binding(get:{model.values[field.id] ?? ""},set:{model.activeField=field.id;model.values[field.id]=$0})
     }
     var body:some View {
         VStack(alignment:.leading,spacing:18) {
-            Text(command.title).font(.system(size:17,weight:.semibold)).lineLimit(2)
+            Text(model.command.title).font(.system(size:17,weight:.semibold)).lineLimit(2)
             ScrollView {
                 VStack(alignment:.leading,spacing:14) {
-                    ForEach(Templates.fields(command)) {field in
+                    ForEach(model.fields) {field in
                         VStack(alignment:.leading,spacing:6) {
                             Text(field.label).font(.system(size:12,weight:.medium)).foregroundStyle(.secondary)
                             if field.options.isEmpty {
-                                TextField(field.label,text:Binding(get:{values[field.id] ?? ""},set:{values[field.id]=$0})).textFieldStyle(.roundedBorder)
+                                TextField(field.label,text:binding(field)).textFieldStyle(.roundedBorder).focused($focusedField,equals:field.id)
                             } else {
-                                Picker(field.label,selection:Binding(get:{values[field.id] ?? ""},set:{values[field.id]=$0})) {
+                                Picker(field.label,selection:binding(field)) {
                                     ForEach(field.options,id:\.self) {Text($0).tag($0)}
-                                }.labelsHidden().frame(maxWidth:.infinity,alignment:.leading)
+                                }.labelsHidden().focused($focusedField,equals:field.id).frame(maxWidth:.infinity,alignment:.leading)
                             }
                         }
                     }
                 }
             }
             HStack {
-                Button("Cancel",action:cancel).keyboardShortcut(.cancelAction)
+                Button("Cancel") {model.cancel()}.keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Insert") {submit(values)}.keyboardShortcut(.defaultAction)
-                    .disabled(Templates.fields(command).contains {(values[$0.id] ?? "").trimmingCharacters(in:.whitespacesAndNewlines).isEmpty})
+                Button("Insert") {model.submit()}.keyboardShortcut(.defaultAction).disabled(!model.canSubmit)
             }
-        }.padding(22).frame(width:456,height:min(440,130+CGFloat(Templates.fields(command).count)*70))
+        }.padding(22).frame(width:456,height:min(440,130+CGFloat(model.fields.count)*70))
             .background(.regularMaterial,in:RoundedRectangle(cornerRadius:14))
+            .onChange(of:focusedField) {_,field in if let field {model.activeField=field}}
     }
 }
 
@@ -86,9 +143,10 @@ final class SnippetChoiceController {
             if let value,let range,range.length != 0 || range.location<0 || range.location>value.utf16.count || !(value as NSString).substring(to:range.location).hasSuffix(request.command.keyword ?? "") {cancel(restore:false);return}
         }
         ready=true
-        let view=SnippetChoiceView(command:request.command,submit:{ [weak self] in self?.confirm($0) },cancel:{ [weak self] in self?.cancel() })
+        let model=SnippetChoiceModel(command:request.command,submit:{ [weak self] in self?.confirm($0) },cancel:{ [weak self] in self?.cancel() })
         let size=NSSize(width:456,height:min(440,130+CGFloat(Templates.fields(request.command).count)*70))
-        let panel=PalettePanel(contentRect:NSRect(origin:.zero,size:size),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
+        let panel=SnippetChoicePanel(model:model)
+        let view=SnippetChoiceView(model:model)
         panel.isReleasedWhenClosed=false;panel.isOpaque=false;panel.backgroundColor = .clear;panel.hasShadow=true;panel.level = .floating
         panel.collectionBehavior=[.canJoinAllSpaces,.fullScreenAuxiliary];panel.contentView=NSHostingView(rootView:view)
         let screen=NSScreen.screens.first {$0.frame.contains(NSEvent.mouseLocation)} ?? NSScreen.main

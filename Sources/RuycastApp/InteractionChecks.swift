@@ -116,8 +116,9 @@ func checkInteractions() throws -> [String:Any] {
     let replacement=try chosen.replacement(values:["Contact":"Example B"],pid:42,safe:true,unchanged:true)
     replacement.apply(key:{code in if code==51 {document.deleteBackward(nil)} else if code==123 {document.moveLeft(nil)}},insert:{document.insertText($0,replacementRange:document.selectedRange())})
     guard document.string=="prefix Example B Ω",document.selectedRange().location=="prefix Example B".utf16.count else {throw LauncherError("Choice insertion or cursor position failed.")}
+    try checkSnippetChoiceKeyboard()
     panel.close()
-    return ["snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 func renderFeatures(_ path:String,theme:String,mode:String) throws {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
@@ -213,4 +214,37 @@ func checkRenderedUpdates(_ outputPath:String) throws -> [String:Any] {
     let small=try capture("launcher-light-small")
     guard small.contains(where:{$0.contains("Obsidian")}),!small.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Small launcher results stale.")}
     return ["ok":true,"persistentHostingView":true,"renderedTextChecks":12,"nativeHostingFieldDelegate":true,"separateManagementNavigation":true,"managementDoesNotOpenAutomatically":true,"desktopInputSent":false,"visibleWindowOpened":false]
+}
+
+// Route real AppKit key events through the same hidden panel as production.
+func checkSnippetChoiceKeyboard() throws {
+    let command=Command(id:"choice.keys",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Alpha, Beta, Gamma"}"#,keyword:";contact")
+    var submissions:[[String:String]]=[],cancellations=0,throwawaySubmission=false
+    let model=SnippetChoiceModel(command:command,submit:{submissions.append($0)},cancel:{cancellations+=1})
+    let panel=SnippetChoicePanel(model:model);panel.contentView=NSHostingView(rootView:SnippetChoiceView(model:model));panel.contentView?.layoutSubtreeIfNeeded();defer {panel.close()}
+    func key(_ code:UInt16,_ flags:NSEvent.ModifierFlags=[],repeatKey:Bool=false)->NSEvent {
+        NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:0,windowNumber:panel.windowNumber,context:nil,characters:"",charactersIgnoringModifiers:"",isARepeat:repeatKey,keyCode:code)!
+    }
+    func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
+    try require(model.values["Contact"]=="Alpha","Choice did not start on the first option")
+    panel.sendEvent(key(125));try require(model.values["Contact"]=="Beta","Down did not switch immediately")
+    panel.sendEvent(key(124));try require(model.values["Contact"]=="Gamma","Right did not switch immediately")
+    panel.sendEvent(key(126));try require(model.values["Contact"]=="Beta","Up did not switch immediately")
+    panel.sendEvent(key(123));try require(model.values["Contact"]=="Alpha","Left did not switch immediately")
+    panel.sendEvent(key(123));try require(model.values["Contact"]=="Alpha","Choice escaped its lower bound")
+    try require(!model.handle(key(125,.command),editingText:false),"Command-arrow was intercepted")
+    try require(!model.handle(key(125),editingText:true),"Text editing arrow was intercepted")
+    try require(!model.handle(key(36),editingText:true,composing:true),"IME Return was intercepted")
+    panel.sendEvent(key(125,[],repeatKey:true));try require(model.values["Contact"]=="Beta","Repeated arrow failed")
+    try require(panel.performKeyEquivalent(with:key(36)),"Plain Return did not route through the panel")
+    panel.sendEvent(key(36));model.submit()
+    try require(submissions.count==1 && submissions[0]["Contact"]=="Beta","Return did not insert the selected option exactly once")
+    let cancelled=SnippetChoiceModel(command:command,submit:{_ in throwawaySubmission=true},cancel:{cancellations+=1})
+    let cancelPanel=SnippetChoicePanel(model:cancelled);defer {cancelPanel.close()}
+    cancelPanel.sendEvent(key(53));cancelPanel.sendEvent(key(36))
+    try require(cancellations==1 && !throwawaySubmission,"Escape did not cancel without inserting")
+    let keypad=SnippetChoiceModel(command:command,submit:{submissions.append($0)},cancel:{})
+    let keypadPanel=SnippetChoicePanel(model:keypad);defer {keypadPanel.close()}
+    keypadPanel.sendEvent(key(76,[],repeatKey:true));try require(submissions.count==1,"Held Enter submitted unexpectedly")
+    keypadPanel.sendEvent(key(76));try require(submissions.count==2,"Keypad Enter did not insert")
 }
