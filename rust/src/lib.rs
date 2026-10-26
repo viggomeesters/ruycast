@@ -228,6 +228,8 @@ struct SearchEntry {
     title: String,
     aliases: Vec<String>,
     haystack: String,
+    words: Vec<String>,
+    initials: String,
 }
 impl SearchIndex {
     pub fn new(commands: &[Command]) -> Self {
@@ -235,6 +237,8 @@ impl SearchIndex {
             entries: commands
                 .iter()
                 .map(|c| SearchEntry {
+                    words: c.title.to_lowercase().split(|c:char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_owned).collect(),
+                    initials: c.title.to_lowercase().split(|c:char| !c.is_alphanumeric()).filter_map(|w| w.chars().next()).collect(),
                     id: c.id.to_lowercase(),
                     title: c.title.to_lowercase(),
                     aliases: c
@@ -257,6 +261,9 @@ impl SearchIndex {
         }
     }
     pub fn search(&self, query: &str) -> Vec<usize> {
+        self.search_ranked(query,&[])
+    }
+    fn search_ranked(&self, query:&str, recency:&[f64]) -> Vec<usize> {
         let q = query.trim().to_lowercase();
         if q.is_empty() {
             return (0..self.entries.len()).collect();
@@ -269,10 +276,19 @@ impl SearchIndex {
             .filter_map(|(i, e)| {
                 let score = if e.id == q || e.aliases.contains(&q) {
                     0
-                } else if e.title.starts_with(&q) {
+                } else if e.title == q {
                     1
-                } else if terms.iter().all(|w| e.haystack.contains(w)) {
+                } else if e.title.starts_with(&q) {
                     2
+                } else if terms.iter().all(|w| e.words.iter().any(|word|word.starts_with(w))) || (q.chars().count()>=2 && e.initials.starts_with(&q)) {
+                    3
+                } else if terms.iter().all(|w| e.haystack.contains(w)) {
+                    4
+                } else if q.chars().count()>=2 && {
+                    let mut title=e.title.chars();
+                    q.chars().filter(|c| !c.is_whitespace()).all(|needle| title.any(|c|c==needle))
+                } {
+                    5
                 } else {
                     return None;
                 };
@@ -281,6 +297,7 @@ impl SearchIndex {
             .collect::<Vec<_>>();
         found.sort_by(|a, b| {
             a.0.cmp(&b.0)
+                .then_with(||recency.get(b.1).unwrap_or(&0.0).total_cmp(recency.get(a.1).unwrap_or(&0.0)))
                 .then(self.entries[a.1].title.cmp(&self.entries[b.1].title))
         });
         found.into_iter().map(|(_, i)| i).collect()
@@ -341,12 +358,28 @@ pub unsafe extern "C" fn rustcast_index_search_into(
     index: *const SearchIndex, query: *const u8, length: usize,
     output: *mut usize, capacity: usize,
 ) -> isize {
+    rustcast_index_search_ranked_into(index,query,length,std::ptr::null(),0,output,capacity)
+}
+/// # Safety
+/// Same requirements as rustcast_index_search_into; recency is either omitted
+/// (count 0) or a readable finite nonnegative f64 weight per catalog entry.
+#[no_mangle]
+pub unsafe extern "C" fn rustcast_index_search_ranked_into(
+    index:*const SearchIndex,query:*const u8,length:usize,
+    recency:*const f64,recency_count:usize,output:*mut usize,capacity:usize,
+) -> isize {
     std::panic::catch_unwind(|| {
         if index.is_null() || query.is_null() || (capacity > 0 && output.is_null()) {
             return -1;
         }
         let Ok(q) = std::str::from_utf8(std::slice::from_raw_parts(query, length)) else { return -1; };
-        let found = (*index).search(q);
+        let weights=if recency_count==0 {&[][..]} else {
+            if recency.is_null() || recency_count!=(*index).entries.len() {return -1;}
+            let weights=std::slice::from_raw_parts(recency,recency_count);
+            if weights.iter().any(|v| !v.is_finite() || *v<0.0) {return -1;}
+            weights
+        };
+        let found = (*index).search_ranked(q,weights);
         let count = found.len().min(capacity);
         if count > 0 { std::ptr::copy_nonoverlapping(found.as_ptr(), output, count); }
         count as isize
@@ -510,6 +543,9 @@ mod tests {
             assert_eq!(rustcast_index_search_into(&index,b"".as_ptr(),0,std::ptr::null_mut(),1),-1);
             assert_eq!(rustcast_index_search_into(&index,[255].as_ptr(),1,output.as_mut_ptr(),3),-1);
             assert_eq!(rustcast_index_search_into(std::ptr::null(),b"x".as_ptr(),1,output.as_mut_ptr(),3),-1);
+            let weights=vec![f64::NAN;commands.len()];
+            assert_eq!(rustcast_index_search_ranked_into(&index,b"x".as_ptr(),1,weights.as_ptr(),weights.len(),output.as_mut_ptr(),3),-1);
+            assert_eq!(rustcast_index_search_ranked_into(&index,b"x".as_ptr(),1,weights.as_ptr(),1,output.as_mut_ptr(),3),-1);
         }
     }
     #[test]

@@ -62,7 +62,7 @@ def configuration_path(profile):
 
 def data_files(profile):
     profile=Path(profile)
-    result={name:profile/name for name in ['config.json','config-location.json','clipboard.json','usage.json','paused.json','utilities.json'] if (profile/name).is_file()}
+    result={name:profile/name for name in ['config.json','config-location.json','clipboard.json','usage.json','paused.json','utilities.json','search-ranking.json'] if (profile/name).is_file()}
     selected=configuration_path(profile)
     if selected!=profile/'config.json':
         if not selected.is_file():raise RuntimeError('Selected configuration is unavailable: '+str(selected))

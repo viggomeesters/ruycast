@@ -23,6 +23,8 @@ func benchmarkPerformance()->[String:Any] {
             queries[String(size)]=measure(1000) {sequence+=1;state.query=terms[sequence%terms.count];checksum+=state.results.count}
         }
         let catalogRead=measure(1000) {checksum+=state.results.count}
+        for i in 0..<512 {try state.searchRanking.recordSuccess("fixture.\(i)")}
+        let rankedSearch=measure(1000) {checksum+=state.searchCommands("pro das").count}
         state.mode="processes"
         var commands=[Command](),details=[String:ProcessResource]()
         for i in 0..<1000 {
@@ -69,6 +71,6 @@ func benchmarkPerformance()->[String:Any] {
         #else
         let optimized=true
         #endif
-        return ["ok":true,"releaseBuild":optimized,"scope":"in-process model/main-thread work, deterministic fixtures; excludes physical keys, rendering/presentation and external app opening","system":["macOS":ProcessInfo.processInfo.operatingSystemVersionString,"chip":ResourceSampler.text("machdep.cpu.brand_string"),"cores":ProcessInfo.processInfo.processorCount],"queries":queries,"cachedResultReads":catalogRead,"processResultReads1000":processReads,"processSort1000":processSort,"commandSearchWith200x8kBHistory":commandSearchWithHistory,"clipboardSearch200x8kB":clipboardSearch,"clipboardSearchEnqueue200x8kB":clipboardSearchEnqueue,"clipboardPrune200x8kB":prune,"clipboardEncode200x8kB":historyEncode,"configurationRawRead":configRead,"analyticsTimingRecord":analytics,"nativeIconWarm":iconWarm,"imageCapture960kPixels":imageCapture,"imagePreview960kPixels":imagePreview,"checksum":checksum]
+        return ["ok":true,"releaseBuild":optimized,"scope":"in-process model/main-thread work, deterministic fixtures; excludes physical keys, rendering/presentation and external app opening","system":["macOS":ProcessInfo.processInfo.operatingSystemVersionString,"chip":ResourceSampler.text("machdep.cpu.brand_string"),"cores":ProcessInfo.processInfo.processorCount],"queries":queries,"searchWith512RecentChoices10000":rankedSearch,"cachedResultReads":catalogRead,"processResultReads1000":processReads,"processSort1000":processSort,"commandSearchWith200x8kBHistory":commandSearchWithHistory,"clipboardSearch200x8kB":clipboardSearch,"clipboardSearchEnqueue200x8kB":clipboardSearchEnqueue,"clipboardPrune200x8kB":prune,"clipboardEncode200x8kB":historyEncode,"configurationRawRead":configRead,"analyticsTimingRecord":analytics,"nativeIconWarm":iconWarm,"imageCapture960kPixels":imageCapture,"imagePreview960kPixels":imagePreview,"checksum":checksum]
     } catch {return ["ok":false,"error":error.localizedDescription]}
 }

@@ -133,3 +133,10 @@ Script commands whose `inputPrompt` includes the existing `YYYY-MM-DD` hint acce
 A script adapter can return `{"ok":true,"choices":{"title":"Choose","placeholder":"Search…","items":[{"id":"one","title":"Example","subtitle":"Group","value":"pinned-value"}]}}`. Ruycast opens a searchable keyboard list. Enter runs the same command with the selected opaque value as `{input}`; Escape leaves without running a selection. Failed selections keep the list and offer Reload. Scripts own validation and must reject stale context before changing data. A failed response can include `detail` to retain its report alongside the error.
 
 Interaction durations are available through `ruycast performance`; `performance reset --confirm` clears the bounded in-memory samples. These contain no command IDs, queries or clipboard contents and are not persisted.
+
+
+### Search ranking
+
+Search supports title word starts (`mic tea` → Microsoft Teams), initials (`mt`) and ordered title subsequences (`mft`). Exact IDs, aliases and snippet keywords keep first priority, followed by exact titles. Recent successful choices from the launcher break ties only within the same relevance tier. Existing empty-query usage ordering remains available.
+
+`ruycast search-ranking` shows the local entry count and bounds; `ruycast search-ranking reset --confirm` clears these choice timestamps. This does not reset existing usage counters. At most 512 IDs/timestamps are stored in the runtime profile's private `search-ranking.json`; 90-day retention is applied at load/save. CLI/hotkey execution, dry runs and failed actions do not add entries. Query and argument text are never recorded here. The configuration file does not change.

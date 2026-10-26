@@ -9,6 +9,7 @@ final class AppState:ObservableObject {
     let root:URL
     @Published var configDirectory:URL
     let headless:Bool
+    let searchRanking:SearchRanking
     var applicationURL:(String)->URL? = {NSWorkspace.shared.urlForApplication(withBundleIdentifier:$0)}
     var openApplication:(URL,@escaping(Error?)->Void)->Void = {url,completion in
         NSWorkspace.shared.openApplication(at:url,configuration:NSWorkspace.OpenConfiguration()) {_,error in DispatchQueue.main.async {completion(error)}}
@@ -101,7 +102,7 @@ final class AppState:ObservableObject {
     private var lastPruned=Date()
     var configURL:URL {configDirectory.appendingPathComponent("config.json")}
     init(root:URL,headless:Bool,systemServices:SystemServices=SystemServices()) throws {
-        self.root=root;self.headless=headless;self.systemServices=systemServices;self.analytics=AnalyticsStore(root:root);self.commandLog=CommandLog(root:root);self.clipboardStore=ClipboardStore(root:root)
+        self.root=root;self.headless=headless;self.searchRanking=SearchRanking(root:root);self.systemServices=systemServices;self.analytics=AnalyticsStore(root:root);self.commandLog=CommandLog(root:root);self.clipboardStore=ClipboardStore(root:root)
         let url=try ConfigurationLocation.initialize(root:root)
         configDirectory=url.deletingLastPathComponent()
         let initialBytes=try Data(contentsOf:url)
@@ -152,7 +153,7 @@ final class AppState:ObservableObject {
     }
     func rememberServices(_ commands:[Command]) {if serviceCommands.count>2048 {serviceCommands=[:]};for command in commands {serviceCommands[command.id]=command}}
     func searchCommands(_ query:String,mode:String="commands",limit:Int=100)->[Command] {
-        let found=PerformanceTrace.shared.measure(.searchModel) {(searchIndex?.search(query) ?? []).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}}
+        let found=PerformanceTrace.shared.measure(.searchModel) {(searchIndex?.search(query,recency:searchRanking.entries) ?? []).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}}
         if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
         return Array(found.enumerated().sorted {a,b in let x=counts[a.element.id] ?? 0,y=counts[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
     }
@@ -378,6 +379,10 @@ final class AppState:ObservableObject {
 
             if let tracked {self.analytics.recordCompletion(tracked,success:result["ok"] as? Bool==true,ms:AnalyticsStore.elapsed(started),code:AnalyticsStore.failureCode(result["error"] as? String ?? ""),exitStatus:result["exitCode"] as? Int)}
             if result["ok"] as? Bool == true {
+                if source=="launcher" {
+                    do {try self.searchRanking.recordSuccess(cmd.id)}
+                    catch {self.analytics.recordError("search-ranking",code:"save-failed")}
+                }
                 self.counts[cmd.id,default:0]+=1
                 do {try Files.save(self.counts,to:self.root.appendingPathComponent("usage.json"))}
                 catch {completion(["ok":false,"error":"Action completed, but usage could not be saved: \(error.localizedDescription)","actionCompleted":true]);return}
@@ -510,7 +515,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.7.14","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.7.15","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":
@@ -522,6 +527,10 @@ final class AppState:ObservableObject {
                 } else if scope.hasPrefix("utility-") {let commands=try utilities.commands(mode:scope,query:query);rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)])}
                 else {reply(["ok":true,"result":jsonValue(searchCommands(query,mode:scope,limit:req["limit"] as? Int ?? 100))])}
             case "commands":reply(["ok":true,"result":jsonValue(config.commands)])
+            case "search-ranking":reply(["ok":true,"result":searchRanking.summary])
+            case "search-ranking.reset":
+                guard req["confirmed"] as? Bool==true else {throw LauncherError("Confirm search ranking reset.")}
+                try searchRanking.reset();refreshResults();reply(["ok":true,"result":searchRanking.summary])
             case "execute":guard let id=req["id"] as? String else {throw LauncherError("Missing command id.")};execute(id,dryRun:req["dryRun"] as? Bool ?? false,values:req["values"] as? [String:String] ?? [:],confirmed:req["confirmed"] as? Bool ?? false,completion:reply)
             case "config.directory":
                 guard let path=req["directory"] as? String else {throw LauncherError("Missing configuration folder.")}

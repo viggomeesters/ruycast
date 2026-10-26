@@ -130,3 +130,10 @@ Six alternating release runs on the same Apple M4 Mac (baseline, candidate, cand
 | 10,000 | 4.382 ms | 2.768 ms | 36.8% |
 
 These are deterministic model fixtures with 1,000 samples per catalog per run, including empty queries. They establish a local model-cost reduction, not physical keyboard-to-display speed or a comparison with another launcher. The frozen baseline binary SHA-256 is `759699fe3081d8f23728f10beae8695de79c86a1cc30eaa84a97979cec7cdb0a`; candidate `89783a47474cf7ed5fc88e380ed4fc89483b935b2a077b54a3725d11f8944cca`.
+
+
+## 0.7.15: search quality acceptance
+
+Word-prefix, initials and subsequence matching share the existing Rust index and typed result boundary. Exact alias/ID priority is preserved even when a lower relevance match was used recently; exact titles also precede title prefixes. Tests cover these cases, Unicode/NUL parity, bounded metadata/retention/reset and hidden host execution proving only successful launcher selections train recency. Disabled and removed commands remain absent.
+
+The model benchmark retains the original catalog/query matrix and adds a separate 10,000-command search with 512 recent choices. The original P2 figures compare 0.7.13 against 0.7.14; they must not be presented as a speed claim for the later, broader matching algorithm. Physical hotkey-to-display acceptance remains separate from these software fixtures.

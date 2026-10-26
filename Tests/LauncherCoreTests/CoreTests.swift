@@ -31,7 +31,7 @@ struct CoreTests {
             Command(id:"b",title:"Ångström Notes",kind:"url",target:"https://example.com/three",aliases:["nul\0alias"]),
             Command(id:"c",title:"Beta",kind:"url",target:"https://example.com/four")]
         let index=try CommandSearchIndex(commands:commands)
-        XCTAssertEqual(index.search("go").map(\.id),["z","a"])
+        XCTAssertEqual(index.search("go").map(\.id),["z","a","b"])
         XCTAssertEqual(index.search(" BETA ").map(\.id),["z","c"])
         XCTAssertEqual(index.search("ÅNGSTRÖM notes").map(\.id),["b"])
         XCTAssertEqual(index.search("nul\0alias").map(\.id),["b"])
@@ -43,6 +43,29 @@ struct CoreTests {
         }
         XCTAssertEqual(try CommandSearchIndex(commands:[]).search(""),[])
         for _ in 0..<100 {let temporary=try CommandSearchIndex(commands:commands);XCTAssertEqual(temporary.search("go").first?.id,"z")}
+        let quality=try CommandSearchIndex(commands:[
+            Command(id:"exact",title:"Zulu",kind:"url",target:"https://example.com",aliases:["mt"]),
+            Command(id:"teams",title:"Microsoft Teams",kind:"url",target:"https://example.com"),
+            Command(id:"recent",title:"Many Tabs",kind:"url",target:"https://example.com"),
+            Command(id:"history",title:"Microsoft Teams History",kind:"url",target:"https://example.com")])
+        XCTAssertEqual(quality.search("mt",recency:["recent":100]).prefix(3).map(\.id),["exact","recent","teams"])
+        XCTAssertEqual(quality.search("mic tea").first?.id,"teams")
+        XCTAssertEqual(quality.search("mft").first?.id,"teams")
+        XCTAssertEqual(quality.search("Microsoft Teams",recency:["history":100]).first?.id,"teams")
+        let root=FileManager.default.temporaryDirectory.appendingPathComponent("ranking-"+UUID().uuidString)
+        defer {try? FileManager.default.removeItem(at:root)}
+        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
+        let now=Date(timeIntervalSince1970:1_800_000_000)
+        var entries=Dictionary(uniqueKeysWithValues:(0..<600).map {("id.\($0)",now.timeIntervalSince1970-Double($0))})
+        entries["expired"]=now.timeIntervalSince1970-SearchRanking.retention-1;entries["future"]=now.timeIntervalSince1970+61
+        let path=root.appendingPathComponent("search-ranking.json")
+        try JSONSerialization.data(withJSONObject:["schema":1,"entries":entries]).write(to:path)
+        let ranking=SearchRanking(root:root,now:now)
+        XCTAssertEqual(ranking.entries.count,512);XCTAssertEqual(ranking.entries["expired"],nil);XCTAssertEqual(ranking.entries["future"],nil)
+        try ranking.recordSuccess("chosen",now:now)
+        XCTAssertEqual(SearchRanking(root:root,now:now).entries["chosen"],now.timeIntervalSince1970)
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath:path.path))[.posixPermissions] as? Int,0o600)
+        try ranking.reset();XCTAssertEqual(SearchRanking(root:root,now:now).entries.count,0)
     }
     func testSnippetFocusAndDateTime() throws {
         // AX-unavailable editors are not necessarily password fields.

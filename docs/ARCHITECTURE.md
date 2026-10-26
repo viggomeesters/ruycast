@@ -50,3 +50,10 @@ Pasteboard access stays on the main thread. A bounded immutable text/file/image 
 Process ordering is materialized when a batch or sort choice changes, preserving PID/start-time identity. Native icon caches have at most512 entries and a30-second refresh window; missing apps can recover after installation. Website work has at most64 outstanding origins, four active fetches and1024 retry entries. Icon misses also notify views when slots become available. Preview decoding remains serial and bounded; no speculative larger preview cache was added.
 
 See [performance measurements and limits](PERFORMANCE.md) for reproducible commands and the distinction between model timings, hidden native fixtures and physical desktop measurements.
+
+
+### Search quality and local recency
+
+The shared Rust index ranks exact IDs/aliases/keywords first, then exact titles, title prefixes, title word prefixes/initials, existing all-term substring matches, and title subsequences. Recency sorts only within the same relevance tier; title ordering remains the deterministic fallback. Empty queries retain the existing usage-count behavior.
+
+`SearchRanking` keeps at most 512 command IDs and successful launcher-selection timestamps in a private `search-ranking.json`. Entries older than 90 days and invalid/future timestamps are removed at load/save. CLI runs, hotkeys, dry runs and failed actions do not train launcher ranking. The typed ranked ABI receives catalog-aligned weights; unknown/stale IDs cannot add commands to a search. Diagnostics expose only entry count and limits. This optional local metadata is included in installer preservation/backup checks. No query, argument, snippet or clipboard text enters it.
