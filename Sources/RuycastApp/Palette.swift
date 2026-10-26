@@ -18,6 +18,7 @@ struct Palette:View {
     var body:some View {
         Group {
             if let form=state.form {CommandEditor(state:state,form:form).id(form.id)}
+            else if let session=state.scriptChoices {ScriptChoiceView(state:state,session:session)}
             else if let detail=state.detail {
                 VStack(alignment:.leading,spacing:12) {Button("Back") {state.detail=nil;state.mode="commands"}.buttonStyle(.plain);ScrollView {Text(detail).font(.system(size:13,design:.monospaced)).textSelection(.enabled).frame(maxWidth:.infinity,alignment:.leading)}}.padding(20)
             } else {content}
@@ -142,7 +143,7 @@ final class PaletteController {
         if mode=="system-monitor" || mode=="monitor" {hide();state.showSystemMonitor?();return}
         if state.paletteVisible,state.mode==mode {hide();return}
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {state.previousPID=app.processIdentifier}
-        state.inlineCommand=nil;state.inlineInput="";state.query="";state.message="";state.mode=mode;state.detail=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
+        state.inlineCommand=nil;state.inlineInput="";state.query="";state.message="";state.mode=mode;state.detail=nil;state.scriptChoices=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
         let mouse=NSEvent.mouseLocation
         let screen=NSScreen.screens.first {$0.frame.contains(mouse)} ?? NSScreen.main
         if let frame=screen?.visibleFrame {panel.setFrame(PaletteGeometry.frame(in:frame,mode:mode),display:false)}

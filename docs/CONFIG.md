@@ -127,3 +127,7 @@ The choice is tied to the original app. Switching apps, clicking outside or typi
 ### Natural dates for script inputs
 
 Script commands whose `inputPrompt` includes the existing `YYYY-MM-DD` hint accept natural dates in the launcher. The launcher shows a live calendar date and passes that exact ISO value to the script on Enter. Examples: `tomorrow`, `morgen`, `next month`, `in 3 days`, `over 3 dagen`, `vrijdag`, `5 november` and `2026-11-05`. `clear` or `wissen` removes a date. Partial or unrecognized dates keep the input open without running the command. Relative dates use the Europe/Amsterdam calendar; “next month” means the same day next month, clipped to the last day when needed. Weekdays select the next occurrence.
+
+### Interactive script choices
+
+A script adapter can return `{"ok":true,"choices":{"title":"Choose","placeholder":"Search…","items":[{"id":"one","title":"Example","subtitle":"Group","value":"pinned-value"}]}}`. Ruycast opens a searchable keyboard list. Enter runs the same command with the selected opaque value as `{input}`; Escape leaves without running a selection. Failed selections keep the list and offer Reload. Scripts own validation and must reject stale context before changing data. A failed response can include `detail` to retain its report alongside the error.

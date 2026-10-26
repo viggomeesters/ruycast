@@ -48,6 +48,9 @@ final class AppState:ObservableObject {
     private let clipboardSearch=ClipboardSearch()
     private(set) var clipboardSearchBusy=false
     lazy var utilities=Utilities(root:root)
+    @Published var scriptChoices:ScriptChoiceSession?
+    @Published var scriptChoiceQuery="" {didSet {scriptChoiceSelection=0}}
+    @Published var scriptChoiceSelection=0
     @Published var detail:String?
     private var resultGeneration=0
     var serviceCommands:[String:Command]=[:]
@@ -337,7 +340,7 @@ final class AppState:ObservableObject {
         execute(id,dryRun:false,values:values,openResult:true,confirmed:confirmed,source:source) { [weak self] response in
             guard let self else {return};self.busy=false
             if response["ok"] as? Bool == true {
-                if self.resolveCommand(id)?.kind != "builtin" && self.detail==nil {self.form=nil;self.hidePalette?();self.showToast?("Done",true)}
+                if self.resolveCommand(id)?.kind != "builtin" && self.detail==nil && self.scriptChoices==nil {self.form=nil;self.hidePalette?();self.showToast?("Done",true)}
             } else {self.message=response["error"] as? String ?? "Action failed.";self.showToast?(self.message,false)}
         }
     }
@@ -420,17 +423,17 @@ final class AppState:ObservableObject {
                 else if cmd.target=="create-quicklink" {newCommand("url")}
                 else {let modes=["search-files":"files","search-menu-items":"menus","switch-windows":"windows","kill-process":"processes"];showPalette?(modes[cmd.target] ?? cmd.target)}
                 finish(["ok":true,"result":["state":"opened"]])
-            case "script":runScript(cmd,openResult:openResult,completion:finish)
+            case "script":runScript(cmd,openResult:openResult,source:source,completion:finish)
             default:throw LauncherError("Unsupported command kind.")
             }
         } catch {finish(["ok":false,"error":error.localizedDescription])}
     }
-    private func runScript(_ cmd:Command,openResult:Bool,completion:@escaping ([String:Any])->Void) {
+    private func runScript(_ cmd:Command,openResult:Bool,source:String,completion:@escaping ([String:Any])->Void) {
         DispatchQueue.global(qos:.userInitiated).async {
             let process=Process()
             let bundled=Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/ruycast")
-            let source=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build/rust/release/ruycast")
-            process.executableURL=FileManager.default.fileExists(atPath:bundled.path) ? bundled:source
+            let runnerSource=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build/rust/release/ruycast")
+            process.executableURL=FileManager.default.fileExists(atPath:bundled.path) ? bundled:runnerSource
             process.arguments=["__run-script"]
             let input=Pipe(),out=Pipe();process.standardInput=input;process.standardOutput=out;process.standardError=FileHandle.nullDevice
             do {
@@ -445,7 +448,15 @@ final class AppState:ObservableObject {
                         var response=native
                         if let status=value["exitCode"] {response["exitCode"]=status}
                         if result["ok"] as? Bool==false,native["ok"] as? Bool==true {response["ok"]=false;response["error"]=result["error"] ?? "Provider process failed."}
-                        if response["ok"] as? Bool==true,openResult,let text=response["detail"] as? String {self.showPalette?("report");self.detail=text}
+                        if openResult,let raw=response["choices"],response["ok"] as? Bool==true {
+                            do {
+                                let choices=try Files.decode(ScriptChoices.self,data:JSONSerialization.data(withJSONObject:raw));try choices.validate()
+                                if self.scriptChoices==nil {self.showPalette?("script-choices")}
+                                self.scriptChoiceQuery="";self.scriptChoiceSelection=0
+                                self.scriptChoices=ScriptChoiceSession(commandID:cmd.id,choices:choices,source:source)
+                            } catch {completion(["ok":false,"error":"The command returned invalid choices. Reload and try again."]);return}
+                        } else if response["ok"] as? Bool==true,self.scriptChoices?.commandID==cmd.id {self.scriptChoices=nil}
+                        if openResult,let text=response["detail"] as? String {self.showPalette?("report");self.detail=text}
                         completion(response)
                     } else if cmd.id.hasPrefix("capture."),result["ok"] as? Bool==true {
                         guard let value=result["result"] as? [String:Any],let stdout=value["stdout"] as? String,let bytes=stdout.data(using:.utf8),
