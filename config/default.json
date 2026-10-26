@@ -204,5 +204,6 @@
   "launcherHotkey": "ctrl+alt+space",
   "version": 1,
   "snippetExpansionEnabled": false,
-  "hyperKeyEnabled": false
+  "hyperKeyEnabled": false,
+  "separateCommandKeys": false
 }

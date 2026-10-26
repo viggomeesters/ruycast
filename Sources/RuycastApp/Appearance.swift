@@ -3,12 +3,12 @@ import AppKit
 import LauncherCore
 
 extension AppState {
-    static func keyboardHealth(hyperEnabled:Bool,snippetsEnabled:Bool,trusted:Bool,raycastRunning:Bool)->Bool {
-        !(hyperEnabled || snippetsEnabled) || (trusted && !raycastRunning)
+    static func keyboardHealth(hyperEnabled:Bool,snippetsEnabled:Bool,trusted:Bool,raycastRunning:Bool,commandShortcutsEnabled:Bool=false,inputMonitoring:Bool=true)->Bool {
+        !(hyperEnabled || snippetsEnabled || commandShortcutsEnabled) || (trusted && inputMonitoring && !raycastRunning)
     }
     var runtimeHealthy:Bool {
         configError==nil && clipboardCleanupError==nil && analytics.storageError==nil && (hotkeys?.warnings.isEmpty ?? true) &&
-        (headless || Self.keyboardHealth(hyperEnabled:config.hyperKeyEnabled==true,snippetsEnabled:config.snippetExpansionEnabled==true,trusted:windows.trusted,raycastRunning:!NSRunningApplication.runningApplications(withBundleIdentifier:"com.raycast.macos").isEmpty))
+        (headless || Self.keyboardHealth(hyperEnabled:config.hyperKeyEnabled==true,snippetsEnabled:config.snippetExpansionEnabled==true,trusted:windows.trusted,raycastRunning:!NSRunningApplication.runningApplications(withBundleIdentifier:"com.raycast.macos").isEmpty,commandShortcutsEnabled:Hotkeys.hasCommandBindings(in:config),inputMonitoring:CGPreflightListenEventAccess()))
     }
     var preferredColorScheme:ColorScheme? {
         switch config.theme ?? "system" {case "light":return .light;case "dark","graphite":return .dark;default:return nil}

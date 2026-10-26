@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4 — 2026-10-26 · Command key settings
+
+- Add a General Settings switch for separate Left and Right Command shortcuts. Off pauses retained sided shortcuts and records generic Command; existing configurations keep their behavior.
+- Report missing Input Monitoring for keyboard features and offer its permission settings.
+
 ## 0.7.3 — 2026-10-25 · Command-side shortcuts
 
 - Bind left and right Command independently, record and display their side, and keep generic Command shortcuts through “Use Either Command”.

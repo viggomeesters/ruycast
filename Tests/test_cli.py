@@ -55,6 +55,25 @@ class CLIIntegration(unittest.TestCase):
             raise AssertionError(r)
         return r
 
+    def test_command_separation_legacy_config_and_cli_toggle(self):
+        snapshot=self.cli('config','get',ok=True)
+        candidate=dict(snapshot['result']);candidate.pop('separateCommandKeys',None)
+        path=self.root/'command-separation-config.json'
+        try:
+            path.write_text(json.dumps(candidate))
+            self.cli('config','replace','@'+str(path),'--expect-sha256',snapshot['sha256'],ok=True)
+            self.assertTrue(self.cli('status',ok=True)['result']['separateCommandKeys'])
+            for enabled in [False,True,False]:
+                self.cli('config','set','separateCommandKeys',json.dumps(enabled),ok=True)
+                self.assertEqual(self.cli('config','get',ok=True)['result']['separateCommandKeys'],enabled)
+                self.assertEqual(self.cli('status',ok=True)['result']['separateCommandKeys'],enabled)
+            self.cli('config','set','separateCommandKeys','"invalid"',ok=False)
+            self.assertFalse(self.cli('status',ok=True)['result']['separateCommandKeys'])
+        finally:
+            current=self.cli('config','get',ok=True)
+            path.write_text(json.dumps(snapshot['result']))
+            self.cli('config','replace','@'+str(path),'--expect-sha256',current['sha256'],ok=True)
+
     def test_atomic_replacement_preserves_new_fields_and_rejects_drift(self):
         snapshot=self.cli('config','get',ok=True)
         candidate=dict(snapshot['result'],hyperKeyEnabled=True)

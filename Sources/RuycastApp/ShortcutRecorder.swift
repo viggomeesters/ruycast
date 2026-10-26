@@ -16,6 +16,7 @@ final class ShortcutRecordButton:NSButton {
     var stop:(()->Void)?
     var save:((String?)->Void)?
     var value:String?
+    var separateCommandKeys=true
     private(set) var recording=false
     private var solo:UInt16?
     override var acceptsFirstResponder:Bool {true}
@@ -37,12 +38,12 @@ final class ShortcutRecordButton:NSButton {
         if recording,window?.firstResponder===self {keyDown(with:event);return true}
         return super.performKeyEquivalent(with:event)
     }
-    static func shortcut(for event:NSEvent)->String? {
+    static func shortcut(for event:NSEvent,separateCommandKeys:Bool=true)->String? {
         let mods:[(NSEvent.ModifierFlags,String)]=[(.control,"ctrl"),(.option,"alt"),(.shift,"shift"),(.command,"cmd")]
         var names=mods.filter {event.modifierFlags.contains($0.0)}.map(\.1)
         let side=event.modifierFlags.rawValue & UInt(CommandShortcutFilter.leftMask | CommandShortcutFilter.rightMask)
         // Keep the existing compact Hyper binding when all four modifiers are held.
-        if names.count != 4,let index=names.firstIndex(of:"cmd") {
+        if separateCommandKeys,names.count != 4,let index=names.firstIndex(of:"cmd") {
             if side==CommandShortcutFilter.rightMask {names[index]="right-cmd"}
             else if side==CommandShortcutFilter.leftMask {names[index]="left-cmd"}
         }
@@ -54,7 +55,7 @@ final class ShortcutRecordButton:NSButton {
         solo=nil
         if event.keyCode==53 {end();return}
         if event.keyCode==51,event.modifierFlags.intersection([.control,.option,.shift,.command]).isEmpty {end();save?(nil);return}
-        guard let value=Self.shortcut(for:event) else {NSSound.beep();return}
+        guard let value=Self.shortcut(for:event,separateCommandKeys:separateCommandKeys) else {NSSound.beep();return}
         end();save?(value)
     }
     override func menu(for event:NSEvent)->NSMenu? {
@@ -87,7 +88,7 @@ struct ShortcutRecorder:NSViewRepresentable {
         return button
     }
     func updateNSView(_ button:ShortcutRecordButton,context:Context) {
-        button.configure(value);button.start={state.beginShortcutRecording()};button.stop={state.endShortcutRecording()};button.save=onSave
+        button.separateCommandKeys=state.config.separatesCommandKeys;button.configure(value);button.start={state.beginShortcutRecording()};button.stop={state.endShortcutRecording()};button.save=onSave
         button.isEnabled = !state.busy
     }
     static func dismantleNSView(_ button:ShortcutRecordButton,coordinator:()) {button.end()}

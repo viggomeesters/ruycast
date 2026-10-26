@@ -33,7 +33,7 @@ Allow Ruycast in **System Settings → Privacy & Security → Accessibility** fo
 
 ## Usage
 
-Choose your theme and menu bar visibility in Settings → General.
+Choose your theme and menu bar visibility in Settings → General. Enable **Separate Left and Right Command** there to assign different app shortcuts to `L⌘` and `R⌘`.
 
 Press **Control–Option–Space**, type an app name or alias, then Return. Open clipboard history with **Control–Option–V**. Command–K opens actions; arrow keys navigate them.
 
@@ -74,7 +74,7 @@ Validation runs locally. Native checks use hidden windows, isolated profiles and
 
 ## Releases
 
-[Download the 0.7.3 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.7.3) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
+[Download the 0.7.4 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.7.4) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
 
 [Changelog](CHANGELOG.md)
 

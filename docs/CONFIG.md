@@ -88,10 +88,17 @@ Missing focused-field accessibility metadata (for example in Electron or web-bac
 
 ## Left and right Command
 
-Use `right-cmd+s` or `left-cmd+s` to bind the two Command keys independently.
-In Settings, record a shortcut while holding the desired Command key. Its
+Enable **Settings → General → Separate Left and Right Command** to bind the
+Command keys independently. Then assign `right-cmd+s` or `left-cmd+s`, or record a shortcut while holding the desired Command key. Its
 badge shows `R⌘` or `L⌘`. Right-click a recorded sided shortcut and choose
 **Use Either Command** for a generic binding. Hyper recording stays generic.
+
+Turning the switch off pauses saved `left-cmd`/`right-cmd` bindings without
+removing them; recording then produces generic `cmd` shortcuts. Turning it on
+reactivates them. The CLI equivalent is `ruycast config set separateCommandKeys true`
+(or `false`). `ruycast status` reports the effective setting and Input Monitoring.
+New profiles start off; older files without this field keep their prior enabled
+behavior, so existing sided bindings continue working.
 
 Existing `cmd+s` bindings accept either Command key. A matching sided shortcut
 takes priority over a generic binding for the same key. Unbound keys keep their

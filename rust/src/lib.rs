@@ -74,6 +74,8 @@ pub struct Config {
     #[serde(default)]
     pub hyper_key_enabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub separate_command_keys: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub menu_bar_visible: Option<bool>,
@@ -492,6 +494,14 @@ mod tests {
     }
     #[test]
     fn command_sides_are_independent() {
+        let mut legacy=default_config();
+        assert_eq!(validate(&legacy).unwrap().separate_command_keys,Some(false));
+        legacy.as_object_mut().unwrap().remove("separateCommandKeys");
+        assert_eq!(validate(&legacy).unwrap().separate_command_keys,None);
+        legacy["separateCommandKeys"]=json!(true);
+        assert_eq!(validate(&legacy).unwrap().separate_command_keys,Some(true));
+        legacy["separateCommandKeys"]=json!("true");
+        assert!(validate(&legacy).is_err());
         assert_eq!(shortcut("RIGHT-CMD+a").unwrap(), "right-cmd+a");
         assert_eq!(shortcut("shift+left-cmd+a").unwrap(), "left-cmd+shift+a");
         for invalid in ["cmd+right-cmd+a", "left-cmd+right-cmd+a", "right-cmd+right-cmd+a"] {

@@ -221,6 +221,7 @@ fn config_edit(args: &[String]) -> Result<Value> {
                 target[key] = json!(false);
             }
             if key=="theme" && target.get(key).is_none() {target[key]=json!("system");}
+            if key=="separateCommandKeys" && target.get(key).is_none() {target[key]=json!(true);}
             if key=="menuBarVisible" && target.get(key).is_none() {target[key]=json!(true);}
             let final_key = keys.last().unwrap();
             let slot = target

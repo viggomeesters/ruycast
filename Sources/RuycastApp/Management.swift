@@ -150,14 +150,23 @@ struct ManagementView:View {
             preferenceRow("Open Launcher") {ShortcutRecorder(state:state,value:state.config.launcherHotkey,onSave:{if let value=$0 {state.setSetting("launcherHotkey",jsonString(value))}}).frame(width:180,height:28)}
             preferenceRow("Clipboard History") {ShortcutRecorder(state:state,value:state.config.clipboardHotkey,onSave:{if let value=$0 {state.setSetting("clipboardHotkey",jsonString(value))}}).frame(width:180,height:28)}
             preferenceRow("Caps Lock as Hyper") {Toggle("Caps Lock as Hyper",isOn:Binding(get:{state.config.hyperKeyEnabled==true},set:state.setHyperEnabled)).labelsHidden().toggleStyle(.switch)}
+            preferenceRow("Separate Left and Right Command") {
+                Toggle("Separate Left and Right Command",isOn:Binding(get:{state.config.separatesCommandKeys},set:{state.setPreference("separateCommandKeys",$0)})).labelsHidden().toggleStyle(.switch)
+            }
+            Text(state.config.separatesCommandKeys ? "Record L⌘ or R⌘ shortcuts to launch apps independently.":"L⌘ and R⌘ shortcuts are paused. New shortcuts use either Command key.").font(.caption).foregroundStyle(theme.muted).fixedSize(horizontal:false,vertical:true).padding(.bottom,14)
             preferenceRow("Theme") {Picker("Theme",selection:Binding(get:{state.config.theme ?? "system"},set:{state.setSetting("theme",jsonString($0))})) {Text("System").tag("system");Text("Light").tag("light");Text("Dark").tag("dark");Text("Graphite").tag("graphite")}.labelsHidden().frame(width:180)}
             preferenceRow("Menu Bar Icon") {Toggle("Show menu bar icon",isOn:Binding(get:{state.config.menuBarVisible ?? true},set:{state.setPreference("menuBarVisible",$0)})).labelsHidden().toggleStyle(.switch)}
             permissionNotice
         }
     }
     @ViewBuilder private var permissionNotice:some View {
-        if !state.headless && !state.windows.trusted {
-            Button("Allow Accessibility…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)}.font(.caption)
+        if !state.headless {
+            if !state.windows.trusted {
+                Button("Allow Accessibility…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)}.font(.caption)
+            }
+            if (state.config.hyperKeyEnabled==true || state.config.snippetExpansionEnabled==true || state.config.separatesCommandKeys) && !CGPreflightListenEventAccess() {
+                Button("Allow Input Monitoring…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!)}.font(.caption)
+            }
         }
     }
     private var advanced:some View {
@@ -166,7 +175,7 @@ struct ManagementView:View {
             preferenceRow("Configuration Folder") {VStack(alignment:.trailing,spacing:6) {Text(state.configDirectory.path).font(.caption).foregroundStyle(theme.muted).lineLimit(2).truncationMode(.middle).textSelection(.enabled);Button("Choose Folder…",action:state.chooseConfigurationDirectory)}}
             preferenceRow("Reload") {Button("Reload Configuration") {do {try state.reload();state.message="";state.showToast?("Configuration reloaded",true)} catch {state.message=error.localizedDescription}}}
             preferenceRow("Permissions") {Button("Accessibility…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)}}
-            preferenceRow("Version") {Text("Ruycast 0.7.3").foregroundStyle(theme.muted)}
+            preferenceRow("Version") {Text("Ruycast 0.7.4").foregroundStyle(theme.muted)}
         }
     }
     private func preferences<Content:View>(_ title:String,@ViewBuilder content:()->Content)->some View {
