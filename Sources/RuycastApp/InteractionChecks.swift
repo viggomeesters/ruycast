@@ -9,7 +9,7 @@ func featureFixture()->[Command] {
      Command(id:"capture.quick-note",title:"Quick Note",kind:"script",target:"/usr/bin/printf",arguments:["%s","{input}"],inputPrompt:"Note"),
      Command(id:"capture.quick-task",title:"Quick Task",kind:"script",target:"/usr/bin/printf",arguments:["%s","{input}"],inputPrompt:"Task"),
      Command(id:"link.search",title:"Search Google Maps",kind:"url",target:"https://maps.google.com/?q={query}",aliases:["gmaps"]),
-     Command(id:"snippet.greeting",title:"Greeting",kind:"snippet",target:"Hi {cursor},\nThanks for your message.",keyword:";hello")]
+     Command(id:"snippet.greeting",title:"Greeting",kind:"snippet",target:"Hi {cursor},\nThanks for your message.",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";hello")]
 }
 func checkInteractions() throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)

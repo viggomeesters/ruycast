@@ -32,6 +32,12 @@ struct LauncherCommandResults:View {
     @Environment(\.colorScheme) private var scheme
     private var highlight:Color {Color.primary.opacity(scheme == .dark ? 0.085:0.065)}
     private func kindLabel(_ kind:String)->String {["snippet":"Snippet","app":"Application","url":"Quicklink","path":"File or Folder","script":"Command","window":"Window","builtin":"Command"][kind] ?? "Command"}
+    private func snippetBindings(_ command:Command)->String {
+        var parts:[String]=[]
+        if let keyword=command.keyword,!keyword.isEmpty {parts.append("Keyword "+keyword)}
+        if !command.aliases.isEmpty {parts.append("Aliases "+command.aliases.joined(separator:", "))}
+        return parts.joined(separator:" · ")
+    }
     var body:some View {
         let commands=state.visibleCommands
                 ScrollViewReader {proxy in ScrollView {
@@ -46,16 +52,25 @@ struct LauncherCommandResults:View {
                                 Button {state.selection=index;state.activateSelection()} label:{
                                     HStack(spacing:12) {
                                         if let process=state.processResources[cmd.id],state.mode=="processes" {ProcessIcon(resource:process)} else {CommandIcon(command:cmd)}
-                                        HStack(spacing:8) {
+                                        VStack(alignment:.leading,spacing:4) {
+                                          HStack(spacing:8) {
                                             Text(cmd.title).font(.system(size:13,weight:.semibold)).lineLimit(1).layoutPriority(2)
                                             if state.mode=="processes",let process=state.processResources[cmd.id] {Text(String(process.id)).font(.system(size:11)).foregroundStyle(.tertiary)}
-                                            if let alias=cmd.aliases.first {
+                                            if cmd.kind != "snippet",let alias=cmd.aliases.first {
                                                 Text(alias).font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
                                                     .padding(.horizontal,5).padding(.vertical,2)
                                                     .background(Color.primary.opacity(0.08),in:RoundedRectangle(cornerRadius:4))
                                                     .lineLimit(1).frame(maxWidth:120,alignment:.leading).fixedSize(horizontal:false,vertical:true)
                                             }
-                                        }
+                                          }
+                                          if cmd.kind=="snippet" {
+                                              let bindings=snippetBindings(cmd)
+                                              if !bindings.isEmpty {
+                                                  Text(bindings).font(.system(size:11)).foregroundStyle(.secondary)
+                                                      .fixedSize(horizontal:false,vertical:true)
+                                              }
+                                          }
+                                        }.frame(maxWidth:.infinity,alignment:.leading)
                                         Spacer(minLength:10)
                                         if let key=cmd.hotkey {
                                             ShortcutBadge(value:key)
@@ -63,7 +78,7 @@ struct LauncherCommandResults:View {
                                         if let process=state.processResources[cmd.id],state.mode=="processes" {
                                             HStack(spacing:5) {Image(systemName:"cpu");Text(String(format:"%.1f%%",process.cpuPercent)).frame(width:52,alignment:.trailing);Image(systemName:"memorychip");Text(memoryLabel(process.memoryBytes)).frame(width:68,alignment:.trailing)}.font(.system(size:12)).monospacedDigit().foregroundStyle(.secondary)
                                         } else {Text(kindLabel(cmd.kind)).font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
-                                    }.padding(.horizontal,10).frame(height:38)
+                                    }.padding(.horizontal,10).padding(.vertical,8).frame(minHeight:38)
                                         .frame(maxWidth:.infinity,alignment:.leading)
                                         .background(index==state.selection ? highlight:Color.clear,in:RoundedRectangle(cornerRadius:8))
                                         .contentShape(Rectangle())

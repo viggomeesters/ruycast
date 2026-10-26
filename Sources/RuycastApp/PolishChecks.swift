@@ -77,5 +77,20 @@ func checkLauncherPolish(_ outputPath:String)throws->[String:Any] {
     try require(!state.busy && state.message.isEmpty && state.counts[dateWriter.id]==1,"Date Enter failed or ran twice")
     try require(try String(contentsOf:savedDate,encoding:.utf8)==frozenDate.value,"Enter did not send the displayed date")
     state.cancelInlineInput();state.message=""
-    return ["ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"inlineAliasAndEnter":true,"inlineSubmitOnce":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"previewCancellation":cancellation,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    state.mode="snippets";state.query="";state.config.commands=[
+        Command(id:"fixture.greet",title:"Greeting",kind:"snippet",target:"Hello",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";greetsnippet"),
+        Command(id:"fixture.long",title:"Longer bindings",kind:"snippet",target:"Example",aliases:["first-alias","second-alias","third-alias","fourth-alias","final-alias"],keyword:";longsnippet"),
+        Command(id:"fixture.none",title:"Unbound snippet",kind:"snippet",target:"Example")]
+    for theme in ["light","dark"] {
+        state.config.theme=theme
+        try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Keyword","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"])
+        try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["salutation","final-alias","Unbound snippet"])
+    }
+    state.query="salutation"
+    try require(state.visibleCommands.map(\.id)==["fixture.greet"],"Alias search lost the snippet")
+    state.query="longsnippet"
+    try require(state.selectedCommand?.id=="fixture.long","Keyword search lost the snippet")
+    state.query="";state.selection=0;state.moveSelection(1)
+    try require(state.selectedCommand?.id=="fixture.long","Arrow selection changed after rendering bindings")
+    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"inlineAliasAndEnter":true,"inlineSubmitOnce":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"previewCancellation":cancellation,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
