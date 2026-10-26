@@ -90,9 +90,14 @@ def set_cli_link(path,target,allowed_targets=()):
     finally:temporary.unlink(missing_ok=True)
 
 
-def preserve_personal_bridge(repo, installed, stage):
+def preserve_personal_bridge(repo, installed, stage, override=None):
     """Retain an existing local adapter when updating from public-only source."""
-    source = Path(repo) / 'scripts/personal_bridge.py'
+    if override is not None:
+        source = Path(override).expanduser()
+        if not source.is_absolute() or not source.is_file() or source.is_symlink():
+            raise RuntimeError('Personal adapter override must be an absolute regular file.')
+    else:
+        source = Path(repo) / 'scripts/personal_bridge.py'
     if not source.exists() and not source.is_symlink():
         source = Path(installed) / 'Contents/Resources/personal_bridge.py'
     if source.is_symlink():

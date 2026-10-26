@@ -52,6 +52,9 @@ final class AppState:ObservableObject {
     private let clipboardSearch=ClipboardSearch()
     private(set) var clipboardSearchBusy=false
     lazy var utilities=Utilities(root:root)
+    @Published var scriptChoices:ScriptChoiceSession?
+    @Published var scriptChoiceQuery="" {didSet {scriptChoiceSelection=0}}
+    @Published var scriptChoiceSelection=0
     @Published var detail:String?
     private var resultGeneration=0
     var serviceCommands:[String:Command]=[:]
@@ -342,7 +345,7 @@ final class AppState:ObservableObject {
         execute(id,dryRun:false,values:values,openResult:true,confirmed:confirmed,source:source,beforeAppLaunch:{ [weak self] in dismissedForAppLaunch=true;self?.form=nil;self?.hidePalette?() }) { [weak self] response in
             guard let self else {return};self.busy=false
             if response["ok"] as? Bool == true {
-                if !dismissedForAppLaunch && self.resolveCommand(id)?.kind != "builtin" && self.detail==nil {self.form=nil;self.hidePalette?();self.showToast?("Done",true)}
+                if !dismissedForAppLaunch && self.resolveCommand(id)?.kind != "builtin" && self.detail==nil && self.scriptChoices==nil {self.form=nil;self.hidePalette?();self.showToast?("Done",true)}
             } else {self.message=response["error"] as? String ?? "Action failed.";self.showToast?(self.message,false)}
         }
     }
@@ -426,17 +429,17 @@ final class AppState:ObservableObject {
                 else if cmd.target=="create-quicklink" {newCommand("url")}
                 else {let modes=["search-files":"files","search-menu-items":"menus","switch-windows":"windows","kill-process":"processes"];showPalette?(modes[cmd.target] ?? cmd.target)}
                 finish(["ok":true,"result":["state":"opened"]])
-            case "script":runScript(cmd,openResult:openResult,completion:finish)
+            case "script":runScript(cmd,openResult:openResult,source:source,completion:finish)
             default:throw LauncherError("Unsupported command kind.")
             }
         } catch {finish(["ok":false,"error":error.localizedDescription])}
     }
-    private func runScript(_ cmd:Command,openResult:Bool,completion:@escaping ([String:Any])->Void) {
+    private func runScript(_ cmd:Command,openResult:Bool,source:String,completion:@escaping ([String:Any])->Void) {
         DispatchQueue.global(qos:.userInitiated).async {
             let process=Process()
             let bundled=Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/ruycast")
-            let source=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build/rust/release/ruycast")
-            process.executableURL=FileManager.default.fileExists(atPath:bundled.path) ? bundled:source
+            let runnerSource=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build/rust/release/ruycast")
+            process.executableURL=FileManager.default.fileExists(atPath:bundled.path) ? bundled:runnerSource
             process.arguments=["__run-script"]
             let input=Pipe(),out=Pipe();process.standardInput=input;process.standardOutput=out;process.standardError=FileHandle.nullDevice
             do {
@@ -446,12 +449,23 @@ final class AppState:ObservableObject {
                 let data=out.fileHandleForReading.readDataToEndOfFile();process.waitUntilExit()
                 guard let result=try JSONSerialization.jsonObject(with:data) as? [String:Any] else {throw LauncherError("Script runner returned an invalid response.")}
                 DispatchQueue.main.async {
-                    if cmd.arguments.contains(where:{$0.hasSuffix("personal_bridge.py")}) {
-                        guard let value=(result["result"] as? [String:Any]) ?? result as [String:Any]?,let stdout=value["stdout"] as? String,let bytes=stdout.data(using:.utf8),let native=try? JSONSerialization.jsonObject(with:bytes) as? [String:Any] else {completion(["ok":false,"error":"The app returned an invalid response. Check its current state before retrying.","exitCode":result["exitCode"] as Any? ?? NSNull(),"diagnostics":["runnerError":String((result["stderr"] as? String ?? "").suffix(2000))]]);return}
+                    let value=(result["result"] as? [String:Any]) ?? result
+                    let native=(value["stdout"] as? String).flatMap {$0.data(using:.utf8)}.flatMap {try? JSONSerialization.jsonObject(with:$0) as? [String:Any]}
+                    let hasUIEnvelope=native?["ok"] as? Bool != nil && (native?["choices"] as? [String:Any] != nil || native?["detail"] as? String != nil)
+                    if cmd.arguments.contains(where:{$0.hasSuffix("personal_bridge.py")}) || hasUIEnvelope || self.scriptChoices?.commandID==cmd.id {
+                        guard let native else {completion(["ok":false,"error":"The app returned an invalid response. Check its current state before retrying.","exitCode":result["exitCode"] as Any? ?? NSNull(),"diagnostics":["runnerError":String((result["stderr"] as? String ?? "").suffix(2000))]]);return}
                         var response=native
                         if let status=value["exitCode"] {response["exitCode"]=status}
                         if result["ok"] as? Bool==false,native["ok"] as? Bool==true {response["ok"]=false;response["error"]=result["error"] ?? "Provider process failed."}
-                        if response["ok"] as? Bool==true,openResult,let text=response["detail"] as? String {self.showPalette?("report");self.detail=text}
+                        if openResult,let raw=response["choices"],response["ok"] as? Bool==true {
+                            do {
+                                let choices=try Files.decode(ScriptChoices.self,data:JSONSerialization.data(withJSONObject:raw));try choices.validate()
+                                if self.scriptChoices==nil {self.showPalette?("script-choices")}
+                                self.scriptChoiceQuery="";self.scriptChoiceSelection=0
+                                self.scriptChoices=ScriptChoiceSession(commandID:cmd.id,choices:choices,source:source)
+                            } catch {completion(["ok":false,"error":"The command returned invalid choices. Reload and try again."]);return}
+                        } else if response["ok"] as? Bool==true,self.scriptChoices?.commandID==cmd.id {self.scriptChoices=nil}
+                        if openResult,let text=response["detail"] as? String {self.showPalette?("report");self.detail=text}
                         completion(response)
                     } else if cmd.id.hasPrefix("capture."),result["ok"] as? Bool==true {
                         guard let value=result["result"] as? [String:Any],let stdout=value["stdout"] as? String,let bytes=stdout.data(using:.utf8),
@@ -494,7 +508,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.7.10","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.7.11","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":
