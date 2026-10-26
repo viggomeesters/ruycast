@@ -1,8 +1,14 @@
 # Changelog
 
-## 0.7.7 — 2026-10-26
+## 0.7.8 — 2026-10-26 · Natural dates
 
 - Accept English and Dutch natural dates in existing ISO date script inputs, with a live date preview before Enter. Invalid or incomplete dates keep the input open.
+
+## 0.7.7 — 2026-10-26 · Snippet choices
+
+- Typing an imported snippet keyword with argument options opens a native choice menu.
+- Confirm replaces the keyword in the original editor; Escape leaves it untouched.
+- Recheck the app, available field metadata and secure-input policy before inserting.
 
 ## 0.7.6 — 2026-10-26 · Accessibility read recovery
 

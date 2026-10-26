@@ -13,7 +13,7 @@ public struct SnippetMatcher {
             guard command.isEnabled,command.kind=="snippet",let keyword=command.keyword,buffer.hasSuffix(keyword) else {return false}
             let prefix=buffer.dropLast(keyword.count)
             if let first=keyword.first,first.isLetter || first.isNumber,let previous=prefix.last,previous.isLetter || previous.isNumber {return false}
-            return Templates.fields(command).allSatisfy {!$0.defaultValue.isEmpty}
+            return Templates.fields(command).allSatisfy {!$0.options.isEmpty || !$0.defaultValue.isEmpty}
         }.max {($0.keyword?.count ?? 0)<($1.keyword?.count ?? 0)}
         if found != nil {reset()}
         return found
@@ -49,5 +49,20 @@ public struct SnippetReplacement {
 public enum SnippetFocusPolicy {
     public static func allowsExpansion(secureInput:Bool,subrole:String?)->Bool {
         !secureInput && subrole != "AXSecureTextField"
+    }
+}
+
+/// A choice is single-use and may only replace the unchanged original target.
+public final class SnippetChoiceRequest {
+    public let command:Command
+    public let pid:Int32
+    public private(set) var active=true
+    public init(command:Command,pid:Int32) {self.command=command;self.pid=pid}
+    public func cancel() {active=false}
+    public func replacement(values:[String:String],pid:Int32,safe:Bool,unchanged:Bool,clipboard:String?=nil) throws -> SnippetReplacement {
+        guard active,self.pid==pid,safe,unchanged else {throw LauncherError("The text field changed. Type the keyword again.")}
+        let rendered=try Templates.render(command,values:values,clipboard:clipboard)
+        active=false
+        return SnippetReplacement(keyword:command.keyword ?? "",finalInput:"",text:rendered.0,cursor:rendered.1)
     }
 }
