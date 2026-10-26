@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.7 — 2026-10-26
+
+- Accept English and Dutch natural dates in existing ISO date script inputs, with a live date preview before Enter. Invalid or incomplete dates keep the input open.
+
 ## 0.7.6 — 2026-10-26 · Accessibility read recovery
 
 - Retry temporary Accessibility read failures when selecting a window and reading its frame, so a transient response can recover within the same shortcut.

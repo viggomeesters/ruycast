@@ -13,7 +13,7 @@ import tempfile
 import atexit
 import local_signing
 import build_receipt
-from install_support import NEW_ID,OLD_ID,require_owned_bundle,profile_paths,check_profile_paths,migrate_profile,data_hashes,data_files,configuration_path,set_cli_link,require_owned_link
+from install_support import NEW_ID,OLD_ID,require_owned_bundle,profile_paths,check_profile_paths,migrate_profile,data_hashes,data_files,configuration_path,set_cli_link,require_owned_link,preserve_personal_bridge
 
 REPO=Path(__file__).resolve().parents[1]
 with build_receipt.artifact_lock(REPO):
@@ -68,8 +68,7 @@ with build_receipt.artifact_lock(REPO):
     shutil.copy2(REPO/'.build/rust/release/ruycast',stage/'Contents/Resources/ruycast')
     icon=REPO/'assets/AppIcon.icns'
     if icon.is_file():shutil.copy2(icon,stage/'Contents/Resources/AppIcon.icns')
-    bridge=REPO/'scripts/personal_bridge.py'
-    if bridge.is_file():shutil.copy2(bridge,stage/'Contents/Resources/personal_bridge.py')
+    preserve_personal_bridge(REPO,APP,stage)
     if build_receipt.sha(stage/'Contents/MacOS/RuycastApp')!=receipt['binaries']['.build/swift/release/RuycastApp'] or build_receipt.sha(stage/'Contents/Resources/ruycast')!=receipt['binaries']['.build/rust/release/ruycast']:
         raise RuntimeError('Staged binaries do not match the build receipt; current app preserved.')
 previous_build=0
@@ -78,7 +77,7 @@ if APP.exists():
     if not str(prior).isdigit():raise RuntimeError('Existing build number is not numeric; installation preserved.')
     previous_build=int(prior)
 info={'CFBundleIdentifier':NEW_ID,'CFBundleName':'Ruycast','CFBundleDisplayName':'Ruycast',
-      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.7.6',
+      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.7.7',
       'CFBundleVersion':str(max(7,previous_build+1)),'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True}
 if (stage/'Contents/Resources/AppIcon.icns').is_file():info['CFBundleIconFile']='AppIcon'
 (stage/'Contents/Info.plist').write_bytes(plistlib.dumps(info))

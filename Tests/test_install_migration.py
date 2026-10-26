@@ -24,6 +24,18 @@ class MigrationTests(unittest.TestCase):
         base=Path(os.environ.get('VIGGO_TEST_ROOT',REPO/'.build/test-profiles'));base.mkdir(parents=True,exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=base);self.root=Path(self.tmp.name)
     def tearDown(self):self.tmp.cleanup()
+    def test_public_source_update_preserves_existing_local_adapter(self):
+        from install_support import preserve_personal_bridge
+        repo=self.root/'public';installed=self.root/'Ruycast.app';stage=self.root/'stage'
+        resource=installed/'Contents/Resources';resource.mkdir(parents=True)
+        (stage/'Contents/Resources').mkdir(parents=True)
+        adapter=resource/'personal_bridge.py';adapter.write_bytes(b'private adapter fixture')
+        preserve_personal_bridge(repo,installed,stage)
+        self.assertEqual((stage/'Contents/Resources/personal_bridge.py').read_bytes(),adapter.read_bytes())
+        adapter.unlink();adapter.symlink_to(self.root/'external')
+        with self.assertRaisesRegex(RuntimeError,'Linked personal adapter'):
+            preserve_personal_bridge(repo,installed,stage)
+
     def test_profile_preserves_bytes_and_idempotent_alias(self):
         old,new=profile_paths(self.root);old.mkdir(parents=True)
         for name in ['config.json','clipboard.json','usage.json','paused.json']:(old/name).write_bytes(('private fixture Ω '+name).encode())

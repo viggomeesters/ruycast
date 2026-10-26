@@ -1,3 +1,4 @@
+import shutil
 """Purely filesystem-based migration helpers; no app or service is started here."""
 from pathlib import Path
 import hashlib
@@ -87,3 +88,17 @@ def set_cli_link(path,target,allowed_targets=()):
     temporary.symlink_to(target)
     try:temporary.replace(path)
     finally:temporary.unlink(missing_ok=True)
+
+
+def preserve_personal_bridge(repo, installed, stage):
+    """Retain an existing local adapter when updating from public-only source."""
+    source = Path(repo) / 'scripts/personal_bridge.py'
+    if not source.exists() and not source.is_symlink():
+        source = Path(installed) / 'Contents/Resources/personal_bridge.py'
+    if source.is_symlink():
+        raise RuntimeError('Linked personal adapter preserved; install a regular adapter file before updating.')
+    if source.is_file():
+        destination = Path(stage) / 'Contents/Resources/personal_bridge.py'
+        shutil.copy2(source, destination)
+        if destination.read_bytes() != source.read_bytes():
+            raise RuntimeError('Personal adapter changed while staging; current installation preserved.')
