@@ -9,6 +9,10 @@ final class AppState:ObservableObject {
     let root:URL
     @Published var configDirectory:URL
     let headless:Bool
+    var applicationURL:(String)->URL? = {NSWorkspace.shared.urlForApplication(withBundleIdentifier:$0)}
+    var openApplication:(URL,@escaping(Error?)->Void)->Void = {url,completion in
+        NSWorkspace.shared.openApplication(at:url,configuration:NSWorkspace.OpenConfiguration()) {_,error in DispatchQueue.main.async {completion(error)}}
+    }
     @Published var config:Configuration {didSet {rebuildCatalog()}}
     var clipboardDataRevision=0
     @Published var clips:[Clip]=[] {didSet {
@@ -337,10 +341,11 @@ final class AppState:ObservableObject {
         }
         if let command=resolveCommand(id),systemServices.requiresConfirmation(target:command.target),!confirmed {confirmationCommand=command;return}
         guard !busy else {return};busy=true
-        execute(id,dryRun:false,values:values,openResult:true,confirmed:confirmed,source:source) { [weak self] response in
+        var dismissedForAppLaunch=false
+        execute(id,dryRun:false,values:values,openResult:true,confirmed:confirmed,source:source,beforeAppLaunch:{ [weak self] in dismissedForAppLaunch=true;self?.form=nil;self?.hidePalette?() }) { [weak self] response in
             guard let self else {return};self.busy=false
             if response["ok"] as? Bool == true {
-                if self.resolveCommand(id)?.kind != "builtin" && self.detail==nil && self.scriptChoices==nil {self.form=nil;self.hidePalette?();self.showToast?("Done",true)}
+                if !dismissedForAppLaunch && self.resolveCommand(id)?.kind != "builtin" && self.detail==nil && self.scriptChoices==nil {self.form=nil;self.hidePalette?();self.showToast?("Done",true)}
             } else {self.message=response["error"] as? String ?? "Action failed.";self.showToast?(self.message,false)}
         }
     }
@@ -348,7 +353,7 @@ final class AppState:ObservableObject {
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {return app.processIdentifier}
         return previousPID
     }
-    func execute(_ id:String,dryRun:Bool,values:[String:String]=[:],openResult:Bool=false,confirmed:Bool=false,source:String="cli",completion:@escaping ([String:Any])->Void) {
+    func execute(_ id:String,dryRun:Bool,values:[String:String]=[:],openResult:Bool=false,confirmed:Bool=false,source:String="cli",beforeAppLaunch:(()->Void)?=nil,completion:@escaping ([String:Any])->Void) {
         if config.commands.contains(where:{!$0.isEnabled && ($0.id.lowercased()==id.lowercased() || $0.aliases.contains(where:{$0.lowercased()==id.lowercased()}))}) {completion(["ok":false,"error":"Command is disabled: \(id)"]);return}
         guard var cmd=resolveCommand(id) ?? applications.first(where:{$0.id==id}) else {completion(["ok":false,"error":"Unknown command: \(id)"]);return}
         guard cmd.isEnabled,!config.commands.contains(where:{!$0.isEnabled && ($0.id==id || ($0.kind=="app" && cmd.kind=="app" && $0.target==cmd.target))}) else {completion(["ok":false,"error":"Command is disabled."]);return}
@@ -385,8 +390,9 @@ final class AppState:ObservableObject {
                 try pasteText(rendered.0,cursor:rendered.1)
                 finish(["ok":true,"result":["state":"pasted"]])
             case "app":
-                guard let url=NSWorkspace.shared.urlForApplication(withBundleIdentifier:cmd.target) else {throw LauncherError("App is not installed: \(cmd.target)")}
-                NSWorkspace.shared.openApplication(at:url,configuration:NSWorkspace.OpenConfiguration()) {_,error in DispatchQueue.main.async {if let error {finish(["ok":false,"error":error.localizedDescription])} else {finish(["ok":true,"result":["command":cmd.id,"state":"opened"]])}}}
+                guard let url=applicationURL(cmd.target) else {throw LauncherError("App is not installed: \(cmd.target)")}
+                beforeAppLaunch?()
+                openApplication(url) {error in if let error {finish(["ok":false,"error":error.localizedDescription])} else {finish(["ok":true,"result":["command":cmd.id,"state":"opened"]])}}
             case "url","path":
                 let url:URL
                 if cmd.kind=="url" {cmd.target=try Templates.render(cmd,values:values,clipboard:cmd.target.contains("{clipboard}") ? NSPasteboard.general.string(forType:.string):nil).0}
@@ -499,7 +505,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.7.9","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.7.11","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":

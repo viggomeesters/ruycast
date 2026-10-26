@@ -116,9 +116,10 @@ func checkInteractions() throws -> [String:Any] {
     let replacement=try chosen.replacement(values:["Contact":"Example B"],pid:42,safe:true,unchanged:true)
     replacement.apply(key:{code in if code==51 {document.deleteBackward(nil)} else if code==123 {document.moveLeft(nil)}},insert:{document.insertText($0,replacementRange:document.selectedRange())})
     guard document.string=="prefix Example B Ω",document.selectedRange().location=="prefix Example B".utf16.count else {throw LauncherError("Choice insertion or cursor position failed.")}
+    try checkAppLaunchDismissal()
     try checkSnippetChoiceKeyboard()
     panel.close()
-    return ["snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 func renderFeatures(_ path:String,theme:String,mode:String) throws {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
@@ -247,4 +248,43 @@ func checkSnippetChoiceKeyboard() throws {
     let keypadPanel=SnippetChoicePanel(model:keypad);defer {keypadPanel.close()}
     keypadPanel.sendEvent(key(76,[],repeatKey:true));try require(submissions.count==1,"Held Enter submitted unexpectedly")
     keypadPanel.sendEvent(key(76));try require(submissions.count==2,"Keypad Enter did not insert")
+}
+
+// No real application starts and no visible window is opened.
+func checkAppLaunchDismissal() throws {
+    let root=FileManager.default.temporaryDirectory.appendingPathComponent("launch-"+String(UUID().uuidString.prefix(8)))
+    defer {try? FileManager.default.removeItem(at:root)}
+    let state=try AppState(root:root,headless:true)
+    defer {state.shutdown()}
+    state.config.commands=[Command(id:"fixture.app",title:"Fixture App",kind:"app",target:"test.fixture")]
+    var hidden=0,launched=0,completion:((Error?)->Void)?,toasts:[Bool]=[]
+    state.hidePalette={hidden+=1;state.paletteVisible=false}
+    state.showToast={_,ok in toasts.append(ok)}
+    state.applicationURL={_ in URL(fileURLWithPath:"/Fixture.app")}
+    state.openApplication={_,reply in
+        guard hidden==1,!state.paletteVisible else {fatalError("Palette still visible when app launch started")}
+        launched+=1;completion=reply
+    }
+    state.paletteVisible=true
+    state.perform("fixture.app")
+    guard hidden==1,launched==1,state.busy else {throw LauncherError("App did not dismiss before its delayed launch")}
+    state.perform("fixture.app")
+    guard launched==1 else {throw LauncherError("Repeated Enter started the app twice")}
+    state.paletteVisible=true // User has reopened the launcher while target is loading.
+    let commands=state.config.commands;state.config.commands=[]
+    completion?(nil)
+    state.config.commands=commands
+    guard state.paletteVisible,hidden==1,!state.busy else {throw LauncherError("Delayed app completion hid the reopened palette")}
+    state.applicationURL={_ in nil};state.message=""
+    state.perform("fixture.app")
+    guard hidden==1,!state.message.isEmpty,toasts.last==false else {throw LauncherError("Missing app lost its error or hid the palette")}
+    state.applicationURL={_ in URL(fileURLWithPath:"/Fixture.app")}
+    state.openApplication={_,reply in launched+=1;completion=reply}
+    state.perform("fixture.app");completion?(LauncherError("Fixture launch failed"))
+    guard hidden==2,state.message=="Fixture launch failed",toasts.last==false else {throw LauncherError("Asynchronous app launch failure was not reported")}
+    var replied=false
+    state.execute("fixture.app",dryRun:true) {_ in replied=true}
+    guard replied,hidden==2,launched==2 else {throw LauncherError("Dry run launched an application")}
+    state.execute("fixture.app",dryRun:false) {_ in replied=true};completion?(nil)
+    guard hidden==2,launched==3 else {throw LauncherError("CLI app launch dismissed the interface")}
 }

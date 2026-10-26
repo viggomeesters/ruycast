@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.11 — 2026-10-26 · Script replies and project choices
+
+- Add searchable keyboard selection for script-provided choices, retaining failed selections and provider reports.
+- Allow a local adapter update to be staged directly before signing, without entering public source.
+
+## 0.7.10 — 2026-10-26
+
+- Close the launcher immediately when opening an app; report launch failures and keep a reopened palette visible.
+
 ## 0.7.9 — 2026-10-26 · Snippet keyboard controls
 
 - Switch snippet choices immediately with Up/Down or Left/Right after typing the keyword.
