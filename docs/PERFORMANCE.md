@@ -110,10 +110,10 @@ Use frozen copies of binaries for long probes. The host script strips external p
 - `open.ready`: show request through the queued native focus request; excludes compositor/display presentation. Closing or superseding an open cancels the interval.
 - `input.model`: native text-field delegate through synchronous model publication.
 - `search.model`: the shared Rust index call and Swift result conversion/filtering.
-- `native.draw`: the palette hosting view's native draw callback.
-- `input.draw`: latest native input through the next hosting draw callback. Superseded/hidden input is cancelled. This does not establish that a particular result reached the physical display.
+- `host.drawCallback`: optional palette hosting-view draw override. Layer-backed SwiftUI display may not invoke it; zero is not evidence that no display occurred. Offscreen cacheDisplay fixtures invoke this hook.
+- `input.reconcile`: latest native input through application of its current binding in that same field's NSViewRepresentable.updateNSView. Other fields cannot complete it; superseding input, hide or field teardown cancels it. This is field reconciliation, not result drawing, compositor work or physical presentation.
 
-`RuycastApp --benchmark-interactions` exercises100 hidden native field/model/draw cycles with synthetic commands. It checks privacy, cancellation, reset identities and bounded retention. It never makes a window visible or emits desktop input. Rendering software stages is distinct from physical key-to-screen latency; a controlled visible acceptance slot is still needed for that claim. The existing model and lifecycle gates remain unchanged.
+`RuycastApp --benchmark-interactions` drives100 hidden updates through the actual retained search field and its production delegate. Each update must reconcile through SwiftUI before any explicit cacheDisplay. Separate capture checks invoke host.drawCallback. It checks owner identity, teardown, privacy, cancellation, reset identities and bounded retention. It never makes a window visible or emits desktop input. Rendering software stages is distinct from physical key-to-screen latency; a controlled visible acceptance slot is still needed for that claim. The existing model and lifecycle gates remain unchanged.
 
 
 ## 0.7.14: typed search transfer
@@ -137,3 +137,10 @@ These are deterministic model fixtures with 1,000 samples per catalog per run, i
 Word-prefix, initials and subsequence matching share the existing Rust index and typed result boundary. Exact alias/ID priority is preserved even when a lower relevance match was used recently; exact titles also precede title prefixes. Tests cover these cases, Unicode/NUL parity, bounded metadata/retention/reset and hidden host execution proving only successful launcher selections train recency. Disabled and removed commands remain absent.
 
 The model benchmark retains the original catalog/query matrix and adds a separate 10,000-command search with 512 recent choices. The original P2 figures compare 0.7.13 against 0.7.14; they must not be presented as a speed claim for the later, broader matching algorithm. Physical hotkey-to-display acceptance remains separate from these software fixtures.
+
+
+## 0.7.16: correct the live measurement boundary
+
+The visible acceptance attempt exposed a measurement gap: input.model recorded events while the NSHostingView draw override remained unused. The original 0.7.13–0.7.15 `input.draw`/`native.draw` counters therefore do not prove a live draw or result-presentation boundary. Schema 2 replaces them with the precisely limited stages above. The input endpoint now runs after the actual field binding is applied in updateNSView; it is independent of offscreen captures. Field teardown cancels pending work before an object address can be reused.
+
+The launcher window was observed through accessibility, but the computer-use bridge repeatedly timed out or reported no available window. Visible typing/arrows/close acceptance is still open; no desktop keys were posted by the agent. This is separate from the successful hidden delegate/reconciliation tests and model/lifecycle budgets.

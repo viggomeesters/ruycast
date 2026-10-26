@@ -10,9 +10,13 @@ func checkInteractionPerformance() throws -> [String:Any] {
     for _ in 0..<350 {trace.measure(.searchModel) {}}
     let bounded=trace.snapshot()["stages"] as! [String:[String:Any]]
     try require(bounded["search.model"]?["count"] as? Int==350 && bounded["search.model"]?["retainedSamples"] as? Int==256,"Trace retention is not bounded")
-    trace.inputChanged();trace.inputChanged();trace.cancelDisplay()
+    let other=NSObject(),owner=ObjectIdentifier(trace)
+    trace.inputChanged(fieldID:owner)
+    trace.didReconcileField(fieldID:ObjectIdentifier(other));trace.cancelInput(fieldID:ObjectIdentifier(other))
+    try require(trace.snapshot()["activeIntervals"] as? Int==1,"Another field completed or cancelled pending input")
+    trace.inputChanged(fieldID:owner);trace.cancelInput()
     let cancelled=trace.snapshot()["stages"] as! [String:[String:Any]]
-    try require(cancelled["input.draw"]?["cancelled"] as? Int==2,"Superseded input was counted as completed")
+    try require(cancelled["input.reconcile"]?["cancelled"] as? Int==2,"Superseded input was counted as completed")
     let stale=trace.begin(.openReady);trace.reset();let fresh=trace.begin(.openReady);trace.finish(stale)
     try require(trace.snapshot()["activeIntervals"] as? Int==1,"Reset reused a stale interval identity")
     trace.finish(fresh)
@@ -48,30 +52,39 @@ func checkInteractionPerformance() throws -> [String:Any] {
     let palette=PaletteController(state:state);defer {palette.panel.close()}
     guard let view=palette.panel.contentView else {throw LauncherError("No native palette host")}
     view.frame=NSRect(x:0,y:0,width:760,height:490)
-    let input=SearchInput()
-    let field=PaletteSearchField(text:Binding(get:{state.query},set:{state.query=$0}),placeholder:"Search",onMove:state.moveSelection,onSubmit:{},onCancel:{},onActions:{})
-    let delegate=PaletteSearchField.Coordinator(field)
+    func field(_ view:NSView)->SearchInput? {if let input=view as? SearchInput {return input};return view.subviews.lazy.compactMap {field($0)}.first}
+    view.layoutSubtreeIfNeeded()
+    let mountDeadline=Date().addingTimeInterval(1)
+    while field(view)==nil && Date()<mountDeadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.001))}
+    guard let input=field(view),let delegate=input.delegate as? PaletteSearchField.Coordinator else {throw LauncherError("No retained production search field/delegate")}
+    let removedField=SearchInput()
+    trace.inputChanged(fieldID:ObjectIdentifier(removedField))
+    PaletteSearchField.dismantleNSView(removedField,coordinator:delegate)
+    try require(trace.snapshot()["activeIntervals"] as? Int==0,"Removed field retained a pending input span")
     let terms=["E","Ex","Example 4","Example 42",""]
     trace.reset()
     func count(_ stage:String)->Int {(trace.snapshot()["stages"] as! [String:[String:Any]])[stage]?["count"] as? Int ?? 0}
     for i in 0..<100 {
-        let drawsBefore=count("native.draw")
+        let drawsBefore=count("host.drawCallback")
         try autoreleasepool {
             input.stringValue=terms[i%terms.count]
             delegate.controlTextDidChange(Notification(name:NSControl.textDidChangeNotification,object:input))
-            let end=Date().addingTimeInterval(0.002)
-            while Date()<end {_=RunLoop.current.run(mode:.default,before:end)}
+            // Reconciliation must happen through the real representable update,
+            // before any offscreen cacheDisplay can force a host draw callback.
+            let end=Date().addingTimeInterval(1)
+            while count("input.reconcile")<i+1 && Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.001))}
+            try require(count("input.reconcile")==i+1,"Retained field did not reconcile before capture in cycle \(i)")
             view.layoutSubtreeIfNeeded();view.needsDisplay=true
             guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("No native render buffer")}
             view.cacheDisplay(in:view.bounds,to:bitmap)
-            try require(count("input.draw")==i+1 && count("native.draw")>drawsBefore,"Input did not complete exactly one native draw interval in cycle \(i)")
+            try require(count("input.reconcile")==i+1 && count("host.drawCallback")>drawsBefore,"Input reconciliation or explicit host capture failed in cycle \(i)")
         }
     }
     let result=trace.snapshot(),stages=result["stages"] as! [String:[String:Any]]
     try require(stages["input.model"]?["count"] as? Int==100,"Native field delegate was not measured")
-    try require((stages["native.draw"]?["count"] as? Int ?? 0)>0 && (stages["input.draw"]?["count"] as? Int ?? 0)>0,"Native draw hook did not complete software input timings")
+    try require((stages["host.drawCallback"]?["count"] as? Int ?? 0)>0 && (stages["input.reconcile"]?["count"] as? Int ?? 0)>0,"Field reconciliation or explicit host draw callback was not measured")
     try require(!palette.panel.isVisible,"Background benchmark opened a window")
     let bytes=try JSONSerialization.data(withJSONObject:result),text=String(decoding:bytes,as:UTF8.self)
     try require(!text.contains("Example") && !text.contains("fixture.") && !text.contains("example.com"),"Trace retained input or command content")
-    return ["ok":true,"scope":"100 hidden native field/model/draw cycles; not physical hotkey or screen latency","desktopInputSent":false,"visibleWindowOpened":false,"boundedSamples":true,"launcherRecencySuccessOnly":true,"cancelledAndResetSpans":true,"trace":result]
+    return ["ok":true,"scope":"100 retained native field/delegate/reconciliation cycles before offscreen captures; not result drawing or physical latency","desktopInputSent":false,"visibleWindowOpened":false,"boundedSamples":true,"launcherRecencySuccessOnly":true,"reconciliationBeforeCapture":true,"fieldOwnerAndDismantle":true,"cancelledAndResetSpans":true,"trace":result]
 }

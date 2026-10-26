@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.16 — 2026-10-26
+
+- Correct interaction diagnostics: schema 2 measures owner-scoped input-to-field reconciliation through the actual NSViewRepresentable update, independently of offscreen capture. Field teardown cancels pending spans.
+- Rename the optional NSHostingView draw counter to host.drawCallback and explicitly exclude result drawing and physical display latency; normal layer-backed display may not invoke this callback.
+
 ## 0.7.15 — 2026-10-26
 
 - Match title word starts, initials and subsequences. Exact command identifiers and aliases stay first, followed by exact titles. Recent successful launcher choices break ties within the same relevance tier.

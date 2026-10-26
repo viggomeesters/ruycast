@@ -4,14 +4,14 @@ import os
 // Software stages only. No input, command identifiers or clipboard data is recorded.
 final class PerformanceTrace {
     enum Stage:String,CaseIterable {
-        case searchModel="search.model",inputModel="input.model",inputDraw="input.draw",openReady="open.ready",nativeDraw="native.draw",hotkeyHandler="hotkey.handler"
+        case searchModel="search.model",inputModel="input.model",inputReconcile="input.reconcile",openReady="open.ready",hostDraw="host.drawCallback",hotkeyHandler="hotkey.handler"
         var signpostName:StaticString {
             switch self {
             case .searchModel:return "Search model"
             case .inputModel:return "Input model"
-            case .inputDraw:return "Input to native draw"
+            case .inputReconcile:return "Input to field reconciliation"
             case .openReady:return "Palette ready"
-            case .nativeDraw:return "Native draw"
+            case .hostDraw:return "Host draw callback"
             case .hotkeyHandler:return "Hotkey handler"
             }
         }
@@ -23,7 +23,7 @@ final class PerformanceTrace {
     private let lock=NSRecursiveLock()
     private let signposter=OSSignposter(subsystem:"nl.viggomeesters.ruycast",category:"Interaction")
     private var sequence:UInt64=0,active:[UInt64:Entry]=[:],metrics:[Stage:Metric]=[:]
-    private var pendingDraw:Span?
+    private var pendingInput:(span:Span,fieldID:ObjectIdentifier)?
     func begin(_ stage:Stage)->Span {
         lock.lock();defer {lock.unlock()}
         // Event bursts/cancelled UI work cannot retain unbounded interval state.
@@ -43,13 +43,25 @@ final class PerformanceTrace {
         metrics[entry.stage]=value
     }
     func measure<T>(_ stage:Stage,_ work:()->T)->T {let span=begin(stage);defer {finish(span)};return work()}
-    func inputChanged() {lock.lock();defer {lock.unlock()};if let pendingDraw {finish(pendingDraw,cancelled:true)};pendingDraw=begin(.inputDraw)}
-    func didDraw() {lock.lock();defer {lock.unlock()};if let span=pendingDraw {pendingDraw=nil;finish(span)}}
-    func cancelDisplay() {lock.lock();defer {lock.unlock()};if let span=pendingDraw {pendingDraw=nil;finish(span,cancelled:true)}}
+    func inputChanged(fieldID:ObjectIdentifier) {
+        lock.lock();defer {lock.unlock()}
+        if let pendingInput {finish(pendingInput.span,cancelled:true)}
+        pendingInput=(begin(.inputReconcile),fieldID)
+    }
+    func didReconcileField(fieldID:ObjectIdentifier) {
+        lock.lock();defer {lock.unlock()}
+        guard let pending=pendingInput,pending.fieldID==fieldID else {return}
+        pendingInput=nil;finish(pending.span)
+    }
+    func cancelInput(fieldID:ObjectIdentifier?=nil) {
+        lock.lock();defer {lock.unlock()}
+        guard let pending=pendingInput,fieldID==nil || fieldID==pending.fieldID else {return}
+        pendingInput=nil;finish(pending.span,cancelled:true)
+    }
     func reset() {
         lock.lock();defer {lock.unlock()}
         for (_,entry) in active {signposter.endInterval(entry.stage.signpostName,entry.state)}
-        active=[:];metrics=[:];pendingDraw=nil
+        active=[:];metrics=[:];pendingInput=nil
     }
     func snapshot()->[String:Any] {
         lock.lock();defer {lock.unlock()}
@@ -59,6 +71,6 @@ final class PerformanceTrace {
             func percentile(_ p:Double)->Any {sorted.isEmpty ? NSNull():sorted[Int(Double(sorted.count-1)*p)] as Any}
             stages[stage.rawValue]=["count":metric.total,"retainedSamples":sorted.count,"cancelled":metric.cancelled,"p50MS":percentile(0.5),"p95MS":percentile(0.95),"maxMS":sorted.last as Any? ?? NSNull()]
         }
-        return ["schema":1,"scope":"software stages; native draw is not physical display presentation; hotkey timing begins at handler delivery","sampleLimitPerStage":256,"activeIntervals":active.count,"stages":stages]
+        return ["schema":2,"scope":"software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey timing begins at handler delivery","sampleLimitPerStage":256,"activeIntervals":active.count,"stages":stages]
     }
 }
