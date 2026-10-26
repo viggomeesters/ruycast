@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.10 — 2026-10-26
+
+- Close the launcher immediately when opening an app; report launch failures and keep a reopened palette visible.
+
 ## 0.7.9 — 2026-10-26 · Snippet keyboard controls
 
 - Switch snippet choices immediately with Up/Down or Left/Right after typing the keyword.
