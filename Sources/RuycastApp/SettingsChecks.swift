@@ -45,6 +45,13 @@ func checkSettings(_ outputPath:String) throws -> [String:Any] {
     try require(state.config.commands[0].hotkey==nil,"Delete did not clear recorded shortcut.")
     button.beginRecording();try require(button.performKeyEquivalent(with:event(40,.command)),"Command key equivalent escaped recorder.");try wait()
     try require(state.config.commands[0].hotkey=="cmd+k","Command shortcut did not persist.")
+    // Toggle via the production CLI/reload boundary, without registering global keys.
+    try require(!Configuration.initial.separatesCommandKeys,"Fresh profiles should not distinguish Command sides.")
+    var legacy=state.config;legacy.separateCommandKeys=nil
+    try require(legacy.separatesCommandKeys,"Legacy configuration changed its previous side-aware behavior.")
+    state.setPreference("separateCommandKeys",true);try wait()
+    try require(state.config.separatesCommandKeys && (try Files.config(state.configURL)).separatesCommandKeys,"Command separation did not persist/reload.")
+    button.separateCommandKeys=state.config.separatesCommandKeys
     // Drive the production recorder and filter without posting global input.
     for (mask,binding) in [(CommandShortcutFilter.rightMask,"right-cmd+k"),(CommandShortcutFilter.leftMask,"left-cmd+k")] {
         button.beginRecording()
@@ -54,6 +61,22 @@ func checkSettings(_ outputPath:String) throws -> [String:Any] {
     }
     button.configure("right-cmd+k");button.useEitherCommand();try wait()
     try require(state.config.commands[0].hotkey=="cmd+k","Either Command action did not preserve a generic shortcut.")
+    var sided=state.config;sided.commands[0].hotkey="right-cmd+k"
+    try require(Hotkeys.commandBindings(in:sided)["right-cmd+k"]==sided.commands[0].id,"Enabled separation did not route saved app binding.")
+    sided.separateCommandKeys=false
+    try require(Hotkeys.commandBindings(in:sided).isEmpty && sided.commands[0].hotkey=="right-cmd+k","Disabled separation did not pause and retain sided bindings.")
+    sided.separateCommandKeys=nil
+    try require(!Hotkeys.commandBindings(in:sided).isEmpty,"Legacy sided binding stopped routing.")
+    sided.commands[0].enabled=false
+    try require(Hotkeys.commandBindings(in:sided).isEmpty,"Disabled command remained active.")
+    state.setPreference("separateCommandKeys",false);try wait();button.separateCommandKeys=state.config.separatesCommandKeys
+    button.beginRecording();button.keyDown(with:event(40,NSEvent.ModifierFlags(rawValue:NSEvent.ModifierFlags.command.rawValue | UInt(CommandShortcutFilter.rightMask))));try wait()
+    try require(state.config.commands[0].hotkey=="cmd+k","Disabled separation still recorded Right Command.")
+    state.setPreference("separateCommandKeys",true);try wait();button.separateCommandKeys=state.config.separatesCommandKeys
+    try require(!AppState.keyboardHealth(hyperEnabled:false,snippetsEnabled:false,trusted:false,raycastRunning:false,commandShortcutsEnabled:true),"Command-side shortcuts hid missing permission.")
+    try require(!AppState.keyboardHealth(hyperEnabled:false,snippetsEnabled:false,trusted:true,raycastRunning:false,commandShortcutsEnabled:true,inputMonitoring:false),"Command-side shortcuts hid missing Input Monitoring.")
+    try require(AppState.keyboardHealth(hyperEnabled:false,snippetsEnabled:false,trusted:true,raycastRunning:false,commandShortcutsEnabled:true,inputMonitoring:true),"Permitted sided shortcuts marked unhealthy.")
+    try require(AppState.keyboardHealth(hyperEnabled:false,snippetsEnabled:false,trusted:false,raycastRunning:false,commandShortcutsEnabled:false,inputMonitoring:false),"Disabled keyboard features required permissions.")
     var filter=CommandShortcutFilter()
     filter.bindings=try [("right-cmd+k","right"),("left-cmd+k","left"),("shift+right-cmd+k","shifted")].map {CommandShortcutFilter.Binding(shortcut:try Shortcut($0.0),action:$0.1)}
     let right=CGEventFlags(rawValue:CGEventFlags.maskCommand.rawValue | CommandShortcutFilter.rightMask)
@@ -160,8 +183,13 @@ func checkSettings(_ outputPath:String) throws -> [String:Any] {
         for tab in SettingsTab.allCases {
             nav.select(tab)
             window.setContentSize(NSSize(width:980,height:680))
-            try capture("settings-\(dark ? "dark":"light")-\(tab.rawValue.lowercased())",required:tab == .commands ? ["Name","Alias","Shortcut","Enabled","Finder"]:[tab.rawValue])
+            try capture("settings-\(dark ? "dark":"light")-\(tab.rawValue.lowercased())",required:tab == .commands ? ["Name","Alias","Shortcut","Enabled","Finder"]:tab == .general ? ["General","Separate Left and Right Command"]:[tab.rawValue])
         }
+        nav.select(.general);window.setContentSize(NSSize(width:680,height:480))
+        try capture("settings-\(dark ? "dark":"light")-general-small",required:["Separate Left and Right Command"])
+        state.setPreference("separateCommandKeys",false);try wait()
+        try capture("settings-\(dark ? "dark":"light")-general-off",required:["Separate Left and Right Command","paused"])
+        state.setPreference("separateCommandKeys",true);try wait()
         nav.select(.commands);window.setContentSize(NSSize(width:680,height:480))
         try capture("settings-\(dark ? "dark":"light")-small",required:["Alias","Shortcut","Enabled"])
     }
@@ -178,5 +206,5 @@ func checkSettings(_ outputPath:String) throws -> [String:Any] {
         renders+=1
     }
     try require(!window.isVisible && !recordingWindow.isVisible,"Test opened a visible window.")
-    return ["ok":true,"sevenTabs":true,"defaultCommands":true,"recorderHyperArrows":true,"recorderModifierTap":true,"recorderClearCancelFocusLoss":true,"commandKeyEquivalentCaptured":true,"settingsSearchIndependent":true,"disabledSearchExecutionAndSnippets":true,"discoveryCannotBypassDisabledApp":true,"aliasesPreservedOnReenable":true,"reenableHotkeyConflictRejected":true,"cliBackedSaves":true,"runtimeSnapshotDigestRejectsConcurrentEdit":true,"rejectedReloadPreservesClipboard":true,"failedClipboardWriteRestoresHotkeys":true,"retentionPrunesOwnedImageAssets":true,"assetCleanupFailureVisibleAndRetriable":true,"lightDarkRenders":renders,"minimumWidth":680,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"sevenTabs":true,"defaultCommands":true,"recorderHyperArrows":true,"commandSeparationTogglePersistenceAndRouting":true,"commandSeparationRecorderOnOff":true,"recorderModifierTap":true,"recorderClearCancelFocusLoss":true,"commandKeyEquivalentCaptured":true,"settingsSearchIndependent":true,"disabledSearchExecutionAndSnippets":true,"discoveryCannotBypassDisabledApp":true,"aliasesPreservedOnReenable":true,"reenableHotkeyConflictRejected":true,"cliBackedSaves":true,"runtimeSnapshotDigestRejectsConcurrentEdit":true,"rejectedReloadPreservesClipboard":true,"failedClipboardWriteRestoresHotkeys":true,"retentionPrunesOwnedImageAssets":true,"assetCleanupFailureVisibleAndRetriable":true,"lightDarkRenders":renders,"minimumWidth":680,"visibleWindowOpened":false,"desktopInputSent":false]
 }

@@ -40,10 +40,11 @@ public struct ClipboardSettings:Codable,Equatable {
     public init(enabled:Bool=true,limit:Int=200,maxTextBytes:Int=100_000,retentionDays:Int=30,maxAssetBytes:Int?=nil,maxTotalAssetBytes:Int?=nil,excludedApps:[String]=["com.apple.Passwords","com.agilebits.onepassword7","com.1password.1password"]) {self.enabled=enabled;self.limit=limit;self.maxTextBytes=maxTextBytes;self.retentionDays=retentionDays;self.excludedApps=excludedApps;self.maxAssetBytes=maxAssetBytes;self.maxTotalAssetBytes=maxTotalAssetBytes}
 }
 public struct Configuration:Codable,Equatable {
-    public var version:Int;public var launcherHotkey:String;public var clipboardHotkey:String;public var clipboard:ClipboardSettings;public var commands:[Command];public var snippetExpansionEnabled:Bool?;public var hyperKeyEnabled:Bool?;public var theme:String?;public var menuBarVisible:Bool?
+    public var version:Int;public var launcherHotkey:String;public var clipboardHotkey:String;public var clipboard:ClipboardSettings;public var commands:[Command];public var snippetExpansionEnabled:Bool?;public var hyperKeyEnabled:Bool?;public var separateCommandKeys:Bool?;public var theme:String?;public var menuBarVisible:Bool?
     public static let layouts=["left-half","right-half","first-third","center-third","last-third","first-two-thirds","last-two-thirds","maximize","restore","next-screen","previous-screen"]
     public static var initial:Configuration {try! RustCore.decode(Configuration.self,op:"defaults",payload:[:])}
     public func validate() throws {_=try RustCore.call("validate",RustCore.object(self))}
+    public var separatesCommandKeys:Bool {separateCommandKeys ?? true}
     public func search(_ query:String)->[Command] {(try? RustCore.decode([Command].self,op:"search",payload:["commands":try RustCore.object(commands),"query":query])) ?? []}
     public func resolve(_ name:String)->Command? {commands.first {$0.isEnabled && ($0.id.lowercased()==name.lowercased() || $0.aliases.contains {$0.lowercased()==name.lowercased()})}}
 }
