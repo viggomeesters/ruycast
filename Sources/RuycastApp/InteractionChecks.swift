@@ -106,8 +106,18 @@ func checkInteractions() throws -> [String:Any] {
         roundTrip+=decoded
     })
     guard eventPayloadValid,roundTrip==longText else {throw LauncherError("CGEvent Unicode payload changed or truncated.")}
+    let choiceCommand=Command(id:"choice",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Example A, Example B"}{cursor} Ω"#,keyword:";contact")
+    let choiceFields=Templates.fields(choiceCommand)
+    guard choiceFields.first?.options == ["Example A","Example B"] else {throw LauncherError("Choice options were not normalized.")}
+    document.string="prefix ;contact";document.setSelectedRange(NSRange(location:document.string.utf16.count,length:0))
+    let cancelledChoice=SnippetChoiceRequest(command:choiceCommand,pid:42);cancelledChoice.cancel()
+    guard !cancelledChoice.active,document.string=="prefix ;contact" else {throw LauncherError("Cancellation changed the editor.")}
+    let chosen=SnippetChoiceRequest(command:choiceCommand,pid:42)
+    let replacement=try chosen.replacement(values:["Contact":"Example B"],pid:42,safe:true,unchanged:true)
+    replacement.apply(key:{code in if code==51 {document.deleteBackward(nil)} else if code==123 {document.moveLeft(nil)}},insert:{document.insertText($0,replacementRange:document.selectedRange())})
+    guard document.string=="prefix Example B Ω",document.selectedRange().location=="prefix Example B".utf16.count else {throw LauncherError("Choice insertion or cursor position failed.")}
     panel.close()
-    return ["ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 func renderFeatures(_ path:String,theme:String,mode:String) throws {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
@@ -119,9 +129,10 @@ func renderFeatures(_ path:String,theme:String,mode:String) throws {
     if mode=="snippet-editor" {state.newCommand("snippet");state.form?.command.title="Greeting";state.form?.command.target="Hi {cursor},\nThanks for your message.";state.form?.command.keyword=";hello"}
     if mode=="quicklink-form" {state.begin(state.config.commands[4])}
     if mode=="snippets" {state.mode="snippets"}
-    let root:AnyView=mode=="actions" ? AnyView(PaletteActions(state:state).background(Color(nsColor:.windowBackgroundColor))):AnyView(Palette(state:state))
+    let choice=Command(id:"snippet.choice",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Example A, Example B, Example C"}"#,keyword:";contact")
+    let root:AnyView=mode=="snippet-choice" ? AnyView(SnippetChoiceView(command:choice,submit:{_ in},cancel:{})):mode=="actions" ? AnyView(PaletteActions(state:state).background(Color(nsColor:.windowBackgroundColor))):AnyView(Palette(state:state))
     let view=NSHostingView(rootView:root);view.appearance=NSAppearance(named:theme=="dark" ? .darkAqua:.aqua)
-    view.frame=NSRect(x:0,y:0,width:mode=="actions" ? 256:760,height:mode=="actions" ? 380:490);view.layoutSubtreeIfNeeded()
+    view.frame=NSRect(x:0,y:0,width:mode=="snippet-choice" ? 456:mode=="actions" ? 256:760,height:mode=="snippet-choice" ? 200:mode=="actions" ? 380:490);view.layoutSubtreeIfNeeded()
     guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("Could not render features.")}
     view.cacheDisplay(in:view.bounds,to:bitmap)
     guard let data=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Could not encode features.")}
