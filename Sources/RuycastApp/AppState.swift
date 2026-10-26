@@ -449,8 +449,11 @@ final class AppState:ObservableObject {
                 let data=out.fileHandleForReading.readDataToEndOfFile();process.waitUntilExit()
                 guard let result=try JSONSerialization.jsonObject(with:data) as? [String:Any] else {throw LauncherError("Script runner returned an invalid response.")}
                 DispatchQueue.main.async {
-                    if cmd.arguments.contains(where:{$0.hasSuffix("personal_bridge.py")}) {
-                        guard let value=(result["result"] as? [String:Any]) ?? result as [String:Any]?,let stdout=value["stdout"] as? String,let bytes=stdout.data(using:.utf8),let native=try? JSONSerialization.jsonObject(with:bytes) as? [String:Any] else {completion(["ok":false,"error":"The app returned an invalid response. Check its current state before retrying.","exitCode":result["exitCode"] as Any? ?? NSNull(),"diagnostics":["runnerError":String((result["stderr"] as? String ?? "").suffix(2000))]]);return}
+                    let value=(result["result"] as? [String:Any]) ?? result
+                    let native=(value["stdout"] as? String).flatMap {$0.data(using:.utf8)}.flatMap {try? JSONSerialization.jsonObject(with:$0) as? [String:Any]}
+                    let hasUIEnvelope=native?["ok"] as? Bool != nil && (native?["choices"] as? [String:Any] != nil || native?["detail"] as? String != nil)
+                    if cmd.arguments.contains(where:{$0.hasSuffix("personal_bridge.py")}) || hasUIEnvelope || self.scriptChoices?.commandID==cmd.id {
+                        guard let native else {completion(["ok":false,"error":"The app returned an invalid response. Check its current state before retrying.","exitCode":result["exitCode"] as Any? ?? NSNull(),"diagnostics":["runnerError":String((result["stderr"] as? String ?? "").suffix(2000))]]);return}
                         var response=native
                         if let status=value["exitCode"] {response["exitCode"]=status}
                         if result["ok"] as? Bool==false,native["ok"] as? Bool==true {response["ok"]=false;response["error"]=result["error"] ?? "Provider process failed."}

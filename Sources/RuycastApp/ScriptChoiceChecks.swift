@@ -55,5 +55,11 @@ func checkScriptChoicesUI(_ outputPath:String) throws -> [String:Any] {
     state.begin(cmd);try wait()
     try require(state.detail?.contains("Archivering vraagt aandacht")==true && state.message.contains("Mailverwerking"),"Failure report was discarded or shown as success")
     try image("mail-partial-failure")
+    state.detail=nil;state.message=""
+    let generic=root.appendingPathComponent("choices.py");try python.write(to:generic,atomically:true,encoding:.utf8)
+    let genericCommand=Command(id:"fixture.generic-picker",title:"Generic Choices",kind:"script",target:"/usr/bin/python3",arguments:[generic.path,"{input}",saved.path,stale.path])
+    state.config.commands.append(genericCommand);state.begin(genericCommand);try wait()
+    try require(state.scriptChoices?.commandID==genericCommand.id,"Generic script choices were not presented")
+    state.scriptChoiceQuery="PLAN";state.submitScriptChoice();try wait();try require(state.scriptChoices==nil,"Generic script selection did not finish")
     return ["ok":true,"search":true,"keyboard":true,"staleRefused":true,"reload":true,"selectedValueSubmitted":true,"cancel":true,"emptySearchNoWrite":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
