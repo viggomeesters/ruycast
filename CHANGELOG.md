@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.6 — 2026-10-26 · Accessibility read recovery
+
+- Retry temporary Accessibility read failures when selecting a window and reading its frame, so a transient response can recover within the same shortcut.
+- Distinguish an unresponsive app from a genuinely unavailable window attribute; persistent and hard failures remain visible.
+
 ## 0.7.5 — 2026-10-26 · Window placement
 
 - Reapply window size after moving so half-screen layouts fill the available height on the first shortcut.

@@ -6,9 +6,11 @@ final class WindowManager {
     private var saved:[String:Frame]=[:]
     var trusted:Bool { AXIsProcessTrusted() }
     private func attribute(_ element:AXUIElement,_ key:String) throws -> CFTypeRef {
-        var value:CFTypeRef?
-        let status=AXUIElementCopyAttributeValue(element,key as CFString,&value)
-        guard status == .success,let value else { throw LauncherError("This window does not support \(key) (\(status.rawValue)).") };return value
+        try WindowRead.perform(key,retryingStatus:AXError.cannotComplete.rawValue,read:{
+            var value:CFTypeRef?
+            let status=AXUIElementCopyAttributeValue(element,key as CFString,&value)
+            return (status.rawValue,value)
+        })
     }
     private func frame(_ w:AXUIElement) throws -> Frame {
         let p=try attribute(w,kAXPositionAttribute) as! AXValue
