@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.14
+
+- Transfer indexed search results through a catalog-bounded native integer buffer, removing JSON serialization and decoding from each query. Existing matching, ordering, scope and limits remain unchanged.
+
 ## 0.7.13 — 2026-10-26
 
 - Add bounded, privacy-safe interaction stage timings, Instruments signposts and a hidden native interaction benchmark.

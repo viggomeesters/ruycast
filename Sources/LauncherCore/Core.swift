@@ -85,7 +85,7 @@ public enum Files {
 }
 
 @_silgen_name("rustcast_index_new") private func rustcast_index_new(_ catalog:UnsafePointer<CChar>)->OpaquePointer?
-@_silgen_name("rustcast_index_search") private func rustcast_index_search(_ index:OpaquePointer,_ query:UnsafePointer<UInt8>,_ length:Int)->UnsafeMutablePointer<CChar>?
+@_silgen_name("rustcast_index_search_into") private func rustcast_index_search_into(_ index:OpaquePointer,_ query:UnsafePointer<UInt8>,_ length:Int,_ output:UnsafeMutablePointer<Int>?,_ capacity:Int)->Int
 @_silgen_name("rustcast_index_free") private func rustcast_index_free(_ index:OpaquePointer)
 
 /// Main-thread owned immutable catalog. Only query bytes and result indices cross the ABI.
@@ -100,10 +100,14 @@ public final class CommandSearchIndex {
     }
     deinit {rustcast_index_free(index)}
     public func search(_ query:String)->[Command] {
+        guard !commands.isEmpty else {return []}
         let bytes=Array(query.utf8)+[0]
-        guard let result=bytes.withUnsafeBufferPointer({rustcast_index_search(index,$0.baseAddress!,bytes.count-1)}) else {return []}
-        defer {rustcast_free(result)}
-        guard let ids=try? JSONDecoder().decode([Int].self,from:Data(String(cString:result).utf8)),ids.allSatisfy({commands.indices.contains($0)}) else {return []}
-        return ids.map {commands[$0]}
+        // Caller owns a catalog-bounded buffer; results need no JSON/string round trip.
+        var ids=[Int](repeating:0,count:commands.count)
+        let count=ids.withUnsafeMutableBufferPointer {output in
+            bytes.withUnsafeBufferPointer {rustcast_index_search_into(index,$0.baseAddress!,bytes.count-1,output.baseAddress,output.count)}
+        }
+        guard count>=0,count<=ids.count,ids.prefix(count).allSatisfy({commands.indices.contains($0)}) else {return []}
+        return ids.prefix(count).map {commands[$0]}
     }
 }

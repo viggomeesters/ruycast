@@ -37,6 +37,10 @@ struct CoreTests {
         XCTAssertEqual(index.search("nul\0alias").map(\.id),["b"])
         XCTAssertEqual(index.search("   "),commands)
         XCTAssertEqual(index.search("does not exist"),[])
+        var legacy=Configuration.initial;legacy.commands=commands
+        for query in ["go"," BETA ","ÅNGSTRÖM notes","nul\0alias","   ","does not exist","example"] {
+            XCTAssertEqual(index.search(query),legacy.search(query))
+        }
         XCTAssertEqual(try CommandSearchIndex(commands:[]).search(""),[])
         for _ in 0..<100 {let temporary=try CommandSearchIndex(commands:commands);XCTAssertEqual(temporary.search("go").first?.id,"z")}
     }
