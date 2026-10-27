@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import Darwin
 import LauncherCore
 import LauncherModels
 
@@ -18,6 +19,70 @@ import LauncherModels
         state.clipboardWork.drain() // Disk complete, publication deliberately not pumped yet.
         if publish {try wait {!state.clipboardWorkInFlight}}
     }
+#if DEBUG || RUYCAST_POLL_BENCHMARK
+    // Exercise the real production polling boundary with an owned pasteboard.
+    let pollRoot=root.appendingPathComponent("poll")
+    let pollState=try AppState(root:pollRoot,headless:true);defer {pollState.shutdown()}
+    let board=NSPasteboard(name:NSPasteboard.Name("ruycast-poll-"+UUID().uuidString));defer {board.releaseGlobally()}
+    var appReads=0
+    func application()->NSRunningApplication? {appReads+=1;return .current}
+    board.clearContents();board.setString("initial",forType:.string)
+    pollState.pollClipboard(from:board,activeApplication:application) // Unknown initial owner is discarded.
+    try require(!pollState.clipboardWorkInFlight,"Uncertain initial owner was captured")
+    appReads=0
+    for _ in 0..<1000 {pollState.pollClipboard(from:board,activeApplication:application)}
+    try require(appReads==0,"Unchanged clipboard polls still consult application attribution")
+    board.clearContents();board.setString("stable owner",forType:.string)
+    pollState.pollClipboard(from:board,activeApplication:application);try wait {!pollState.clipboardWorkInFlight}
+    try require(pollState.clips.first?.text=="stable owner","Stable owner capture was lost")
+    pollState.clipboardApplicationActivated(getpid())
+    appReads=0;pollState.pollClipboard(from:board,activeApplication:application)
+    try require(appReads==1,"Activation uncertainty did not settle on an unchanged poll")
+    pollState.pollClipboard(from:board,activeApplication:application)
+    try require(appReads==1,"Settled attribution still repeats application work")
+    board.clearContents();board.setString("transition",forType:.string);pollState.clipboardApplicationActivated(getpid())
+    pollState.pollClipboard(from:board,activeApplication:application)
+    try require(!pollState.clipboardWorkInFlight && !pollState.clips.contains {$0.text=="transition"},"Uncertain app transition captured clipboard")
+    board.clearContents();board.setString("settled again",forType:.string)
+    pollState.pollClipboard(from:board,activeApplication:application);try wait {!pollState.clipboardWorkInFlight}
+    try require(pollState.clips.first?.text=="settled again","Capture did not resume after app transition")
+    board.clearContents();board.setString("concealed",forType:.string);board.setData(Data(),forType:NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+    pollState.pollClipboard(from:board,activeApplication:application)
+    try require(!pollState.clipboardWorkInFlight,"Concealed clipboard was captured")
+    pollState.config.clipboard.excludedApps=[NSRunningApplication.current.bundleIdentifier ?? "unknown"]
+    board.clearContents();board.setString("excluded",forType:.string);pollState.pollClipboard(from:board,activeApplication:application)
+    try require(!pollState.clipboardWorkInFlight,"Excluded source was captured")
+    pollState.config.clipboard.excludedApps=[]
+    board.clearContents();board.setString("before provider mutation",forType:.string)
+    var mutationReads=0
+    pollState.pollClipboard(from:board) {
+        mutationReads+=1
+        if mutationReads==1 {board.clearContents();board.setString("after provider mutation",forType:.string)}
+        return .current
+    }
+    try require(!pollState.clipboardWorkInFlight,"Pasteboard mutation during attribution was accepted")
+    pollState.pollClipboard(from:board,activeApplication:application);try wait {!pollState.clipboardWorkInFlight}
+    try require(pollState.clips.first?.text=="after provider mutation","Next poll lost the changed pasteboard count")
+    try require(pollState.processClipboardPayload(.text("already in flight"),source:"fixture"),"In-flight poll fixture could not start")
+    board.clearContents();board.setString("after in flight",forType:.string)
+    appReads=0;pollState.pollClipboard(from:board,activeApplication:application)
+    try require(appReads==0,"In-flight poll consulted attribution or queued another capture")
+    try wait {!pollState.clipboardWorkInFlight}
+    try require(pollState.clips.first?.text=="already in flight","Poll replaced the accepted in-flight capture")
+    pollState.pollClipboard(from:board,activeApplication:application);try wait {!pollState.clipboardWorkInFlight}
+    try require(pollState.clips.first?.text=="after in flight","Polling did not resume after the in-flight capture")
+    pollState.paused=true
+    appReads=0;pollState.pollClipboard(from:board,activeApplication:application)
+    try require(appReads==0,"Paused poll consulted application")
+    pollState.paused=false;pollState.config.clipboard.enabled=false
+    pollState.pollClipboard(from:board,activeApplication:application)
+    try require(appReads==0,"Disabled poll consulted application")
+    pollState.config.clipboard.enabled=true
+    board.clearContents();board.setString("owner changed during capture",forType:.string)
+    var captureReads=0
+    pollState.pollClipboard(from:board) {captureReads+=1;return captureReads==1 ? .current:nil}
+    try require(captureReads==2 && !pollState.clipboardWorkInFlight,"Source change during snapshot was accepted")
+#endif
     try capture("one")
     let one=state.clips[0]
     try capture("capture before import",publish:false)
@@ -91,5 +156,48 @@ import LauncherModels
     try FileManager.default.removeItem(at:assets);try Data("unavailable folder".utf8).write(to:assets)
     try capture("saved despite cleanup failure")
     try require(state.clips.first?.text=="saved despite cleanup failure" && disk()==state.clips && state.clipboardCleanupError != nil,"Cleanup failure lost a persisted capture or hid its error")
-    return ["ok":true,"cleanupFailurePreservesCapture":true,"captureQueueBounded":true,"importDeleteReloadPreserveAcceptedCapture":true,"clearPreventsResurrection":true,"imageRoundTripAndRestart":true,"unicodeFilterParity":true,"rapidQueries":1000,"selectedIdentityPreserved":true,"atomicConfigReloadAndInvalidRecovery":true,"unrelatedConfigReads":readsAfter-before,"desktopEffects":false]
+    let result:[String:Any]=["ok":true,"cleanupFailurePreservesCapture":true,"captureQueueBounded":true,"importDeleteReloadPreserveAcceptedCapture":true,"clearPreventsResurrection":true,"imageRoundTripAndRestart":true,"unicodeFilterParity":true,"rapidQueries":1000,"selectedIdentityPreserved":true,"atomicConfigReloadAndInvalidRecovery":true,"unrelatedConfigReads":readsAfter-before,"desktopEffects":false]
+#if DEBUG || RUYCAST_POLL_BENCHMARK
+    return result.merging(["unchangedClipboardPollsSkipAttribution":true,"clipboardAttributionTransitionsPreserved":true]) {_,new in new}
+#else
+    return result
+#endif
 }
+
+#if RUYCAST_POLL_BENCHMARK
+/// Matched polling work on a named pasteboard, never desktop input or user content.
+/// Tight-loop CPU cost is separate from the unchanged 0.75-second capture timer.
+@MainActor func benchmarkClipboardPoll(ticks:Int,active:Bool) throws -> [String:Any] {
+    guard ProcessInfo.processInfo.environment["RUYCAST_CONFIG_DIR"]==nil else {throw LauncherError("Unset RUYCAST_CONFIG_DIR before running the isolated polling fixture.")}
+    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
+    let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-poll-"+String(UUID().uuidString.prefix(8)))
+    defer {try? FileManager.default.removeItem(at:root)}
+    let state=try AppState(root:root,headless:true);defer {state.shutdown()}
+    state.config.clipboard.limit=20
+    let board=NSPasteboard(name:NSPasteboard.Name("ruycast-poll-bench-"+UUID().uuidString));defer {board.releaseGlobally()}
+    var reads=0,pids=Set<pid_t>()
+    func application()->NSRunningApplication? {
+        reads+=1;let app=NSWorkspace.shared.frontmostApplication
+        if let pid=app?.processIdentifier {pids.insert(pid)}
+        return app
+    }
+    func settle() throws {
+        let end=Date().addingTimeInterval(5)
+        while state.clipboardWorkInFlight,Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.0002))}
+        if state.clipboardWorkInFlight {throw LauncherError("Polling fixture capture timed out")}
+    }
+    board.clearContents();board.setString("warm",forType:.string)
+    state.pollClipboard(from:board,activeApplication:application)
+    board.clearContents();board.setString("settled",forType:.string)
+    state.pollClipboard(from:board,activeApplication:application);try settle();reads=0;pids=[]
+    func cpu()->Double {var usage=rusage();getrusage(RUSAGE_SELF,&usage);return Double(usage.ru_utime.tv_sec+usage.ru_stime.tv_sec)+Double(usage.ru_utime.tv_usec+usage.ru_stime.tv_usec)/1_000_000}
+    let began=DispatchTime.now().uptimeNanoseconds,initialCPU=cpu()
+    for i in 0..<ticks {try autoreleasepool {
+        if active,i%4==0 {board.clearContents();board.setString("Fixture \(i%64)",forType:.string)}
+        state.pollClipboard(from:board,activeApplication:application)
+        try settle()
+    }}
+    let elapsed=Double(DispatchTime.now().uptimeNanoseconds-began)/1_000_000_000,usedCPU=cpu()-initialCPU
+    return ["ok":true,"schema":1,"mode":active ? "changed-every-fourth-poll":"unchanged","ticks":ticks,"applicationReads":reads,"distinctForegroundPIDs":pids.count,"elapsedSeconds":elapsed,"cpuSeconds":usedCPU,"retainedClips":state.clips.count,"scope":"Tight-loop named-pasteboard polling cost; ordinary timer unchanged; no general clipboard, hotkeys, visible UI, physical energy or battery claim"]
+}
+#endif

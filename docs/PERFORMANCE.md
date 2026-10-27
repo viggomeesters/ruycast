@@ -205,3 +205,38 @@ Successful pipeline receipts record separate stage durations, lock-wait time, in
 One fresh-output release build per variant in the same disposable extracted 0.8.4 source took 83.08 seconds before and 83.92 seconds with the candidate orchestration. Three subsequent cached builds took 3.434/1.697/1.663 seconds before and 1.724/1.558/1.514 seconds after. Toolchain/OS caches were not flushed. The candidate measurement preceded the final expanded receipt-input coverage and version-only 0.8.5 literals. These observations describe build cost; they do not establish a relative speedup. The accepted benefit is avoiding invalid/racy checks and repeated recovery work.
 
 Eight disposable subprocess tests cover competing builds, live consumers surviving controller crash/interruption, failed builds, edits during checks, stale receipts after source/module/binary changes, failed-attempt cleanup, and all three verification wrappers. These are real kernel leases with stub compilers; full native integration remains separately required. A lease serializes one checkout only. Concurrent work in other checkouts can still distort CPU measurements.
+
+## Recurring clipboard attribution work (0.8.6)
+
+The ordinary clipboard timer remains at0.75seconds. When its pasteboard count is unchanged and no app-activation uncertainty needs settling, it now returns before resolving the foreground application. Activation still forces an ordinary settling poll; a changed payload still validates its source and count after the snapshot. Paused, disabled and in-flight capture, concealed/transient/generated types, excluded apps and a source switch during capture retain their guards. A missed activation notification remains conservative: a different observed PID discards that changed payload rather than assigning it to the wrong app.
+
+The named-pasteboard regression first failed against the extracted original polling body at1,000 unchanged polls. The candidate covers stable capture, activation with and without a new payload, resume after settling, pasteboard mutation during attribution followed by the next successful poll, source mutation during snapshot, excluded/concealed content and polling while a prior capture is still in flight. Fixtures install no global keyboard hooks, read no general clipboard, and open no visible window.
+
+Six frozen release runs alternated baseline, candidate, candidate, baseline, baseline, candidate on the same M4. The baseline keeps the original poll body behind the same named-pasteboard/provider seam and benchmark driver. These are tight-loop cost observations, with three runs per variant; they do not measure native idle sessions or physical energy.
+
+| Workload | Original app lookups | Candidate app lookups | Original median CPU | Candidate median CPU |
+| --- | --- | --- | --- | --- |
+| 10,000 unchanged polls | 10,000 | 0 | 7.325 ms | 6.377 ms |
+| 1,000 polls, changed every fourth poll | 1,250 | 500 | 166.722 ms | 167.196 ms |
+
+The unchanged difference is only0.0948microseconds per poll. Original CPU ranges were7.255–9.245ms; candidate6.337–7.042ms. Active ranges overlap (164.386–170.755ms versus164.465–167.401ms), so no active CPU improvement is established. Foreground-app property calls are not proven IPC requests. No whole-app CPU, wakeup, energy or battery saving follows from eliminating them.
+
+The cost driver is opt-in at compile time. The new regression body is compiled in debug builds and in this explicit benchmark build; ordinary releases keep the original pipeline checks and omit the new regression result fields. The task requires debug Settings checks as well as ordinary integration checks. Production polling logic is identical in all configurations:
+
+```sh
+bash scripts/build-native.sh -c release -Xswiftc -DRUYCAST_POLL_BENCHMARK
+.build/swift/release/RuycastApp --benchmark-clipboard-poll 10000
+.build/swift/release/RuycastApp --benchmark-clipboard-poll 1000 active
+```
+
+An ordinary build rejects that fixture flag before starting the app. The opt-in fixture rejects an ambient `RUYCAST_CONFIG_DIR` before creating state, keeping the fixture profile isolated. Rebuild without the define for installation. Keep frozen copies for alternating experiments. The original prototype's source and executable hashes remain separate from the default0.8.6 candidate; the production poll logic is unchanged after the six-run experiment.
+
+The recurring-work inventory retained the5-second configuration metadata fallback with500ms leeway,2-second keyboard/snippet recovery checks,60-second history/assets maintenance, the active-only2-second monitor, and coalesced event-driven analytics/log writers. Slowing capture or removing recovery checks was rejected. Physical power sampling requires unavailable administrator credentials in this session; CPU, wakeups and I/O remain separate observed metrics, with no energy claim.
+
+Four additional frozen headless runs used ABBA order, the same CLI,500 commands/200 text fixtures,10 new-process starts,200 observations per CLI operation,15seconds active and60seconds idle. This host mode does not run the native clipboard poll; it checks the common background path rather than proving the targeted optimization's benefit. Active CPU ranges overlapped:18.04–18.92% baseline and17.95–20.01% candidate of one core. Idle CPU likewise overlapped:0.093–0.127% and0.091–0.119%. Interrupt wakeups stayed about0.267/s in all four runs; each idle window wrote8,192 disk bytes. One first baseline read69,632 bytes; the others read0, with ordinary OS caches left intact. No I/O reduction is claimed.
+
+New-process RPC readiness p95 ranged133.4–142.6ms versus136.1–138.2ms. Status p95 ranged14.29–19.91ms versus12.21–12.79ms; search2.91–3.34ms across all runs. These short noisy host observations do not establish a causal CLI speedup; the native polling gate is not executed in headless mode.200samples are insufficient for the fixture's p99 reporting. Individual status maxima can exceed50ms even while the existing p95 budget passes.
+
+A separate600-second passive observation of installed0.8.5build45 used121 OS counter samples:0.1016% of one CPU core,2.076 interrupt wakeups/s,54.24→54.61MiB footprint,2,113,536 disk bytes read and65,536 written. The PID and installed executable remained unchanged. Ordinary user and development activity was allowed, so this is contextual baseline evidence, not an enforced idle or paired causal energy comparison.
+
+The diagnostic split was measured before acceptance. Prepared source-build host bytes are3,396,408 for0.8.5,3,412,952 for the0.8.6opt-in benchmark build, and3,396,424 for the ordinary0.8.6build: the ordinary host is16bytes larger, while the optional diagnostic body adds16,528bytes. The first unsplit ordinary prototype was3,412,856bytes and was rejected as the default. These are executable file bytes before local installation signing, not resident-memory measurements. The ordinary binary rejects the cost-driver flag without starting the app; the opt-in binary runs the new regression guards and rejects an external config-directory override. All old release pipeline checks run in the ordinary binary; new guard result fields appear only when those guards actually ran.

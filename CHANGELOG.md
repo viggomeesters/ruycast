@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.6 — 2026-10-27
+
+- Skip foreground-app attribution lookups for unchanged clipboard polls, while preserving activation settling, capture cadence, excluded/concealed sources and snapshot validation.
+- Add named-pasteboard regression coverage for app/pasteboard transitions, in-flight capture and paused/disabled polling. Keep the polling cost benchmark behind an opt-in compiler flag. No energy or battery improvement is claimed.
+
 ## 0.8.5 — 2026-10-27
 
 - Keep build artifacts protected through all local test, Settings and performance consumers, including controller interruption. Concurrent builds wait instead of removing a running check's executable.

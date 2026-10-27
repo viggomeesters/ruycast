@@ -10,6 +10,13 @@ let args=Array(CommandLine.arguments.dropFirst())
 let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["RUYCAST_HOME"] ?? ProcessInfo.processInfo.environment["RUSTCAST_HOME"] ?? defaultProfilePath())
 func output(_ value:[String:Any]) {if let data=try? JSONSerialization.data(withJSONObject:value,options:[.sortedKeys]),let s=String(data:data,encoding:.utf8) {print(s)}}
 
+if args.first=="--benchmark-clipboard-poll" {
+#if RUYCAST_POLL_BENCHMARK
+    do {let ticks=args.count>1 ? Int(args[1]):10000;guard let ticks,ticks>0,ticks<=100000 else {throw LauncherError("Expected 1–100000 polls")};output(try benchmarkClipboardPoll(ticks:ticks,active:args.contains("active")));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
+#else
+    output(["ok":false,"error":"Build with -Xswiftc -DRUYCAST_POLL_BENCHMARK to run this fixture."]);exit(1)
+#endif
+}
 if args.first=="--check-concurrency" {do {output(try checkConcurrencyOwnership());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--benchmark-interactions" {do {output(try checkInteractionPerformance());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-script-choices" {
