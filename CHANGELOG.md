@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.5 — 2026-10-27
+
+- Keep build artifacts protected through all local test, Settings and performance consumers, including controller interruption. Concurrent builds wait instead of removing a running check's executable.
+- Bind successful pipeline receipts to current source, test/export inputs and consumed binaries/modules; reject stale proof and remove old passes when a new attempt fails. Preserve all existing checks.
+
 ## 0.8.4 — 2026-10-27
 
 - Size-optimize only the Rust CLI adapter while retaining speed optimization for the shared search kernel.

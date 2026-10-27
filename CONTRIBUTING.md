@@ -13,6 +13,12 @@ bash scripts/check-settings.sh
 
 Run `bash scripts/check-performance.sh` when changing search, clipboard queues, icon work or lifecycle behavior. Use an isolated `RUYCAST_HOME` profile for experiments. Build output lives in `.build`; runtime profiles and personal data do not belong in Git.
 
+Builds, `check`, Settings and performance checks share one checkout-local artifact lease through the final consumer. Concurrent entrypoints wait rather than cleaning a running check's binaries. Settings checks build the current debug host first. Internal `*-locked.sh` helpers must only run through their public wrappers.
+
+Successful pipelines write `.build/receipts/check.json`, `settings.json` or `performance.json` with stage timings and hashes of inputs and consumed binaries/modules. Revalidate with `python3 scripts/build_receipt.py verify-check` (or `verify-settings` / `verify-performance`). Source, test, export-input or artifact edits make a receipt stale; a failed new attempt removes the previous pass. Receipts are local evidence, not signatures or physical desktop acceptance.
+
+The lease descriptor is inherited by synchronous consumers. If the controller is interrupted, a still-running child keeps the lease until it exits; another build can therefore keep waiting after cancellation. Avoid deleting `.build/artifacts.lock` or invoking the internal helpers directly. Separate checkouts have separate leases and can still contend for CPU during measurements.
+
 ## Scope and evidence
 
 Keep each change focused on a user-visible outcome. Describe the trigger, resulting behavior and relevant validation in your pull request. Preserve CLI/configuration compatibility, atomic writes, permission boundaries and clear error feedback.
