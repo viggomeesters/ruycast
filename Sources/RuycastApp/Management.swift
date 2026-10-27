@@ -50,7 +50,7 @@ final class ManagementNavigation:ObservableObject {
 }
 
 struct ManagementView:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     @ObservedObject var navigation:ManagementNavigation
     @Environment(\.colorScheme) private var scheme
     @State private var pendingRemove:Command?
@@ -176,7 +176,7 @@ struct ManagementView:View {
             preferenceRow("Configuration Folder") {VStack(alignment:.trailing,spacing:6) {Text(state.configDirectory.path).font(.caption).foregroundStyle(theme.muted).lineLimit(2).truncationMode(.middle).textSelection(.enabled);Button("Choose Folder…",action:state.chooseConfigurationDirectory)}}
             preferenceRow("Reload") {Button("Reload Configuration") {do {try state.reload();state.message="";state.showToast?("Configuration reloaded",true)} catch {state.message=error.localizedDescription}}}
             preferenceRow("Permissions") {Button("Accessibility…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)}}
-            preferenceRow("Version") {Text("Ruycast 0.8.0").foregroundStyle(theme.muted)}
+            preferenceRow("Version") {Text("Ruycast 0.8.1").foregroundStyle(theme.muted)}
         }
     }
     private func preferences<Content:View>(_ title:String,@ViewBuilder content:()->Content)->some View {
@@ -197,7 +197,7 @@ struct ManagementView:View {
 func jsonString(_ text:String)->String {String(data:try! JSONEncoder().encode(text),encoding:.utf8)!}
 
 private struct SettingsCommandRow:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     let command:Command
     let theme:SettingsTheme
     var onEdit:()->Void
@@ -225,7 +225,7 @@ private struct SettingsCommandRow:View {
 }
 
 private struct ClipboardPreferences:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     let theme:SettingsTheme
     @State private var limit=200
     @State private var days=30

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import Observation
 import LauncherCore
 import LauncherModels
 
@@ -153,13 +154,20 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
                 management=ManagementController(state:s)
                 monitor=SystemMonitorController(state:s)
                 updateMenuBar()
-                s.$config.receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
-                s.$configError.combineLatest(s.$clipboardCleanupError).receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
+                observeMenuBarState()
                 for name in [NSWorkspace.didLaunchApplicationNotification,NSWorkspace.didTerminateApplicationNotification] {NSWorkspace.shared.notificationCenter.publisher(for:name).receive(on:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)}
                 s.analytics.objectWillChange.debounce(for:.seconds(2),scheduler:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
 
             }
         } catch {fputs(error.localizedDescription+"\n",stderr);NSApp.terminate(nil)}
+    }
+    func observeMenuBarState() {
+        guard let state else {return}
+        withObservationTracking {
+            _=state.config;_=state.configError;_=state.clipboardCleanupError
+        } onChange: { [weak self] in
+            DispatchQueue.main.async { [weak self] in self?.updateMenuBar();self?.observeMenuBarState() }
+        }
     }
     func updateMenuBar() {
         guard let state else {return}

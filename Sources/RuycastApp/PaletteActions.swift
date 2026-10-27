@@ -53,7 +53,7 @@ extension AppState {
     }
 }
 struct PaletteActions:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     var body:some View {
         let items=state.actionItems
         VStack(alignment:.leading,spacing:3) {
