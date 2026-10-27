@@ -6,7 +6,7 @@ import LauncherModels
 struct PaletteConfirmation {let command:Command;let removing:Bool}
 
 struct Palette:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     @Environment(\.colorScheme) private var colorScheme
     private var pendingConfirmation:PaletteConfirmation? {
         if let command=state.pendingRemoval {return PaletteConfirmation(command:command,removing:true)}
@@ -66,7 +66,7 @@ struct Palette:View {
                     Text("Paste ↵").foregroundStyle(.secondary)
                 } else {Text(state.mode=="processes" ? "Kill ↵":"Open ↵").foregroundStyle(.secondary)}
                 Button("Actions ⌘K") {state.actionsOpen.toggle()}.buttonStyle(.plain).keyboardShortcut("k",modifiers:.command)
-                    .popover(isPresented:$state.actionsOpen,arrowEdge:.bottom) {PaletteActions(state:state)}
+                    .popover(isPresented:Binding(get:{state.actionsOpen},set:{state.actionsOpen=$0}),arrowEdge:.bottom) {PaletteActions(state:state)}
                 Button {
                     if state.mode=="processes" {state.refreshProcessResults();return}
                     state.handle(["op":"reload"]) {r in

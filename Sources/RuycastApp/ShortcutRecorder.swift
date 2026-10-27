@@ -78,7 +78,7 @@ final class ShortcutRecordButton:NSButton {
     }
 }
 struct ShortcutRecorder:NSViewRepresentable {
-    @ObservedObject var state:AppState
+    let state:AppState
     var value:String?
     var onSave:(String?)->Void
     func makeNSView(context:Context)->ShortcutRecordButton {

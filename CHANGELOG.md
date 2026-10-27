@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 — 2026-10-27
+
+- Give palette, clipboard, settings and command catalog separate observable owners; SwiftUI tracks the properties each consumer reads.
+- Keep clipboard query and selection independent from command typing/navigation, preserving persistent native hosts and selected clipboard identity.
+- Remove the broad Combine invalidation gate and keep appearance-only changes from rebuilding the search catalog.
+- Preserve command generation/cancellation rules and update menu health through explicit Observation dependencies.
+
 ## 0.8.0 — 2026-10-27
 
 - Compile portable command models as a separate Swift 6 module and import the Rust ABI through a checked C header.

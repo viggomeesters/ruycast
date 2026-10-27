@@ -46,6 +46,10 @@ func benchmarkLifecycle(blocks:Int=10,render:Bool=true,component:String="palette
     for i in 1...blocks {try block(100);pump(0.2);drawFrame();samples.append(["cycles":i*100,"footprintBytes":footprint()]);if i%10==0 {fputs("lifecycle cycles=\(i*100) footprintMiB=\(Double(footprint())/1048576)\n",stderr)}}
     if render,component=="palette",let view=palette?.panel.contentView {
         guard container(view) === retainedContainer else {throw LauncherError("Mode switching replaced native results container")}
+        state.mode="clipboard";pump(0.1)
+        guard retainedContainer?.commands.isHidden==true,retainedContainer?.clipboard.isHidden==false else {throw LauncherError("Observable clipboard mode did not update native visibility")}
+        state.mode="commands";pump(0.1)
+        guard retainedContainer?.commands.isHidden==false,retainedContainer?.clipboard.isHidden==true else {throw LauncherError("Observable command mode did not update native visibility")}
     }
     pump(2);let end=footprint(),start=samples[0]["footprintBytes"] as! UInt64
     let monitor=SystemMonitorModel()
@@ -56,10 +60,10 @@ func benchmarkLifecycle(blocks:Int=10,render:Bool=true,component:String="palette
 }
 
 private struct LifecycleSearchProbe:View {
-    @ObservedObject var state:AppState
-    var body:some View {PaletteSearchField(text:$state.query,placeholder:"Search",onMove:{_ in},onSubmit:{},onCancel:{},onActions:{})}
+    let state:AppState
+    var body:some View {PaletteSearchField(text:Binding(get:{state.query},set:{state.query=$0}),placeholder:"Search",onMove:{_ in},onSubmit:{},onCancel:{},onActions:{})}
 }
 private struct LifecycleLabelProbe:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     var body:some View {Text(state.query).textSelection(.enabled)}
 }

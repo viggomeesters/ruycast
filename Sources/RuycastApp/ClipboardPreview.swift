@@ -65,38 +65,13 @@ final class ClipboardPreviewModel:ObservableObject {
     }
     deinit {queue.cancelAllOperations()}
 }
-/// Hidden command typing does not invalidate the clipboard subtree. Data
-/// changes still invalidate it so deleted content cannot remain in previews.
-final class ClipboardRenderGate:ObservableObject {
-    weak var state:AppState?
-    private var subscription:AnyCancellable?
-    private var pending=false
-    private var active:Bool
-    private var dataRevision:Int
-    private(set) var invalidations=0
-    init(state:AppState) {
-        self.state=state;active=state.mode=="clipboard";dataRevision=state.clipboardDataRevision
-        subscription=state.objectWillChange.sink { [weak self] _ in
-            guard let self,!self.pending else {return};self.pending=true
-            DispatchQueue.main.async { [weak self] in self?.refresh() }
-        }
-    }
-    private func refresh() {
-        pending=false;guard let state else {return}
-        let visible=state.mode=="clipboard",revision=state.clipboardDataRevision
-        guard visible || visible != active || revision != dataRevision else {return}
-        active=visible;dataRevision=revision;invalidations+=1;objectWillChange.send()
-    }
-}
 struct ClipboardHistoryView:View {
     let state:AppState
-    @StateObject private var updates:ClipboardRenderGate
     @StateObject private var preview=ClipboardPreviewModel()
     @State private var retainedSelectionID:String?
     @State private var imageMetadata:(id:String,width:Int,height:Int,bytes:Int)?
-    init(state:AppState) {self.state=state;_updates=StateObject(wrappedValue:ClipboardRenderGate(state:state))}
     @Environment(\.colorScheme) private var scheme
-    private var actualSelection:Clip? {state.mode=="clipboard" && !state.clipboardSearchBusy && state.filteredClips.indices.contains(state.selection) ? state.filteredClips[state.selection]:nil}
+    private var actualSelection:Clip? {state.mode=="clipboard" && !state.clipboardSearchBusy && state.filteredClips.indices.contains(state.clipboardSelection) ? state.filteredClips[state.clipboardSelection]:nil}
     private var selected:Clip? {actualSelection ?? retainedSelectionID.flatMap {id in state.clips.first(where:{$0.id==id})}}
     var body:some View {
         GeometryReader {geometry in
@@ -106,19 +81,19 @@ struct ClipboardHistoryView:View {
                     LazyVStack(alignment:.leading,spacing:2) {
                         HStack {Text("Clipboard").font(.system(size:12,weight:.medium)).foregroundStyle(.secondary);Spacer();Button(state.paused ? "Resume":"Pause") {state.handle(["op":"clipboard.pause","paused":!state.paused]) {_ in}}.buttonStyle(.plain).font(.caption)}.padding(.horizontal,10).padding(.vertical,10)
                         ForEach(Array(state.filteredClips.enumerated()),id:\.element.id) {index,clip in
-                            Button {state.selection=index} label:{
+                            Button {state.clipboardSelection=index} label:{
                                 HStack(spacing:9) {
                                     Image(systemName:clip.contentType=="image" ? "photo":clip.contentType=="files" ? "doc":"doc.text").frame(width:20).foregroundStyle(.secondary)
                                     VStack(alignment:.leading,spacing:3) {
                                         Text(title(clip)).font(.system(size:13,weight:.medium)).lineLimit(2).multilineTextAlignment(.leading)
                                         Text(clip.date.formatted(date:.omitted,time:.shortened)).font(.system(size:11)).foregroundStyle(.secondary)
                                     };Spacer(minLength:0)
-                                }.padding(.horizontal,9).padding(.vertical,9).frame(maxWidth:.infinity,alignment:.leading).background(index==state.selection ? Color.primary.opacity(0.09):.clear,in:RoundedRectangle(cornerRadius:7)).contentShape(Rectangle())
+                                }.padding(.horizontal,9).padding(.vertical,9).frame(maxWidth:.infinity,alignment:.leading).background(index==state.clipboardSelection ? Color.primary.opacity(0.09):.clear,in:RoundedRectangle(cornerRadius:7)).contentShape(Rectangle())
                             }.buttonStyle(.plain).id(clip.id)
                         }
-                        if state.filteredClips.isEmpty {Text(state.clipboardSearchBusy ? "Searching…":state.query.isEmpty ? "Clipboard is empty":"No clipboard items found").foregroundStyle(.secondary).font(.caption).padding(24)}
+                        if state.filteredClips.isEmpty {Text(state.clipboardSearchBusy ? "Searching…":state.clipboardQuery.isEmpty ? "Clipboard is empty":"No clipboard items found").foregroundStyle(.secondary).font(.caption).padding(24)}
                     }.padding(.horizontal,8).padding(.bottom,10)
-                }.onChange(of:state.selection) {_,_ in if state.mode=="clipboard",let actualSelection {proxy.scrollTo(actualSelection.id)}}}.frame(width:contentWidth*0.4)
+                }.onChange(of:state.clipboardSelection) {_,_ in if state.mode=="clipboard",let actualSelection {proxy.scrollTo(actualSelection.id)}}}.frame(width:contentWidth*0.4)
                 Divider()
                 detail(padding:min(24,contentWidth*0.04))
                     .disabled(actualSelection==nil).accessibilityHidden(actualSelection==nil)

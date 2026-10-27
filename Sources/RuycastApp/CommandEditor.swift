@@ -16,7 +16,7 @@ struct CommandForm:Identifiable {
     var source="launcher"
 }
 struct CommandEditor:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     @State var form:CommandForm
     var onBack:(()->Void)?=nil
     @FocusState private var focused:Bool

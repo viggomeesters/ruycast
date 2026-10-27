@@ -1,49 +1,56 @@
 import AppKit
-import Combine
+import Observation
 import CryptoKit
 import LauncherCore
 import LauncherModels
 
 func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject(with:Files.encode(value))) ?? NSNull() }
 
-final class AppState:ObservableObject {
+final class AppState {
+    let settings:LauncherSettingsState
+    let paletteSession=PaletteSession()
+    let clipboardState=ClipboardState()
+    let catalogState=CatalogState()
     let root:URL
-    @Published var configDirectory:URL
+    var configDirectory:URL {get {settings.configDirectory} set {settings.configDirectory=newValue}}
     let headless:Bool
     let searchRanking:SearchRanking
     var applicationURL:(String)->URL? = {NSWorkspace.shared.urlForApplication(withBundleIdentifier:$0)}
     var openApplication:(URL,@escaping(Error?)->Void)->Void = {url,completion in
         NSWorkspace.shared.openApplication(at:url,configuration:NSWorkspace.OpenConfiguration()) {_,error in DispatchQueue.main.async {completion(error)}}
     }
-    @Published var config:Configuration {didSet {rebuildCatalog()}}
-    var clipboardDataRevision=0
-    @Published var clips:[Clip]=[] {didSet {
-        clipboardDataRevision+=1;clipboardWork.invalidate()
+    var config:Configuration {
+        get {settings.config}
+        set {
+            let catalogChanged=settings.config.commands != newValue.commands
+            settings.config=newValue
+            if catalogChanged {rebuildCatalog()}
+        }
+    }
+    var clipboardDataRevision:Int {get {clipboardState.clipboardDataRevision} set {clipboardState.clipboardDataRevision=newValue}}
+    var clips:[Clip] {get {clipboardState.clips} set {clipboardState.clips=newValue;clipboardDataRevision+=1;clipboardWork.invalidate()
         if mode != "clipboard" {
             let current=Dictionary(clips.map {($0.id,$0)},uniquingKeysWith:{$1})
             filteredClips=filteredClips.compactMap {current[$0.id]}
         }
-        refreshClips(preserveSelection:paletteVisible)
-    }}
-    @Published var query="" {didSet {if query != oldValue {captureInlineQuery();refreshResults();refreshClips()}}}
-    @Published var mode="commands" {didSet {if mode != oldValue {inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
-    @Published var selection=0
-    @Published var actionSelection=0
-    @Published var pendingRemoval:Command?
+        refreshClips(preserveSelection:paletteVisible)}}
+    var query:String {get {paletteSession.query} set {let oldValue=paletteSession.query;paletteSession.query=newValue;if mode=="clipboard" {clipboardState.query=newValue};if query != oldValue {captureInlineQuery();refreshResults();refreshClips()}}}
+    var mode:String {get {paletteSession.mode} set {let oldValue=paletteSession.mode;paletteSession.mode=newValue;if mode != oldValue {inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
+    var selection:Int {get {mode=="clipboard" ? clipboardState.selection:paletteSession.selection} set {if mode=="clipboard" {clipboardState.selection=newValue} else {paletteSession.selection=newValue}}}
+    var clipboardSelection:Int {get {clipboardState.selection} set {clipboardState.selection=newValue}}
+    var clipboardQuery:String {clipboardState.query}
+    var actionSelection:Int {get {paletteSession.actionSelection} set {paletteSession.actionSelection=newValue}}
+    var pendingRemoval:Command? {get {paletteSession.pendingRemoval} set {paletteSession.pendingRemoval=newValue}}
     var restoreSearchFocus:(()->Void)?
-    @Published var actionsOpen=false {didSet {
-        if actionsOpen && !oldValue {actionSelection=0}
-        if !actionsOpen && oldValue {restoreSearchFocus?()}
-    }}
-    @Published var inlineCommand:Command?
+    var actionsOpen:Bool {get {paletteSession.actionsOpen} set {let oldValue=paletteSession.actionsOpen;paletteSession.actionsOpen=newValue;if actionsOpen && !oldValue {actionSelection=0}
+        if !actionsOpen && oldValue {restoreSearchFocus?()}}}
+    var inlineCommand:Command? {get {paletteSession.inlineCommand} set {paletteSession.inlineCommand=newValue}}
     var inlineSource="launcher"
-    @Published var inlineInput="" {didSet {
-        if let command=inlineCommand,TaskDateInput.supports(command) {inlineDatePreview=TaskDateInput.resolve(inlineInput);message=""}
-        else {inlineDatePreview=nil}
-    }}
-    @Published var inlineDatePreview:TaskDateInput?
-    @Published var form:CommandForm?
-    @Published var confirmationCommand:Command?
+    var inlineInput:String {get {paletteSession.inlineInput} set {paletteSession.inlineInput=newValue;if let command=inlineCommand,TaskDateInput.supports(command) {inlineDatePreview=TaskDateInput.resolve(inlineInput);message=""}
+        else {inlineDatePreview=nil}}}
+    var inlineDatePreview:TaskDateInput? {get {paletteSession.inlineDatePreview} set {paletteSession.inlineDatePreview=newValue}}
+    var form:CommandForm? {get {paletteSession.form} set {paletteSession.form=newValue}}
+    var confirmationCommand:Command? {get {paletteSession.confirmationCommand} set {paletteSession.confirmationCommand=newValue}}
     let commandLog:CommandLog
     let analytics:AnalyticsStore
     let systemServices:SystemServices
@@ -52,37 +59,34 @@ final class AppState:ObservableObject {
     private(set) var clipboardWorkInFlight=false
     private var configObserver:ConfigurationObserver?
     private let clipboardSearch=ClipboardSearch()
-    private(set) var clipboardSearchBusy=false
+    private(set) var clipboardSearchBusy:Bool {get {clipboardState.clipboardSearchBusy} set {clipboardState.clipboardSearchBusy=newValue}}
     lazy var utilities=Utilities(root:root)
-    @Published var scriptChoices:ScriptChoiceSession?
-    @Published var scriptChoiceQuery="" {didSet {scriptChoiceSelection=0}}
-    @Published var scriptChoiceSelection=0
-    @Published var detail:String?
+    var scriptChoices:ScriptChoiceSession? {get {paletteSession.scriptChoices} set {paletteSession.scriptChoices=newValue}}
+    var scriptChoiceQuery:String {get {paletteSession.scriptChoiceQuery} set {paletteSession.scriptChoiceQuery=newValue;scriptChoiceSelection=0}}
+    var scriptChoiceSelection:Int {get {paletteSession.scriptChoiceSelection} set {paletteSession.scriptChoiceSelection=newValue}}
+    var detail:String? {get {paletteSession.detail} set {paletteSession.detail=newValue}}
     private var resultGeneration=0
     var serviceCommands:[String:Command]=[:]
     var configurationSnapshot:Data {configBytes}
     var configDigestForSave:String {SHA256.hash(data:configBytes).map {String(format:"%02x",$0)}.joined()}
-    @Published var message=""
-    @Published var busy=false
-    @Published var paused=false
-    @Published var clipboardCleanupError:String?
-    @Published var configError:String?
-    @Published var applications:[Command]=[] {didSet {rebuildCatalog()}}
+    var message:String {get {paletteSession.message} set {paletteSession.message=newValue}}
+    var busy:Bool {get {paletteSession.busy} set {paletteSession.busy=newValue}}
+    var paused:Bool {get {clipboardState.paused} set {clipboardState.paused=newValue}}
+    var clipboardCleanupError:String? {get {clipboardState.clipboardCleanupError} set {clipboardState.clipboardCleanupError=newValue}}
+    var configError:String? {get {settings.configError} set {settings.configError=newValue}}
+    var applications:[Command] {get {catalogState.applications} set {catalogState.applications=newValue;rebuildCatalog()}}
     var counts:[String:Int]=[:] {didSet {if query.isEmpty {refreshResults()}}}
-    @Published private(set) var results:[Command]=[] {didSet {rebuildProcessOrder()}}
-    private(set) var processOrder:[Command]=[]
-    @Published private(set) var filteredClips:[Clip]=[]
-    private var searchIndex:CommandSearchIndex?
-    private var preparedSearch:PreparedCommandSearch?
-    private var preparedRankingRevision:UInt64?
-    private(set) var searchPreparationCount=0
+    private(set) var results:[Command] {get {catalogState.results} set {catalogState.results=newValue;rebuildProcessOrder()}}
+    private(set) var processOrder:[Command] {get {catalogState.processOrder} set {catalogState.processOrder=newValue}}
+    private(set) var filteredClips:[Clip] {get {clipboardState.filteredClips} set {clipboardState.filteredClips=newValue}}
+    var searchPreparationCount:Int {catalogState.preparationCount}
     private(set) var searchEvaluations=0
     var showPalette:((String)->Void)?
     var showManagement:(()->Void)?
     var showAnalytics:(()->Void)?
     var showSystemMonitor:(()->Void)?
-    @Published var processResources:[String:ProcessResource]=[:]
-    @Published var processSort:ProcessSort = .cpu {didSet {rebuildProcessOrder()}}
+    var processResources:[String:ProcessResource] {get {catalogState.processResources} set {catalogState.processResources=newValue}}
+    var processSort:ProcessSort {get {catalogState.processSort} set {catalogState.processSort=newValue;rebuildProcessOrder()}}
     private var lastProcessRefresh=Date.distantPast
     private let monitorSampler=ResourceSampler()
     private let monitorWorker=DispatchQueue(label:"ruycast.monitor-cli",qos:.utility)
@@ -95,7 +99,7 @@ final class AppState:ObservableObject {
     let windows=WindowManager()
     var hotkeys:Hotkeys?
     var expander:SnippetExpander?
-    @Published var expansionStatus="Off"
+    var expansionStatus:String {get {settings.expansionStatus} set {settings.expansionStatus=newValue}}
     private var timer:Timer?
     private var changeCount=0
     private var configBytes:Data
@@ -108,9 +112,8 @@ final class AppState:ObservableObject {
     init(root:URL,headless:Bool,systemServices:SystemServices=SystemServices()) throws {
         self.root=root;self.headless=headless;self.searchRanking=SearchRanking(root:root);self.systemServices=systemServices;self.analytics=AnalyticsStore(root:root);self.commandLog=CommandLog(root:root);self.clipboardStore=ClipboardStore(root:root)
         let url=try ConfigurationLocation.initialize(root:root)
-        configDirectory=url.deletingLastPathComponent()
         let initialBytes=try Data(contentsOf:url)
-        config=try Files.config(data:initialBytes);configBytes=initialBytes;lastAttempt=initialBytes
+        settings=LauncherSettingsState(configDirectory:url.deletingLastPathComponent(),config:try Files.config(data:initialBytes));configBytes=initialBytes;lastAttempt=initialBytes
         let history=root.appendingPathComponent("clipboard.json")
         if FileManager.default.fileExists(atPath:history.path) {clips=try Files.decode([Clip].self,data:Data(contentsOf:history))}
         let retained=try History.updateChecked(clips,clip:nil,settings:config.clipboard)
@@ -152,19 +155,13 @@ final class AppState:ObservableObject {
     private func rebuildCatalog() {
         let ids=Set(config.commands.filter {$0.kind=="app"}.map(\.target))
         let commands=config.commands.filter(\.isEnabled)+systemCommands+applications.filter {!ids.contains($0.target)}
-        searchIndex=try? CommandSearchIndex(commands:commands)
-        preparedSearch=nil;preparedRankingRevision=nil
+        catalogState.replace(commands:commands)
         refreshResults()
     }
     func rememberServices(_ commands:[Command]) {if serviceCommands.count>2048 {serviceCommands=[:]};for command in commands {serviceCommands[command.id]=command}}
     func searchCommands(_ query:String,mode:String="commands",limit:Int=100)->[Command] {
         let found=PerformanceTrace.shared.measure(.searchModel) {
-            if preparedRankingRevision != searchRanking.revision {
-                preparedSearch=searchIndex?.prepared(recency:searchRanking.entries)
-                searchPreparationCount+=1
-                preparedRankingRevision=searchRanking.revision
-            }
-            return (preparedSearch?.search(query) ?? []).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}
+            return catalogState.search(query,ranking:searchRanking).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}
         }
         if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
         return Array(found.enumerated().sorted {a,b in let x=counts[a.element.id] ?? 0,y=counts[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
@@ -527,7 +524,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.8.0","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.8.1","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":

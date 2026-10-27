@@ -6,11 +6,13 @@ import LauncherModels
 /// Keep native descendants attached to one window. Replacing hosting subtrees
 /// on every mode switch grows AppKit NSCell dependency bookkeeping on macOS 26.
 struct PersistentLauncherResults:NSViewRepresentable {
-    @ObservedObject var state:AppState
+    let state:AppState
+    let clipboardVisible:Bool
+    init(state:AppState) {self.state=state;clipboardVisible=state.mode=="clipboard"}
     @Environment(\.colorScheme) private var scheme
     func makeNSView(context:Context)->LauncherResultsContainer {LauncherResultsContainer(state:state)}
     func updateNSView(_ view:LauncherResultsContainer,context:Context) {
-        let hidden=state.mode=="clipboard"
+        let hidden=clipboardVisible
         if view.commands.isHidden != hidden {view.commands.isHidden=hidden}
         if view.clipboard.isHidden == hidden {view.clipboard.isHidden = !hidden}
         let name:NSAppearance.Name=scheme == .dark ? .darkAqua:.aqua
@@ -29,7 +31,7 @@ final class LauncherResultsContainer:NSView {
     required init?(coder:NSCoder) {fatalError("init(coder:) has not been implemented")}
 }
 struct LauncherCommandResults:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     @Environment(\.colorScheme) private var scheme
     private var highlight:Color {Color.primary.opacity(scheme == .dark ? 0.085:0.065)}
     private func kindLabel(_ kind:String)->String {["snippet":"Snippet","app":"Application","url":"Quicklink","path":"File or Folder","script":"Command","window":"Window","builtin":"Command"][kind] ?? "Command"}
@@ -52,7 +54,7 @@ struct LauncherCommandResults:View {
                             ForEach(Array(commands.enumerated()),id:\.element.id) { index,cmd in
                                 Button {state.selection=index;state.activateSelection()} label:{
                                     HStack(spacing:12) {
-                                        if let process=state.processResources[cmd.id],state.mode=="processes" {ProcessIcon(resource:process)} else {CommandIcon(command:cmd)}
+                                        if state.mode=="processes",let process=state.processResources[cmd.id] {ProcessIcon(resource:process)} else {CommandIcon(command:cmd)}
                                         VStack(alignment:.leading,spacing:4) {
                                           HStack(spacing:8) {
                                             Text(cmd.title).font(.system(size:13,weight:.semibold)).lineLimit(1).layoutPriority(2)
@@ -76,7 +78,7 @@ struct LauncherCommandResults:View {
                                         if let key=cmd.hotkey {
                                             ShortcutBadge(value:key)
                                         }
-                                        if let process=state.processResources[cmd.id],state.mode=="processes" {
+                                        if state.mode=="processes",let process=state.processResources[cmd.id] {
                                             HStack(spacing:5) {Image(systemName:"cpu");Text(String(format:"%.1f%%",process.cpuPercent)).frame(width:52,alignment:.trailing);Image(systemName:"memorychip");Text(memoryLabel(process.memoryBytes)).frame(width:68,alignment:.trailing)}.font(.system(size:12)).monospacedDigit().foregroundStyle(.secondary)
                                         } else {Text(kindLabel(cmd.kind)).font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
                                     }.padding(.horizontal,10).padding(.vertical,8).frame(minHeight:38)

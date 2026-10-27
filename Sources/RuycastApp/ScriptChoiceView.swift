@@ -21,13 +21,13 @@ extension AppState {
 }
 
 struct ScriptChoiceView:View {
-    @ObservedObject var state:AppState
+    let state:AppState
     let session:ScriptChoiceSession
     var body:some View {
         VStack(spacing:0) {
             HStack(spacing:12) {
                 Button {state.cancelScriptChoices()} label:{Image(systemName:"chevron.left")}.buttonStyle(.plain).accessibilityLabel("Terug")
-                PaletteSearchField(text:$state.scriptChoiceQuery,placeholder:session.choices.placeholder,onMove:state.moveScriptChoice,onSubmit:state.submitScriptChoice,onCancel:state.cancelScriptChoices,onActions:{})
+                PaletteSearchField(text:Binding(get:{state.scriptChoiceQuery},set:{state.scriptChoiceQuery=$0}),placeholder:session.choices.placeholder,onMove:state.moveScriptChoice,onSubmit:state.submitScriptChoice,onCancel:state.cancelScriptChoices,onActions:{})
             }.padding(.horizontal,20).frame(height:62)
             Divider().opacity(0.5)
             ScrollViewReader {proxy in
