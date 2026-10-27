@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.12 — truthful duration-probe results
+
+- Bound measurement child operations and complete socket responses; verify the post-idle endpoint and graceful shutdown before reporting success.
+- Retain collected resource samples and completed-request counts on failure, distinguish incomplete phases, and record forced cleanup without treating a zero exit as success.
+
 ## 0.8.11 — one checked product version
 
 - Compile status, analytics and Settings from one product-version declaration; installer and source export read the same checked declaration.

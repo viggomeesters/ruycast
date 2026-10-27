@@ -310,7 +310,13 @@ class CLIIntegration(unittest.TestCase):
         result=subprocess.run(['python3',str(REPO/'scripts/benchmark-host.py'),'--host',str(BINARY),'--cli',str(cli),'--probe','/usr/bin/true','--out',str(out),'--cold-starts','1','--samples','1','--active-seconds','0','--idle-seconds','0'],env=self.env,capture_output=True,text=True,timeout=30)
         self.assertNotEqual(result.returncode,0,result.stdout)
         self.assertIn('CLI binary changed during measurement',result.stderr)
-        self.assertFalse(out.exists())
+        failure=json.loads(out.read_text())
+        self.assertFalse(failure['ok'])
+        self.assertEqual(failure['phase'],'cli-status')
+        self.assertEqual(failure['errorType'],'RuntimeError')
+        self.assertIn('CLI binary changed during measurement',failure['error'])
+        self.assertTrue(failure['cleanup']['graceful'])
+        self.assertFalse(failure['cleanup']['forcedCleanup'])
 
     def test_unknown_config_field_is_rejected_by_rust_and_native_bridge(self):
         bad = dict(self.config, misspelledSetting=True)
