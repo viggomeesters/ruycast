@@ -27,15 +27,17 @@ enum ConfigurationLocation {
     }
     static func configURL(root:URL)throws->URL {try directory(root:root).appendingPathComponent("config.json")}
     static func initialize(root:URL)throws->URL {
+        try Files.securePrivateDirectory(root)
         let url=try configURL(root:root)
         if !FileManager.default.fileExists(atPath:url.path) {
             guard override != nil || !FileManager.default.fileExists(atPath:root.appendingPathComponent("config-location.json").path) else {throw LauncherError("Configuration is unavailable at \(url.path). Restore the folder or fix config-location.json.")}
-            try Files.save(Configuration.initial,to:url)
+            try Files.createPrivate(Files.encode(Configuration.initial),to:url)
         }
         return url
     }
     static func relocate(root:URL,to path:String,expected:Data?=nil)throws->URL {
         guard override==nil else {throw LauncherError("RUYCAST_CONFIG_DIR controls this configuration. Change or unset it before choosing another folder.")}
+        try Files.securePrivateDirectory(root)
         let destination=try absolute(path)
         // Native and CLI writers use this same local lock. Never block the main
         // queue while a CLI writer is waiting for its reload RPC.
@@ -48,15 +50,11 @@ enum ConfigurationLocation {
         if let expected,expected != bytes {throw LauncherError("Configuration changed. Reload and try again.")}
         try FileManager.default.createDirectory(at:destination,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
         let target=destination.appendingPathComponent("config.json")
-        let fd=open(target.path,O_CREAT|O_EXCL|O_WRONLY|O_CLOEXEC|O_NOFOLLOW,0o600)
-        guard fd>=0 else {throw LauncherError("The destination already contains a configuration or is not writable. Choose an empty folder.")}
-        let handle=FileHandle(fileDescriptor:fd,closeOnDealloc:true)
+        do {try Files.createPrivate(bytes,to:target)} catch {throw LauncherError("The destination already contains a configuration or is not writable. Choose an empty folder.")}
         do {
-            try handle.write(contentsOf:bytes);try handle.synchronize();try handle.close()
             guard try Data(contentsOf:source)==bytes else {throw LauncherError("Configuration changed during the move. Try again.")}
             try Files.save(Selection(directory:destination.path),to:root.appendingPathComponent("config-location.json"))
         } catch {
-            try? handle.close()
             // Remove only the file created here, preserving any external edit.
             if (try? Data(contentsOf:target))==bytes {try? FileManager.default.removeItem(at:target)}
             throw error

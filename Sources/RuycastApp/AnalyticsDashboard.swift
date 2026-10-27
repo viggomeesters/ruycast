@@ -121,6 +121,6 @@ struct AnalyticsDashboard:View {
     private func reason(_ code:String)->String {switch code {case "permission":return "Permission required";case "timeout":return "Timed out";case "unavailable":return "Item or app unavailable";case "invalid","config-invalid":return "Invalid configuration or command";case "clipboard-io":return "Clipboard storage failed";case "interrupted":return "Operation interrupted";default:return "Action failed"}}
     private func export() {
         let panel=NSSavePanel();panel.nameFieldStringValue="ruycast-diagnostics.json";panel.allowedContentTypes=[.json]
-        panel.begin {response in guard response == .OK,let url=panel.url else {return};do {let bytes=try JSONSerialization.data(withJSONObject:store.exportSummary(),options:[.prettyPrinted,.sortedKeys]);try bytes.write(to:url,options:.atomic);exportMessage="Diagnostics exported"} catch {exportMessage="Could not export diagnostics. Choose a writable folder."}}
+        panel.begin {response in guard response == .OK,let url=panel.url else {return};do {let bytes=try JSONSerialization.data(withJSONObject:store.exportSummary(),options:[.prettyPrinted,.sortedKeys]);try Files.savePrivate(bytes,to:url);exportMessage="Diagnostics exported"} catch {exportMessage="Could not export diagnostics. Choose a writable folder."}}
     }
 }

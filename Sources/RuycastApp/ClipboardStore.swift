@@ -20,9 +20,20 @@ final class ClipboardStore:Sendable {
         if mkdir(assets.path,0o700) != 0 && errno != EEXIST {throw LauncherError("Clipboard asset directory unavailable.")}
         let fd=open(assets.path,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC)
         guard fd >= 0 else {throw LauncherError("Unsafe clipboard asset directory.")}
-        var mode=stat();guard fstat(fd,&mode)==0 else {close(fd);throw LauncherError("Clipboard asset permissions unavailable.")}
-        if mode.st_mode & 0o777 != 0o700 {guard fchmod(fd,0o700)==0 else {close(fd);throw LauncherError("Clipboard asset permissions unavailable.")}}
-        return fd
+        var ready=false;defer {if !ready {close(fd)}}
+        var mode=stat()
+        guard fstat(fd,&mode)==0,mode.st_uid==getuid() else {throw LauncherError("Clipboard asset permissions unavailable.")}
+        if mode.st_mode & 0o777 != 0o700 {guard fchmod(fd,0o700)==0 else {throw LauncherError("Clipboard asset permissions unavailable.")}}
+        // No new asset may inherit a readable ACL, even from an existing folder.
+        guard let acl=acl_init(0) else {throw LauncherError("Clipboard asset permissions unavailable.")}
+        defer {acl_free(UnsafeMutableRawPointer(acl))}
+        guard acl_set_fd_np(fd,acl,ACL_TYPE_EXTENDED)==0 else {throw LauncherError("Clipboard asset permissions unavailable.")}
+        if let current=acl_get_fd_np(fd,ACL_TYPE_EXTENDED) {
+            defer {acl_free(UnsafeMutableRawPointer(current))};var entry:acl_entry_t?
+            guard acl_valid(current)==0,acl_get_entry(current,Int32(ACL_FIRST_ENTRY.rawValue),&entry) != 0 else {throw LauncherError("Clipboard asset permissions unavailable.")}
+        } else if errno != ENOENT {throw LauncherError("Clipboard asset permissions unavailable.")}
+        guard fstat(fd,&mode)==0,(mode.st_mode & S_IFMT)==S_IFDIR,mode.st_uid==getuid(),mode.st_mode & 0o777==0o700 else {throw LauncherError("Clipboard asset permissions unavailable.")}
+        ready=true;return fd
     }
     private func filename(_ path:String?) throws -> String {
         guard let path=path else {throw LauncherError("Clipboard image is missing.")}

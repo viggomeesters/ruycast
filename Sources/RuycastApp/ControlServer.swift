@@ -15,8 +15,7 @@ import LauncherModels
     func start(handler:@escaping Handler) throws {
         guard listener==nil,lockFD<0 else {throw LauncherError("Control server is already started.")}
         let root=socketURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
-        try FileManager.default.setAttributes([.posixPermissions:0o700],ofItemAtPath:root.path)
+        try Files.securePrivateDirectory(root)
         let lockFD=open(root.appendingPathComponent("instance.lock").path,O_CREAT|O_RDWR|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC,0o600)
         guard lockFD>=0 else {throw LauncherError("Cannot open instance lock.")}
         var committed=false

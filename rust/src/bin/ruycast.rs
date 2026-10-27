@@ -1,22 +1,20 @@
+#[path = "../private_storage.rs"]
+mod private_storage;
 use rustcast_core::{default_config, validate, Command as Action, LAYOUTS};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
     env,
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::{self, BufRead, BufReader, Read, Write},
     os::{
         fd::AsRawFd,
-        unix::{
-            fs::{OpenOptionsExt, PermissionsExt},
-            net::UnixStream,
-            process::CommandExt,
-        },
+        unix::{fs::OpenOptionsExt, net::UnixStream, process::CommandExt},
     },
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 type Result<T> = std::result::Result<T, String>;
 fn home() -> PathBuf {
@@ -39,7 +37,10 @@ fn absolute_directory(value: &str) -> Result<PathBuf> {
     if !path.is_absolute() || value.contains(['\n', '\r']) {
         return Err("Choose an absolute configuration folder path.".into());
     }
-    if path.components().any(|part| matches!(part, std::path::Component::ParentDir)) {
+    if path
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
         return Err("Choose a configuration folder without '..' components.".into());
     }
     Ok(path.components().collect())
@@ -85,8 +86,7 @@ fn relocate_config(path: &str) -> Result<Value> {
     Ok(value)
 }
 fn private_dir(p: &Path) -> Result<()> {
-    fs::create_dir_all(p).map_err(|e| e.to_string())?;
-    fs::set_permissions(p, fs::Permissions::from_mode(0o700)).map_err(|e| e.to_string())
+    private_storage::secure_directory(p)
 }
 fn read(p: &Path) -> Result<Vec<u8>> {
     fs::read(p).map_err(|e| format!("{}: {e}", p.display()))
@@ -95,30 +95,7 @@ fn parse(bytes: &[u8]) -> Result<Value> {
     serde_json::from_slice(bytes).map_err(|e| e.to_string())
 }
 fn atomically(p: &Path, bytes: &[u8]) -> Result<()> {
-    let parent = p.parent().ok_or("Missing config directory")?;
-    private_dir(parent)?;
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let temp = parent.join(format!(".config-{}-{nonce}.json", std::process::id()));
-    let result = (|| {
-        let mut f = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&temp)
-            .map_err(|e| e.to_string())?;
-        f.write_all(bytes).map_err(|e| e.to_string())?;
-        f.sync_all().map_err(|e| e.to_string())?;
-        fs::rename(&temp, p).map_err(|e| e.to_string())?;
-        File::open(parent)
-            .and_then(|d| d.sync_all())
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    })();
-    let _ = fs::remove_file(temp);
-    result
+    private_storage::write(p, bytes, true)
 }
 fn rpc(payload: Value) -> Result<Value> {
     let mut s = UnixStream::connect(root().join("control.sock")).map_err(|e| {
@@ -220,9 +197,15 @@ fn config_edit(args: &[String]) -> Result<Value> {
             {
                 target[key] = json!(false);
             }
-            if key=="theme" && target.get(key).is_none() {target[key]=json!("system");}
-            if key=="separateCommandKeys" && target.get(key).is_none() {target[key]=json!(true);}
-            if key=="menuBarVisible" && target.get(key).is_none() {target[key]=json!(true);}
+            if key == "theme" && target.get(key).is_none() {
+                target[key] = json!("system");
+            }
+            if key == "separateCommandKeys" && target.get(key).is_none() {
+                target[key] = json!(true);
+            }
+            if key == "menuBarVisible" && target.get(key).is_none() {
+                target[key] = json!(true);
+            }
             let final_key = keys.last().unwrap();
             let slot = target
                 .get_mut(*final_key)
@@ -423,20 +406,13 @@ fn execute(args: &[String]) -> Result<Value> {
                         {
                             return Err("Selected configuration is unavailable. Restore the folder or fix config-location.json.".into());
                         }
-                        private_dir(path.parent().ok_or("Missing configuration directory")?)?;
-                        let mut file = OpenOptions::new()
-                            .write(true)
-                            .create_new(true)
-                            .mode(0o600)
-                            .open(&path)
-                            .map_err(|e| e.to_string())?;
-                        file.write_all(
+                        private_storage::write(
+                            &path,
                             serde_json::to_string_pretty(&default_config())
                                 .unwrap()
                                 .as_bytes(),
-                        )
-                        .map_err(|e| e.to_string())?;
-                        file.sync_all().map_err(|e| e.to_string())?
+                            false,
+                        )?;
                     }
                     Ok(json!({"ok":true,"path":path}))
                 }
@@ -588,12 +564,16 @@ fn execute(args: &[String]) -> Result<Value> {
         }
         "performance" => match args.get(1).map(String::as_str) {
             None | Some("summary") if args.len() <= 2 => rpc(json!({"op":"performance"})),
-            Some("reset") if args.len()==3 && args[2]=="--confirm" => rpc(json!({"op":"performance.reset"})),
+            Some("reset") if args.len() == 3 && args[2] == "--confirm" => {
+                rpc(json!({"op":"performance.reset"}))
+            }
             _ => Err("Use performance [summary|reset --confirm]".into()),
         },
         "search-ranking" => match args.get(1).map(String::as_str) {
-            None | Some("summary") if args.len()<=2 => rpc(json!({"op":"search-ranking"})),
-            Some("reset") if args.len()==3 && args[2]=="--confirm" => rpc(json!({"op":"search-ranking.reset","confirmed":true})),
+            None | Some("summary") if args.len() <= 2 => rpc(json!({"op":"search-ranking"})),
+            Some("reset") if args.len() == 3 && args[2] == "--confirm" => {
+                rpc(json!({"op":"search-ranking.reset","confirmed":true}))
+            }
             _ => Err("Use search-ranking [summary|reset --confirm]".into()),
         },
         "analytics" => match args.get(1).map(String::as_str) {
