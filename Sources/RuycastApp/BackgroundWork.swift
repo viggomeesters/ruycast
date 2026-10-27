@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import LauncherCore
+import LauncherModels
 
 /// Serializes history/asset writes and invalidates stale capture publications.
 final class ClipboardWork {

@@ -2,6 +2,7 @@ import Foundation
 import Security
 import CryptoKit
 import LauncherCore
+import LauncherModels
 
 /// Effects are handled by the host, keeping clipboard and desktop input out of storage logic.
 enum UtilityEffect {

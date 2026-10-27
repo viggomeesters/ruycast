@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Vision
 import LauncherCore
+import LauncherModels
 
 func checkLauncherPolish(_ outputPath:String)throws->[String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)

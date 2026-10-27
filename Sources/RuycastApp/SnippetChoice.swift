@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 /// Owns both visible selection and keyboard submission; no focus in a popup is required.
 final class SnippetChoiceModel:ObservableObject {

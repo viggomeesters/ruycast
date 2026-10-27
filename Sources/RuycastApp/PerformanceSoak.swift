@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Darwin
 import LauncherCore
+import LauncherModels
 
 /// Hidden native view/model cycles. Never orders a window front or installs global input hooks.
 func benchmarkLifecycle(blocks:Int=10,render:Bool=true,component:String="palette") throws -> [String:Any] {

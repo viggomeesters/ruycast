@@ -1,4 +1,5 @@
 import Foundation
+import LauncherModels
 
 public struct TemplateField:Identifiable,Equatable {
     public let id:String

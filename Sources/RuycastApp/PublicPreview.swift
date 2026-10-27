@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 /// Public imagery uses the production views and a disposable demonstration profile.
 func renderPublicPreview(_ path:String) throws -> [String:Any] {

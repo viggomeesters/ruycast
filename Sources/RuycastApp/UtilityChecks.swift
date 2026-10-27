@@ -1,5 +1,6 @@
 import Foundation
 import LauncherCore
+import LauncherModels
 
 func checkUtilities() throws -> [String:Any] {
     func require(_ condition:Bool,_ message:String) throws {if !condition {throw LauncherError(message)}}

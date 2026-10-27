@@ -1,5 +1,6 @@
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 /// A shared 24 pt canvas, neutral tint and consistent stroke for command glyphs.
 struct CommandGlyph:View {

@@ -3,6 +3,7 @@ import SwiftUI
 import Vision
 import CryptoKit
 import LauncherCore
+import LauncherModels
 
 /// Production controls in an invisible window, with a disposable CLI-backed profile.
 func checkSettings(_ outputPath:String) throws -> [String:Any] {

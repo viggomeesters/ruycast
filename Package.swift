@@ -3,7 +3,9 @@ import PackageDescription
 import Foundation
 let rust=URL(fileURLWithPath:#filePath).deletingLastPathComponent().appendingPathComponent(".build/rust/release").path
 let package=Package(name:"Ruycast",platforms:[.macOS(.v14)],products:[.executable(name:"RuycastApp",targets:["RuycastApp"])],targets:[
-    .target(name:"LauncherCore",linkerSettings:[.unsafeFlags(["-L",rust]),.linkedLibrary("rustcast_core"),.linkedLibrary("iconv"),.linkedLibrary("resolv")]),
+    .target(name:"LauncherModels",swiftSettings:[.unsafeFlags(["-swift-version","6"])]),
+    .target(name:"CRuycastCore",publicHeadersPath:"include"),
+    .target(name:"LauncherCore",dependencies:["LauncherModels","CRuycastCore"],linkerSettings:[.unsafeFlags(["-L",rust]),.linkedLibrary("rustcast_core"),.linkedLibrary("iconv"),.linkedLibrary("resolv")]),
     .executableTarget(name:"RuycastApp",dependencies:["LauncherCore"]),
     .executableTarget(name:"LauncherCoreChecks",dependencies:["LauncherCore"],path:"Tests/LauncherCoreTests")
 ])

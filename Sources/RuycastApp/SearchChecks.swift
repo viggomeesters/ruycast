@@ -1,5 +1,6 @@
 import Foundation
 import LauncherCore
+import LauncherModels
 
 /// Deterministic synthetic profile. Never reads the user's clipboard or changes focus.
 func searchFixture()->[Command] {
@@ -57,5 +58,19 @@ func checkSearch(root unusedRoot:URL) throws -> [String:Any] {
     changed.commands=[Command(id:"replacement",title:"New App",kind:"app",target:"org.test.app")]
     try Files.save(changed,to:state.configURL);try state.reload()
     guard state.results.map(\.id)==["replacement"] else {throw LauncherError("Reload or app deduplication failed.")}
-    return ["ok":true,"parityQueries":cases.count,"cachedReads":1000,"cliSearchLeavesPaletteUntouched":true,"usageRankingRefreshes":true,"discoveryAndReloadRefresh":true]
+    state.config.commands=[Command(id:"cached.a",title:"Identical",kind:"url",target:"https://example.com/a"),Command(id:"cached.b",title:"Identical",kind:"url",target:"https://example.com/b")]
+    state.query="identical"
+    let prepared=state.searchPreparationCount
+    for _ in 0..<1000 {_=state.searchCommands("identical")}
+    guard state.searchPreparationCount==prepared else {throw LauncherError("Unchanged ranking was realigned per query")}
+    try state.searchRanking.recordSuccess("cached.b")
+    guard state.searchCommands("identical").first?.id=="cached.b",state.searchPreparationCount==prepared+1 else {throw LauncherError("Prepared search missed a ranking change")}
+    try state.searchRanking.reset()
+    guard state.searchCommands("identical").first?.id=="cached.a",state.searchPreparationCount==prepared+2 else {throw LauncherError("Prepared search missed reset")}
+    try state.searchRanking.recordSuccess("cached.b")
+    state.config.commands[1].enabled=false
+    guard state.searchCommands("identical").map(\.id)==["cached.a"] else {throw LauncherError("Prepared search retained disabled catalog item")}
+    state.config.commands=[Command(id:"cached.replacement",title:"Identical",kind:"url",target:"https://example.com/new")]
+    guard state.searchCommands("identical").map(\.id)==["cached.replacement"] else {throw LauncherError("Prepared search reused an old catalog")}
+    return ["ok":true,"parityQueries":cases.count,"cachedReads":1000,"cliSearchLeavesPaletteUntouched":true,"preparedRankingUpdateResetAndCatalogParity":true,"rankingReuseQueries":1000,"usageRankingRefreshes":true,"discoveryAndReloadRefresh":true]
 }

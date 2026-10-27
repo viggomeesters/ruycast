@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import LauncherCore
+import LauncherModels
 
 /// Pure deterministic state checks. No tap, HID manager, Carbon registration,
 /// permission prompt, synthetic key post or application window is created.

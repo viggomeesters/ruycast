@@ -1,6 +1,7 @@
 import AppKit
 import Carbon
 import LauncherCore
+import LauncherModels
 
 /// No key history leaves the transient matcher. Never observes secure entry.
 final class SnippetExpander {

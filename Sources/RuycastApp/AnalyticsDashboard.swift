@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Charts
 import LauncherCore
+import LauncherModels
 
 struct AnalyticsDashboard:View {
     @ObservedObject var store:AnalyticsStore

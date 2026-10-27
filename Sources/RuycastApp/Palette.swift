@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 struct PaletteConfirmation {let command:Command;let removing:Bool}
 

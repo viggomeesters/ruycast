@@ -2,6 +2,7 @@ import Foundation
 import Darwin
 import IOKit.ps
 import LauncherCore
+import LauncherModels
 
 struct ProcessResource:Codable,Identifiable {
     let identity:SystemServices.Identity

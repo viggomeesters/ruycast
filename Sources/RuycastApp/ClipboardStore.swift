@@ -2,6 +2,7 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 import LauncherCore
+import LauncherModels
 import Darwin
 
 /// Owns only PNG assets in the profile. File clipboard items retain references.

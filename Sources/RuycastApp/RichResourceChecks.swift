@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Vision
 import LauncherCore
+import LauncherModels
 
 /// Fixture processes and a named pasteboard only: never kills real processes or reads general.
 func checkRichResources(_ outputPath:String) throws -> [String:Any] {

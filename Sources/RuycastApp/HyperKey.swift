@@ -3,6 +3,7 @@ import Carbon
 import IOKit.hid
 import IOKit.hidsystem
 import LauncherCore
+import LauncherModels
 
 /// Owns one nonexclusive HID observer and one event filter. Never seizes a keyboard
 /// or installs persistent mappings. Raw usage 0x39 provides real Caps down AND up;

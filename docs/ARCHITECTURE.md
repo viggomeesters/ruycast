@@ -6,12 +6,14 @@ Ruycast has a shared Rust domain library, a native Rust CLI and a Swift macOS ho
 |---|---|
 | `rust/src/lib.rs` | Strict config validation, normalized shortcut syntax, search ranking, clipboard retention/deduplication and window geometry |
 | `rust/src/bin/ruycast.rs` | JSON CLI, config locking/atomic editing, SHA-256 conflict checks, Unix-socket client and bounded process-group script execution |
-| `Sources/LauncherCore/Core.swift` | Codable data transfer objects and small synchronous C-ABI adapter to the Rust static library |
+| `Sources/LauncherModels/` | Portable Codable/Sendable value types, independently compiled in Swift 6 mode; no platform or runtime dependencies |
+| `Sources/CRuycastCore/` | Clang-imported C declarations, explicit ownership/length/count rules and ABI version |
+| `Sources/LauncherCore/` | Rust bridge, prepared search snapshots, templates and explicitly separate file/ranking persistence |
 | `Sources/RuycastApp/` | Native palette/menu, macOS app discovery/opening, pasteboard observation, global Carbon hotkeys, Accessibility window API, socket host and platform-owned persistence |
 
 Both GUI and CLI use the same JSON action catalog. Config validation runs in Rust on both paths. Search and retention rules execute in Rust even when called from the native UI. The app links Rust statically; no separate model service, Node runtime or webview is required.
 
-The C ABI accepts an operation and JSON payload and returns a heap-owned JSON response. Swift frees every returned pointer with `rustcast_free`. Panics are contained before crossing the ABI boundary. Platform adapters keep AppKit work on the main queue; socket I/O and subprocesses run in background queues. The control server admits at most16 simultaneous clients, bounds request reads and socket writes, and dispatches bulk clipboard reads from immutable snapshots off the main queue.
+Swift imports C declarations from `ruycast_core.h` rather than manually declaring symbols. The bridge checks ABI version1 when creating a catalog; real linked-library checks cover lengths, canaries, invalid UTF-8, error responses and retained handle lifetime. The C ABI accepts an operation and JSON payload and returns a heap-owned JSON response. Swift frees every returned pointer with `rustcast_free`. Panics are contained before crossing the ABI boundary. Platform adapters keep AppKit work on the main queue; socket I/O and subprocesses run in background queues. The control server admits at most16 simultaneous clients, bounds request reads and socket writes, and dispatches bulk clipboard reads from immutable snapshots off the main queue.
 
 One host owns the profile through an OS file lock. The control socket is private (0600) inside a private profile directory (0700). Config and history files are readable by the user (0600); clipboard bodies never enter source Git. Runtime data is local and uses no vault writer.
 
@@ -60,3 +62,9 @@ The shared Rust index ranks exact IDs/aliases/keywords first, then exact titles,
 
 
 Interaction tracing scopes a pending input span to ObjectIdentifier of the native SearchInput. Its representable update completes the span after applying the current binding; dismantle cancels it. Other fields cannot complete/cancel that owner's span. NSHostingView.draw only records an optional callback counter, independent of reconciliation: live layer-backed drawing may bypass that callback. Hidden tests drive the actual retained field/delegate and wait for reconciliation before explicit captures. These are software boundaries, not display presentation.
+
+## Prepared search and migration boundaries
+
+See [ADR0001](adr/0001-native-modular-core.md) for the architecture investigation and scope. `PreparedCommandSearch` retains one immutable catalog and its aligned recency vector. The host realigns only when catalog identity or the successful persistent ranking revision changes. Reset, reload, disabled/removed commands and direct CLI search use the same boundary. A failed ranking save leaves both revision and active entries unchanged. Per-call output buffers remain local: isolated reuse did not provide a repeatable gain and would add mutable ownership.
+
+`LauncherModels` is the first target compiled in Swift6 mode. Remaining targets retain their existing language mode until their own isolated migration; this release does not claim the entire native host is already data-race checked. Local architecture tests reject platform/runtime imports in portable models and manual Swift symbol declarations.

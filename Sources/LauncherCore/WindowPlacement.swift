@@ -1,4 +1,5 @@
 import Foundation
+import LauncherModels
 
 /// Applies and verifies a layout independently of the Accessibility transport.
 public enum WindowPlacement {

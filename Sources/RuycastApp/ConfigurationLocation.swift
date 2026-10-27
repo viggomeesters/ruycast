@@ -1,6 +1,7 @@
 import AppKit
 import Darwin
 import LauncherCore
+import LauncherModels
 
 /// Machine-local selector; only config.json belongs in the portable directory.
 enum ConfigurationLocation {

@@ -310,6 +310,10 @@ pub fn search(commands: &[Command], query: &str) -> Vec<Command> {
         .map(|i| commands[i].clone())
         .collect()
 }
+/// Version of the statically linked C ABI in ruycast_core.h.
+#[no_mangle]
+pub extern "C" fn rustcast_abi_version() -> u32 { 1 }
+
 /// # Safety
 /// `catalog` must be a live NUL-terminated UTF-8 JSON array for this call.
 /// The returned immutable index must be freed exactly once with rustcast_index_free.
@@ -498,7 +502,8 @@ pub fn dispatch(op: &str, v: Value) -> Result<Value, String> {
 }
 /// Synchronous C ABI. Inputs are borrowed UTF-8 C strings; caller frees the result.
 /// # Safety
-/// Both pointers must be non-null, NUL-terminated strings valid for this call.
+/// Non-null pointers must be NUL-terminated strings valid for this call.
+/// Null arguments return an owned JSON error response.
 #[no_mangle]
 pub unsafe extern "C" fn rustcast_call(op: *const c_char, payload: *const c_char) -> *mut c_char {
     let response = std::panic::catch_unwind(|| {

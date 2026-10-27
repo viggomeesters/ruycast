@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import CryptoKit
 import LauncherCore
+import LauncherModels
 
 func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject(with:Files.encode(value))) ?? NSNull() }
 
@@ -72,6 +73,9 @@ final class AppState:ObservableObject {
     private(set) var processOrder:[Command]=[]
     @Published private(set) var filteredClips:[Clip]=[]
     private var searchIndex:CommandSearchIndex?
+    private var preparedSearch:PreparedCommandSearch?
+    private var preparedRankingRevision:UInt64?
+    private(set) var searchPreparationCount=0
     private(set) var searchEvaluations=0
     var showPalette:((String)->Void)?
     var showManagement:(()->Void)?
@@ -149,11 +153,19 @@ final class AppState:ObservableObject {
         let ids=Set(config.commands.filter {$0.kind=="app"}.map(\.target))
         let commands=config.commands.filter(\.isEnabled)+systemCommands+applications.filter {!ids.contains($0.target)}
         searchIndex=try? CommandSearchIndex(commands:commands)
+        preparedSearch=nil;preparedRankingRevision=nil
         refreshResults()
     }
     func rememberServices(_ commands:[Command]) {if serviceCommands.count>2048 {serviceCommands=[:]};for command in commands {serviceCommands[command.id]=command}}
     func searchCommands(_ query:String,mode:String="commands",limit:Int=100)->[Command] {
-        let found=PerformanceTrace.shared.measure(.searchModel) {(searchIndex?.search(query,recency:searchRanking.entries) ?? []).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}}
+        let found=PerformanceTrace.shared.measure(.searchModel) {
+            if preparedRankingRevision != searchRanking.revision {
+                preparedSearch=searchIndex?.prepared(recency:searchRanking.entries)
+                searchPreparationCount+=1
+                preparedRankingRevision=searchRanking.revision
+            }
+            return (preparedSearch?.search(query) ?? []).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}
+        }
         if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
         return Array(found.enumerated().sorted {a,b in let x=counts[a.element.id] ?? 0,y=counts[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
     }
@@ -515,7 +527,7 @@ final class AppState:ObservableObject {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.7.16","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.8.0","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":

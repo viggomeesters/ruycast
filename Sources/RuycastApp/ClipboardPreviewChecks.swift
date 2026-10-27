@@ -1,5 +1,6 @@
 import AppKit
 import LauncherCore
+import LauncherModels
 
 /// Delayed delivery reproduces cancel/reopen of the same ID without desktop I/O.
 func checkClipboardPreviewCancellation(_ store:ClipboardStore)throws->[String:Any] {

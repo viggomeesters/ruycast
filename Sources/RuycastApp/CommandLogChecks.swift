@@ -1,5 +1,6 @@
 import Foundation
 import LauncherCore
+import LauncherModels
 
 func checkCommandLog() throws -> [String:Any] {
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-logs-"+String(UUID().uuidString.prefix(8)))

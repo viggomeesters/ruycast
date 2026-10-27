@@ -1,5 +1,6 @@
 import AppKit
 import LauncherCore
+import LauncherModels
 
 /// Uses a unique named pasteboard and a disposable profile; never touches general.
 func checkClipboardStore() throws -> [String:Any] {

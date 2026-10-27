@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 /// Dispatches only to our invisible native views; no global input or visible window.
 func checkActionsMenu(output:String?=nil) throws -> [String:Any] {

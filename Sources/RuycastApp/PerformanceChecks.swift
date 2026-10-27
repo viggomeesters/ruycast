@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 func benchmarkPerformance()->[String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)

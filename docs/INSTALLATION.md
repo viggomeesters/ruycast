@@ -11,7 +11,7 @@ The build uses Cargo's locked dependencies and Swift Package Manager. The instal
 ## Requirements
 
 - macOS 14 or later.
-- Apple's command-line developer tools (`xcode-select --install`) and Swift 5.9 or later.
+- Apple's command-line developer tools (`xcode-select --install`) and Swift 6 or later (the portable model target uses Swift 6 language mode; verified with Swift 6.2.3).
 - Rust/Cargo; development was verified with Rust 1.92.
 - Python 3.10 or later.
 - OpenSSL for initial local certificate creation. The signing helper uses Homebrew OpenSSL when available and otherwise the system tool.
