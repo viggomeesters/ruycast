@@ -3,7 +3,7 @@ import Observation
 import LauncherCore
 import LauncherModels
 
-@Observable final class LauncherSettingsState {
+@MainActor @Observable final class LauncherSettingsState {
     var configDirectory:URL
     var config:Configuration
     var configError:String?
@@ -11,7 +11,7 @@ import LauncherModels
     init(configDirectory:URL,config:Configuration) {self.configDirectory=configDirectory;self.config=config}
 }
 
-@Observable final class PaletteSession {
+@MainActor @Observable final class PaletteSession {
     var query:String = ""
     var mode:String = "commands"
     var actionSelection:Int = 0
@@ -31,7 +31,7 @@ import LauncherModels
     var selection=0
 }
 
-@Observable final class ClipboardState {
+@MainActor @Observable final class ClipboardState {
     var clips:[Clip] = []
     var clipboardDataRevision:Int = 0
     var filteredClips:[Clip] = []
@@ -42,7 +42,7 @@ import LauncherModels
     var query=""
 }
 
-@Observable final class CatalogState {
+@MainActor @Observable final class CatalogState {
     var applications:[Command] = []
     var results:[Command] = []
     var processOrder:[Command] = []

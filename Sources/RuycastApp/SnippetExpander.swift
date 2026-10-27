@@ -4,8 +4,8 @@ import LauncherCore
 import LauncherModels
 
 /// No key history leaves the transient matcher. Never observes secure entry.
-final class SnippetExpander {
-    static let generatedTag:Int64=0x5255535443415354
+@MainActor final class SnippetExpander {
+    nonisolated static let generatedTag:Int64=0x5255535443415354
     weak var state:AppState?
     private var tap:CFMachPort?
     private var source:CFRunLoopSource?
@@ -15,10 +15,10 @@ final class SnippetExpander {
     private var choice:SnippetChoiceController?
     init(state:AppState) {
         self.state=state
-        poll=Timer.scheduledTimer(withTimeInterval:2,repeats:true) { [weak self] _ in self?.refresh() }
+        poll=mainRunLoopTimer(every:2) { [weak self] in self?.refresh() }
         refresh()
     }
-    deinit {poll?.invalidate();stop()}
+    isolated deinit {poll?.invalidate();stop()}
     func stop() {
         choice?.cancel(restore:false);choice=nil
         if let tap {CGEvent.tapEnable(tap:tap,enable:false);CFMachPortInvalidate(tap)}
@@ -106,7 +106,7 @@ final class SnippetExpander {
         guard AXIsProcessTrusted() else {return true}
         var subrole:CFTypeRef?
         if result == .success,let element,CFGetTypeID(element)==AXUIElementGetTypeID() {
-            let focused=unsafeBitCast(element,to:AXUIElement.self)
+            let focused=unsafeDowncast(element,to:AXUIElement.self)
             AXUIElementSetMessagingTimeout(focused,0.01)
             AXUIElementCopyAttributeValue(focused,kAXSubroleAttribute as CFString,&subrole)
         }

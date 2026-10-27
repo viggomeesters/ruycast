@@ -94,7 +94,9 @@ extension AnalyticsDocument {
 /// Small in-memory counters under one lock. One coalesced writer, never one queued job per event.
 /// No arbitrary text, query, input, URL, target, arguments, clipboard body or exception messages.
 struct AnalyticsAttempt {let key:String;let epoch:Int;let hour:String}
-final class AnalyticsStore:ObservableObject {
+// Document/revision/error state is locked; file writes use writer serially.
+// Clock is explicitly Sendable; notifications are delivered only on main.
+final class AnalyticsStore:ObservableObject,@unchecked Sendable {
     private let lock=NSLock()
     private let writer=DispatchQueue(label:"ruycast.analytics-writer",qos:.utility)
     private let url:URL
@@ -108,10 +110,10 @@ final class AnalyticsStore:ObservableObject {
     private var lastHourPrune:String?
     private var lastHourRetention=0
     private let saveDelay:Double
-    private let now:()->Date
+    private let now:@Sendable ()->Date
     private let calendar:Calendar
     static let timingNames:Set<String>=["search.model","search.clipboard","launcher.open.model","process.query","clipboard.capture","clipboard.preview","clipboard.save","config.read","config.reload","command.execute","cli.dispatch","monitor.sample","startup.model","process.sort","icons.lookup"]
-    init(root:URL,saveDelay:Double=3,now:@escaping()->Date=Date.init,calendar:Calendar=Calendar.current) {
+    init(root:URL,saveDelay:Double=3,now:@escaping @Sendable ()->Date=Date.init,calendar:Calendar=Calendar.current) {
         url=root.appendingPathComponent("analytics.json");self.saveDelay=saveDelay;self.now=now;self.calendar=calendar
         data.startedAt=now();data.updatedAt=now();data.hourlyStartedAt=now()
         if FileManager.default.fileExists(atPath:url.path) {
@@ -216,7 +218,7 @@ final class AnalyticsStore:ObservableObject {
     }
     func exportSummary()->[String:Any] {
         let d=snapshot
-        return ["schema":1,"version":"0.8.1","uses":d.totalAttempts+d.priorSuccesses,"attempts":d.totalAttempts,"successes":d.totalSuccesses,"failures":d.totalFailures,"legacySuccesses":d.priorSuccesses,"timings":jsonValue(d.timings),"errors":Dictionary(grouping:d.events,by:{$0.category+":"+$0.code}).mapValues(\.count),"privacy":"No command IDs, input, queries, URLs, arguments or clipboard contents"]
+        return ["schema":1,"version":"0.8.2","uses":d.totalAttempts+d.priorSuccesses,"attempts":d.totalAttempts,"successes":d.totalSuccesses,"failures":d.totalFailures,"legacySuccesses":d.priorSuccesses,"timings":jsonValue(d.timings),"errors":Dictionary(grouping:d.events,by:{$0.category+":"+$0.code}).mapValues(\.count),"privacy":"No command IDs, input, queries, URLs, arguments or clipboard contents"]
     }
     private func save() {
         lock.lock();scheduled=false
@@ -230,6 +232,6 @@ final class AnalyticsStore:ObservableObject {
         } catch {lock.lock();failure="Analytics could not be saved. Check available disk space and folder permissions.";lock.unlock()}
         DispatchQueue.main.async { [weak self] in self?.objectWillChange.send() }
     }
-    func flush(_ completion:@escaping()->Void={}) {writer.async { [weak self] in self?.save();DispatchQueue.main.async(execute:completion)}}
+    func flush(_ completion:@escaping @MainActor @Sendable ()->Void={}) {writer.async { [weak self] in self?.save();DispatchQueue.main.async(execute:completion)}}
     func flushSynchronously() {writer.sync {save()}}
 }

@@ -2,7 +2,7 @@ import Foundation
 import LauncherCore
 import LauncherModels
 
-func checkCommandLog() throws -> [String:Any] {
+@MainActor func checkCommandLog() throws -> [String:Any] {
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-logs-"+String(UUID().uuidString.prefix(8)))
     try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700]);defer {try? FileManager.default.removeItem(at:root)}
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}

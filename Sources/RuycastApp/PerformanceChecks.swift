@@ -3,15 +3,15 @@ import SwiftUI
 import LauncherCore
 import LauncherModels
 
-func benchmarkPerformance()->[String:Any] {
+@MainActor func benchmarkPerformance()->[String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-p-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}
     var checksum=0
-    func measure(_ count:Int,_ block:()->Void)->[String:Any] {
-        for _ in 0..<10 {autoreleasepool {block()}}
+    func measure(_ count:Int,_ block:() throws->Void) rethrows->[String:Any] {
+        for _ in 0..<10 {try autoreleasepool {try block()}}
         var values=[Double]();values.reserveCapacity(count)
-        for _ in 0..<count {let start=DispatchTime.now().uptimeNanoseconds;autoreleasepool {block()};values.append(AnalyticsStore.elapsed(start))}
+        for _ in 0..<count {let start=DispatchTime.now().uptimeNanoseconds;try autoreleasepool {try block()};values.append(AnalyticsStore.elapsed(start))}
         let s=values.sorted()
         return ["samples":s.count,"medianMS":s[s.count/2],"p95MS":s[min(s.count-1,Int(Double(s.count-1)*0.95))],"p99MS":s.count>=1000 ? s[min(s.count-1,Int(Double(s.count-1)*0.99))] as Any:NSNull(),"maxMS":s.last!]
     }
@@ -40,16 +40,18 @@ func benchmarkPerformance()->[String:Any] {
         state.mode="commands";state.clips=history
         let commandSearchWithHistory=measure(200) {sequence+=1;state.query=terms[sequence%terms.count];checksum+=state.results.count}
         state.mode="clipboard"
-        // Same harness on baseline and candidate: wait for completed publication, not enqueue.
-        func waitForClipboard() {
+        // Version 2 reads the observable state directly; earlier Mirror-based waits
+        // stopped working when clipboardSearchBusy became a forwarding property.
+        func waitForClipboard() throws {
             let deadline=Date().addingTimeInterval(5)
-            while Mirror(reflecting:state).children.first(where:{$0.label=="clipboardSearchBusy"})?.value as? Bool == true,Date()<deadline {
+            while state.clipboardSearchBusy {
+                guard Date()<deadline else {throw NSError(domain:"RuycastPerformance",code:1,userInfo:[NSLocalizedDescriptionKey:"Clipboard filter did not publish within five seconds"])}
                 _=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.0002))
             }
         }
         let clipboardSearchEnqueue=measure(200) {sequence+=1;state.query=terms[sequence%terms.count];checksum+=state.filteredClips.count}
-        waitForClipboard()
-        let clipboardSearch=measure(200) {sequence+=1;state.query=terms[sequence%terms.count];waitForClipboard();checksum+=state.filteredClips.count}
+        try waitForClipboard()
+        let clipboardSearch=try measure(200) {sequence+=1;state.query=terms[sequence%terms.count];try waitForClipboard();checksum+=state.filteredClips.count}
         let prune=measure(20) {checksum+=History.prune(history,settings:settings).count}
         let historyEncode=measure(20) {checksum+=(try? Files.encode(history).count) ?? 0}
         try Files.save(state.config,to:state.configURL)
@@ -72,6 +74,6 @@ func benchmarkPerformance()->[String:Any] {
         #else
         let optimized=true
         #endif
-        return ["ok":true,"releaseBuild":optimized,"scope":"in-process model/main-thread work, deterministic fixtures; excludes physical keys, rendering/presentation and external app opening","system":["macOS":ProcessInfo.processInfo.operatingSystemVersionString,"chip":ResourceSampler.text("machdep.cpu.brand_string"),"cores":ProcessInfo.processInfo.processorCount],"queries":queries,"searchWith512RecentChoices10000":rankedSearch,"cachedResultReads":catalogRead,"processResultReads1000":processReads,"processSort1000":processSort,"commandSearchWith200x8kBHistory":commandSearchWithHistory,"clipboardSearch200x8kB":clipboardSearch,"clipboardSearchEnqueue200x8kB":clipboardSearchEnqueue,"clipboardPrune200x8kB":prune,"clipboardEncode200x8kB":historyEncode,"configurationRawRead":configRead,"analyticsTimingRecord":analytics,"nativeIconWarm":iconWarm,"imageCapture960kPixels":imageCapture,"imagePreview960kPixels":imagePreview,"checksum":checksum]
+        return ["ok":true,"clipboardCompletionMeasurementVersion":2,"releaseBuild":optimized,"scope":"in-process model/main-thread work, deterministic fixtures; excludes physical keys, rendering/presentation and external app opening","system":["macOS":ProcessInfo.processInfo.operatingSystemVersionString,"chip":ResourceSampler.text("machdep.cpu.brand_string"),"cores":ProcessInfo.processInfo.processorCount],"queries":queries,"searchWith512RecentChoices10000":rankedSearch,"cachedResultReads":catalogRead,"processResultReads1000":processReads,"processSort1000":processSort,"commandSearchWith200x8kBHistory":commandSearchWithHistory,"clipboardSearch200x8kB":clipboardSearch,"clipboardSearchEnqueue200x8kB":clipboardSearchEnqueue,"clipboardPrune200x8kB":prune,"clipboardEncode200x8kB":historyEncode,"configurationRawRead":configRead,"analyticsTimingRecord":analytics,"nativeIconWarm":iconWarm,"imageCapture960kPixels":imageCapture,"imagePreview960kPixels":imagePreview,"checksum":checksum]
     } catch {return ["ok":false,"error":error.localizedDescription]}
 }

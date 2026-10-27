@@ -2,7 +2,7 @@ import Carbon
 import LauncherCore
 import LauncherModels
 
-final class Hotkeys {
+@MainActor final class Hotkeys {
     private var refs:[String:EventHotKeyRef]=[:]
     private var ids:[String:UInt32]=[:]
     private var routes:[UInt32:String]=[:]
@@ -85,5 +85,5 @@ final class Hotkeys {
         latest=config
         keyboard.update(hyper:config.hyperKeyEnabled==true,bindings:modifierBindings,commandBindings:commandBindings)
     }
-    deinit {for ref in refs.values {UnregisterEventHotKey(ref)};if let handler {RemoveEventHandler(handler)}}
+    isolated deinit {for ref in refs.values {UnregisterEventHotKey(ref)};if let handler {RemoveEventHandler(handler)}}
 }

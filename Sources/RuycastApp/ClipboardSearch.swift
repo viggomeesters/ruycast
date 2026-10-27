@@ -3,14 +3,15 @@ import LauncherCore
 import LauncherModels
 
 /// At most one running filter and one latest request. Never queues one job per keystroke.
-final class ClipboardSearch {
+// All mutable admission/version/pending state is accessed under lock.
+final class ClipboardSearch:@unchecked Sendable {
     private let queue=DispatchQueue(label:"ruycast.clipboard-search",qos:.userInitiated,autoreleaseFrequency:.workItem)
     private let lock=NSLock()
     private var version=0
     private var running=false
-    private var pending:(Int,[Clip],String,([Clip])->Void)?
+    private var pending:(Int,[Clip],String,@MainActor @Sendable ([Clip])->Void)?
     func cancel() {lock.lock();version+=1;pending=nil;lock.unlock()}
-    func search(_ items:[Clip],query:String,completion:@escaping([Clip])->Void) {
+    func search(_ items:[Clip],query:String,completion:@escaping @MainActor @Sendable ([Clip])->Void) {
         lock.lock();version+=1;pending=(version,items,query,completion);let start = !running;if start {running=true};lock.unlock()
         if start {queue.async { [weak self] in self?.run() }}
     }
@@ -20,7 +21,7 @@ final class ClipboardSearch {
             lock.lock();guard let (token,items,query,completion)=pending else {running=false;lock.unlock();return};pending=nil;lock.unlock()
             var result=[Clip]()
             for item in items {guard current(token) else {break};if item.text.localizedCaseInsensitiveContains(query) {result.append(item)}}
-            if current(token) {DispatchQueue.main.async { [weak self] in if self?.current(token)==true {completion(result)}}}
+            if current(token) {let snapshot=result;DispatchQueue.main.async { [weak self] in if self?.current(token)==true {completion(snapshot)}}}
         }
     }
 }

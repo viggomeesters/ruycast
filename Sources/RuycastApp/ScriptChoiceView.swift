@@ -45,7 +45,7 @@ struct ScriptChoiceView:View {
                             }.buttonStyle(.plain).disabled(state.busy).id(item.id).accessibilityLabel(item.title+", "+item.subtitle)
                         }
                     }.padding(8)
-                }.onChange(of:state.scriptChoiceSelection) {index in if state.filteredScriptChoices.indices.contains(index) {proxy.scrollTo(state.filteredScriptChoices[index].id,anchor:.center)}}
+                }.onChange(of:state.scriptChoiceSelection) {_,index in if state.filteredScriptChoices.indices.contains(index) {proxy.scrollTo(state.filteredScriptChoices[index].id,anchor:.center)}}
             }
             if !state.message.isEmpty {Text(state.message).font(.caption).foregroundStyle(.orange).padding(.horizontal,16).padding(.vertical,8)}
             Divider().opacity(0.5)

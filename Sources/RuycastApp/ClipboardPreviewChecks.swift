@@ -3,12 +3,12 @@ import LauncherCore
 import LauncherModels
 
 /// Delayed delivery reproduces cancel/reopen of the same ID without desktop I/O.
-func checkClipboardPreviewCancellation(_ store:ClipboardStore)throws->[String:Any] {
+@MainActor func checkClipboardPreviewCancellation(_ store:ClipboardStore)throws->[String:Any] {
     guard let context=CGContext(data:nil,width:1,height:1,bitsPerComponent:8,bytesPerRow:4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.premultipliedLast.rawValue),let image=context.makeImage() else {throw LauncherError("No preview fixture")}
-    let lock=NSLock();var callbacks:[()->Void]=[]
-    let preview=ClipboardPreviewModel(decode:{clip,_ in if clip.text=="failure" {throw LauncherError("fixture decode failed")};return ClipboardImage(image:image,width:clip.text=="old" ? 1:2,height:1,bytes:4)},deliver:{callback in lock.lock();callbacks.append(callback);lock.unlock()})
-    func count()->Int {lock.lock();defer {lock.unlock()};return callbacks.count}
-    func callback(_ index:Int)->()->Void {lock.lock();defer {lock.unlock()};return callbacks[index]}
+    let callbacks=LockedValue<[@MainActor @Sendable ()->Void]>([])
+    let preview=ClipboardPreviewModel(decode:{clip,_ in if clip.text=="failure" {throw LauncherError("fixture decode failed")};return ClipboardImage(image:image,width:clip.text=="old" ? 1:2,height:1,bytes:4)},deliver:{callback in callbacks.update {$0.append(callback)}})
+    func count()->Int {callbacks.read {$0.count}}
+    func callback(_ index:Int)->@MainActor @Sendable ()->Void {callbacks.read {$0[index]}}
     func wait(_ expected:Int)throws {
         let end=Date().addingTimeInterval(3)
         while count()<expected && Date()<end {Thread.sleep(forTimeInterval:0.002)}

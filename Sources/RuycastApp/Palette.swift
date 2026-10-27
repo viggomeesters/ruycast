@@ -119,7 +119,7 @@ final class PalettePanel:NSPanel {
         return super.performKeyEquivalent(with:event)
     }
 }
-final class PaletteController {
+@MainActor final class PaletteController {
     let state:AppState
     let panel:PalettePanel
     private var outside:Any?
@@ -156,7 +156,7 @@ final class PaletteController {
         DispatchQueue.main.async { [weak self] in
             guard let self,self.panel.isVisible,self.openTrace?.id==trace.id else {return}
             defer {self.openTrace=nil}
-            func field(_ view:NSView)->SearchInput? {if let input=view as? SearchInput {return input};return view.subviews.lazy.compactMap {field($0)}.first}
+            @MainActor func field(_ view:NSView)->SearchInput? {if let input=view as? SearchInput {return input};return view.subviews.lazy.compactMap {field($0)}.first}
             if let view=self.panel.contentView,let input=field(view),self.panel.makeFirstResponder(input) {PerformanceTrace.shared.finish(trace)} else {PerformanceTrace.shared.finish(trace,cancelled:true)}
         }
         if outside==nil {outside=NSEvent.addGlobalMonitorForEvents(matching:[.leftMouseDown,.rightMouseDown]) {[weak self] _ in self?.hide()}}
@@ -165,7 +165,7 @@ final class PaletteController {
     func restoreSearchFocus() {
         DispatchQueue.main.async { [weak self] in
             guard let self,self.state.paletteVisible,!self.state.actionsOpen,self.state.form==nil,self.state.pendingRemoval==nil,self.state.confirmationCommand==nil else {return}
-            func field(_ view:NSView)->SearchInput? {if let input=view as? SearchInput {return input};return view.subviews.lazy.compactMap {field($0)}.first}
+            @MainActor func field(_ view:NSView)->SearchInput? {if let input=view as? SearchInput {return input};return view.subviews.lazy.compactMap {field($0)}.first}
             if let view=self.panel.contentView,let input=field(view) {self.panel.makeFirstResponder(input)}
         }
     }
@@ -177,7 +177,7 @@ final class PaletteController {
         p.contentView=NSHostingView(rootView:HStack(spacing:10) {Image(systemName:success ? "checkmark.circle.fill":"exclamationmark.circle.fill").foregroundStyle(success ? Color.green:Color.orange);Text(text).font(.system(size:13,weight:.medium)).lineLimit(2);Spacer()}.padding(16).frame(width:340,height:65).background(.regularMaterial,in:RoundedRectangle(cornerRadius:12)))
         if let f=(NSScreen.screens.first {$0.frame.contains(NSEvent.mouseLocation)} ?? NSScreen.main)?.visibleFrame {p.setFrameOrigin(NSPoint(x:f.maxX-360,y:f.maxY-85))}
         p.orderFrontRegardless();toast=p
-        toastTimer=Timer.scheduledTimer(withTimeInterval:5,repeats:false) {[weak self] _ in self?.toast?.orderOut(nil);self?.toast=nil}
+        toastTimer=mainRunLoopTimer(every:5,repeats:false) {[weak self] in self?.toast?.orderOut(nil);self?.toast=nil}
     }
 }
 

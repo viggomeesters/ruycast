@@ -3,7 +3,7 @@ import SwiftUI
 import LauncherCore
 import LauncherModels
 
-func checkVisualAssets() throws -> [String:Any] {
+@MainActor func checkVisualAssets() throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     try require(ShortcutPresentation("shift+ctrl+alt+cmd+left").keys==["✦","←"],"Hyper is not compact.")
@@ -53,12 +53,12 @@ func checkVisualAssets() throws -> [String:Any] {
     try require(boundedCount.value>0 && boundedCount.value<=64,"Icon flood queued unbounded origin fetches")
     return ["ok":true,"boundedOriginFlood":true,"nativeIconInvalidation":true,"sourceNameLookupCoalescedAndRefreshed":true,"compactHyperAndNativeKeycaps":true,"originOnlyRequests":true,"htmlIconDiscovery":true,"invalidImageBounds":true,"nonBlockingAndDeduplicated":true,"observableIconArrival":true,"persistentCache":true,"desktopEffects":false]
 }
-private final class IconRequestCounter {
-    private let lock=NSLock();private var count=0
-    func increment() {lock.lock();count+=1;lock.unlock()}
-    var value:Int {lock.lock();defer {lock.unlock()};return count}
+private final class IconRequestCounter:Sendable {
+    private let count=LockedValue(0)
+    func increment() {count.update {$0+=1}}
+    var value:Int {count.read {$0}}
 }
-func renderVisualAssets(_ directory:String) throws {
+@MainActor func renderVisualAssets(_ directory:String) throws {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let output=URL(fileURLWithPath:directory);try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
     for dark in [false,true] {
@@ -79,7 +79,7 @@ func renderVisualAssets(_ directory:String) throws {
     }
 }
 
-func renderWebsiteIcons(_ directory:String) throws -> [String:Any] {
+@MainActor func renderWebsiteIcons(_ directory:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let examples=[("GitHub","https://github.com/private?never-sent=1"),("YouTube","https://www.youtube.com/feed/subscriptions"),("Notion","https://www.notion.so/workspace")]
     let store=WebsiteIcons.shared,deadline=Date().addingTimeInterval(30)

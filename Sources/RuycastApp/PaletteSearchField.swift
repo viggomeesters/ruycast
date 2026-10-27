@@ -7,12 +7,12 @@ struct PaletteSearchField:NSViewRepresentable {
     @Binding var text:String
     @Environment(\.colorScheme) private var scheme
     var placeholder:String
-    var onMove:(Int)->Void
-    var onSubmit:()->Void
-    var onCancel:()->Void
-    var onActions:()->Void
-    var onTab:(()->Void)?=nil
-    var onExpand:(()->Void)?=nil
+    var onMove:@MainActor (Int)->Void
+    var onSubmit:@MainActor ()->Void
+    var onCancel:@MainActor ()->Void
+    var onActions:@MainActor ()->Void
+    var onTab:(@MainActor ()->Void)?=nil
+    var onExpand:(@MainActor ()->Void)?=nil
     func makeCoordinator()->Coordinator {Coordinator(self)}
     func makeNSView(context:Context)->SearchInput {
         let field=SearchInput();field.isBordered=false;field.drawsBackground=false
@@ -31,7 +31,7 @@ struct PaletteSearchField:NSViewRepresentable {
     static func dismantleNSView(_ field:SearchInput,coordinator:Coordinator) {
         PerformanceTrace.shared.cancelInput(fieldID:ObjectIdentifier(field));field.delegate=nil
     }
-    final class Coordinator:NSObject,NSTextFieldDelegate {
+    @MainActor final class Coordinator:NSObject,NSTextFieldDelegate {
         var parent:PaletteSearchField
         init(_ parent:PaletteSearchField) {self.parent=parent}
         func controlTextDidChange(_ notification:Notification) {
@@ -54,7 +54,7 @@ struct PaletteSearchField:NSViewRepresentable {
     }
 }
 final class SearchInput:NSTextField {
-    var actions:(()->Void)?
+    var actions:(@MainActor ()->Void)?
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         guard let window else {return}

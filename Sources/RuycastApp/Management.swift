@@ -17,7 +17,7 @@ enum SettingsTab:String,CaseIterable {
     case dashboard="Dashboard",general="General",commands="Commands",snippets="Snippets",quicklinks="Quicklinks",clipboard="Clipboard",advanced="Advanced"
     var icon:String {switch self {case .dashboard:return "chart.bar";case .general:return "slider.horizontal.3";case .commands:return "command";case .snippets:return "text.quote";case .quicklinks:return "link";case .clipboard:return "clipboard";case .advanced:return "gearshape.2"}}
 }
-final class ManagementNavigation:ObservableObject {
+@MainActor final class ManagementNavigation:ObservableObject {
     @Published var query=""
     @Published var kind="commands"
     @Published var filter="all"
@@ -115,7 +115,7 @@ struct ManagementView:View {
                 } label:{Label("Add",systemImage:"plus")}.fixedSize().disabled(state.busy)
             }.padding(18)
             if navigation.tab == .snippets {
-                HStack {Toggle("Expand snippet keywords",isOn:Binding(get:{state.config.snippetExpansionEnabled==true},set:state.setExpansionEnabled)).toggleStyle(.switch).controlSize(.small);Spacer();permissionNotice}.padding(.horizontal,20).padding(.bottom,14).disabled(state.busy)
+                HStack {Toggle("Expand snippet keywords",isOn:Binding(get:{state.config.snippetExpansionEnabled==true},set:{state.setExpansionEnabled($0)})).toggleStyle(.switch).controlSize(.small);Spacer();permissionNotice}.padding(.horizontal,20).padding(.bottom,14).disabled(state.busy)
             }
             HStack(spacing:12) {
                 Text("Name").frame(maxWidth:.infinity,alignment:.leading)
@@ -150,7 +150,7 @@ struct ManagementView:View {
         preferences("General") {
             preferenceRow("Open Launcher") {ShortcutRecorder(state:state,value:state.config.launcherHotkey,onSave:{if let value=$0 {state.setSetting("launcherHotkey",jsonString(value))}}).frame(width:180,height:28)}
             preferenceRow("Clipboard History") {ShortcutRecorder(state:state,value:state.config.clipboardHotkey,onSave:{if let value=$0 {state.setSetting("clipboardHotkey",jsonString(value))}}).frame(width:180,height:28)}
-            preferenceRow("Caps Lock as Hyper") {Toggle("Caps Lock as Hyper",isOn:Binding(get:{state.config.hyperKeyEnabled==true},set:state.setHyperEnabled)).labelsHidden().toggleStyle(.switch)}
+            preferenceRow("Caps Lock as Hyper") {Toggle("Caps Lock as Hyper",isOn:Binding(get:{state.config.hyperKeyEnabled==true},set:{state.setHyperEnabled($0)})).labelsHidden().toggleStyle(.switch)}
             preferenceRow("Separate Left and Right Command") {
                 Toggle("Separate Left and Right Command",isOn:Binding(get:{state.config.separatesCommandKeys},set:{state.setPreference("separateCommandKeys",$0)})).labelsHidden().toggleStyle(.switch)
             }
@@ -176,7 +176,7 @@ struct ManagementView:View {
             preferenceRow("Configuration Folder") {VStack(alignment:.trailing,spacing:6) {Text(state.configDirectory.path).font(.caption).foregroundStyle(theme.muted).lineLimit(2).truncationMode(.middle).textSelection(.enabled);Button("Choose Folder…",action:state.chooseConfigurationDirectory)}}
             preferenceRow("Reload") {Button("Reload Configuration") {do {try state.reload();state.message="";state.showToast?("Configuration reloaded",true)} catch {state.message=error.localizedDescription}}}
             preferenceRow("Permissions") {Button("Accessibility…") {NSWorkspace.shared.open(URL(string:"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)}}
-            preferenceRow("Version") {Text("Ruycast 0.8.1").foregroundStyle(theme.muted)}
+            preferenceRow("Version") {Text("Ruycast 0.8.2").foregroundStyle(theme.muted)}
         }
     }
     private func preferences<Content:View>(_ title:String,@ViewBuilder content:()->Content)->some View {
@@ -234,7 +234,7 @@ private struct ClipboardPreferences:View {
         ScrollView {VStack(alignment:.leading,spacing:22) {
             Text("Clipboard").font(.system(size:21,weight:.bold,design:.rounded))
             VStack(alignment:.leading,spacing:18) {
-                Toggle("Clipboard history",isOn:Binding(get:{state.config.clipboard.enabled},set:state.setClipboardEnabled)).toggleStyle(.switch)
+                Toggle("Clipboard history",isOn:Binding(get:{state.config.clipboard.enabled},set:{state.setClipboardEnabled($0)})).toggleStyle(.switch)
                 if state.paused {Button("Resume recording") {state.handle(["op":"clipboard.pause","paused":false]) {_ in}}}
                 HStack {Text("History limit");Spacer();Stepper("\(limit) items",value:$limit,in:1...1000).frame(width:160)}
                 HStack {Text("Keep history for");Spacer();Stepper("\(days) days",value:$days,in:1...365).frame(width:160)}
@@ -247,7 +247,7 @@ private struct ClipboardPreferences:View {
     private func load() {limit=state.config.clipboard.limit;days=state.config.clipboard.retentionDays;exclusions=state.config.clipboard.excludedApps.joined(separator:"\n")}
 }
 
-final class ManagementController:NSObject,NSWindowDelegate {
+@MainActor final class ManagementController:NSObject,NSWindowDelegate {
     let state:AppState
     let navigation=ManagementNavigation()
     let window:NSWindow

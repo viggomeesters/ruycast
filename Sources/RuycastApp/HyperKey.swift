@@ -8,8 +8,8 @@ import LauncherModels
 /// Owns one nonexclusive HID observer and one event filter. Never seizes a keyboard
 /// or installs persistent mappings. Raw usage 0x39 provides real Caps down AND up;
 /// flagsChanged alone reports the Caps lock latch, not physical release.
-final class HyperKey {
-    static let generatedTag:Int64=0x52554859504552
+@MainActor final class HyperKey {
+    nonisolated static let generatedTag:Int64=0x52554859504552
     static let hyper:CGEventFlags=[.maskControl,.maskAlternate,.maskShift,.maskCommand]
     private var manager:IOHIDManager?
     private var capsConnection:io_connect_t=0
@@ -31,14 +31,14 @@ final class HyperKey {
     init() {
         let center=NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.willSleepNotification,NSWorkspace.sessionDidResignActiveNotification] {
-            observers.append(center.addObserver(forName:name,object:nil,queue:.main) {[weak self] _ in self?.sleeping=true;self?.stop();self?.status="Paused"})
+            observers.append(center.addObserver(forName:name,object:nil,queue:.main) {[weak self] _ in MainActor.assumeIsolated {self?.sleeping=true;self?.stop();self?.status="Paused"}})
         }
         for name in [NSWorkspace.didWakeNotification,NSWorkspace.sessionDidBecomeActiveNotification,NSWorkspace.didLaunchApplicationNotification,NSWorkspace.didTerminateApplicationNotification] {
-            observers.append(center.addObserver(forName:name,object:nil,queue:.main) {[weak self] _ in self?.sleeping=false;self?.refresh()})
+            observers.append(center.addObserver(forName:name,object:nil,queue:.main) {[weak self] _ in MainActor.assumeIsolated {self?.sleeping=false;self?.refresh()}})
         }
-        timer=Timer.scheduledTimer(withTimeInterval:2,repeats:true) {[weak self] _ in self?.refresh()}
+        timer=mainRunLoopTimer(every:2) {[weak self] in self?.refresh()}
     }
-    deinit {timer?.invalidate();for observer in observers {NSWorkspace.shared.notificationCenter.removeObserver(observer)};stop()}
+    isolated deinit {timer?.invalidate();for observer in observers {NSWorkspace.shared.notificationCenter.removeObserver(observer)};stop()}
     func update(hyper:Bool,bindings:[UInt32:String],commandBindings:[String:String]=[:]) {
         if hyperEnabled != hyper || self.bindings != bindings || self.commandBindings != commandBindings {stop()}
         hyperEnabled=hyper;self.bindings=bindings;self.commandBindings=commandBindings

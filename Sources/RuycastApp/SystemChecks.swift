@@ -4,13 +4,16 @@ import LauncherCore
 import LauncherModels
 
 /// Uses fake process identities and injected effects; never changes the desktop.
-func checkSystemServices() throws -> [String:Any] {
+@MainActor func checkSystemServices() throws -> [String:Any] {
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     let identity=SystemServices.Identity(pid:123456,uid:getuid(),seconds:11,micros:22)
-    var current: SystemServices.Identity?=identity
-    var killed=[pid_t](),pressed=0,raised=0,activated=0,monitored=0,locked=0,trusted=true
+    let currentBox=LockedValue<SystemServices.Identity?>(identity)
+    var current:SystemServices.Identity? {get {currentBox.read {$0}} set {currentBox.update {$0=newValue}}}
+    var killed=[pid_t](),pressed=0,raised=0,activated=0,monitored=0,locked=0
+    let trustedBox=LockedValue(true)
+    var trusted:Bool {get {trustedBox.read {$0}} set {trustedBox.update {$0=newValue}}}
     var effects=SystemServices.Effects()
-    effects.identity={_ in current};effects.trusted={trusted}
+    effects.identity={_ in currentBox.read {$0}};effects.trusted={trustedBox.read {$0}}
     effects.terminate={killed.append($0);return 0}
     effects.activate={_ in activated+=1;return true}
     effects.press={_ in pressed+=1;return .success}

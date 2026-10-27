@@ -7,24 +7,24 @@ import CryptoKit
 import ImageIO
 
 /// Requests only the origin, never quicklink paths, queries, credentials or cookies.
-final class WebsiteIcons:ObservableObject {
+@MainActor final class WebsiteIcons:ObservableObject {
     static let shared=WebsiteIcons()
     @Published private(set) var revision=0
     private let cache:URL
     private let queue:OperationQueue
-    private let load:(URL)->Data?
+    private let load:@Sendable (URL)->Data?
     private let images=NSCache<NSString,NSImage>()
     private var pending=Set<String>()
     private var retryAfter:[String:Date]=[:]
-    init(cache:URL=FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("nl.viggomeesters.ruycast/website-icons"),load:@escaping(URL)->Data?=WebsiteIcons.fetch) {
+    init(cache:URL=FileManager.default.urls(for:.cachesDirectory,in:.userDomainMask)[0].appendingPathComponent("nl.viggomeesters.ruycast/website-icons"),load:@escaping @Sendable (URL)->Data?=WebsiteIcons.fetch) {
         self.cache=cache;self.load=load;queue=OperationQueue();queue.name="ruycast.website-icons";queue.maxConcurrentOperationCount=4;queue.qualityOfService = .utility;images.countLimit=512
     }
-    static func origin(_ target:String)->URL? {
+    nonisolated static func origin(_ target:String)->URL? {
         guard var parts=URLComponents(string:target),let scheme=parts.scheme?.lowercased(),["https","http"].contains(scheme),let host=parts.host,!host.isEmpty,!host.contains(where:{"{}% ".contains($0)}) else {return nil}
         parts.scheme=scheme;parts.host=host.lowercased();parts.user=nil;parts.password=nil;parts.path="/";parts.query=nil;parts.fragment=nil
         return parts.url
     }
-    static func cacheKey(_ origin:URL)->String {SHA256.hash(data:Data(origin.absoluteString.utf8)).map {String(format:"%02x",$0)}.joined()}
+    nonisolated static func cacheKey(_ origin:URL)->String {SHA256.hash(data:Data(origin.absoluteString.utf8)).map {String(format:"%02x",$0)}.joined()}
     func image(for target:String)->NSImage? {
         guard let origin=Self.origin(target) else {return nil}
         let key=Self.cacheKey(origin)
@@ -39,7 +39,7 @@ final class WebsiteIcons:ObservableObject {
             var data:Data?
             if (attrs?[.size] as? NSNumber)?.intValue ?? Int.max <= 131072 {data=(try? Data(contentsOf:file)).flatMap(Self.png)}
             let missDate=(try? fm.attributesOfItem(atPath:miss.path)[.modificationDate]) as? Date
-            if data != nil {let cached=data;DispatchQueue.main.async {self?.publish(cached,key:key,finished:false)}}
+            if data != nil {let cached=data;DispatchQueue.main.async { [weak self] in self?.publish(cached,key:key,finished:false)}}
             if age>7*86400 && (missDate.map {Date().timeIntervalSince($0)>3600} ?? true) {
                 if let fresh=load(origin).flatMap(Self.png) {
                     data=fresh
@@ -50,7 +50,7 @@ final class WebsiteIcons:ObservableObject {
                 }
                 Self.prune(cache)
             }
-            let result=data;DispatchQueue.main.async {self?.publish(result,key:key,finished:true)}
+            let result=data;DispatchQueue.main.async { [weak self] in self?.publish(result,key:key,finished:true)}
         }
         return nil
     }
@@ -62,17 +62,17 @@ final class WebsiteIcons:ObservableObject {
         if let data,let image=NSImage(data:data) {image.isTemplate=false;images.setObject(image,forKey:key as NSString);revision+=1}
         else if finished {revision+=1} // Free slots must also refresh skipped visible requests after misses.
     }
-    private static func prune(_ cache:URL) {
+    private nonisolated static func prune(_ cache:URL) {
         guard let urls=try? FileManager.default.contentsOfDirectory(at:cache,includingPropertiesForKeys:[.contentModificationDateKey],options:.skipsHiddenFiles),urls.count>1024 else {return}
         let ordered=urls.filter {["png","miss"].contains($0.pathExtension)}.sorted {((try? $0.resourceValues(forKeys:[.contentModificationDateKey]).contentModificationDate) ?? .distantPast)<((try? $1.resourceValues(forKeys:[.contentModificationDateKey]).contentModificationDate) ?? .distantPast)}
         for url in ordered.prefix(max(0,ordered.count-1024)) {try? FileManager.default.removeItem(at:url)}
     }
-    static func png(_ bytes:Data)->Data? {
+    nonisolated static func png(_ bytes:Data)->Data? {
         guard bytes.count<=1_048_576,let source=CGImageSourceCreateWithData(bytes as CFData,[kCGImageSourceShouldCache:false] as CFDictionary),let props=CGImageSourceCopyPropertiesAtIndex(source,0,nil) as? [CFString:Any],let w=props[kCGImagePropertyPixelWidth] as? Int,let h=props[kCGImagePropertyPixelHeight] as? Int,w>0,h>0,w<=8192,h<=8192,
               let cg=CGImageSourceCreateThumbnailAtIndex(source,0,[kCGImageSourceCreateThumbnailFromImageAlways:true,kCGImageSourceThumbnailMaxPixelSize:64,kCGImageSourceShouldCacheImmediately:true] as CFDictionary) else {return nil}
         return NSBitmapImageRep(cgImage:cg).representation(using:.png,properties:[:])
     }
-    static func candidates(html:String,origin:URL)->[URL] {
+    nonisolated static func candidates(html:String,origin:URL)->[URL] {
         let links=try! NSRegularExpression(pattern:"<link\\b[^>]*>",options:.caseInsensitive)
         let attrs=try! NSRegularExpression(pattern:#"([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#,options:.caseInsensitive)
         var found:[URL]=[]
@@ -88,7 +88,7 @@ final class WebsiteIcons:ObservableObject {
         }
         return found
     }
-    static func fetch(_ origin:URL)->Data? {
+    nonisolated static func fetch(_ origin:URL)->Data? {
         if let data=BoundedWebRequest.get(origin.appendingPathComponent("favicon.ico")),png(data) != nil {return data}
         if let data=BoundedWebRequest.get(origin),let html=String(data:data,encoding:.utf8) {
             for url in candidates(html:html,origin:origin) {if let data=BoundedWebRequest.get(url),png(data) != nil {return data}}
@@ -98,9 +98,9 @@ final class WebsiteIcons:ObservableObject {
     }
 }
 private final class BoundedWebRequest:NSObject,URLSessionDataDelegate,URLSessionTaskDelegate {
-    private var bytes=Data();private var valid=false
+    private let state=LockedValue((bytes:Data(),valid:false))
     private let done=DispatchSemaphore(value:0)
-    static func get(_ url:URL)->Data? {
+    nonisolated static func get(_ url:URL)->Data? {
         let handler=BoundedWebRequest(),config=URLSessionConfiguration.ephemeral
         config.httpShouldSetCookies=false;config.httpCookieStorage=nil;config.urlCredentialStorage=nil;config.urlCache=nil;config.timeoutIntervalForRequest=3;config.timeoutIntervalForResource=4
         let session=URLSession(configuration:config,delegate:handler,delegateQueue:nil)
@@ -109,17 +109,21 @@ private final class BoundedWebRequest:NSObject,URLSessionDataDelegate,URLSession
         let completed=handler.done.wait(timeout:.now()+5) == .success
         session.invalidateAndCancel()
         // Delegate state is read only after completion; a timed-out request has no usable result.
-        return completed && handler.valid ? handler.bytes:nil
+        return completed ? handler.state.read {$0.valid ? $0.bytes:nil}:nil
     }
     func urlSession(_ session:URLSession,dataTask:URLSessionDataTask,didReceive response:URLResponse,completionHandler:@escaping(URLSession.ResponseDisposition)->Void) {
-        valid=(response as? HTTPURLResponse).map {(200..<300).contains($0.statusCode)} ?? false
-        if response.expectedContentLength>1_048_576 {valid=false}
+        let valid=((response as? HTTPURLResponse).map {(200..<300).contains($0.statusCode)} ?? false) && response.expectedContentLength<=1_048_576
+        state.update {$0.valid=valid}
         completionHandler(valid ? .allow:.cancel)
     }
     func urlSession(_ session:URLSession,dataTask:URLSessionDataTask,didReceive data:Data) {
-        if bytes.count+data.count>1_048_576 {valid=false;dataTask.cancel()} else {bytes.append(data)}
+        let cancel=state.update {value in
+            if value.bytes.count+data.count>1_048_576 {value.valid=false;return true}
+            value.bytes.append(data);return false
+        }
+        if cancel {dataTask.cancel()}
     }
-    func urlSession(_ session:URLSession,task:URLSessionTask,didCompleteWithError error:Error?) {if error != nil {valid=false};done.signal()}
+    func urlSession(_ session:URLSession,task:URLSessionTask,didCompleteWithError error:Error?) {if error != nil {state.update {$0.valid=false}};done.signal()}
     func urlSession(_ session:URLSession,task:URLSessionTask,willPerformHTTPRedirection response:HTTPURLResponse,newRequest request:URLRequest,completionHandler:@escaping(URLRequest?)->Void) {
         guard let url=request.url,["http","https"].contains(url.scheme ?? ""),url.user==nil,url.password==nil else {completionHandler(nil);return};completionHandler(request)
     }

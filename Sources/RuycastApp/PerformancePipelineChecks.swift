@@ -3,7 +3,7 @@ import Observation
 import LauncherCore
 import LauncherModels
 
-func checkPerformancePipeline() throws -> [String:Any] {
+@MainActor func checkPerformancePipeline() throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-q-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}
@@ -49,13 +49,13 @@ func checkPerformancePipeline() throws -> [String:Any] {
     let retained=state.filteredClips
     state.mode="commands";state.query="terminal"
     let settleGate=Date().addingTimeInterval(0.05);while Date()<settleGate {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.005))}
-    var clipboardChanges=0
-    withObservationTracking {_=state.filteredClips;_=state.clips;_=state.clipboardSelection;_=state.clipboardQuery;_=state.paused;_=state.clipboardSearchBusy} onChange:{clipboardChanges+=1}
+    let clipboardChanges=LockedValue(0)
+    withObservationTracking {_=state.filteredClips;_=state.clips;_=state.clipboardSelection;_=state.clipboardQuery;_=state.paused;_=state.clipboardSearchBusy} onChange:{clipboardChanges.update {$0+=1}}
     for i in 0..<1000 {state.query="terminal \(i)"}
     let settleTyping=Date().addingTimeInterval(0.05);while Date()<settleTyping {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.005))}
-    try require(state.filteredClips==retained && !state.clipboardSearchBusy && clipboardChanges==0,"Hidden clipboard redrew or searched while command typing")
+    try require(state.filteredClips==retained && !state.clipboardSearchBusy && clipboardChanges.read {$0}==0,"Hidden clipboard redrew or searched while command typing")
     state.clips.removeAll {$0.id==selected}
-    try require(clipboardChanges==1,"Clipboard data change did not invalidate its tracked consumer")
+    try require(clipboardChanges.read {$0}==1,"Clipboard data change did not invalidate its tracked consumer")
     try require(!state.filteredClips.contains {$0.id==selected},"Deleted item remained in retained clipboard snapshot")
     let preservedClips=state.clips
     state.clips=[];try require(state.filteredClips.isEmpty,"Hidden clipboard clear retained deleted content")

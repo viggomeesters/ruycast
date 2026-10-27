@@ -20,7 +20,8 @@ struct CommandLogEntry:Codable {
 struct CommandLogDocument:Codable {var schema=1;var entries:[CommandLogEntry]=[]}
 /// Operational errors are separate from payload-free aggregate analytics.
 /// No successful stdout, command arguments, capture text or clipboard contents are stored.
-final class CommandLog {
+// All mutable document/error/revision state is locked; writes use writer serially.
+final class CommandLog:@unchecked Sendable {
     let url:URL
     private let lock=NSLock()
     private let writer=DispatchQueue(label:"ruycast.command-log",qos:.utility,autoreleaseFrequency:.workItem)

@@ -4,7 +4,7 @@ import LauncherCore
 import LauncherModels
 
 /// Owns both visible selection and keyboard submission; no focus in a popup is required.
-final class SnippetChoiceModel:ObservableObject {
+@MainActor final class SnippetChoiceModel:ObservableObject {
     let command:Command
     let fields:[TemplateField]
     @Published var values:[String:String]
@@ -103,7 +103,7 @@ struct SnippetChoiceView:View {
 
 /// Only presents after the triggering key has reached the editor. The keyword
 /// stays in place until confirmation, so dismissing never needs a rollback.
-final class SnippetChoiceController {
+@MainActor final class SnippetChoiceController {
     let request:SnippetChoiceRequest
     private var panel:NSPanel?
     private var activation:NSObjectProtocol?
@@ -121,12 +121,14 @@ final class SnippetChoiceController {
     init(command:Command,pid:pid_t,safe:@escaping ()->Bool,apply:@escaping (SnippetReplacement)->Void,failure:@escaping (String)->Void) {
         request=SnippetChoiceRequest(command:command,pid:pid);self.safe=safe;self.apply=apply;self.failure=failure
         activation=NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main) { [weak self] note in
-            guard let self,let app=note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else {return}
-            let pid=app.processIdentifier
-            if pid != getpid() && !(self.returning && pid==self.request.pid) {self.cancel(restore:false)}
+            guard let pid=(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier else {return}
+            MainActor.assumeIsolated {
+                guard let self else {return}
+                if pid != getpid() && !(self.returning && pid==self.request.pid) {self.cancel(restore:false)}
+            }
         }
     }
-    deinit {if let activation {NSWorkspace.shared.notificationCenter.removeObserver(activation)};if let click {NSEvent.removeMonitor(click)};if let resign {NotificationCenter.default.removeObserver(resign)}}
+    isolated deinit {if let activation {NSWorkspace.shared.notificationCenter.removeObserver(activation)};if let click {NSEvent.removeMonitor(click)};if let resign {NotificationCenter.default.removeObserver(resign)}}
     func input(_ type:CGEventType,_ event:CGEvent) {
         if type == .keyDown {
             if panel?.isKeyWindow != true || returning {cancel(restore:false)}
@@ -138,7 +140,7 @@ final class SnippetChoiceController {
         if let element {
             var raw:CFTypeRef?
             if AXUIElementCopyAttributeValue(element,kAXSelectedTextRangeAttribute as CFString,&raw) == .success,let raw,CFGetTypeID(raw)==AXValueGetTypeID() {
-                var selection=CFRange();if AXValueGetValue(unsafeBitCast(raw,to:AXValue.self),.cfRange,&selection) {range=selection}
+                var selection=CFRange();if AXValueGetValue(unsafeDowncast(raw,to:AXValue.self),.cfRange,&selection) {range=selection}
             }
             raw=nil;AXUIElementCopyAttributeValue(element,kAXValueAttribute as CFString,&raw);value=raw as? String
             if let value,let range,range.length != 0 || range.location<0 || range.location>value.utf16.count || !(value as NSString).substring(to:range.location).hasSuffix(request.command.keyword ?? "") {cancel(restore:false);return}
@@ -155,7 +157,7 @@ final class SnippetChoiceController {
         self.panel=panel;panel.makeKeyAndOrderFront(nil)
         click=NSEvent.addGlobalMonitorForEvents(matching:[.leftMouseDown,.rightMouseDown]) { [weak self] _ in self?.cancel(restore:false) }
         resign=NotificationCenter.default.addObserver(forName:NSWindow.didResignKeyNotification,object:panel,queue:.main) { [weak self] _ in
-            guard let self,!self.returning else {return};self.cancel(restore:false)
+            MainActor.assumeIsolated {guard let self,!self.returning else {return};self.cancel(restore:false)}
         }
     }
     func cancel(restore:Bool=true) {
@@ -167,7 +169,7 @@ final class SnippetChoiceController {
         let app=AXUIElementCreateApplication(request.pid);AXUIElementSetMessagingTimeout(app,0.01)
         var raw:CFTypeRef?
         guard AXUIElementCopyAttributeValue(app,kAXFocusedUIElementAttribute as CFString,&raw) == .success,let raw,CFGetTypeID(raw)==AXUIElementGetTypeID() else {return nil}
-        let element=unsafeBitCast(raw,to:AXUIElement.self);AXUIElementSetMessagingTimeout(element,0.01);return element
+        let element=unsafeDowncast(raw,to:AXUIElement.self);AXUIElementSetMessagingTimeout(element,0.01);return element
     }
     private func unchanged()->Bool {
         guard let element else {return true} // AX-unavailable web editors use the event/activation guards.
@@ -175,7 +177,7 @@ final class SnippetChoiceController {
         var raw:CFTypeRef?
         if let range {
             guard AXUIElementCopyAttributeValue(current,kAXSelectedTextRangeAttribute as CFString,&raw) == .success,let raw,CFGetTypeID(raw)==AXValueGetTypeID() else {return false}
-            var now=CFRange();guard AXValueGetValue(unsafeBitCast(raw,to:AXValue.self),.cfRange,&now),now.location==range.location,now.length==range.length else {return false}
+            var now=CFRange();guard AXValueGetValue(unsafeDowncast(raw,to:AXValue.self),.cfRange,&now),now.location==range.location,now.length==range.length else {return false}
         }
         if let value {
             raw=nil;guard AXUIElementCopyAttributeValue(current,kAXValueAttribute as CFString,&raw) == .success,raw as? String==value else {return false}

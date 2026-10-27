@@ -6,7 +6,7 @@ import LauncherCore
 import LauncherModels
 
 /// Production controls in an invisible window, with a disposable CLI-backed profile.
-func checkSettings(_ outputPath:String) throws -> [String:Any] {
+@MainActor func checkSettings(_ outputPath:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-settings-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}
@@ -15,7 +15,7 @@ func checkSettings(_ outputPath:String) throws -> [String:Any] {
     config.commands=featureFixture()+Configuration.layouts.map {Command(id:"window."+$0,title:$0.replacingOccurrences(of:"-",with:" ").capitalized,kind:"window",target:$0)}
     config.commands[0].hotkey="ctrl+alt+f8"
     try Files.save(config,to:state.configURL);try state.reload()
-    let server=ControlServer(root:root);try server.start {request,reply in state.handle(request,reply:reply)};defer {server.stop()}
+    let server=ControlServer(root:root);try server.start {request,reply in state.handle(request,sink:reply)};defer {server.stop()}
     func require(_ condition:Bool,_ message:String) throws {if !condition {throw LauncherError(message)}}
     func wait() throws {
         let end=Date().addingTimeInterval(8)

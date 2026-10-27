@@ -4,7 +4,7 @@ import LauncherCore
 import LauncherModels
 
 /// Dispatches only to our invisible native views; no global input or visible window.
-func checkActionsMenu(output:String?=nil) throws -> [String:Any] {
+@MainActor func checkActionsMenu(output:String?=nil) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-actions-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}

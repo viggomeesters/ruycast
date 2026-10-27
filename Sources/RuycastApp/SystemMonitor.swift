@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import Charts
 
-final class SystemMonitorModel:ObservableObject {
+@MainActor final class SystemMonitorModel:ObservableObject {
     @Published var snapshot:MonitorSnapshot?
     @Published var history:[MonitorSnapshot]=[]
     private(set) var active=false
@@ -13,21 +13,23 @@ final class SystemMonitorModel:ObservableObject {
     private let sampler=ResourceSampler()
     func start() {
         guard !active else {return};active=true;generation+=1;refresh()
-        timer=Timer.scheduledTimer(withTimeInterval:2,repeats:true) {[weak self] _ in self?.refresh()}
+        timer=mainRunLoopTimer(every:2) {[weak self] in self?.refresh()}
     }
     func stop() {active=false;generation+=1;timer?.invalidate();timer=nil}
     func refresh() {
         guard active,!inFlight else {return};inFlight=true;let version=generation
+        let sampler=sampler
         worker.async { [weak self] in
-            guard let self else {return};let result=self.sampler.sample()
-            DispatchQueue.main.async {
+            let result=sampler.sample()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {return}
                 self.inFlight=false
                 guard self.active,self.generation==version else {return}
                 self.snapshot=result;self.history=Array((self.history+[result]).suffix(60))
             }
         }
     }
-    deinit {timer?.invalidate()}
+    isolated deinit {timer?.invalidate()}
 }
 enum MonitorTab:String,CaseIterable {
     case overview="System Info",cpu="CPU",memory="Memory",disk="Macintosh HD",power="Power",network="Network"
@@ -107,7 +109,7 @@ struct SystemMonitorView:View {
     }
     private func uptime(_ seconds:TimeInterval)->String {let hours=Int(seconds)/3600;return hours>=24 ? "\(hours/24) days, \(hours%24) hours":"\(hours) hours"}
 }
-final class SystemMonitorController:NSObject,NSWindowDelegate {
+@MainActor final class SystemMonitorController:NSObject,NSWindowDelegate {
     let model=SystemMonitorModel()
     let window:NSWindow
     init(state:AppState) {

@@ -4,7 +4,7 @@ import Vision
 import LauncherCore
 import LauncherModels
 
-func checkLauncherPolish(_ outputPath:String)throws->[String:Any] {
+@MainActor func checkLauncherPolish(_ outputPath:String)throws->[String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let directory=URL(fileURLWithPath:outputPath,isDirectory:true)
     try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)

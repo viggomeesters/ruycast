@@ -4,7 +4,7 @@ import LauncherCore
 import LauncherModels
 
 /// Isolated capture and quick-settings flows. Never captures into the user's vault.
-func checkFeedback(_ outputPath:String) throws -> [String:Any] {
+@MainActor func checkFeedback(_ outputPath:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-feedback-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}
@@ -12,7 +12,7 @@ func checkFeedback(_ outputPath:String) throws -> [String:Any] {
     var config=state.config;config.commands=featureFixture()
     for index in config.commands.indices where config.commands[index].id.hasPrefix("capture.") {config.commands[index].arguments=["%s",#"{"ok":true}"#]}
     try Files.save(config,to:state.configURL);try state.reload()
-    let server=ControlServer(root:root);try server.start {req,reply in state.handle(req,reply:reply)};defer {server.stop()}
+    let server=ControlServer(root:root);try server.start {req,reply in state.handle(req,sink:reply)};defer {server.stop()}
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     func pump() {let end=Date().addingTimeInterval(0.15);while Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}}
     func wait() throws {let end=Date().addingTimeInterval(8);while state.busy,Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))};try require(!state.busy && state.message.isEmpty,"Fixture save failed: \(state.message)")}

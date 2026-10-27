@@ -77,7 +77,7 @@ if APP.exists():
     if not str(prior).isdigit():raise RuntimeError('Existing build number is not numeric; installation preserved.')
     previous_build=int(prior)
 info={'CFBundleIdentifier':NEW_ID,'CFBundleName':'Ruycast','CFBundleDisplayName':'Ruycast',
-      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.8.1',
+      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.8.2',
       'CFBundleVersion':str(max(7,previous_build+1)),'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True}
 if (stage/'Contents/Resources/AppIcon.icns').is_file():info['CFBundleIconFile']='AppIcon'
 (stage/'Contents/Info.plist').write_bytes(plistlib.dumps(info))

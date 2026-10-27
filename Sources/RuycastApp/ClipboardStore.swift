@@ -6,10 +6,14 @@ import LauncherModels
 import Darwin
 
 /// Owns only PNG assets in the profile. File clipboard items retain references.
-enum ClipboardPayload {case files([URL]);case image(Data);case text(String)}
-final class ClipboardStore {
+enum ClipboardPayload:Sendable {case files([URL]);case image(Data);case text(String)}
+final class ClipboardStore:Sendable {
     let root:URL
     init(root:URL) {self.root=root}
+    func history(fallback:[Clip]) throws -> [Clip] {
+        let url=root.appendingPathComponent("clipboard.json")
+        return FileManager.default.fileExists(atPath:url.path) ? try Files.decode([Clip].self,data:Data(contentsOf:url)):fallback
+    }
     private var assets:URL {root.appendingPathComponent("clipboard-assets",isDirectory:true)}
     private func directory() throws -> Int32 {
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])

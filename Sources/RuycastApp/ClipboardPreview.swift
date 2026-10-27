@@ -6,7 +6,7 @@ import LauncherModels
 import Darwin
 import Combine
 
-struct ClipboardImage {
+struct ClipboardImage:Sendable {
     let image:CGImage
     let width:Int
     let height:Int
@@ -34,7 +34,7 @@ extension ClipboardStore {
         return ClipboardImage(image:thumbnail,width:width,height:height,bytes:data.count)
     }
 }
-final class ClipboardPreviewModel:ObservableObject {
+@MainActor final class ClipboardPreviewModel:ObservableObject {
     @Published var asset:ClipboardImage?
     private(set) var assetID:String?
     var assetIdentity:String? {guard let asset,let assetID else {return nil};return "\(assetID):\(asset.width):\(asset.height):\(asset.bytes)"}
@@ -43,9 +43,9 @@ final class ClipboardPreviewModel:ObservableObject {
     private let queue:OperationQueue={let q=OperationQueue();q.maxConcurrentOperationCount=1;q.qualityOfService = .userInitiated;return q}()
     private var selectedID:String?
     private var generation=0
-    private let decode:(Clip,ClipboardStore)throws->ClipboardImage?
-    private let deliver:(@escaping ()->Void)->Void
-    init(decode:@escaping (Clip,ClipboardStore)throws->ClipboardImage?={try $1.preview($0)},deliver:@escaping (@escaping ()->Void)->Void={DispatchQueue.main.async(execute:$0)}) {self.decode=decode;self.deliver=deliver}
+    private let decode:@Sendable (Clip,ClipboardStore)throws->ClipboardImage?
+    private let deliver:@Sendable (@escaping @MainActor @Sendable ()->Void)->Void
+    init(decode:@escaping @Sendable (Clip,ClipboardStore)throws->ClipboardImage?={try $1.preview($0)},deliver:@escaping @Sendable (@escaping @MainActor @Sendable ()->Void)->Void={DispatchQueue.main.async(execute:$0)}) {self.decode=decode;self.deliver=deliver}
     func load(_ clip:Clip?,store:ClipboardStore) {
         if clip==nil,selectedID==nil,asset==nil,error==nil,!loading {return}
         generation+=1;let version=generation,decode=decode,deliver=deliver
@@ -63,7 +63,7 @@ final class ClipboardPreviewModel:ObservableObject {
         }
         queue.addOperation(job)
     }
-    deinit {queue.cancelAllOperations()}
+    isolated deinit {queue.cancelAllOperations()}
 }
 struct ClipboardHistoryView:View {
     let state:AppState

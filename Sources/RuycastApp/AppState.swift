@@ -6,7 +6,7 @@ import LauncherModels
 
 func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject(with:Files.encode(value))) ?? NSNull() }
 
-final class AppState {
+@MainActor final class AppState {
     let settings:LauncherSettingsState
     let paletteSession=PaletteSession()
     let clipboardState=ClipboardState()
@@ -16,7 +16,7 @@ final class AppState {
     let headless:Bool
     let searchRanking:SearchRanking
     var applicationURL:(String)->URL? = {NSWorkspace.shared.urlForApplication(withBundleIdentifier:$0)}
-    var openApplication:(URL,@escaping(Error?)->Void)->Void = {url,completion in
+    var openApplication:@MainActor (URL,@escaping @MainActor @Sendable (Error?)->Void)->Void = {url,completion in
         NSWorkspace.shared.openApplication(at:url,configuration:NSWorkspace.OpenConfiguration()) {_,error in DispatchQueue.main.async {completion(error)}}
     }
     var config:Configuration {
@@ -133,8 +133,11 @@ final class AppState {
                 } else {self.perform(action,source:"hotkey")}
             };do {try hotkeys?.update(config)} catch {configError=error.localizedDescription;analytics.recordError("config",code:"config-invalid")}
             observer=NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main) { [weak self] note in
-                self?.clipboardAttributionUncertain=true
-                if let app=note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,app.processIdentifier != getpid() {self?.previousPID=app.processIdentifier}
+                let pid=(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+                MainActor.assumeIsolated {
+                    self?.clipboardAttributionUncertain=true
+                    if let pid,pid != getpid() {self?.previousPID=pid}
+                }
             }
             discoverApps()
         }
@@ -142,7 +145,7 @@ final class AppState {
         rebuildCatalog();refreshClips()
         if !headless {expander=SnippetExpander(state:self)}
         observeConfiguration()
-        timer=Timer.scheduledTimer(withTimeInterval:0.75,repeats:true) { [weak self] _ in self?.tick() }
+        timer=mainRunLoopTimer(every:0.75) { [weak self] in self?.tick() }
     }
     func observeConfiguration() {
         let directory=configDirectory
@@ -161,10 +164,16 @@ final class AppState {
     func rememberServices(_ commands:[Command]) {if serviceCommands.count>2048 {serviceCommands=[:]};for command in commands {serviceCommands[command.id]=command}}
     func searchCommands(_ query:String,mode:String="commands",limit:Int=100)->[Command] {
         let found=PerformanceTrace.shared.measure(.searchModel) {
-            return catalogState.search(query,ranking:searchRanking).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}
+            let matches=catalogState.search(query,ranking:searchRanking)
+            switch mode {
+            case "snippets":return matches.filter { @Sendable in $0.kind=="snippet" }
+            case "quicklinks":return matches.filter { @Sendable in $0.kind=="url" || $0.kind=="path" }
+            default:return matches
+            }
         }
         if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
-        return Array(found.enumerated().sorted {a,b in let x=counts[a.element.id] ?? 0,y=counts[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
+        let usage=counts
+        return Array(found.enumerated().sorted { @Sendable a,b in let x=usage[a.element.id] ?? 0,y=usage[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
     }
     private func refreshResults(preserveSelection:Bool=false) {
         let started=DispatchTime.now().uptimeNanoseconds
@@ -176,7 +185,7 @@ final class AppState {
             if !preserveSelection {results=[]}
             if mode=="processes" {
                 systemServices.cancel()
-                systemServices.processDetails(query) { [weak self] result in
+                systemServices.processDetails(query,session:systemServices.interactiveSession) { [weak self] result in
                     guard let self,self.resultGeneration==generation else {return}
                     switch result {
                     case .success(let rows):self.applySystemResults(rows.map { $0.0 },resources:Dictionary(uniqueKeysWithValues:rows.map { ($0.0.id,$0.1) }),preserveSelection:preserveSelection)
@@ -234,11 +243,11 @@ final class AppState {
         let register=registerHotkeys ?? {try self.hotkeys?.update($0)}
         try register(candidate)
         do {if candidate.clipboard != config.clipboard {
-            let fallback=clips
+            let fallback=clips,store=clipboardStore,url=root.appendingPathComponent("clipboard.json")
             trimmed=try clipboardWork.sync {
-                let base=try self.persistedHistory(fallback:fallback)
+                let base=try store.history(fallback:fallback)
                 let next=try History.updateChecked(base,clip:nil,settings:candidate.clipboard)
-                if next != base {try Files.save(next,to:self.root.appendingPathComponent("clipboard.json"))}
+                if next != base {try Files.save(next,to:url)}
                 return next
             }
         }}
@@ -250,13 +259,10 @@ final class AppState {
         config=candidate;configBytes=data;lastAttempt=data;if clips != trimmed {clips=trimmed};configError=nil;configObserver?.acknowledge(data)
         cleanupClipboardAssets()
     }
-    private func persistedHistory(fallback:[Clip]) throws -> [Clip] {
-        let url=root.appendingPathComponent("clipboard.json")
-        return FileManager.default.fileExists(atPath:url.path) ? try Files.decode([Clip].self,data:Data(contentsOf:url)):fallback
-    }
     private func cleanupClipboardAssets() {
         guard !clipboardWorkInFlight else {return}
-        do {try clipboardWork.sync {try clipboardStore.pruneAssets(keeping:clips,settings:config.clipboard)};if clipboardCleanupError != nil {clipboardCleanupError=nil}}
+        let store=clipboardStore,snapshot=clips,settings=config.clipboard
+        do {try clipboardWork.sync {try store.pruneAssets(keeping:snapshot,settings:settings)};if clipboardCleanupError != nil {clipboardCleanupError=nil}}
         catch {clipboardCleanupError="Clipboard cleanup failed: \(error.localizedDescription) Reload configuration to retry."}
     }
     func applySystemResults(_ commands:[Command],resources:[String:ProcessResource],preserveSelection:Bool) {
@@ -294,25 +300,26 @@ final class AppState {
             _=processClipboardPayload(payload,source:app)
         } catch {message="Clipboard could not be saved: \(error.localizedDescription)";analytics.recordError("clipboard",code:"clipboard-io")}
     }
-    @discardableResult func processClipboardPayload(_ payload:ClipboardPayload?,source:String,completion:(()->Void)?=nil)->Bool {
+    @discardableResult func processClipboardPayload(_ payload:ClipboardPayload?,source:String,completion:(@MainActor @Sendable ()->Void)?=nil)->Bool {
         guard !clipboardWorkInFlight else {return false};clipboardWorkInFlight=true
-        let token=clipboardWork.revision,base=clips,settings=config.clipboard,store=clipboardStore,url=root.appendingPathComponent("clipboard.json"),capturedAt=Date(),started=DispatchTime.now().uptimeNanoseconds
+        let work=clipboardWork
+        let token=work.revision,base=clips,settings=config.clipboard,store=clipboardStore,url=root.appendingPathComponent("clipboard.json"),capturedAt=Date(),started=DispatchTime.now().uptimeNanoseconds
         clipboardWork.perform { [weak self] in
             guard let self else {return}
             var cleanupError:String?
             let result=Result { () throws -> [Clip] in
-                guard self.clipboardWork.current(token) else {return base}
+                guard work.current(token) else {return base}
                 var clip=try payload.flatMap {try store.capture($0,source:source,settings:settings)}
                 clip?.date=Date(timeIntervalSince1970:capturedAt.timeIntervalSince1970.rounded(.down))
                 let next=try History.updateChecked(base,clip:clip,settings:settings)
-                guard self.clipboardWork.current(token) else {return base}
+                guard work.current(token) else {return base}
                 if next != base {try Files.save(next,to:url)}
-                if self.clipboardWork.current(token) {do {try store.pruneAssets(keeping:next,settings:settings)} catch {cleanupError=error.localizedDescription}}
+                if work.current(token) {do {try store.pruneAssets(keeping:next,settings:settings)} catch {cleanupError=error.localizedDescription}}
                 return next
             }
             DispatchQueue.main.async {
                 self.clipboardWorkInFlight=false
-                guard self.clipboardWork.current(token) else {self.cleanupClipboardAssets();completion?();return}
+                guard work.current(token) else {self.cleanupClipboardAssets();completion?();return}
                 switch result {
                 case .success(let next):
                     if next != self.clips {self.clips=next}
@@ -326,7 +333,7 @@ final class AppState {
         return true
     }
     func shutdown() {clipboardSearch.cancel();configObserver=nil;timer?.invalidate();clipboardWork.drain();analytics.flushSynchronously();commandLog.flush()}
-    func configurationReads(_ completion:@escaping(Int)->Void) {if let configObserver {configObserver.reads(completion)} else {completion(0)}}
+    func configurationReads(_ completion:@escaping @MainActor @Sendable (Int)->Void) {if let configObserver {configObserver.reads(completion)} else {completion(0)}}
     func ignoreOwnClipboardChange() {changeCount=NSPasteboard.general.changeCount}
     func copyClip(_ id:String,paste:Bool=false) throws {
         guard let clip=clips.first(where:{$0.id==id}) else {throw LauncherError("Clipboard item not found.")}
@@ -363,7 +370,7 @@ final class AppState {
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {return app.processIdentifier}
         return previousPID
     }
-    func execute(_ id:String,dryRun:Bool,values:[String:String]=[:],openResult:Bool=false,confirmed:Bool=false,source:String="cli",beforeAppLaunch:(()->Void)?=nil,completion:@escaping ([String:Any])->Void) {
+    func execute(_ id:String,dryRun:Bool,values:[String:String]=[:],openResult:Bool=false,confirmed:Bool=false,source:String="cli",beforeAppLaunch:(()->Void)?=nil,completion:@escaping @MainActor @Sendable ([String:Any])->Void) {
         if config.commands.contains(where:{!$0.isEnabled && ($0.id.lowercased()==id.lowercased() || $0.aliases.contains(where:{$0.lowercased()==id.lowercased()}))}) {completion(["ok":false,"error":"Command is disabled: \(id)"]);return}
         guard var cmd=resolveCommand(id) ?? applications.first(where:{$0.id==id}) else {completion(["ok":false,"error":"Unknown command: \(id)"]);return}
         guard cmd.isEnabled,!config.commands.contains(where:{!$0.isEnabled && ($0.id==id || ($0.kind=="app" && cmd.kind=="app" && $0.target==cmd.target))}) else {completion(["ok":false,"error":"Command is disabled."]);return}
@@ -373,7 +380,7 @@ final class AppState {
         let started=DispatchTime.now().uptimeNanoseconds,tracked=analytics.recordAttempt(cmd.id,source:source)
         let traceID=UUID().uuidString
         self.commandLog.record(CommandLogEntry(traceID:traceID,commandID:CommandLog.clean(cmd.id,limit:512),source:source,phase:"command.start"))
-        let finish:([String:Any])->Void={ original in
+        let finish:@MainActor @Sendable ([String:Any])->Void={ original in
             var result=original
             let ok=result["ok"] as? Bool==true,elapsed=AnalyticsStore.elapsed(started)
             let secrets=Array(values.values)
@@ -448,7 +455,7 @@ final class AppState {
             }
         } catch {finish(["ok":false,"error":error.localizedDescription])}
     }
-    private func runScript(_ cmd:Command,openResult:Bool,source:String,completion:@escaping ([String:Any])->Void) {
+    private func runScript(_ cmd:Command,openResult:Bool,source:String,completion:@escaping @MainActor @Sendable ([String:Any])->Void) {
         DispatchQueue.global(qos:.userInitiated).async {
             let process=Process()
             let bundled=Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/ruycast")
@@ -496,7 +503,11 @@ final class AppState {
             } catch {DispatchQueue.main.async {completion(["ok":false,"error":error.localizedDescription])}}
         }
     }
-    func handle(_ req:[String:Any],reply:@escaping ([String:Any])->Void) {
+    func handle(_ req:[String:Any],reply:@escaping @MainActor @Sendable ([String:Any])->Void) {
+        handle(req,sink:ReplySink(ui:reply))
+    }
+    func handle(_ req:[String:Any],sink:ReplySink) {
+        let reply:@MainActor @Sendable ([String:Any])->Void={sink.send($0)}
         let started=DispatchTime.now().uptimeNanoseconds
         defer {if !((req["op"] as? String ?? "")=="analytics" || (req["op"] as? String ?? "").hasPrefix("analytics.")) {analytics.recordTiming("cli.dispatch",ms:AnalyticsStore.elapsed(started))}}
         do {
@@ -524,13 +535,13 @@ final class AppState {
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.8.1","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.8.2","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":
                 let query=req["query"] as? String ?? "",scope=req["mode"] as? String ?? "commands"
                 if ["files","menus","windows","processes"].contains(scope) {
-                    systemServices.results(mode:scope,query:query,previousPID:targetPID()) {result in
+                    systemServices.results(mode:scope,query:query,previousPID:targetPID(),session:SystemSearchSession()) {result in
                         switch result {case .success(let commands):self.rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                     }
                 } else if scope.hasPrefix("utility-") {let commands=try utilities.commands(mode:scope,query:query);rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)])}
@@ -554,10 +565,10 @@ final class AppState {
             case "clipboard.import":
                 guard let raw=req["items"] as? [[String:Any]],raw.count<=100 else {throw LauncherError("Import at most 100 clipboard items per batch.")}
                 let incoming=try Files.decode([Clip].self,data:JSONSerialization.data(withJSONObject:raw))
-                let fallback=clips,settings=config.clipboard
+                let fallback=clips,settings=config.clipboard,store=clipboardStore,url=root.appendingPathComponent("clipboard.json")
+                let (next,accepted,duplicated,excluded)=try clipboardWork.sync { () throws -> ([Clip],Int,Int,Int) in
                 var accepted=0;var duplicated=0;var excluded=0
-                let next=try clipboardWork.sync { () throws -> [Clip] in
-                var next=try self.persistedHistory(fallback:fallback)
+                var next=try store.history(fallback:fallback)
                 for var clip in incoming.reversed() {
                     guard clip.id.hasPrefix("raycast-"),["text","files"].contains(clip.contentType ?? "text"),clip.dataFile==nil else {throw LauncherError("Invalid imported clipboard item.")}
                     if clip.source.hasPrefix("/"),let bundle=Bundle(path:clip.source)?.bundleIdentifier {clip.source=bundle}
@@ -566,20 +577,21 @@ final class AppState {
                     next.append(clip);accepted+=1
                 }
                 next.sort {$0.date>$1.date};next=try History.updateChecked(next,clip:nil,settings:settings)
-                try Files.save(next,to:self.root.appendingPathComponent("clipboard.json"));return next
+                try Files.save(next,to:url);return (next,accepted,duplicated,excluded)
                 };clips=next
                 reply(["ok":true,"result":["accepted":accepted,"deduplicated":duplicated,"excluded":excluded,"retained":next.count]])
             case "clipboard.list":
                 let q=req["query"] as? String ?? "",snapshot=clips
-                DispatchQueue.global(qos:.userInitiated).async {autoreleasepool {reply(["ok":true,"result":jsonValue(snapshot.filter {q.isEmpty || $0.text.localizedCaseInsensitiveContains(q)})])}}
+                DispatchQueue.global(qos:.userInitiated).async {autoreleasepool {sink.sendFromWorker(["ok":true,"result":jsonValue(snapshot.filter {q.isEmpty || $0.text.localizedCaseInsensitiveContains(q)})])}}
             case "clipboard.copy","clipboard.paste":guard let id=req["id"] as? String else {throw LauncherError("Missing clipboard id.")};try copyClip(id,paste:req["op"] as? String=="clipboard.paste");reply(["ok":true,"result":["state":"copied"]])
             case "clipboard.clear","clipboard.delete":
-                let fallback=clips
+                let fallback=clips,store=clipboardStore,settings=config.clipboard,url=root.appendingPathComponent("clipboard.json")
+                let deleting=req["op"] as? String=="clipboard.delete",id=req["id"] as? String
                 let next=try clipboardWork.sync { () throws -> [Clip] in
-                    let base=try self.persistedHistory(fallback:fallback),next:[Clip]
-                    if req["op"] as? String=="clipboard.delete" {guard let id=req["id"] as? String,base.contains(where:{$0.id==id}) else {throw LauncherError("Clipboard item not found.")};next=base.filter {$0.id != id}} else {next=[]}
-                    try Files.save(next,to:self.root.appendingPathComponent("clipboard.json"));return next
-                };clips=next;try clipboardWork.sync {try clipboardStore.pruneAssets(keeping:clips,settings:config.clipboard)};reply(["ok":true,"result":["count":clips.count]])
+                    let base=try store.history(fallback:fallback),next:[Clip]
+                    if deleting {guard let id,base.contains(where:{$0.id==id}) else {throw LauncherError("Clipboard item not found.")};next=base.filter {$0.id != id}} else {next=[]}
+                    try Files.save(next,to:url);return next
+                };clips=next;try clipboardWork.sync {try store.pruneAssets(keeping:next,settings:settings)};reply(["ok":true,"result":["count":clips.count]])
             case "clipboard.pause":let next=req["paused"] as? Bool ?? true;try Files.save(next,to:root.appendingPathComponent("paused.json"));paused=next;reply(["ok":true,"result":["paused":paused]])
             case "usage":reply(["ok":true,"result":counts])
             case "quit":reply(["ok":true,"result":["state":"stopping"]]);DispatchQueue.main.asyncAfter(deadline:.now()+0.25) {NSApp.terminate(nil)}

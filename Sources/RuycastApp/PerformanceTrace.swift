@@ -2,8 +2,9 @@ import Foundation
 import os
 
 // Software stages only. No input, command identifiers or clipboard data is recorded.
-final class PerformanceTrace {
-    enum Stage:String,CaseIterable {
+// All mutable state is accessed under lock; immutable signposter is used only there.
+final class PerformanceTrace:@unchecked Sendable {
+    enum Stage:String,CaseIterable,Sendable {
         case searchModel="search.model",inputModel="input.model",inputReconcile="input.reconcile",openReady="open.ready",hostDraw="host.drawCallback",hotkeyHandler="hotkey.handler"
         var signpostName:StaticString {
             switch self {
@@ -16,7 +17,7 @@ final class PerformanceTrace {
             }
         }
     }
-    struct Span {let id:UInt64;let stage:Stage}
+    struct Span:Sendable {let id:UInt64;let stage:Stage}
     private struct Entry {let start:UInt64;let state:OSSignpostIntervalState;let stage:Stage}
     private struct Metric {var total=0;var cancelled=0;var samples:[Double]=[]}
     static let shared=PerformanceTrace()

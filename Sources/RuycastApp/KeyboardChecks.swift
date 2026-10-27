@@ -5,7 +5,7 @@ import LauncherModels
 
 /// Pure deterministic state checks. No tap, HID manager, Carbon registration,
 /// permission prompt, synthetic key post or application window is created.
-func checkKeyboard() throws -> [String:Any] {
+@MainActor func checkKeyboard() throws -> [String:Any] {
     var state=KeyboardState()
     var effects:[String]=[]
     func input(_ usage:UInt32,_ down:Bool,_ time:Double,device:UInt64=1) {
