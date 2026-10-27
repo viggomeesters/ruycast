@@ -164,10 +164,16 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     func rememberServices(_ commands:[Command]) {if serviceCommands.count>2048 {serviceCommands=[:]};for command in commands {serviceCommands[command.id]=command}}
     func searchCommands(_ query:String,mode:String="commands",limit:Int=100)->[Command] {
         let found=PerformanceTrace.shared.measure(.searchModel) {
-            return catalogState.search(query,ranking:searchRanking).filter {mode=="snippets" ? $0.kind=="snippet":mode=="quicklinks" ? ($0.kind=="url" || $0.kind=="path"):true}
+            let matches=catalogState.search(query,ranking:searchRanking)
+            switch mode {
+            case "snippets":return matches.filter { @Sendable in $0.kind=="snippet" }
+            case "quicklinks":return matches.filter { @Sendable in $0.kind=="url" || $0.kind=="path" }
+            default:return matches
+            }
         }
         if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
-        return Array(found.enumerated().sorted {a,b in let x=counts[a.element.id] ?? 0,y=counts[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
+        let usage=counts
+        return Array(found.enumerated().sorted { @Sendable a,b in let x=usage[a.element.id] ?? 0,y=usage[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
     }
     private func refreshResults(preserveSelection:Bool=false) {
         let started=DispatchTime.now().uptimeNanoseconds
