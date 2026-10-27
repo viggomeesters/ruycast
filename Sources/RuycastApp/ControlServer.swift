@@ -5,31 +5,37 @@ import LauncherModels
 
 @MainActor final class ControlServer {
     typealias Handler = @MainActor @Sendable ([String:Any],ReplySink)->Void
-    private var fd:Int32 = -1
     private var lockFD:Int32 = -1
     private var listener:SocketListener?
     private let clients=DispatchSemaphore(value:16)
     private let socketURL:URL
     init(root:URL) { socketURL=root.appendingPathComponent("control.sock") }
     func start(handler:@escaping Handler) throws {
-        guard fd<0,listener==nil,lockFD<0 else {throw LauncherError("Control server is already started.")}
+        guard listener==nil,lockFD<0 else {throw LauncherError("Control server is already started.")}
         let root=socketURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
         try FileManager.default.setAttributes([.posixPermissions:0o700],ofItemAtPath:root.path)
-        lockFD=open(root.appendingPathComponent("instance.lock").path,O_CREAT|O_RDWR,0o600)
-        guard lockFD>=0,flock(lockFD,LOCK_EX|LOCK_NB)==0 else { throw LauncherError("Ruycast is already running for this profile.") }
-        fd=socket(AF_UNIX,SOCK_STREAM,0)
+        let lockFD=open(root.appendingPathComponent("instance.lock").path,O_CREAT|O_RDWR,0o600)
+        guard lockFD>=0 else {throw LauncherError("Cannot open instance lock.")}
+        var committed=false
+        defer {if !committed {Darwin.close(lockFD)}}
+        guard flock(lockFD,LOCK_EX|LOCK_NB)==0 else {throw LauncherError("Ruycast is already running for this profile.")}
+        let fd=socket(AF_UNIX,SOCK_STREAM,0)
         guard fd>=0 else { throw LauncherError("Cannot create control socket.") }
+        var bound=false
+        defer {if !committed {Darwin.close(fd);if bound {unlink(socketURL.path)}}}
         var address=sockaddr_un();address.sun_family=sa_family_t(AF_UNIX)
         let bytes=Array(socketURL.path.utf8CString)
         guard bytes.count<=MemoryLayout.size(ofValue:address.sun_path) else { throw LauncherError("Profile path is too long for a Unix socket.") }
         withUnsafeMutableBytes(of:&address.sun_path) { raw in raw.copyBytes(from:bytes.map{UInt8(bitPattern:$0)}) }
         unlink(socketURL.path)
         let status=withUnsafePointer(to:&address) { p in p.withMemoryRebound(to:sockaddr.self,capacity:1) { Darwin.bind(fd,$0,socklen_t(MemoryLayout<sockaddr_un>.size)) } }
-        guard status==0,listen(fd,16)==0 else { throw LauncherError("Cannot bind control socket: \(String(cString:strerror(errno))).") }
+        guard status==0 else {throw LauncherError("Cannot bind control socket: \(String(cString:strerror(errno))).")}
+        bound=true
+        guard listen(fd,16)==0 else {throw LauncherError("Cannot listen on control socket: \(String(cString:strerror(errno))).")}
         chmod(socketURL.path,0o600)
         let listener=SocketListener(fd),clients=clients
-        self.listener=listener;fd = -1
+        self.listener=listener;self.lockFD=lockFD;committed=true
         let descriptor=listener.descriptor
         DispatchQueue.global(qos:.userInitiated).async {
             while listener.running {
@@ -79,12 +85,6 @@ import LauncherModels
     }
     func stop() {
         if let listener {listener.stop();self.listener=nil;unlink(socketURL.path)}
-        if fd>=0 {
-            let descriptor=fd;fd = -1
-            shutdown(descriptor,SHUT_RDWR)
-            Darwin.close(descriptor)
-            unlink(socketURL.path)
-        }
         if lockFD>=0 {Darwin.close(lockFD);lockFD = -1}
     }
     isolated deinit {stop()}

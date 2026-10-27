@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.4 — 2026-10-27
+
+- Size-optimize only the Rust CLI adapter while retaining speed optimization for the shared search kernel.
+
+- Prepare stable title/catalog ordering once per immutable search index; avoid repeated Unicode-length scans and eager title comparisons per query. Preserve relevance, recency and tied-result order.
+- Roll back instance locks and socket descriptors when control-server startup fails, allowing the same instance to retry without an explicit stop. Preserve active-owner socket handling.
+
 ## 0.8.3 — 2026-10-27
 
 - Strip local/debug symbols from release executables after verifying identical code/data sections and UUIDs. Keep the matching host dSYM and unstripped binaries privately in `.build/symbols/`; bind compiler options, toolchains and prepared artifacts in the build receipt.

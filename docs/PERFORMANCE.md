@@ -161,3 +161,37 @@ Swift-wide size optimization was rejected: ordinary 10k-command model p95 increa
 The release preparation handles independently cached Cargo/SwiftPM outputs per artifact, preserving the original diagnostics of an unchanged executable. A durable preparation intent restores an interrupted pair before compilation; known hashes, matching UUIDs/dSYM and code/data-section parity are required. Real Mach-O fixture tests cover only-host/only-CLI relinks, second-replacement failure, rollback/retry and recovery without the in-memory handler. Build and install share the exclusive artifact lock.
 
 Final confirmation uses three alternating model runs per variant. Host observations use ABBA order, 30 new-process starts and 1000 actual CLI samples per run, plus explicitly bounded 30-second active/idle windows. File caches are not flushed: process-cold readiness is not a disk-cold claim. The headless fixture has 500 commands and 200 clipboard records, no visible UI, global input, app discovery or general pasteboard access. Short counter windows do not establish long-session idle behavior or physical energy use. See the [0.8.3 release measurements](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.3) for final results and tradeoffs.
+
+
+## Remaining search and CLI costs (0.8.4)
+
+The immutable Rust index prepares a stable numeric title/catalog order once. Queries compare this order only after relevance and recency tie, and determine the lowercased Unicode scalar-length threshold once rather than for every entry. The query sorter remains stable. Exactly equal titles retain catalog order; recency still precedes title order. No match classes, scope, limits or UI input handling changed.
+
+Six alternating frozen release runs (baseline, candidate, candidate, baseline, baseline, candidate), 1,000 observations per catalog/run on the same Apple M4, produced these medians of per-run model p95. This is the complete Swift/Rust model fixture, separate from the narrower kernel experiment.
+
+| Commands | 0.8.3 p95 | 0.8.4 p95 | Reduction |
+| --- | --- | --- | --- |
+| 500 | 0.068625 ms | 0.066666 ms | 2.9% |
+| 1,000 | 0.124708 ms | 0.118291 ms | 5.1% |
+| 5,000 | 0.603083 ms | 0.566375 ms | 6.1% |
+| 10,000 | 1.205500 ms | 1.122500 ms | 6.9% |
+
+The 10k per-run p95 ranges were 1.189166–1.257791 ms and 1.122500–1.131208 ms. With 512 recent choices, median per-run p95 fell from 0.566334 to 0.483250 ms (14.7%). The smallest catalogs overlap between runs, so the small deltas there have weaker evidence. All six fixture checksums matched. A separate differential fixture compared 1,200 complete ordered results across 12 catalogs, 600 entries each, four recency profiles and 25 Unicode/whitespace/alias/keyword queries. Permanent checks cover large title ties, recency, exact-alias precedence and Unicode lowercase expansion.
+
+The tradeoff is one native word per indexed entry: 8 bytes on supported 64-bit Macs, or 80,000 bytes at 10k, plus temporary construction sorting storage. Forty alternating kernel-construction observations per variant gave median baseline/candidate 0.154854/0.164187 ms at 343 entries and 4.504500/4.898375 ms at 10k. This is a cold catalog/update cost, not a cost on every keystroke, and not a claim about whole-process resident memory.
+
+Only the CLI adapter is built with `cargo rustc --bin ruycast -- -C opt-level=s`; the shared library retains the ordinary speed profile, thin LTO, one codegen unit and unwind containment. Prepared executables total 4,153,168 → 4,125,328 bytes (27,840 bytes / 0.67% smaller): host 3,379,608 → 3,396,408; CLI 773,560 → 728,920. These are source-build bytes before installation signing, with behavioral check code included.
+
+Rejected experiments: replacing the hot stable sort with an unstable sort and explicit index tiebreaker increased host bytes and did not improve the full model's 10k tail. Optimizing the entire root Rust package for size made the selected kernel p95 0.458521 → 0.626979 ms (36.7% slower, six alternating runs); the CLI-only boundary avoids that shared-kernel regression. No new dependency or runtime cache was added.
+
+Control-server startup now commits lock/socket ownership only after bind and listen succeed. Failure closes local descriptors and releases the instance lock; it does not leave a half-started object that requires stop before retry. Real Unix-socket checks cover lock contention, preservation of the active owner's socket, a bind failure on an occupied directory path, and subsequent same-instance recovery without explicit stop. The targeted fixture fails against the old code and passes against the candidate. Arbitrary preexisting-path handling and active-client cancellation are unchanged; this does not claim every possible OS socket failure was injected.
+
+Four ABBA headless runs compared the frozen 0.8.3 pair with the selected 0.8.4 host and compact CLI. Each run used 30 fresh process starts, 1,000 real status subprocesses, 1,000 real search subprocesses, 15 active seconds and 30 idle seconds. Cold-ready p95 ranges overlapped: baseline 139.820–141.153 ms, candidate 135.551–141.904 ms. Status p95 ranged 10.177–12.674 versus 12.751–16.093 ms; search p95 2.243–2.905 versus 2.571–3.053 ms, all below the existing 50 ms budget. These noisy ranges do not establish a universal CLI speedup. A same-host, alternating-per-call CLI-only comparison separately checks the compiler boundary.
+
+Idle interrupt wakeups stayed about 0.300/s in both variants. Idle CPU ranged 0.005–0.014% versus 0.008–0.009% of one core. End footprint was 14.860–15.360 versus 15.594–16.454 MiB; no resident-memory saving is claimed. Short windows, normal OS caches and process-cold readiness are not long-session idle, disk-cold, physical presentation or energy measurements. No global keys, visible window, general pasteboard, personal configuration or real process termination were used by these fixtures.
+
+The final compiler-only check kept one canonical candidate host running and alternated speed/size CLI order on every call, with 1,000 retained observations per operation/variant. Status median/p95 was 9.409979/10.580250 ms versus 9.413646/10.652917 ms; search 2.118313/2.386750 versus 2.122542/2.378084 ms. These differences are within ordinary variation, supporting the size boundary without a CLI latency improvement claim. Canonical status maxima were 18.641/28.549 ms. An earlier prototype check observed 59.771/95.159 ms maxima, so p95 compliance is not a guarantee that every call stays below 50 ms.
+
+The frozen ABBA CLI prototype and canonical build have identical hashes for all 14 backed Mach-O code/data sections. Their linker/signing metadata and UUID differ; the canonical executable is 8 bytes smaller. Full-model observations use the exact canonical host; the final compiler-only CLI comparison uses the exact canonical CLI. The prototype and canonical hashes remain separately recorded, and the source-build byte totals above use canonical filenames.
+
+Final local validation passed Rust and Swift core/concurrency checks and 85 Python tests (one optional private-adapter test skipped in public source). The release-native 10,000-cycle gate retained +0.8125 MiB, with every required checkpoint below the 10 MiB ceiling. Hidden Settings checks rendered 20 light/dark states, preserved configuration/routing/race invariants, and confirmed no visible window or desktop input. These fixtures establish their bounded regression coverage, not live physical display latency or all possible OS failures.

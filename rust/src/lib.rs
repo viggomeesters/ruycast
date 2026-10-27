@@ -230,13 +230,15 @@ struct SearchEntry {
     haystack: String,
     words: Vec<String>,
     initials: String,
+    title_order:usize,
 }
 impl SearchIndex {
     pub fn new(commands: &[Command]) -> Self {
-        Self {
+        // Resolve stable title/catalog order once at the immutable catalog boundary.
+        let mut result=Self {
             entries: commands
                 .iter()
-                .map(|c| SearchEntry {
+                .map(|c| SearchEntry {title_order:0,
                     words: c.title.to_lowercase().split(|c:char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_owned).collect(),
                     initials: c.title.to_lowercase().split(|c:char| !c.is_alphanumeric()).filter_map(|w| w.chars().next()).collect(),
                     id: c.id.to_lowercase(),
@@ -258,7 +260,11 @@ impl SearchIndex {
                     .to_lowercase(),
                 })
                 .collect(),
-        }
+        };
+        let mut order=(0..result.entries.len()).collect::<Vec<_>>();
+        order.sort_by(|a,b|result.entries[*a].title.cmp(&result.entries[*b].title));
+        for (rank,index) in order.into_iter().enumerate() {result.entries[index].title_order=rank;}
+        result
     }
     pub fn search(&self, query: &str) -> Vec<usize> {
         self.search_ranked(query,&[])
@@ -269,6 +275,7 @@ impl SearchIndex {
             return (0..self.entries.len()).collect();
         }
         let terms = q.split_whitespace().collect::<Vec<_>>();
+        let fuzzy=q.chars().nth(1).is_some();
         let mut found = self
             .entries
             .iter()
@@ -280,11 +287,11 @@ impl SearchIndex {
                     1
                 } else if e.title.starts_with(&q) {
                     2
-                } else if terms.iter().all(|w| e.words.iter().any(|word|word.starts_with(w))) || (q.chars().count()>=2 && e.initials.starts_with(&q)) {
+                } else if terms.iter().all(|w| e.words.iter().any(|word|word.starts_with(w))) || (fuzzy && e.initials.starts_with(&q)) {
                     3
                 } else if terms.iter().all(|w| e.haystack.contains(w)) {
                     4
-                } else if q.chars().count()>=2 && {
+                } else if fuzzy && {
                     let mut title=e.title.chars();
                     q.chars().filter(|c| !c.is_whitespace()).all(|needle| title.any(|c|c==needle))
                 } {
@@ -298,7 +305,7 @@ impl SearchIndex {
         found.sort_by(|a, b| {
             a.0.cmp(&b.0)
                 .then_with(||recency.get(b.1).unwrap_or(&0.0).total_cmp(recency.get(a.1).unwrap_or(&0.0)))
-                .then(self.entries[a.1].title.cmp(&self.entries[b.1].title))
+                .then_with(||self.entries[a.1].title_order.cmp(&self.entries[b.1].title_order))
         });
         found.into_iter().map(|(_, i)| i).collect()
     }

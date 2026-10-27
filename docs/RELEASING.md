@@ -1,12 +1,12 @@
 # Release status
 
-**[0.8.3 source preview](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.3)** — build locally on macOS 14 or later. This release contains the launcher, native Settings, CLI, clipboard, window management, snippets and configurable storage. No prebuilt notarized app is distributed.
+**[0.8.4 source preview](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.4)** — build locally on macOS 14 or later. This release contains the launcher, native Settings, CLI, clipboard, window management, snippets and configurable storage. No prebuilt notarized app is distributed.
 
 | Item | Status |
 |---|---|
 | Repository | [viggomeesters/ruycast](https://github.com/viggomeesters/ruycast) · public · MIT |
-| Release | [v0.8.3](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.3) · source preview |
-| Source asset | `ruycast-0.8.3-source.tar.gz` with SHA-256 checksum |
+| Release | [v0.8.4](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.4) · source preview |
+| Source asset | `ruycast-0.8.4-source.tar.gz` with SHA-256 checksum |
 | Installation | Clone or extract source, then run `make install` |
 | Local signing | A persistent per-Mac signing identity is reused on updates |
 | Public binary | No Developer ID notarization or prebuilt app download |
@@ -15,7 +15,7 @@
 ## Build this release
 
 ```sh
-git clone --branch v0.8.3 https://github.com/viggomeesters/ruycast.git
+git clone --branch v0.8.4 https://github.com/viggomeesters/ruycast.git
 cd ruycast
 make check
 make install
