@@ -1,6 +1,6 @@
 # ADR 0001 — Native modular core
 
-Date: 27 October 2026. Status: implemented and released in 0.8.3. Integrated acceptance evidence is recorded with Issue 33.
+Date: 27 October 2026. Status: implemented and released in 0.8.3. Implementation checks and current-version visible keyboard acceptance passed; final review and administrative closure are in progress under Issue 33.
 Issue: https://github.com/viggomeesters/ruycast/issues/33.
 
 ## Problem and evidence
@@ -85,4 +85,4 @@ Analytics timing-record p95 increases 0.000166 ms and the 0.8.2→0.8.3 CLI p95 
 
 Validation includes 85 Python tests (one optional skip), Rust/Swift/imported-ABI behavior, negative compiler isolation probes, real Mach-O preparation/recovery tests, native hidden keyboard/Settings/render fixtures and 10,000 lifecycle cycles with 1.2187729 MiB end growth inside the 10 MiB checkpoint budget. Four ABBA headless observations use explicit 30-second active/idle windows: interrupts fall about 1.63→0.35/s, but do not establish physical energy or ordinary GUI behavior. Footprint/RSS vary with maintenance and reclamation; no retained-memory saving is inferred from endpoints.
 
-Physical keyboard/display acceptance and administrative task closure have their own evidence in Issue 33 and the project dossier; this ADR does not substitute hidden fixtures for visible acceptance. macOS 14 deployment linking is checked, execution on that OS is untested. No toolkit or language is claimed globally fastest without equivalent implementations; the decision remains falsifiable by future measured bottlenecks.
+The maintainer explicitly confirmed that selection with arrows, searching for finder and closing with Escape work immediately in installed 0.8.3 build 43. This is visible functional acceptance, not measured physical keyboard-to-display latency. Final independent review and administrative task closure remain in progress under Issue 33 and the project dossier; hidden fixtures do not substitute for visible acceptance. macOS 14 deployment linking is checked, execution on that OS is untested. No toolkit or language is claimed globally fastest without equivalent implementations; the decision remains falsifiable by future measured bottlenecks.
