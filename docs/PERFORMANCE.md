@@ -21,11 +21,11 @@ python3 scripts/sample-performance.py --pid PID --seconds 600 \
   --probe .build/perf-probe --out .build/performance/host.json --label local-host
 ```
 
-Use `scripts/benchmark-host.py` for an isolated headless profile with500 commands and200 text fixtures. It measures30 process starts,1000 real CLI calls per operation, and active/idle intervals. Arguments `--active-seconds 1800 --idle-seconds 3600` select a90-minute stress run; the shorter600/600-second run is the recorded initial soak. Headless readiness excludes hotkeys, app discovery and visible presentation.
+Use `scripts/benchmark-host.py` for an isolated headless profile with500 commands and 200 text fixtures. It measures30 process starts,1000 real CLI calls per operation, and active/idle intervals. Arguments `--active-seconds 1800 --idle-seconds 3600` select a90-minute stress run; the shorter600/600-second run is the recorded initial soak. Headless readiness excludes hotkeys, app discovery and visible presentation.
 
 ## Measurement contract
 
-Release comparisons use500,1000,5000 and10000 commands, fixed queries/seed,200 approximately8kB clipboard items,1000 synthetic processes, a960k-pixel image and a native Finder icon. Paired baseline/current runs alternate on the same Apple M4 Mac with16GiB RAM, on mains power. Counts and timings are fixtures, not personal usage data.
+Release comparisons use500,1000,5000 and 10000 commands, fixed queries/seed,200 approximately8kB clipboard items,1000 synthetic processes, a960k-pixel image and a native Finder icon. Paired baseline/current runs alternate on the same Apple M4 Mac with16GiB RAM, on mains power. Counts and timings are fixtures, not personal usage data.
 
 Durations use a monotonic clock. Per-stage results report sample count, median, p95, maximum, and p99 only for at least1000 observations. Clipboard publication timing waits for the completed asynchronous filter; enqueue timing is reported separately. Image/preview runs have fewer samples and are exploratory. OS caches are not forcibly flushed. Builds and aggressive UI stress are excluded from the paired timing window.
 
@@ -149,3 +149,15 @@ The launcher window was observed through accessibility, but the computer-use bri
 ### Clipboard measurement correction (0.8.2)
 
 The original completion wait inspected stored properties through Mirror. In 0.8.1, clipboardSearchBusy became a computed forwarding property, so that wait no longer waited. Earlier `clipboardSearch200x8kB` results for that architecture must not be interpreted as completed-filter latency. The independent `clipboardSearchEnqueue200x8kB` metric remains valid. Measurement version2 reads the state directly and fails if publication exceeds five seconds. Do not compare completed-filter results across these harness versions; retain enqueue comparisons separately.
+
+## Size and idle cost experiments (0.8.3)
+
+The release decision compares ordinary and trained search tails, executable bytes, new-process readiness, real CLI status/search, and headless CPU/wakeups/footprint/I/O. Exact compiler arguments, toolchains, environment overrides and prepared executable hashes are recorded in the build receipt. Source-build artifacts and locally signed installed artifacts are compared separately.
+
+The initial matrix used two reversed-order runs per variant with the same corrected completion harness: default optimization, symbol stripping, Swift-wide `-Osize`, Rust thin LTO, and their combination. Removing debug and local symbol entries reduced the unchanged 0.8.2 host from 8,010,296 to 3,867,992 bytes while all 37 backed code/data sections stayed identical. The original executable and matching dSYM are retained privately for diagnostics.
+
+Swift-wide size optimization was rejected: ordinary 10k-command model p95 increased from 2.2195415 to 2.4931665ms in that exploratory matrix. The selected arrangement keeps portable models/core speed-optimized and makes only the native UI target size-optimized. Pure empty-query projection preserves stable usage-count ties, filters/limits and catalog order. An empty query can retain the immutable catalog directly; with no usage history, projection skips sorting. Rust thin LTO uses one codegen unit and explicitly keeps unwind/panic containment.
+
+The release preparation handles independently cached Cargo/SwiftPM outputs per artifact, preserving the original diagnostics of an unchanged executable. A durable preparation intent restores an interrupted pair before compilation; known hashes, matching UUIDs/dSYM and code/data-section parity are required. Real Mach-O fixture tests cover only-host/only-CLI relinks, second-replacement failure, rollback/retry and recovery without the in-memory handler. Build and install share the exclusive artifact lock.
+
+Final confirmation uses three alternating model runs per variant. Host observations use ABBA order, 30 new-process starts and 1000 actual CLI samples per run, plus explicitly bounded 30-second active/idle windows. File caches are not flushed: process-cold readiness is not a disk-cold claim. The headless fixture has 500 commands and 200 clipboard records, no visible UI, global input, app discovery or general pasteboard access. Short counter windows do not establish long-session idle behavior or physical energy use. See the [0.8.3 release measurements](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.3) for final results and tradeoffs.

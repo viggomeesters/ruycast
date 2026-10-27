@@ -25,6 +25,9 @@ public final class CommandSearchIndex {
     }
     fileprivate func search(_ query:String,weights:[Double])->[Command] {
         guard !commands.isEmpty else {return []}
+        // The kernel returns catalog order for an empty query. Preserve the
+        // immutable array directly instead of round-tripping every index.
+        if query.isEmpty {return commands}
         let bytes=Array(query.utf8)+[0]
         var ids=[Int](repeating:0,count:commands.count)
         let current=query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty ? []:weights

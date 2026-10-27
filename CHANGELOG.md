@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.3 — 2026-10-27
+
+- Strip local/debug symbols from release executables after verifying identical code/data sections and UUIDs. Keep the matching host dSYM and unstripped binaries privately in `.build/symbols/`; bind compiler options, toolchains and prepared artifacts in the build receipt.
+- Optimize native UI code for size while keeping pure search projection in the speed-optimized core. Preserve stable usage ordering, scope filtering and result limits.
+- Use Rust thin LTO and one codegen unit, preserving unwind/panic containment.
+- Let the headless host wake for maintenance once per minute instead of polling UI/clipboard work it cannot perform. Native UI polling cadence is unchanged.
+
 ## 0.8.2 — 2026-10-27
 
 - Compile the entire native host in Swift 6 mode, with explicit MainActor UI ownership and checked Sendable worker boundaries. Building requires Swift 6.2 or later.

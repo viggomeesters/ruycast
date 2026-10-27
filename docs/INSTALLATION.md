@@ -45,3 +45,6 @@ Updates reuse the local certificate and designated requirement. Keep the signing
 Run `make install` from the updated source. Existing authored configuration is preserved, and an installation failure restores the previous app/registration where possible. The installer verifies that release binaries match their build receipt before replacing the app.
 
 Local signing is for building on your own Mac. It is not Developer ID notarization for downloaded public binaries. See the [release guide](RELEASING.md) for distribution status and requirements.
+
+
+Release builds retain matching host dSYM and unstripped binaries in `.build/symbols/`, then install stripped executables with the same code/data sections and UUIDs. Keep those local diagnostics when investigating crashes; they are not bundled or uploaded. Build receipts include compiler arguments/toolchains and verify retained diagnostics before installation. Builds target the current native architecture.
