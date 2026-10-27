@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.9 — 2026-10-27
+
+- Recover a single title-word typo when normal search finds no matches, including adjacent transpositions such as `fnider`. Existing result lists and their ranking remain unchanged; IDs, aliases and argument text stay literal.
+- Cover bounded Unicode/length behavior, ambiguous suggestions, exact alias priority, disabled filtering and native/CLI parity. No query history or dependency is added.
+
 ## 0.8.8 — 2026-10-27
 
 - Keep private JSON, analytics exports and icon cache writes private before any content is written. Secure an empty staging directory, create a 0600 payload without inherited ACLs, then atomically replace the destination. Preserve selected folder permissions and old contents on pre-commit failure.

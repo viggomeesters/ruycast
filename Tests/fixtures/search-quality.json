@@ -1,0 +1,278 @@
+{
+  "commands": [
+    {
+      "id": "app.finder",
+      "title": "Finder",
+      "kind": "url",
+      "target": "https://example.com/app.finder",
+      "aliases": [
+        "files"
+      ]
+    },
+    {
+      "id": "app.calendar",
+      "title": "Calendar",
+      "kind": "url",
+      "target": "https://example.com/app.calendar",
+      "aliases": [
+        "cal"
+      ]
+    },
+    {
+      "id": "app.settings",
+      "title": "System Settings",
+      "kind": "url",
+      "target": "https://example.com/app.settings",
+      "aliases": [
+        "prefs"
+      ]
+    },
+    {
+      "id": "app.teams",
+      "title": "Microsoft Teams",
+      "kind": "url",
+      "target": "https://example.com/app.teams",
+      "aliases": [
+        "mt"
+      ]
+    },
+    {
+      "id": "link.teams",
+      "title": "Microsoft Teams History",
+      "kind": "url",
+      "target": "https://example.com/link.teams",
+      "aliases": []
+    },
+    {
+      "id": "app.tabs",
+      "title": "Many Tabs",
+      "kind": "url",
+      "target": "https://example.com/app.tabs",
+      "aliases": []
+    },
+    {
+      "id": "app.notes",
+      "title": "Notes",
+      "kind": "url",
+      "target": "https://example.com/app.notes",
+      "aliases": []
+    },
+    {
+      "id": "app.terminal",
+      "title": "Terminal",
+      "kind": "url",
+      "target": "https://example.com/app.terminal",
+      "aliases": []
+    },
+    {
+      "id": "app.browser",
+      "title": "Browser",
+      "kind": "url",
+      "target": "https://example.com/app.browser",
+      "aliases": []
+    },
+    {
+      "id": "app.mail",
+      "title": "Mail",
+      "kind": "url",
+      "target": "https://example.com/app.mail",
+      "aliases": []
+    },
+    {
+      "id": "app.calculator",
+      "title": "Calculator",
+      "kind": "url",
+      "target": "https://example.com/app.calculator",
+      "aliases": []
+    },
+    {
+      "id": "app.reminders",
+      "title": "Reminders",
+      "kind": "url",
+      "target": "https://example.com/app.reminders",
+      "aliases": []
+    },
+    {
+      "id": "app.docs",
+      "title": "Documentation",
+      "kind": "url",
+      "target": "https://example.com/app.docs",
+      "aliases": []
+    },
+    {
+      "id": "app.activity",
+      "title": "Activity Monitor",
+      "kind": "url",
+      "target": "https://example.com/app.activity",
+      "aliases": []
+    },
+    {
+      "id": "app.left",
+      "title": "Left Half",
+      "kind": "url",
+      "target": "https://example.com/app.left",
+      "aliases": []
+    },
+    {
+      "id": "app.right",
+      "title": "Right Half",
+      "kind": "url",
+      "target": "https://example.com/app.right",
+      "aliases": []
+    }
+  ],
+  "cases": [
+    {
+      "query": "finder",
+      "intended": "app.finder"
+    },
+    {
+      "query": "files",
+      "intended": "app.finder"
+    },
+    {
+      "query": "FiLeS",
+      "intended": "app.finder"
+    },
+    {
+      "query": " CALENDAR ",
+      "intended": "app.calendar"
+    },
+    {
+      "query": "cal",
+      "intended": "app.calendar"
+    },
+    {
+      "query": "prefs",
+      "intended": "app.settings"
+    },
+    {
+      "query": "mt",
+      "intended": "app.teams"
+    },
+    {
+      "query": "mic tea",
+      "intended": "app.teams"
+    },
+    {
+      "query": "mft",
+      "intended": "app.teams"
+    },
+    {
+      "query": "Microsoft Teams",
+      "intended": "app.teams"
+    },
+    {
+      "query": "System Settings",
+      "intended": "app.settings"
+    },
+    {
+      "query": "act mon",
+      "intended": "app.activity"
+    },
+    {
+      "query": "lh",
+      "intended": "app.left"
+    },
+    {
+      "query": "app.mail",
+      "intended": "app.mail"
+    },
+    {
+      "query": "example.com/app.notes",
+      "intended": "app.notes"
+    },
+    {
+      "query": "fnider",
+      "intended": "app.finder"
+    },
+    {
+      "query": "calender",
+      "intended": "app.calendar"
+    },
+    {
+      "query": "settigns",
+      "intended": "app.settings"
+    },
+    {
+      "query": "temrinal",
+      "intended": "app.terminal"
+    },
+    {
+      "query": "browesr",
+      "intended": "app.browser"
+    },
+    {
+      "query": "calclator",
+      "intended": "app.calculator"
+    },
+    {
+      "query": "remidners",
+      "intended": "app.reminders"
+    },
+    {
+      "query": "documetnation",
+      "intended": "app.docs"
+    },
+    {
+      "query": "zzzzzz",
+      "intended": null
+    },
+    {
+      "query": "xy",
+      "intended": null
+    },
+    {
+      "query": "ma",
+      "intended": "app.mail"
+    },
+    {
+      "query": "termminal",
+      "intended": "app.terminal"
+    },
+    {
+      "query": "terminl",
+      "intended": "app.terminal"
+    },
+    {
+      "query": "sxttigns",
+      "intended": null
+    },
+    {
+      "query": "fi",
+      "intended": "app.finder"
+    },
+    {
+      "query": "mali",
+      "intended": "app.mail"
+    },
+    {
+      "query": "fnder",
+      "intended": "app.finder"
+    },
+    {
+      "query": "fn",
+      "intended": "app.finder"
+    },
+    {
+      "query": "calendarr",
+      "intended": "app.calendar"
+    },
+    {
+      "query": "fin.der",
+      "intended": null
+    },
+    {
+      "query": "fnider x",
+      "intended": null
+    },
+    {
+      "query": "https://examplf.com",
+      "intended": null
+    },
+    {
+      "query": "findxx",
+      "intended": null
+    }
+  ]
+}

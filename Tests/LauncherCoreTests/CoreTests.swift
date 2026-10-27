@@ -91,6 +91,37 @@ struct CoreTests {
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath:path.path))[.posixPermissions] as? Int,0o600)
         try ranking.reset();XCTAssertEqual(SearchRanking(root:root,now:now).entries.count,0)
     }
+    func testBoundedTypoFallback() throws {
+        let commands=[Command(id:"finder",title:"Finder",kind:"app",target:"com.apple.finder"),
+            Command(id:"calendar",title:"Calendar",kind:"app",target:"com.apple.iCal"),
+            Command(id:"alias",title:"Zulu",kind:"url",target:"https://example.com",aliases:["fnider"])]
+        let index=try CommandSearchIndex(commands:commands)
+        XCTAssertEqual(index.search("fnider",recency:["finder":999]).map(\.id),["alias"])
+        XCTAssertEqual(index.search("calender").map(\.id),["calendar"])
+        let ties=try CommandSearchIndex(commands:[Command(id:"a",title:"Finder",kind:"url",target:"https://example.com/a"),Command(id:"b",title:"Finder",kind:"url",target:"https://example.com/b")])
+        XCTAssertEqual(ties.search("fnider").map(\.id),["a","b"])
+        XCTAssertEqual(ties.search("fnider",recency:["b":100]).map(\.id),["b","a"])
+        let ambiguous=try CommandSearchIndex(commands:[Command(id:"mail",title:"Mail",kind:"url",target:"https://example.com"),Command(id:"main",title:"Main",kind:"url",target:"https://example.com")])
+        XCTAssertEqual(ambiguous.search("maik").map(\.id),["mail","main"])
+        XCTAssertEqual(ambiguous.search("maik",recency:["main":100]).map(\.id),["main","mail"])
+        var literal=Configuration.initial;literal.commands=Array(commands.prefix(1))
+        XCTAssertEqual(literal.resolve("fnider"),nil)
+        XCTAssertEqual(literal.resolve("finder")?.id,"finder")
+        // A pre-existing weak substring still wins; no results are mixed in.
+        let weak=try CommandSearchIndex(commands:commands+[Command(id:"weak",title:"Other",kind:"url",target:"https://example.com/calender")])
+        XCTAssertEqual(weak.search("calender").map(\.id),["weak"])
+        let short=try CommandSearchIndex(commands:[Command(id:"short",title:"Cat",kind:"url",target:"https://example.com")])
+        XCTAssertEqual(short.search("cta"),[])
+        let unicode=try CommandSearchIndex(commands:[Command(id:"word",title:"Åbcd",kind:"url",target:"https://example.com")])
+        XCTAssertEqual(unicode.search("Åbdc").map(\.id),["word"])
+        XCTAssertEqual(unicode.search("Åb\u{0301}dc"),[])
+        for length in [64,65] {
+            let title=String(repeating:"a",count:length-2)+"bc"
+            let typo=String(repeating:"a",count:length-2)+"cb"
+            let long=try CommandSearchIndex(commands:[Command(id:"long",title:title,kind:"url",target:"https://example.com")])
+            XCTAssertEqual(long.search(typo).map(\.id),length==64 ? ["long"]:[])
+        }
+    }
     func testSnippetFocusAndDateTime() throws {
         // AX-unavailable editors are not necessarily password fields.
         XCTAssertEqual(SnippetFocusPolicy.allowsExpansion(secureInput:false,subrole:nil),true)
@@ -255,7 +286,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {let probeArgs=Array(CommandLine.arguments.dropFirst());if probeArgs.count==2,probeArgs[0]=="--private-storage-probe" {do {try runPrivateStorageWriteProbe(root:URL(fileURLWithPath:probeArgs[1],isDirectory:true))} catch {FileHandle.standardError.write(Data("Private storage probe failed.\n".utf8));exit(1)};return};try checkPrivateFiles();try checkImportedABI();try checkPreparedRanking();try checkScriptChoices();checkTaskDateInput();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {let probeArgs=Array(CommandLine.arguments.dropFirst());if probeArgs.count==2,probeArgs[0]=="--private-storage-probe" {do {try runPrivateStorageWriteProbe(root:URL(fileURLWithPath:probeArgs[1],isDirectory:true))} catch {FileHandle.standardError.write(Data("Private storage probe failed.\n".utf8));exit(1)};return};try checkPrivateFiles();try checkImportedABI();try checkPreparedRanking();try checkScriptChoices();checkTaskDateInput();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)

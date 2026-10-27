@@ -302,12 +302,36 @@ impl SearchIndex {
                 Some((score, i))
             })
             .collect::<Vec<_>>();
+        // Preserve every established match and its order. Correct a single
+        // title-word typo only when the ordinary search found nothing.
+        if found.is_empty() && (4..=64).contains(&q.chars().take(65).count()) && q.chars().all(char::is_alphanumeric) {
+            found.extend(self.entries.iter().enumerate().filter_map(|(i,e)|
+                e.words.iter().any(|word|one_typo(&q,word)).then_some((6,i))));
+        }
         found.sort_by(|a, b| {
             a.0.cmp(&b.0)
                 .then_with(||recency.get(b.1).unwrap_or(&0.0).total_cmp(recency.get(a.1).unwrap_or(&0.0)))
                 .then_with(||self.entries[a.1].title_order.cmp(&self.entries[b.1].title_order))
         });
         found.into_iter().map(|(_, i)| i).collect()
+    }
+}
+// One substitution, insertion, deletion or adjacent transposition, in Unicode
+// scalars. Iterator comparisons avoid a dynamic-programming matrix/allocation.
+fn one_typo(a:&str,b:&str)->bool {
+    let mut a=a.chars();let mut b=b.chars();
+    loop {
+        match (a.next(),b.next()) {
+            (None,None)=>return true,
+            (None,Some(_))=>return b.next().is_none(),
+            (Some(_),None)=>return a.next().is_none(),
+            (Some(x),Some(y)) if x==y=>{},
+            (Some(x),Some(y))=>{
+                if a.clone().eq(b.clone()) || a.clone().eq(std::iter::once(y).chain(b.clone()))
+                    || std::iter::once(x).chain(a.clone()).eq(b.clone()) {return true;}
+                return a.next()==Some(y) && b.next()==Some(x) && a.eq(b);
+            }
+        }
     }
 }
 pub fn search(commands: &[Command], query: &str) -> Vec<Command> {
@@ -612,6 +636,38 @@ mod tests {
     fn exact_alias_ranks_first() {
         let c = validate(&default_config()).unwrap();
         assert_eq!(search(&c.commands, "finder")[0].id, "app.finder");
+    }
+    #[test]
+    fn search_intent_fixtures() {
+        let fixture:Value=serde_json::from_str(include_str!("../../Tests/fixtures/search-quality.json")).unwrap();
+        let commands:Vec<Command>=serde_json::from_value(fixture["commands"].clone()).unwrap();
+        let index=SearchIndex::new(&commands);
+        for case in fixture["cases"].as_array().unwrap() {
+            let query=case["query"].as_str().unwrap();
+            let got=index.search(query);
+            assert_eq!(got.first().map(|i|commands[*i].id.as_str()),case["intended"].as_str(),"query {query}");
+            assert_eq!(index.search(query),got,"determinism for {query}");
+        }
+    }
+    #[test]
+    fn single_typo_matches_independent_edit_neighborhood() {
+        fn strings(n:usize)->Vec<String> {
+            let mut all=vec![String::new()];let mut row=vec![String::new()];
+            for _ in 0..n {row=row.iter().flat_map(|s|['a','b','Ω'].map(|c|format!("{s}{c}"))).collect();all.extend(row.clone());}all
+        }
+        let samples=strings(4);
+        for a in &samples {
+            let chars=a.chars().collect::<Vec<_>>();
+            let mut neighbors=std::collections::HashSet::from([a.clone()]);
+            for i in 0..=chars.len() {
+                for c in ['a','b','Ω'] {let mut t=chars.clone();t.insert(i,c);neighbors.insert(t.iter().collect::<String>());}
+                if i==chars.len() {continue;}
+                let mut t=chars.clone();t.remove(i);neighbors.insert(t.iter().collect::<String>());
+                for c in ['a','b','Ω'] {let mut t=chars.clone();t[i]=c;neighbors.insert(t.iter().collect::<String>());}
+                if i+1<chars.len() {let mut t=chars.clone();t.swap(i,i+1);neighbors.insert(t.iter().collect::<String>());}
+            }
+            for b in &samples {assert_eq!(one_typo(a,b),neighbors.contains(b),"{a:?} vs {b:?}");}
+        }
     }
     #[test]
     fn invalid_ipc_json_is_error_not_panic() {
