@@ -1,4 +1,5 @@
 import Foundation
+import LauncherModels
 
 /// Transient physical state only; no typed text or keyboard history is retained.
 public struct KeyboardState {

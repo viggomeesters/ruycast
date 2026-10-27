@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Combine
 import LauncherCore
+import LauncherModels
 
 func defaultProfilePath()->String {NSString(string:"~/.config/ruycast").expandingTildeInPath}
 let args=Array(CommandLine.arguments.dropFirst())

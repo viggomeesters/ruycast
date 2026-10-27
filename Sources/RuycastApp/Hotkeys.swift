@@ -1,5 +1,6 @@
 import Carbon
 import LauncherCore
+import LauncherModels
 
 final class Hotkeys {
     private var refs:[String:EventHotKeyRef]=[:]

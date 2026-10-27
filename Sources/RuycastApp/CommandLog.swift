@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 import LauncherCore
+import LauncherModels
 
 struct CommandLogEntry:Codable {
     var date=Date()

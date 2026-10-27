@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import LauncherCore
+import LauncherModels
 
 struct PaletteActionItem:Identifiable {
     let id:String

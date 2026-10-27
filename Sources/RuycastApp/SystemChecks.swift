@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import LauncherCore
+import LauncherModels
 
 /// Uses fake process identities and injected effects; never changes the desktop.
 func checkSystemServices() throws -> [String:Any] {

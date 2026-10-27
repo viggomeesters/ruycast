@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 struct ScriptChoiceSession {let commandID:String;let choices:ScriptChoices;let source:String}
 

@@ -1,5 +1,6 @@
 import Foundation
 import LauncherCore
+import LauncherModels
 
 func checkScriptChoices() throws {
     let items=[ScriptChoice(id:"project",title:"Café project",subtitle:"EX · Projectbreed",value:"pinned-project"),ScriptChoice(id:"part",title:"Planning",subtitle:"EX / PLAN · Café project",value:"pinned-component")]

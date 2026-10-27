@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-10-27
+
+- Compile portable command models as a separate Swift 6 module and import the Rust ABI through a checked C header.
+- Align recency scores only when catalog or persisted ranking changes; repeated typing reuses the immutable snapshot. Reset, reload and failed-save behavior are checked.
+- Add real linked-ABI, architecture-boundary and production search invalidation checks. Keep per-query output buffers local after a prototype found no worthwhile reuse benefit.
+- This is the first architecture migration step for Issue #33. Feature-state isolation and the complete native concurrency migration remain separate work; no total UI-speed or physical-frame claim.
+
+
 ## 0.7.16 — 2026-10-26
 
 - Correct interaction diagnostics: schema 2 measures owner-scoped input-to-field reconciliation through the actual NSViewRepresentable update, independently of offscreen capture. Field teardown cancels pending spans.

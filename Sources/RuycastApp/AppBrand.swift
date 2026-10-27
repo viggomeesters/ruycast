@@ -1,5 +1,6 @@
 import AppKit
 import LauncherCore
+import LauncherModels
 
 /// Ruycast's own cut-ray R. The same geometry serves the Dock and menu bar;
 /// no font or SF Symbol is needed to reproduce the identity.

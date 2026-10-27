@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import CryptoKit
 import LauncherCore
+import LauncherModels
 
 struct CommandForm:Identifiable {
     let id=UUID()

@@ -1,4 +1,5 @@
 import Foundation
+import LauncherModels
 
 /// Bounded Accessibility attribute reads; hard errors and absent values fail immediately.
 public enum WindowRead {

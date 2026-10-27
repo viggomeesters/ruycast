@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 import Vision
 
 func featureFixture()->[Command] {

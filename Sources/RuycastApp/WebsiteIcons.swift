@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 import Combine
 import CryptoKit
 import ImageIO

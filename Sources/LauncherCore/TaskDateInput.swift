@@ -1,4 +1,5 @@
 import Foundation
+import LauncherModels
 
 /// The ISO-date hint in existing script prompts opts into natural date entry.
 /// Scripts still receive only a validated ISO date or the existing clear token.

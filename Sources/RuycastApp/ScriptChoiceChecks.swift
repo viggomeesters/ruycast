@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 func checkScriptChoicesUI(_ outputPath:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)

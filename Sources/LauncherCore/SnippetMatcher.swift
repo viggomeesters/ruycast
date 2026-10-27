@@ -1,4 +1,5 @@
 import Foundation
+import LauncherModels
 
 /// An ephemeral suffix buffer; never persisted or logged.
 public struct SnippetMatcher {

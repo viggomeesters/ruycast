@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 /// Keep native descendants attached to one window. Replacing hosting subtrees
 /// on every mode switch grows AppKit NSCell dependency bookkeeping on macOS 26.

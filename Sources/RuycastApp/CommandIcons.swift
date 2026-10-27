@@ -1,5 +1,6 @@
 import AppKit
 import LauncherCore
+import LauncherModels
 
 /// Native lookups stay out of repeated renders; short-lived entries recover after app/file changes.
 final class CommandIcons {

@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import ImageIO
 import LauncherCore
+import LauncherModels
 import Darwin
 import Combine
 

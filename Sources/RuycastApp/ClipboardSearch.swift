@@ -1,5 +1,6 @@
 import Foundation
 import LauncherCore
+import LauncherModels
 
 /// At most one running filter and one latest request. Never queues one job per keystroke.
 final class ClipboardSearch {

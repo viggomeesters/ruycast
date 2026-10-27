@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import LauncherCore
+import LauncherModels
 
 final class WindowManager {
     private var saved:[String:Frame]=[:]

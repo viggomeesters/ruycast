@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import LauncherCore
+import LauncherModels
 
 extension AppState {
     static func keyboardHealth(hyperEnabled:Bool,snippetsEnabled:Bool,trusted:Bool,raycastRunning:Bool,commandShortcutsEnabled:Bool=false,inputMonitoring:Bool=true)->Bool {

@@ -1,5 +1,6 @@
 import AppKit
 import LauncherCore
+import LauncherModels
 
 func checkPerformancePipeline() throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)

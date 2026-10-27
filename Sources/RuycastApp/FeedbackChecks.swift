@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 /// Isolated capture and quick-settings flows. Never captures into the user's vault.
 func checkFeedback(_ outputPath:String) throws -> [String:Any] {

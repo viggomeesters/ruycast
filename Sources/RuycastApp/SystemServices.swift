@@ -3,6 +3,7 @@ import ApplicationServices
 import CryptoKit
 import Darwin
 import LauncherCore
+import LauncherModels
 
 /// Ephemeral native targets. Nothing from Accessibility or the process table is persisted.
 final class SystemServices {

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import LauncherCore
+import LauncherModels
 
 extension AppState {
     func beginShortcutRecording() {recordingShortcut=true;hotkeys?.suspend()}
