@@ -8,6 +8,30 @@ import LauncherModels
         while !condition(),Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.002))}
         try require(condition(),"Concurrency fixture timed out")
     }
+    // A failed start must release every local descriptor and leave the owner
+    // untouched. Reusing the same instance must succeed after the cause clears.
+    let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-socket-"+String(UUID().uuidString.prefix(8)))
+    defer {try? FileManager.default.removeItem(at:root)}
+    let owner=ControlServer(root:root),retry=ControlServer(root:root)
+    defer {owner.stop();retry.stop()}
+    let handler:ControlServer.Handler={_,sink in sink.send(["ok":true])}
+    try owner.start(handler:handler)
+    do {try retry.start(handler:handler);throw LauncherError("Duplicate profile start succeeded")}
+    catch {try require(error.localizedDescription.contains("already running"),"Wrong duplicate-start failure")}
+    retry.stop()
+    try require(FileManager.default.fileExists(atPath:root.appendingPathComponent("control.sock").path),"Failed contender unlinked the active socket")
+    owner.stop()
+    try retry.start(handler:handler);retry.stop()
+    let blocked=root.appendingPathComponent("control.sock")
+    try FileManager.default.createDirectory(at:blocked,withIntermediateDirectories:true)
+    do {try retry.start(handler:handler);throw LauncherError("Occupied socket path start succeeded")}
+    catch {try require(error.localizedDescription.contains("Cannot bind"),"Wrong bind failure")}
+    try require(FileManager.default.fileExists(atPath:blocked.path),"Failed bind removed an unowned path")
+    // No explicit stop: start itself must have rolled back the lock and socket.
+    try FileManager.default.removeItem(at:blocked)
+    try owner.start(handler:handler);owner.stop()
+    try retry.start(handler:handler);retry.stop()
+
     let count=LockedValue(0)
     DispatchQueue.concurrentPerform(iterations:1000) {_ in count.update {$0+=1}}
     try require(count.read {$0}==1000,"Concurrent updates lost state")
@@ -45,5 +69,5 @@ import LauncherModels
     let result=bytes.read {$0}
     let decoded=try JSONSerialization.jsonObject(with:result.data) as? [String:Any]
     try require(!result.onMain && (decoded?["result"] as? [String])?.count==200,"Bulk wire reply moved to main or lost data")
-    return ["ok":true,"concurrentLockedUpdates":1000,"replacedUIRequests":1000,"maxPendingUIRequests":1,"independentConsumersFair":true,"uiCancellationPreservesCLIRequest":true,"mainIntentReplySynchronous":true,"bulkWireReplyEncodedOffMain":true,"desktopEffects":false]
+    return ["ok":true,"failedSocketStartRecovery":true,"failedStartPreservesOwner":true,"concurrentLockedUpdates":1000,"replacedUIRequests":1000,"maxPendingUIRequests":1,"independentConsumersFair":true,"uiCancellationPreservesCLIRequest":true,"mainIntentReplySynchronous":true,"bulkWireReplyEncodedOffMain":true,"desktopEffects":false]
 }
