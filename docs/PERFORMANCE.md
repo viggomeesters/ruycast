@@ -2,6 +2,16 @@
 
 Ruycast uses a cached Rust search index, materialized command/process results, background clipboard work and bounded icon requests. Local measurements are model/native-fixture measurements; they do not establish physical keyboard-to-display latency or a comparison against Raycast.
 
+## Host duration-probe validity
+
+`scripts/benchmark-host.py` verifies the isolated profile and a known search result after its idle observation, then requires an acknowledged quit and zero exit without forced cleanup. Success is written only after those checks. Failed operations write `ok: false` with the phase, exception and cleanup result. A zero exit after termination is still forced cleanup, not graceful shutdown.
+
+Init-config, CLI and counter-probe child calls have a five-second timeout by default (`--operation-timeout`). Each socket RPC has one deadline across connect, send and all receive chunks; a partial response cannot renew it. Graceful exit, termination and kill/reap waits are separately bounded. Phase durations must be finite and nonnegative; sample counts and the operation timeout must be positive. Configured active/idle durations exclude startup, CLI sampling and cleanup overhead. This is a controlled fixture driver, not a guarantee against every OS-level process failure.
+
+The result separates `idleEndpoint`, `coldShutdowns` and `finalShutdown` from the resource observations. Failure receipts retain collected phase samples and completed-request counts with an explicit phase-completion flag. These checks prove endpoint responsiveness and observed shutdown for that isolated run. They do not prove physical presentation, real pasteboard-provider recovery, sleep/wake, display transitions or universal leak freedom.
+
+The older driver could force-terminate fixture hosts yet exit zero with `ok: true`; an isolated reproduction demonstrates this measurement false positive, not a production Ruycast hang. Previously collected OS resource observations retain their stated scope, but cannot establish idle-endpoint or graceful-shutdown acceptance. Tests exercise responding, hanging, partial-response and termination-resistant children inside exclusive temporary process groups.
+
 ## Reproduce locally
 
 ```sh
