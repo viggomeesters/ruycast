@@ -1,6 +1,6 @@
 import Foundation
 
-/// One synchronous lock owns the value. No reference or inout escapes a closure.
+/// One synchronous lock owns the Sendable value through closure-scoped access.
 /// Callers must keep closures short and never reenter this box.
 final class LockedValue<Value:Sendable>:@unchecked Sendable {
     private let lock=NSLock()

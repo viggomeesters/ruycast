@@ -83,3 +83,12 @@ Each system-search consumer owns a `SystemSearchSession`. Interactive cancellati
 `LockedValue` provides closure-scoped NSLock access to Sendable state. Narrow unchecked Sendable owners are limited to audited legacy implementations: configuration observation combines a worker-confined state with locked delivery revisions; clipboard search locks revisions and pending work; resource sampling locks previous counters; analytics, command logs and tracing retain their existing locks and serial writers; system services lock registries and confine their process cache to their worker. These annotations do not make UI state transferable.
 
 Search predicates and empty-query comparators use immutable Sendable snapshots, so their per-item work does not capture MainActor state. Ordinary command searches skip a redundant all-true filtering pass. This keeps compiler isolation and runtime checks enabled while avoiding repeated executor checks inside collection loops.
+
+
+## Release cost boundaries
+
+The native UI target uses `-Osize` in release builds; portable models and the core retain normal speed optimization. `CommandProjection.emptyQuery` owns stable count-based ordering and applies limits before materializing selected commands. It receives immutable values and never reads UI state. The Rust release profile uses thin LTO with one codegen unit and explicitly retains unwind behavior for C-boundary panic containment.
+
+The release build strips debug/local symbol-table entries after saving matching unstripped executables and the host dSYM under `.build/symbols/`. It verifies every file-backed Mach-O section and UUID before replacing either build output, then records the exact prepared binaries, diagnostics and compiler provenance. The installer verifies that receipt before stopping the current app. Retained diagnostics are local build artifacts and are not included in the app or public source archive.
+
+A headless host has neither palette refresh nor pasteboard polling; its recurring UI timer now runs once per minute solely for retention maintenance. Config watching and its metadata fallback remain independent. Native app polling intervals are unchanged.

@@ -145,7 +145,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         rebuildCatalog();refreshClips()
         if !headless {expander=SnippetExpander(state:self)}
         observeConfiguration()
-        timer=mainRunLoopTimer(every:0.75) { [weak self] in self?.tick() }
+        timer=mainRunLoopTimer(every:headless ? 60:0.75) { [weak self] in self?.tick() }
     }
     func observeConfiguration() {
         let directory=configDirectory
@@ -172,8 +172,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
             }
         }
         if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
-        let usage=counts
-        return Array(found.enumerated().sorted { @Sendable a,b in let x=usage[a.element.id] ?? 0,y=usage[b.element.id] ?? 0;return x==y ? a.offset<b.offset : x>y}.map(\.element).prefix(limit<=0 ? found.count:limit))
+        return CommandProjection.emptyQuery(found,usage:counts,limit:limit)
     }
     private func refreshResults(preserveSelection:Bool=false) {
         let started=DispatchTime.now().uptimeNanoseconds
@@ -535,7 +534,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                     switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                 }
             case "status":
-                var status:[String:Any]=["version":"0.8.2","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                var status:[String:Any]=["version":"0.8.3","name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
                 status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
                 reply(["ok":true,"result":status])
             case "search":

@@ -6,6 +6,6 @@ let package=Package(name:"Ruycast",platforms:[.macOS(.v14)],products:[.executabl
     .target(name:"LauncherModels"),
     .target(name:"CRuycastCore",publicHeadersPath:"include"),
     .target(name:"LauncherCore",dependencies:["LauncherModels","CRuycastCore"],linkerSettings:[.unsafeFlags(["-L",rust]),.linkedLibrary("rustcast_core"),.linkedLibrary("iconv"),.linkedLibrary("resolv")]),
-    .executableTarget(name:"RuycastApp",dependencies:["LauncherCore"]),
+    .executableTarget(name:"RuycastApp",dependencies:["LauncherCore"],swiftSettings:[.unsafeFlags(["-Osize"],.when(configuration:.release))]),
     .executableTarget(name:"LauncherCoreChecks",dependencies:["LauncherCore"],path:"Tests/LauncherCoreTests")
 ])

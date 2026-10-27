@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 TOP=['Package.swift','Makefile','README.md','LICENSE','SECURITY.md','CONTRIBUTING.md','CHANGELOG.md','.gitignore','.github/pull_request_template.md','.github/ISSUE_TEMPLATE/bug_report.md','.github/ISSUE_TEMPLATE/feature_request.md']
-SCRIPTS=['build-native-locked.sh','build-native.sh','build_receipt.py','check.sh','check-settings.sh','check-performance.sh','perf-probe.c','sample-performance.py','benchmark-host.py','install.sh','install.py','install_support.py','local_signing.py','check-signing.py','import-raycast.py','import-clipboard.py','prepare-public.py']
+SCRIPTS=['build-native-locked.sh','build-native.sh','build_receipt.py','prepare_release.py','check.sh','check-settings.sh','check-performance.sh','perf-probe.c','sample-performance.py','benchmark-host.py','install.sh','install.py','install_support.py','local_signing.py','check-signing.py','import-raycast.py','import-clipboard.py','prepare-public.py']
 TESTS=['test_architecture.py','test_cli.py','test_config_activation.py','test_config_directory.py','test_clipboard_import.py','test_install_migration.py','test_local_signing.py','test_public_contract.py']
 DOCS=['DIAGNOSTICS.md','INSTALLATION.md','GETTING-STARTED.md','CONFIG.md','ARCHITECTURE.md','ANALYTICS.md','PERFORMANCE.md','RELEASING.md','VISUALS.md','IMPLEMENTATION-REFERENCES.md','adr/0001-native-modular-core.md','public-readiness-review.md','vision.json','schemas/repo-vision-contract.schema.json']
 def selected(root):
@@ -28,7 +28,7 @@ def prepare(root,destination):
     manifest={}
     for name in files:
         path=destination/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(root/name,path);manifest[name]=hashlib.sha256(path.read_bytes()).hexdigest()
-    receipt={'schema':'ruycast.public-source.v1','version':'0.8.2','files':manifest,'exclusions':['Development Git history and workflow state','Build output, profiles, analytics and clipboard data','Optional private adapters and their tests','Local signing material'],'publication':'export-only; see docs/RELEASING.md for release status'}
+    receipt={'schema':'ruycast.public-source.v1','version':'0.8.3','files':manifest,'exclusions':['Development Git history and workflow state','Build output, profiles, analytics and clipboard data','Optional private adapters and their tests','Local signing material'],'publication':'export-only; see docs/RELEASING.md for release status'}
     (destination/'PUBLIC-SOURCE.json').write_text(json.dumps(receipt,indent=2)+'\n')
     with tarfile.open(archive,'x:gz') as tar:
         for name in sorted([*files,'PUBLIC-SOURCE.json']):

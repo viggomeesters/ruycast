@@ -5,6 +5,15 @@ import Foundation
 import LauncherCore
 import LauncherModels
 struct CoreTests {
+    func testEmptyQueryProjection() {
+        let commands=["first","second","third","fourth"].map {Command(id:$0,title:$0,kind:"url",target:"https://example.com")}
+        let usage=["second":4,"third":4,"unknown":100]
+        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:usage,limit:0).map(\.id),["second","third","first","fourth"])
+        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:usage,limit:2).map(\.id),["second","third"])
+        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:usage,limit:-1).count,4)
+        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:[:],limit:100),commands)
+        XCTAssertEqual(CommandProjection.emptyQuery([],usage:usage,limit:100),[])
+    }
     func testConfigRejectsAmbiguousAliasesAndHotkeys() throws {
         XCTAssertEqual(try Shortcut("right-cmd+a").commandSide,"right-cmd")
         XCTAssertEqual(try Shortcut("left-cmd+a").commandSide,"left-cmd")
@@ -37,6 +46,7 @@ struct CoreTests {
         XCTAssertEqual(index.search("ÅNGSTRÖM notes").map(\.id),["b"])
         XCTAssertEqual(index.search("nul\0alias").map(\.id),["b"])
         XCTAssertEqual(index.search("   "),commands)
+        XCTAssertEqual(index.search("",recency:["z":999]),commands)
         XCTAssertEqual(index.search("does not exist"),[])
         var legacy=Configuration.initial;legacy.commands=commands
         for query in ["go"," BETA ","ÅNGSTRÖM notes","nul\0alias","   ","does not exist","example"] {
@@ -232,7 +242,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();try checkScriptChoices();checkTaskDateInput();let t=CoreTests();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("12 core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();try checkScriptChoices();checkTaskDateInput();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
