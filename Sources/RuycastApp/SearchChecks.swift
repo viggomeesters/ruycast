@@ -72,6 +72,13 @@ func searchFixture()->[Command] {
     guard state.searchCommands("identical").map(\.id)==["cached.a"] else {throw LauncherError("Prepared search retained disabled catalog item")}
     state.config.commands=[Command(id:"cached.replacement",title:"Identical",kind:"url",target:"https://example.com/new")]
     guard state.searchCommands("identical").map(\.id)==["cached.replacement"] else {throw LauncherError("Prepared search reused an old catalog")}
+    state.config.commands=[Command(id:"typo.enabled",title:"Calendar",kind:"url",target:"https://example.com"),Command(id:"typo.disabled",title:"Finder",kind:"url",target:"https://example.com",enabled:false)]
+    state.query="calender"
+    let typoReply=LockedValue<[String]>([])
+    state.handle(["op":"search","query":"calender"]) {value in typoReply.update {$0=(value["result"] as? [[String:Any]])?.compactMap {$0["id"] as? String} ?? []}}
+    guard state.results.map(\.id)==["typo.enabled"],state.searchCommands("fnider").isEmpty,
+          typoReply.read({$0})==["typo.enabled"]
+    else {throw LauncherError("Typo fallback CLI/native or disabled filtering failed")}
     let resultChanges=LockedValue(0)
     withObservationTracking {_=state.query;_=state.visibleCommands;_=state.selection} onChange:{resultChanges.update {$0+=1}}
     state.paused.toggle();state.expansionStatus="Fixture";state.configError="Fixture"
