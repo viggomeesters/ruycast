@@ -218,7 +218,7 @@ final class AnalyticsStore:ObservableObject,@unchecked Sendable {
     }
     func exportSummary()->[String:Any] {
         let d=snapshot
-        return ["schema":1,"version":"0.8.5","uses":d.totalAttempts+d.priorSuccesses,"attempts":d.totalAttempts,"successes":d.totalSuccesses,"failures":d.totalFailures,"legacySuccesses":d.priorSuccesses,"timings":jsonValue(d.timings),"errors":Dictionary(grouping:d.events,by:{$0.category+":"+$0.code}).mapValues(\.count),"privacy":"No command IDs, input, queries, URLs, arguments or clipboard contents"]
+        return ["schema":1,"version":"0.8.6","uses":d.totalAttempts+d.priorSuccesses,"attempts":d.totalAttempts,"successes":d.totalSuccesses,"failures":d.totalFailures,"legacySuccesses":d.priorSuccesses,"timings":jsonValue(d.timings),"errors":Dictionary(grouping:d.events,by:{$0.category+":"+$0.code}).mapValues(\.count),"privacy":"No command IDs, input, queries, URLs, arguments or clipboard contents"]
     }
     private func save() {
         lock.lock();scheduled=false
