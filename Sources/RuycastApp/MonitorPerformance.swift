@@ -5,7 +5,7 @@ import LauncherCore
 import LauncherModels
 
 /// Offscreen CPU chart with OS CPU counters independent of ResourceSampler.
-func benchmarkMonitor(activeSeconds:Double=1800,idleSeconds:Double=60)throws->[String:Any] {
+@MainActor func benchmarkMonitor(activeSeconds:Double=1800,idleSeconds:Double=60)throws->[String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let model=SystemMonitorModel(),view=NSHostingView(rootView:SystemMonitorView(model:model,tab:.cpu))
     view.frame=NSRect(x:0,y:0,width:900,height:640)

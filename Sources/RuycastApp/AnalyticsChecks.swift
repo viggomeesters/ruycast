@@ -3,7 +3,7 @@ import SwiftUI
 import LauncherCore
 import LauncherModels
 
-func checkAnalytics(_ outputPath:String) throws -> [String:Any] {
+@MainActor func checkAnalytics(_ outputPath:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-a-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}
@@ -58,7 +58,7 @@ func checkAnalytics(_ outputPath:String) throws -> [String:Any] {
     _=try execute("fixture.success","launcher");_=try execute("fixture.success","hotkey");_=try execute("fixture.failure","cli");_=try execute("fixture.success","cli",dryRun:true)
     try require(state.analytics.snapshot.totalAttempts==3 && state.analytics.snapshot.totalSuccesses==2 && state.analytics.snapshot.totalFailures==1,"Execution or dry-run instrumentation counted incorrectly")
     try require(state.analytics.snapshot.commands[AnalyticsStore.commandKey("fixture.success")]?.sources==["launcher":1,"hotkey":1],"Execution sources were lost")
-    let server=ControlServer(root:fixture);try server.start {request,reply in state.handle(request,reply:reply)};defer {server.stop()}
+    let server=ControlServer(root:fixture);try server.start {request,reply in state.handle(request,sink:reply)};defer {server.stop()}
     func cli(_ arguments:[String]) throws -> [String:Any] {
         let process=Process(),pipe=Pipe();process.executableURL=ruycastCLI();process.arguments=arguments;var env=ProcessInfo.processInfo.environment;env["RUYCAST_HOME"]=fixture.path;process.environment=env;process.standardOutput=pipe;process.standardError=FileHandle.nullDevice;try process.run()
         try wait {!process.isRunning};return try JSONSerialization.jsonObject(with:pipe.fileHandleForReading.readDataToEndOfFile()) as! [String:Any]
@@ -90,14 +90,15 @@ func checkAnalytics(_ outputPath:String) throws -> [String:Any] {
 }
 
 /// Controlled clocks exercise storage without waiting for real hour boundaries or changing system time.
-func checkHourlyAnalytics() throws -> [String:Any] {
+@MainActor func checkHourlyAnalytics() throws -> [String:Any] {
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-hourly-"+UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:root)}
     let iso=ISO8601DateFormatter()
-    var clock=iso.date(from:"2026-10-25T00:35:00Z")!
+    let clockBox=LockedValue(iso.date(from:"2026-10-25T00:35:00Z")!)
+    var clock:Date {get {clockBox.read {$0}} set {clockBox.update {$0=newValue}}}
     var amsterdam=Calendar(identifier:.gregorian);amsterdam.timeZone=TimeZone(identifier:"Europe/Amsterdam")!
-    let store=AnalyticsStore(root:root,saveDelay:60,now:{clock},calendar:amsterdam)
+    let store=AnalyticsStore(root:root,saveDelay:60,now:{clockBox.read {$0}},calendar:amsterdam)
     store.importLegacy(["earlier":7])
     let first=store.recordAttempt("first",source:"launcher")!,firstHour=AnalyticsStore.hourKey(clock)
     clock=iso.date(from:"2026-10-25T01:15:00Z")!
@@ -112,7 +113,7 @@ func checkHourlyAnalytics() throws -> [String:Any] {
     try require(points.count==24 && Set(points.map(\.date)).count==24 && points.compactMap(\.activity).reduce(0,{$0+$1.uses})==2 && points.filter {$0.activity==nil}.count==22,"Last-24-hour bins merged DST hours or invented older recordings")
     var otherZone=amsterdam;otherZone.timeZone=TimeZone(identifier:"Asia/Kathmandu")!
     store.flushSynchronously()
-    let reloaded=AnalyticsStore(root:root,now:{clock},calendar:otherZone)
+    let reloaded=AnalyticsStore(root:root,now:{clockBox.read {$0}},calendar:otherZone)
     try require(reloaded.storageError==nil && reloaded.snapshot.hours[firstHour]?.successes==1 && reloaded.snapshot.hours[secondHour]?.failures==1,"Hourly data changed after reload or time-zone change")
 
     // Build an actual schema-1 payload without either new field.
@@ -121,34 +122,34 @@ func checkHourlyAnalytics() throws -> [String:Any] {
     old["schema"]=1;old.removeValue(forKey:"hours");old.removeValue(forKey:"hourlyStartedAt")
     try FileManager.default.createDirectory(at:legacyRoot,withIntermediateDirectories:true)
     try JSONSerialization.data(withJSONObject:old).write(to:legacyRoot.appendingPathComponent("analytics.json"))
-    let upgraded=AnalyticsStore(root:legacyRoot,saveDelay:60,now:{clock},calendar:amsterdam),legacy=upgraded.snapshot
+    let upgraded=AnalyticsStore(root:legacyRoot,saveDelay:60,now:{clockBox.read {$0}},calendar:amsterdam),legacy=upgraded.snapshot
     try require(upgraded.storageError==nil && legacy.schema==2 && legacy.totalAttempts==2 && legacy.totalSuccesses==1 && legacy.totalFailures==1 && legacy.priorSuccesses==7 && legacy.legacyImported && legacy.commands.count==d.commands.count && legacy.events.count==d.events.count && legacy.timings.keys.sorted()==d.timings.keys.sorted() && legacy.days.keys.sorted()==d.days.keys.sorted(),"Schema-1 upgrade lost existing analytics")
     try require(legacy.hours.isEmpty && legacy.hourlyStartedAt==clock && legacy.hourlyActivity(now:clock).dropLast().allSatisfy {$0.activity==nil},"Schema-1 upgrade fabricated historical hourly counts")
     _=upgraded.recordAttempt("new-hour",source:"cli");upgraded.flushSynchronously()
-    let upgradedAgain=AnalyticsStore(root:legacyRoot,now:{clock},calendar:amsterdam)
+    let upgradedAgain=AnalyticsStore(root:legacyRoot,now:{clockBox.read {$0}},calendar:amsterdam)
     try require(upgradedAgain.storageError==nil && upgradedAgain.snapshot.totalAttempts==3 && upgradedAgain.snapshot.priorSuccesses==7 && upgradedAgain.snapshot.hours.values.reduce(0,{$0+$1.uses})==1 && upgradedAgain.snapshot.hourlyStartedAt==clock,"Schema-2 reload lost upgraded totals or hourly recording start")
 
     let retentionRoot=root.appendingPathComponent("retention")
-    let retained=AnalyticsStore(root:retentionRoot,saveDelay:60,now:{clock},calendar:amsterdam)
+    let retained=AnalyticsStore(root:retentionRoot,saveDelay:60,now:{clockBox.read {$0}},calendar:amsterdam)
     try retained.configure(enabled:nil,retentionDays:1)
     let beginning=clock
     for offset in 0..<26 {clock=beginning.addingTimeInterval(Double(offset)*3600);_=retained.recordAttempt("retention",source:"cli")}
     try require(retained.snapshot.totalAttempts==26 && retained.snapshot.hours.count==25 && retained.snapshot.hours[AnalyticsStore.hourKey(beginning)]==nil && retained.snapshot.hourlyActivity(now:clock).count==24,"Hourly retention failed to prune or removed all-time totals")
     retained.flushSynchronously()
-    try require(AnalyticsStore(root:retentionRoot,now:{clock},calendar:amsterdam).snapshot.hours.count==25,"Pruned hours reappeared on reload")
+    try require(AnalyticsStore(root:retentionRoot,now:{clockBox.read {$0}},calendar:amsterdam).snapshot.hours.count==25,"Pruned hours reappeared on reload")
 
     let boundedRoot=root.appendingPathComponent("bounded")
     var bounded=AnalyticsDocument();bounded.retentionDays=90;bounded.hourlyStartedAt=clock.addingTimeInterval(-2160*3600)
     for offset in 0...2160 {bounded.hours[AnalyticsStore.hourKey(clock.addingTimeInterval(-Double(offset)*3600))]=ActivityDay(uses:1)}
     try Files.save(bounded,to:boundedRoot.appendingPathComponent("analytics.json"))
-    let boundedStore=AnalyticsStore(root:boundedRoot,saveDelay:60,now:{clock},calendar:amsterdam)
+    let boundedStore=AnalyticsStore(root:boundedRoot,saveDelay:60,now:{clockBox.read {$0}},calendar:amsterdam)
     try require(boundedStore.storageError==nil && boundedStore.snapshot.hours.count==2161,"Maximum hourly retention fixture was rejected")
     clock=clock.addingTimeInterval(3600);_=boundedStore.recordAttempt("boundary",source:"cli")
     try require(boundedStore.snapshot.hours.count==2161,"Hourly aggregate storage exceeded the 90-day bound")
     var invalid=boundedStore.snapshot;invalid.hours.removeValue(forKey:invalid.hours.keys.sorted().first!);invalid.hours["PRIVATE_QUERY_SENTINEL"]=ActivityDay(uses:1)
     let invalidRoot=root.appendingPathComponent("invalid");try Files.save(invalid,to:invalidRoot.appendingPathComponent("analytics.json"))
     let invalidBytes=try Data(contentsOf:invalidRoot.appendingPathComponent("analytics.json"))
-    let rejected=AnalyticsStore(root:invalidRoot,now:{clock},calendar:amsterdam)
+    let rejected=AnalyticsStore(root:invalidRoot,now:{clockBox.read {$0}},calendar:amsterdam)
     rejected.recordError("runtime",code:"invalid");rejected.flushSynchronously()
     try require(rejected.storageError != nil && (try Data(contentsOf:invalidRoot.appendingPathComponent("analytics.json")))==invalidBytes,"Invalid hourly keys were accepted or existing data was overwritten")
     return ["schema1Preserved":true,"noBackfilledHours":true,"hourlyReload":true,"completionAttributedToAttemptHour":true,"last24ElapsedHours":true,"dstHoursDistinct":true,"timeZoneChangePreservesHours":true,"retentionPreservesTotals":true,"hourlyBucketsBounded":2161,"invalidHourlyDataPreserved":true]

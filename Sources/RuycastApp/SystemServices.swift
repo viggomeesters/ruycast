@@ -6,24 +6,26 @@ import LauncherCore
 import LauncherModels
 
 /// Ephemeral native targets. Nothing from Accessibility or the process table is persisted.
-final class SystemServices {
-    struct Identity: Codable, Equatable { let pid: pid_t; let uid: uid_t; let seconds: UInt64; let micros: UInt64 }
-    struct Effects {
-        var processes: () throws -> [ProcessResource] = ResourceSampler.processTable
-        var identity: (pid_t) -> Identity? = SystemServices.identity
-        var trusted: () -> Bool = { AXIsProcessTrusted() }
-        var terminate: (pid_t) -> Int32 = { Darwin.kill($0, SIGKILL) }
-        var activate: (pid_t) -> Bool = { NSRunningApplication(processIdentifier:$0)?.activate(options:[]) ?? false }
-        var press: (AXUIElement) -> AXError = { AXUIElementPerformAction($0,kAXPressAction as CFString) }
-        var raise: (AXUIElement) -> AXError = { element in
+// Generation/targets/resources/process ownership use lock; cache uses worker only.
+// Immutable Effects has compiler-checked worker callbacks and main-actor effects.
+final class SystemServices:@unchecked Sendable {
+    struct Identity: Codable, Equatable, Sendable { let pid: pid_t; let uid: uid_t; let seconds: UInt64; let micros: UInt64 }
+    struct Effects:Sendable {
+        var processes: @Sendable () throws -> [ProcessResource] = ResourceSampler.processTable
+        var identity: @Sendable (pid_t) -> Identity? = SystemServices.identity
+        var trusted: @Sendable () -> Bool = { AXIsProcessTrusted() }
+        var terminate: @MainActor @Sendable (pid_t) -> Int32 = { Darwin.kill($0, SIGKILL) }
+        var activate: @MainActor @Sendable (pid_t) -> Bool = { NSRunningApplication(processIdentifier:$0)?.activate(options:[]) ?? false }
+        var press: @MainActor @Sendable (AXUIElement) -> AXError = { AXUIElementPerformAction($0,kAXPressAction as CFString) }
+        var raise: @MainActor @Sendable (AXUIElement) -> AXError = { element in
             _ = AXUIElementSetAttributeValue(element,kAXMinimizedAttribute as CFString,kCFBooleanFalse)
             return AXUIElementPerformAction(element,kAXRaiseAction as CFString)
         }
-        var monitor: () -> Bool = {
+        var monitor: @MainActor @Sendable () -> Bool = {
             let url=URL(fileURLWithPath:"/System/Applications/Utilities/Activity Monitor.app")
             return NSWorkspace.shared.open(url)
         }
-        var lock: () throws -> Void = {
+        var lock: @MainActor @Sendable () throws -> Void = {
             // CGSession is absent on current macOS. The supported lock shortcut is the fallback.
             let path="/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
             if FileManager.default.isExecutableFile(atPath:path) {
@@ -40,11 +42,10 @@ final class SystemServices {
     struct Target { let kind:String; let identity:Identity; let element:AXUIElement? }
     private let effects:Effects
     private let lock=NSLock()
-    private var generation=0
+    let interactiveSession=SystemSearchSession()
     private var resources:[String:ProcessResource]=[:]
     private var processCache:[ProcessResource]=[]
     private var processCacheDate=Date.distantPast
-    private var fileProcess:Process?
     private var targets:[String:Target]=[:]
     private var targetOrder=[String]()
     private let worker=DispatchQueue(label:"ruycast.system-search",qos:.userInitiated)
@@ -61,14 +62,10 @@ final class SystemServices {
         let escaped=query.replacingOccurrences(of:"\\",with:"\\\\").replacingOccurrences(of:"\"",with:"\\\"").replacingOccurrences(of:"*",with:"\\*").replacingOccurrences(of:"?",with:"\\?")
         return "kMDItemFSName == \"*\(escaped)*\"cd"
     }
-    func cancel() {
-        lock.lock();generation+=1;let old=fileProcess;fileProcess=nil;lock.unlock()
-        if let old,old.isRunning {old.terminate()}
-    }
-    func results(mode:String,query:String,previousPID:pid_t?,completion:@escaping(Result<[Command],Error>)->Void) {
-        cancel();lock.lock();let version=generation;lock.unlock()
-        worker.async { [weak self] in
-            guard let self,self.current(version) else {return}
+    func cancel() {interactiveSession.cancel()}
+    func results(mode:String,query:String,previousPID:pid_t?,session:SystemSearchSession?=nil,completion:@escaping @MainActor @Sendable (Result<[Command],Error>)->Void) {
+        (session ?? interactiveSession).submit(on:worker) { [weak self] version in
+            guard let self,version.current else {return}
             let result=Result { () throws -> [Command] in
                 switch mode {
                 case "files":return try self.files(query,version:version)
@@ -78,10 +75,10 @@ final class SystemServices {
                 default:throw LauncherError("Unknown system search.")
                 }
             }
-            DispatchQueue.main.async {if self.current(version) {completion(result)}}
+            DispatchQueue.main.async {if version.current {completion(result)}}
         }
     }
-    private func current(_ value:Int)->Bool {lock.lock();defer {lock.unlock()};return generation==value}
+    private func current(_ version:SystemSearchSession.Ticket)->Bool {version.current}
     @discardableResult func remember(kind:String,identity:Identity,element:AXUIElement?,key:String)->String {
         let token=Self.token("\(kind):\(identity.pid):\(identity.seconds):\(identity.micros):\(key)")
         lock.lock();defer {lock.unlock()}
@@ -93,7 +90,7 @@ final class SystemServices {
         return "system.\(kind):\(token)"
     }
     func requiresConfirmation(target:String)->Bool {false}
-    func execute(target:String,confirmed:Bool=false,previousPID:pid_t?=nil)->[String:Any] {
+    @MainActor func execute(target:String,confirmed:Bool=false,previousPID:pid_t?=nil)->[String:Any] {
         do {
             if target=="system-monitor" {guard effects.monitor() else {throw LauncherError("Could not open Activity Monitor.")};return ["ok":true]}
             if target=="lock-screen" {try effects.lock();return ["ok":true]}
@@ -118,21 +115,17 @@ final class SystemServices {
             return ["ok":true]
         } catch {return ["ok":false,"error":error.localizedDescription]}
     }
-    private func files(_ query:String,version:Int) throws -> [Command] {
+    private func files(_ query:String,version:SystemSearchSession.Ticket) throws -> [Command] {
         let query=String(query.trimmingCharacters(in:.whitespacesAndNewlines).prefix(512))
         guard !query.isEmpty else {return []}
         guard !query.unicodeScalars.contains(where:CharacterSet.controlCharacters.contains) else {throw LauncherError("Enter a file name without control characters.")}
         let process=Process(),pipe=Pipe()
         process.executableURL=URL(fileURLWithPath:"/usr/bin/mdfind");process.arguments=["-0",Self.filePredicate(query)]
         process.standardOutput=pipe;process.standardError=FileHandle.nullDevice
-        lock.lock()
-        guard generation==version else {lock.unlock();return []}
-        fileProcess=process
-        do {try process.run()} catch {fileProcess=nil;lock.unlock();throw error}
-        lock.unlock()
+        guard try version.launch(process) else {return []}
         let deadline=DispatchWorkItem {if process.isRunning {process.terminate()}}
         DispatchQueue.global().asyncAfter(deadline:.now()+3,execute:deadline)
-        defer {deadline.cancel();if process.isRunning {process.terminate()};try? pipe.fileHandleForReading.close();lock.lock();if fileProcess===process {fileProcess=nil};lock.unlock()}
+        defer {deadline.cancel();if process.isRunning {process.terminate()};try? pipe.fileHandleForReading.close();version.detach(process)}
         var pending=Data(),paths=[String](),bytes=0
         while current(version),paths.count<100,bytes<1_048_576 {
             guard let data=try pipe.fileHandleForReading.read(upToCount:16384),!data.isEmpty else {break}
@@ -149,12 +142,12 @@ final class SystemServices {
     private func children(_ element:AXUIElement,_ key:String=kAXChildrenAttribute)->[AXUIElement] {value(element,key) as? [AXUIElement] ?? []}
     private func text(_ element:AXUIElement,_ key:String=kAXTitleAttribute)->String {value(element,key) as? String ?? ""}
     private func matches(_ title:String,_ query:String)->Bool {query.isEmpty || title.localizedCaseInsensitiveContains(query)}
-    private func menus(_ query:String,pid:pid_t?,version:Int) throws -> [Command] {
+    private func menus(_ query:String,pid:pid_t?,version:SystemSearchSession.Ticket) throws -> [Command] {
         guard effects.trusted() else {throw LauncherError("Allow Accessibility access to search app menus.")}
         guard let pid,pid != getpid(),let identity=effects.identity(pid) else {throw LauncherError("Open an app before searching its menu.")}
         let app=AXUIElementCreateApplication(pid);AXUIElementSetMessagingTimeout(app,0.25)
         guard let raw=value(app,kAXMenuBarAttribute),CFGetTypeID(raw)==AXUIElementGetTypeID() else {throw LauncherError("This app does not expose a menu bar.")}
-        let menu=unsafeBitCast(raw,to:AXUIElement.self),deadline=Date().addingTimeInterval(2)
+        let menu=unsafeDowncast(raw,to:AXUIElement.self),deadline=Date().addingTimeInterval(2)
         var results=[Command](),visited=0
         func visit(_ node:AXUIElement,_ path:[String],_ depth:Int) {
             guard depth<12,visited<1200,Date()<deadline,current(version),results.count<100 else {return};visited+=1
@@ -168,7 +161,7 @@ final class SystemServices {
         }
         visit(menu,[],0);return results
     }
-    private func windows(_ query:String,version:Int) throws -> [Command] {
+    private func windows(_ query:String,version:SystemSearchSession.Ticket) throws -> [Command] {
         guard effects.trusted() else {throw LauncherError("Allow Accessibility access to switch windows.")}
         let deadline=Date().addingTimeInterval(3);var results=[Command]()
         for app in NSWorkspace.shared.runningApplications where app.processIdentifier != getpid() && app.activationPolicy == .regular {
@@ -187,18 +180,18 @@ final class SystemServices {
     }
     func invalidateProcessCache() {worker.async { [weak self] in self?.processCacheDate=Date.distantPast}}
     var processResources:[String:ProcessResource] {lock.lock();defer {lock.unlock()};return resources}
-    func processDetails(_ query:String,completion:@escaping(Result<[(Command,ProcessResource)],Error>)->Void) {
-        worker.async { [weak self] in
-            guard let self else {return}
+    func processDetails(_ query:String,session:SystemSearchSession?=nil,completion:@escaping @MainActor @Sendable (Result<[(Command,ProcessResource)],Error>)->Void) {
+        (session ?? SystemSearchSession()).submit(on:worker) { [weak self] version in
+            guard let self,version.current else {return}
             let result=Result { () throws -> [(Command,ProcessResource)] in
-                let commands=try self.processes(query,version:nil)
+                let commands=try self.processes(query,version:version)
                 let resources=self.processResources
                 return commands.compactMap {command in resources[command.id].map {(command,$0)}}
             }
-            DispatchQueue.main.async {completion(result)}
+            DispatchQueue.main.async {if version.current {completion(result)}}
         }
     }
-    private func processes(_ query:String,version:Int?) throws -> [Command] {
+    private func processes(_ query:String,version:SystemSearchSession.Ticket?) throws -> [Command] {
         if Date().timeIntervalSince(processCacheDate)>1.5 {processCache=try effects.processes();processCacheDate=Date()}
         var result=[Command](),details=[String:ProcessResource]()
         for sample in processCache.filter({matches($0.name,query) || String($0.id).contains(query)}).sorted(by: {$0.cpuPercent>$1.cpuPercent}).prefix(1000) {

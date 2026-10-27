@@ -18,7 +18,7 @@ struct CommandForm:Identifiable {
 struct CommandEditor:View {
     let state:AppState
     @State var form:CommandForm
-    var onBack:(()->Void)?=nil
+    var onBack:(@MainActor @Sendable ()->Void)?=nil
     @FocusState private var focused:Bool
     @Environment(\.colorScheme) private var scheme
     @State var advancedExpanded=false
@@ -178,14 +178,14 @@ extension AppState {
         form=CommandForm(command:Command(id:kind+"."+UUID().uuidString.lowercased(),title:kind=="snippet" ? "New Snippet":"New Quicklink",kind:kind,target:kind=="snippet" ? "":"https://"),isRun:false,isNew:true)
     }
     func editSelection() {guard let cmd=selectedCommand else {return};actionsOpen=false;message="";form=CommandForm(command:cmd,isRun:false)}
-    func saveBindings(_ edited:Command,original:Command,isNew:Bool=false,onSuccess:(()->Void)?=nil) {
+    func saveBindings(_ edited:Command,original:Command,isNew:Bool=false,onSuccess:(@MainActor @Sendable ()->Void)?=nil) {
         guard var current=config.commands.first(where:{$0.id==original.id}) ?? (isNew ? original:nil) else {message="Command was removed. Reopen it before editing.";return}
         if edited.aliases != original.aliases {current.aliases=edited.aliases}
         if edited.hotkey != original.hotkey {current.hotkey=edited.hotkey}
         if edited.isEnabled != original.isEnabled {current.enabled=edited.enabled}
         saveCommand(current,isNew:isNew,onSuccess:onSuccess)
     }
-    func saveCommand(_ original:Command,isNew:Bool=false,remove:Bool=false,onSuccess:(()->Void)?=nil) {
+    func saveCommand(_ original:Command,isNew:Bool=false,remove:Bool=false,onSuccess:(@MainActor @Sendable ()->Void)?=nil) {
         guard !busy else {return}
         var command=original
         if !remove,command.kind=="url" || command.kind=="path" {
@@ -201,7 +201,7 @@ extension AppState {
         do {try next.validate()} catch {message=error.localizedDescription;return}
         busy=true
         let path=configURL,root=root
-        let expected=configDigestForSave
+        let expected=configDigestForSave,commands=next.commands
         DispatchQueue.global(qos:.userInitiated).async { [weak self] in
             do {
                 let before=try Data(contentsOf:path)
@@ -209,7 +209,7 @@ extension AppState {
                 guard SHA256.hash(data:before).map({String(format:"%02x",$0)}).joined()==expected else {throw LauncherError("Configuration changed. Reload and try again.")}
                 let temporary=root.appendingPathComponent(".editor-"+UUID().uuidString+".json")
                 defer {try? FileManager.default.removeItem(at:temporary)}
-                try Files.save(next.commands,to:temporary)
+                try Files.save(commands,to:temporary)
                 let process=Process();process.executableURL=ruycastCLI();process.arguments=["config","set","commands","@"+temporary.path,"--expect-sha256",expected]
                 var env=ProcessInfo.processInfo.environment;env["RUYCAST_HOME"]=root.path;process.environment=env
                 let pipe=Pipe();process.standardOutput=pipe;process.standardError=FileHandle.nullDevice

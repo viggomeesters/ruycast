@@ -144,3 +144,8 @@ The model benchmark retains the original catalog/query matrix and adds a separat
 The visible acceptance attempt exposed a measurement gap: input.model recorded events while the NSHostingView draw override remained unused. The original 0.7.13–0.7.15 `input.draw`/`native.draw` counters therefore do not prove a live draw or result-presentation boundary. Schema 2 replaces them with the precisely limited stages above. The input endpoint now runs after the actual field binding is applied in updateNSView; it is independent of offscreen captures. Field teardown cancels pending work before an object address can be reused.
 
 The launcher window was observed through accessibility, but the computer-use bridge repeatedly timed out or reported no available window. Visible typing/arrows/close acceptance is still open; no desktop keys were posted by the agent. This is separate from the successful hidden delegate/reconciliation tests and model/lifecycle budgets.
+
+
+### Clipboard measurement correction (0.8.2)
+
+The original completion wait inspected stored properties through Mirror. In 0.8.1, clipboardSearchBusy became a computed forwarding property, so that wait no longer waited. Earlier `clipboardSearch200x8kB` results for that architecture must not be interpreted as completed-filter latency. The independent `clipboardSearchEnqueue200x8kB` metric remains valid. Measurement version2 reads the state directly and fails if publication exceeds five seconds. Do not compare completed-filter results across these harness versions; retain enqueue comparisons separately.

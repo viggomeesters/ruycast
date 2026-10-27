@@ -10,6 +10,7 @@ let args=Array(CommandLine.arguments.dropFirst())
 let root=URL(fileURLWithPath:ProcessInfo.processInfo.environment["RUYCAST_HOME"] ?? ProcessInfo.processInfo.environment["RUSTCAST_HOME"] ?? defaultProfilePath())
 func output(_ value:[String:Any]) {if let data=try? JSONSerialization.data(withJSONObject:value,options:[.sortedKeys]),let s=String(data:data,encoding:.utf8) {print(s)}}
 
+if args.first=="--check-concurrency" {do {output(try checkConcurrencyOwnership());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--benchmark-interactions" {do {output(try checkInteractionPerformance());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-script-choices" {
     do {guard args.count==2 else {throw LauncherError("Expected output directory")};output(try checkScriptChoicesUI(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
@@ -134,7 +135,7 @@ if args.first=="--render" {
         try data.write(to:URL(fileURLWithPath:args[1]));exit(0)
     } catch {fputs(error.localizedDescription+"\n",stderr);exit(1)}
 }
-final class AppDelegate:NSObject,NSApplicationDelegate {
+@MainActor final class AppDelegate:NSObject,NSApplicationDelegate {
     var state:AppState?
     var server:ControlServer?
     var palette:PaletteController?
@@ -146,7 +147,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate {
         do {
             // Claim the profile before starting any observers or clipboard work.
             let control=ControlServer(root:root)
-            try control.start { [weak self] req,reply in guard let state=self?.state else {reply(["ok":false,"error":"Starting up; retry."]);return};state.handle(req,reply:reply) }
+            try control.start { [weak self] req,sink in guard let state=self?.state else {sink.send(["ok":false,"error":"Starting up; retry."]);return};state.handle(req,sink:sink) }
             server=control
             let s=try AppState(root:root,headless:args.contains("--headless"));state=s
             if !s.headless {

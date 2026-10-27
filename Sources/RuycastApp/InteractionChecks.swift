@@ -12,7 +12,7 @@ func featureFixture()->[Command] {
      Command(id:"link.search",title:"Search Google Maps",kind:"url",target:"https://maps.google.com/?q={query}",aliases:["gmaps"]),
      Command(id:"snippet.greeting",title:"Greeting",kind:"snippet",target:"Hi {cursor},\nThanks for your message.",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";hello")]
 }
-func checkInteractions() throws -> [String:Any] {
+@MainActor func checkInteractions() throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rc-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:sandbox)}
@@ -46,7 +46,7 @@ func checkInteractions() throws -> [String:Any] {
     let all=state.searchCommands("",mode:"snippets",limit:0)
     guard all.count==1 else {throw LauncherError("Filtered list failed.")}
     let server=ControlServer(root:sandbox)
-    try server.start {request,reply in state.handle(request,reply:reply)}
+    try server.start {request,reply in state.handle(request,sink:reply)}
     defer {server.stop()}
     state.mode="commands"
     let created=Command(id:"saved.link",title:"Saved Quicklink",kind:"url",target:"https://example.com/?q={query}",aliases:["saved"])
@@ -122,7 +122,7 @@ func checkInteractions() throws -> [String:Any] {
     panel.close()
     return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
-func renderFeatures(_ path:String,theme:String,mode:String) throws {
+@MainActor func renderFeatures(_ path:String,theme:String,mode:String) throws {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rustcast-feature-render-"+UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:sandbox)}
@@ -144,7 +144,7 @@ func renderFeatures(_ path:String,theme:String,mode:String) throws {
 
 // Exercise one retained hosting tree, not only the model or a fresh screenshot.
 // Vision reads actual rendered labels; no production window or desktop input is used.
-func checkRenderedUpdates(_ outputPath:String) throws -> [String:Any] {
+@MainActor func checkRenderedUpdates(_ outputPath:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rc-render-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:sandbox)}
@@ -219,7 +219,7 @@ func checkRenderedUpdates(_ outputPath:String) throws -> [String:Any] {
 }
 
 // Route real AppKit key events through the same hidden panel as production.
-func checkSnippetChoiceKeyboard() throws {
+@MainActor func checkSnippetChoiceKeyboard() throws {
     let command=Command(id:"choice.keys",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Alpha, Beta, Gamma"}"#,keyword:";contact")
     var submissions:[[String:String]]=[],cancellations=0,throwawaySubmission=false
     let model=SnippetChoiceModel(command:command,submit:{submissions.append($0)},cancel:{cancellations+=1})
@@ -252,7 +252,7 @@ func checkSnippetChoiceKeyboard() throws {
 }
 
 // No real application starts and no visible window is opened.
-func checkAppLaunchDismissal() throws {
+@MainActor func checkAppLaunchDismissal() throws {
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("launch-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}
     let state=try AppState(root:root,headless:true)

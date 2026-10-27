@@ -3,7 +3,7 @@ import LauncherCore
 import LauncherModels
 
 /// Native lookups stay out of repeated renders; short-lived entries recover after app/file changes.
-final class CommandIcons {
+@MainActor final class CommandIcons {
     static let shared=CommandIcons()
     private final class Entry:NSObject {let image:NSImage;let date:Date;init(_ image:NSImage,_ date:Date) {self.image=image;self.date=date}}
     private let images=NSCache<NSString,Entry>()
@@ -31,13 +31,13 @@ final class CommandIcons {
 }
 
 /// Source labels are metadata, not per-frame work. Cache successful and missing bundle lookups.
-final class ApplicationNames {
+@MainActor final class ApplicationNames {
     static let shared=ApplicationNames()
     private final class Entry:NSObject {let name:String;let date:Date;init(_ name:String,_ date:Date) {self.name=name;self.date=date}}
     private let cache=NSCache<NSString,Entry>()
     private let now:()->Date
-    private let resolve:(String)->String?
-    init(now:@escaping()->Date=Date.init,resolve:@escaping(String)->String?=ApplicationNames.resolve) {self.now=now;self.resolve=resolve;cache.countLimit=512}
+    private let resolve:@MainActor (String)->String?
+    init(now:@escaping()->Date=Date.init,resolve:@escaping @MainActor (String)->String?=ApplicationNames.resolve) {self.now=now;self.resolve=resolve;cache.countLimit=512}
     private static func resolve(_ id:String)->String? {
         guard let url=NSWorkspace.shared.urlForApplication(withBundleIdentifier:id),let bundle=Bundle(url:url) else {return nil}
         return bundle.object(forInfoDictionaryKey:"CFBundleDisplayName") as? String ?? bundle.object(forInfoDictionaryKey:"CFBundleName") as? String

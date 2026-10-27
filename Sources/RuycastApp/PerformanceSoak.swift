@@ -5,7 +5,7 @@ import LauncherCore
 import LauncherModels
 
 /// Hidden native view/model cycles. Never orders a window front or installs global input hooks.
-func benchmarkLifecycle(blocks:Int=10,render:Bool=true,component:String="palette") throws -> [String:Any] {
+@MainActor func benchmarkLifecycle(blocks:Int=10,render:Bool=true,component:String="palette") throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-l-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}

@@ -4,22 +4,24 @@ import LauncherCore
 import LauncherModels
 
 /// Serializes history/asset writes and invalidates stale capture publications.
-final class ClipboardWork {
+// Version is locked; work executes on the serial queue. No unlocked mutable state.
+final class ClipboardWork:Sendable {
     let queue=DispatchQueue(label:"ruycast.clipboard-work",qos:.utility,autoreleaseFrequency:.workItem)
-    private let lock=NSLock()
-    private var version=0
-    var revision:Int {lock.lock();defer {lock.unlock()};return version}
-    func invalidate() {lock.lock();version+=1;lock.unlock()}
+    private let version=LockedValue(0)
+    var revision:Int {version.read {$0}}
+    func invalidate() {version.update {$0+=1}}
     func current(_ candidate:Int)->Bool {revision==candidate}
-    func perform(_ work:@escaping()->Void) {queue.async(execute:work)}
-    func sync<T>(_ work:()throws->T) rethrows->T {let result=try queue.sync(execute:work);invalidate();return result}
+    func perform(_ work:@escaping @Sendable ()->Void) {queue.async(execute:work)}
+    func sync<T:Sendable>(_ work:@Sendable ()throws->T) rethrows->T {let result=try queue.sync(execute:work);invalidate();return result}
     func drain() {queue.sync {}}
 }
 
 /// Watches the directory so atomic replacements do not detach the observer.
 /// Coalesces events, reads bytes only when the config file's identity/metadata changed.
-struct ObservedConfiguration {let bytes:Data;let config:Configuration}
-final class ConfigurationObserver {
+struct ObservedConfiguration:Sendable {let bytes:Data;let config:Configuration}
+// Fingerprint/bytes/readCount/pending are worker-confined; delivery is locked.
+// source/fallback are created before publication and cancelled only at teardown.
+final class ConfigurationObserver:@unchecked Sendable {
     private let worker=DispatchQueue(label:"ruycast.config-observer",qos:.utility,autoreleaseFrequency:.workItem)
     private var source:DispatchSourceFileSystemObject?
     private var fallback:DispatchSourceTimer?
@@ -29,9 +31,9 @@ final class ConfigurationObserver {
     private var fingerprint:String?
     private var lastBytes:Data?
     private let root:URL
-    private let callback:(Result<ObservedConfiguration,Error>)->Void
-    private(set) var readCount=0
-    init(root:URL,initial:Data,callback:@escaping(Result<ObservedConfiguration,Error>)->Void) {
+    private let callback:@MainActor @Sendable (Result<ObservedConfiguration,Error>)->Void
+    private var readCount=0
+    init(root:URL,initial:Data,callback:@escaping @MainActor @Sendable (Result<ObservedConfiguration,Error>)->Void) {
         self.root=root;self.callback=callback;self.lastBytes=initial;fingerprint=Self.stamp(root.appendingPathComponent("config.json"))
         let fd=open(root.path,O_EVTONLY|O_CLOEXEC)
         if fd>=0 {
@@ -66,6 +68,6 @@ final class ConfigurationObserver {
         lock.lock();delivery+=1;lock.unlock()
         worker.async { [weak self] in guard let self else {return};self.lastBytes=bytes;self.fingerprint=nil;self.schedule()}
     }
-    func reads(_ completion:@escaping(Int)->Void) {worker.async { [weak self] in let count=self?.readCount ?? 0;DispatchQueue.main.async {completion(count)}}}
+    func reads(_ completion:@escaping @MainActor @Sendable (Int)->Void) {worker.async { [weak self] in let count=self?.readCount ?? 0;DispatchQueue.main.async {completion(count)}}}
     deinit {source?.cancel();fallback?.cancel()}
 }

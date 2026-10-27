@@ -4,7 +4,7 @@ import LauncherCore
 import LauncherModels
 
 /// Public imagery uses the production views and a disposable demonstration profile.
-func renderPublicPreview(_ path:String) throws -> [String:Any] {
+@MainActor func renderPublicPreview(_ path:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-public-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}

@@ -5,16 +5,17 @@ import LauncherCore
 import LauncherModels
 
 /// Fixture processes and a named pasteboard only: never kills real processes or reads general.
-func checkRichResources(_ outputPath:String) throws -> [String:Any] {
+@MainActor func checkRichResources(_ outputPath:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-rich-"+String(UUID().uuidString.prefix(8)))
     defer {try? FileManager.default.removeItem(at:root)}
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     func pump(_ duration:Double=0.12) {let end=Date().addingTimeInterval(duration);while Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}}
     func wait(_ condition:()->Bool) throws {let end=Date().addingTimeInterval(5);while !condition(),Date()<end {pump(0.01)};try require(condition(),"Native resource fixture timed out")}
-    var samples=[ProcessResource(identity:.init(pid:123410,uid:getuid(),seconds:10,micros:0),name:"Syncthing",path:"/usr/bin/true",cpuPercent:49.5,memoryBytes:163*1_048_576),ProcessResource(identity:.init(pid:123411,uid:getuid(),seconds:11,micros:0),name:"Obsidian",path:"/Applications/Obsidian.app/Contents/MacOS/Obsidian",cpuPercent:23.9,memoryBytes:370*1_048_576),ProcessResource(identity:.init(pid:123412,uid:getuid(),seconds:12,micros:0),name:"Safari",path:"/System/Applications/Safari.app/Contents/MacOS/Safari",cpuPercent:9.8,memoryBytes:64*1_048_576)]
+    let samplesBox=LockedValue([ProcessResource(identity:.init(pid:123410,uid:getuid(),seconds:10,micros:0),name:"Syncthing",path:"/usr/bin/true",cpuPercent:49.5,memoryBytes:163*1_048_576),ProcessResource(identity:.init(pid:123411,uid:getuid(),seconds:11,micros:0),name:"Obsidian",path:"/Applications/Obsidian.app/Contents/MacOS/Obsidian",cpuPercent:23.9,memoryBytes:370*1_048_576),ProcessResource(identity:.init(pid:123412,uid:getuid(),seconds:12,micros:0),name:"Safari",path:"/System/Applications/Safari.app/Contents/MacOS/Safari",cpuPercent:9.8,memoryBytes:64*1_048_576)])
+    var samples:[ProcessResource] {get {samplesBox.read {$0}} set {samplesBox.update {$0=newValue}}}
     var killed=[pid_t]();var effects=SystemServices.Effects()
-    effects.processes={samples};effects.identity={pid in samples.first {$0.id==pid}?.identity};effects.terminate={pid in killed.append(pid);samples.removeAll {$0.id==pid};return 0}
+    effects.processes={samplesBox.read {$0}};effects.identity={pid in samplesBox.read {$0.first {$0.id==pid}?.identity}};effects.terminate={pid in killed.append(pid);samples.removeAll {$0.id==pid};return 0}
     let service=SystemServices(effects:effects),state=try AppState(root:root,headless:true,systemServices:service)
     state.mode="processes";try wait {state.results.count==3}
     let original=state.selectedCommand!.id
@@ -104,7 +105,7 @@ func checkRichResources(_ outputPath:String) throws -> [String:Any] {
     try require(!controller.window.isVisible && !controller.model.active,"Monitor window opened or sampled automatically")
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
-    let server=ControlServer(root:root);try server.start {request,reply in state.handle(request,reply:reply)};defer {server.stop()}
+    let server=ControlServer(root:root);try server.start {request,reply in state.handle(request,sink:reply)};defer {server.stop()}
     func cli(_ arguments:[String]) throws -> [String:Any] {
         let process=Process(),pipe=Pipe();process.executableURL=ruycastCLI();process.arguments=arguments;var env=ProcessInfo.processInfo.environment;env["RUYCAST_HOME"]=root.path;process.environment=env
         process.standardOutput=pipe;process.standardError=FileHandle.nullDevice;try process.run()

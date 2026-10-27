@@ -2,7 +2,7 @@ import Foundation
 import LauncherCore
 import LauncherModels
 
-func checkUtilities() throws -> [String:Any] {
+@MainActor func checkUtilities() throws -> [String:Any] {
     func require(_ condition:Bool,_ message:String) throws {if !condition {throw LauncherError(message)}}
     let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("ruycast-utilities-"+UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:sandbox)}

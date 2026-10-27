@@ -3,7 +3,7 @@ import LauncherCore
 import LauncherModels
 
 /// Uses a unique named pasteboard and a disposable profile; never touches general.
-func checkClipboardStore() throws -> [String:Any] {
+@MainActor func checkClipboardStore() throws -> [String:Any] {
     let fm=FileManager.default,root=fm.temporaryDirectory.appendingPathComponent("ruycast-clipboard-check-"+UUID().uuidString,isDirectory:true)
     let pb=NSPasteboard(name:NSPasteboard.Name("ruycast-fixture-"+UUID().uuidString))
     defer {pb.releaseGlobally();try? fm.removeItem(at:root)}

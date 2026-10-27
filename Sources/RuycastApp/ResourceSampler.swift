@@ -4,7 +4,7 @@ import IOKit.ps
 import LauncherCore
 import LauncherModels
 
-struct ProcessResource:Codable,Identifiable {
+struct ProcessResource:Codable,Identifiable,Sendable {
     let identity:SystemServices.Identity
     let name:String
     let path:String
@@ -12,8 +12,8 @@ struct ProcessResource:Codable,Identifiable {
     let memoryBytes:UInt64
     var id:pid_t {identity.pid}
 }
-enum ProcessSort:String,CaseIterable {case cpu="CPU Usage",memory="Memory",name="Name"}
-struct MonitorSnapshot:Codable {
+enum ProcessSort:String,CaseIterable,Sendable {case cpu="CPU Usage",memory="Memory",name="Name"}
+struct MonitorSnapshot:Codable,Sendable {
     var sampledAt=Date()
     var cpuPercent:Double?
     var cpuCores=ProcessInfo.processInfo.processorCount
@@ -40,15 +40,18 @@ struct MonitorSnapshot:Codable {
     var interfaces:[String]=[]
 }
 /// Read-only sampling; called from serial background queues, never during a SwiftUI body.
-final class ResourceSampler {
+// One lock owns previous CPU/network samples across any calling worker.
+final class ResourceSampler:@unchecked Sendable {
+    private let lock=NSLock()
     private var previousCPU:[UInt64]?
     private var previousNetwork:(Date,UInt64,UInt64)?
     static func text(_ name:String)->String {
         var count=0;guard sysctlbyname(name,nil,&count,nil,0)==0,count>0,count<4096 else {return "Unavailable"}
-        var bytes=[CChar](repeating:0,count:count);guard sysctlbyname(name,&bytes,&count,nil,0)==0 else {return "Unavailable"};return String(cString:bytes)
+        var bytes=[CChar](repeating:0,count:count);guard sysctlbyname(name,&bytes,&count,nil,0)==0 else {return "Unavailable"};return String(decoding:bytes.prefix {$0 != 0}.map {UInt8(bitPattern:$0)},as:UTF8.self)
     }
-    static func value<T>(_ name:String,_ fallback:T)->T {var value=fallback;var size=MemoryLayout<T>.size;guard sysctlbyname(name,&value,&size,nil,0)==0 else {return fallback};return value}
+    static func value<T:BitwiseCopyable>(_ name:String,_ fallback:T)->T {var value=fallback;var size=MemoryLayout<T>.size;guard sysctlbyname(name,&value,&size,nil,0)==0 else {return fallback};return value}
     func sample()->MonitorSnapshot {
+        lock.lock();defer {lock.unlock()}
         var result=MonitorSnapshot();result.chip=Self.text("machdep.cpu.brand_string");result.model=Self.text("hw.model")
         result.processCount=max(0,Int(proc_listallpids(nil,0)))
         result.memoryTotal=Self.value("hw.memsize",UInt64(0))
@@ -70,7 +73,7 @@ final class ResourceSampler {
         var vm=vm_statistics64(),vmCount=mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size/MemoryLayout<integer_t>.size)
         let vmStatus=withUnsafeMutablePointer(to:&vm) {$0.withMemoryRebound(to:integer_t.self,capacity:Int(vmCount)) {host_statistics64(host,HOST_VM_INFO64,$0,&vmCount)}}
         if vmStatus==KERN_SUCCESS {
-            let page=UInt64(vm_page_size)
+            let page=UInt64(getpagesize())
             result.memoryWired=UInt64(vm.wire_count)*page;result.memoryCompressed=UInt64(vm.compressor_page_count)*page
             result.memoryUsed=min(result.memoryTotal,UInt64(vm.active_count)*page+result.memoryWired+result.memoryCompressed)
         }
@@ -106,7 +109,7 @@ final class ResourceSampler {
                 if row.ifm_type==RTM_IFINFO2,row.ifm_flags & IFF_UP != 0,row.ifm_flags & IFF_LOOPBACK==0 {
                     var name=[CChar](repeating:0,count:Int(IFNAMSIZ))
                     if if_indextoname(UInt32(row.ifm_index),&name) != nil {
-                        let interface=String(cString:name)
+                        let interface=String(decoding:name.prefix {$0 != 0}.map {UInt8(bitPattern:$0)},as:UTF8.self)
                         // Physical en* interfaces avoid counting VPN/tunnel traffic twice.
                         if interface.hasPrefix("en") {received &+= row.ifm_data.ifi_ibytes;sent &+= row.ifm_data.ifi_obytes;names.append(interface)}
                     }
@@ -131,7 +134,7 @@ final class ResourceSampler {
                 let identity=SystemServices.identity(pid),identity.uid==getuid() else {return nil}
             var path=[CChar](repeating:0,count:4096)
             guard proc_pidpath(pid,&path,UInt32(path.count))>0,SystemServices.identity(pid)==identity else {return nil}
-            let executable=String(cString:path)
+            let executable=String(decoding:path.prefix {$0 != 0}.map {UInt8(bitPattern:$0)},as:UTF8.self)
             return ProcessResource(identity:identity,name:URL(fileURLWithPath:executable).lastPathComponent,path:executable,cpuPercent:cpu,memoryBytes:rss*1024)
         }
     }

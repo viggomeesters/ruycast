@@ -48,7 +48,7 @@ struct LauncherCommandResults:View {
                         HStack {
                             Text(state.mode=="processes" ? "Processes · \(commands.count)":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
                             Spacer()
-                            if state.mode=="processes" {Picker("Sort processes",selection:Binding(get:{state.processSort},set:state.setProcessSort)) {ForEach(ProcessSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}.labelsHidden().frame(width:135)}
+                            if state.mode=="processes" {Picker("Sort processes",selection:Binding(get:{state.processSort},set:{state.setProcessSort($0)})) {ForEach(ProcessSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}.labelsHidden().frame(width:135)}
                         }.padding(.horizontal,8).padding(.top,6).padding(.bottom,8)
                             if commands.isEmpty {Text("No commands found").foregroundStyle(.secondary).padding(24)}
                             ForEach(Array(commands.enumerated()),id:\.element.id) { index,cmd in

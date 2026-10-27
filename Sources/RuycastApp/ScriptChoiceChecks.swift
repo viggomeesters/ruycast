@@ -3,7 +3,7 @@ import SwiftUI
 import LauncherCore
 import LauncherModels
 
-func checkScriptChoicesUI(_ outputPath:String) throws -> [String:Any] {
+@MainActor func checkScriptChoicesUI(_ outputPath:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let output=URL(fileURLWithPath:outputPath,isDirectory:true)
     try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)

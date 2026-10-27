@@ -3,7 +3,7 @@ import SwiftUI
 import LauncherCore
 import LauncherModels
 
-func checkInteractionPerformance() throws -> [String:Any] {
+@MainActor func checkInteractionPerformance() throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let trace=PerformanceTrace.shared
     func require(_ condition:Bool,_ message:String) throws {if !condition {throw LauncherError(message)}}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2 — 2026-10-27
+
+- Compile the entire native host in Swift 6 mode, with explicit MainActor UI ownership and checked Sendable worker boundaries. Building requires Swift 6.2 or later.
+- Give interactive and CLI system searches separate cancellation sessions, with bounded pending work and fair scheduling.
+- Keep bulk clipboard reply encoding off the main thread and retain listening descriptors until their accept worker exits.
+- Fix the completed clipboard-filter benchmark after observable-state extraction; earlier completion timings from 0.8.1 are invalid. The separate enqueue metric remains valid.
+
 ## 0.8.1 — 2026-10-27
 
 - Give palette, clipboard, settings and command catalog separate observable owners; SwiftUI tracks the properties each consumer reads.
