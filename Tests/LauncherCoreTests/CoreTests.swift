@@ -107,7 +107,15 @@ struct CoreTests {
         var literal=Configuration.initial;literal.commands=Array(commands.prefix(1))
         XCTAssertEqual(literal.resolve("fnider"),nil)
         XCTAssertEqual(literal.resolve("finder")?.id,"finder")
-        // A pre-existing weak substring still wins; no results are mixed in.
+        let weakSequence=try CommandSearchIndex(commands:[commands[0],Command(id:"reminders",title:"Reminders",kind:"url",target:"https://example.com"),Command(id:"distractor",title:"Find Reminders",kind:"url",target:"https://example.com")])
+        XCTAssertEqual(weakSequence.search("fnider").map(\.id),["finder","distractor"])
+        XCTAssertEqual(weakSequence.search("fnider",recency:["distractor":999]).map(\.id),["finder","distractor"])
+        XCTAssertEqual(weakSequence.search("remidners").map(\.id),["reminders","distractor"])
+        XCTAssertEqual(weakSequence.search("remidners",recency:["distractor":999]).map(\.id),["reminders","distractor"])
+        let decorated=try CommandSearchIndex(commands:[Command(id:"plain",title:"Notes",kind:"url",target:"https://example.com"),Command(id:"decorated",title:"Notes!",kind:"url",target:"https://example.com")])
+        XCTAssertEqual(decorated.search("noets",recency:["decorated":999]).map(\.id),["plain","decorated"])
+        XCTAssertEqual(decorated.search("noets!"),[])
+        // A pre-existing literal substring keeps its established priority.
         let weak=try CommandSearchIndex(commands:commands+[Command(id:"weak",title:"Other",kind:"url",target:"https://example.com/calender")])
         XCTAssertEqual(weak.search("calender").map(\.id),["weak"])
         let short=try CommandSearchIndex(commands:[Command(id:"short",title:"Cat",kind:"url",target:"https://example.com")])

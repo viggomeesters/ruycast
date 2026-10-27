@@ -252,3 +252,30 @@ Six frozen release-core runs in BCCBBC order use170 synthetic/public-default com
 Six whole-app release model runs keep equal checksums. Median p95 at10000 is1.151792→1.160166ms (ranges1.130125–1.157959 vs1.152333–1.162750); with512 recent choices,0.483500→0.523583ms (ranges0.482541–0.494875 vs0.479542–0.532042). These figures do not support a speedup. An additional nine-run baseline/A/B comparison tests isolating miss-only code out of line; its p95 ranges overlap widely, including baseline recent-choice0.549–1.525583ms, A0.480250–2.112209ms and B0.513292–0.680958ms. No causal advantage is established; the extra helper/annotation is discarded. The simpler candidate remains. Every run passes existing model checks; this variability is retained, not hidden by selecting a favorable run.
 
 Prepared ordinary source-build host size is3414664→3414696bytes (+32 bytes); CLI file size remains729080 bytes. File bytes, model latency and resident memory are distinct measures. Final native lifecycle, source review, publication and installation remain separate acceptance gates. No physical hotkey, energy or battery improvement is inferred.
+
+## 0.8.10: title correction before weak subsequences
+
+The0.8.9zero-result fallback can still hide an intended command: `fnider` matches the letters of a longer title such as Find Reminders, so Finder is never considered. The refined search keeps every complete result list containing an exact, prefix, word-start/initial or literal match unchanged. Only when ordinary matches are all weak subsequences (or empty), bounded title corrections come first: a full single-word title, then a word inside a longer title, then existing weak subsequences. Recency remains within tiers. The query, execution IDs/aliases and arguments stay literal. The4–64-scalar, one-alphanumeric-term, one-edit/transposition bounds remain. Existing weak results are retained; no new index field or package is added.
+
+A39-case public synthetic fixture with the generic distractor improves36/39→39/39 against frozen0.8.9. It fixes fnider, fnder and remidners; ambiguous strong-prefix `fi` and short-subsequence `fn` retain their established ordering. Native checks also cover a recently used distractor, full Notes versus decorated Notes!, disabled filtering, literal substrings, Unicode/length bounds and CLI/native parity.
+
+Six frozen release-core runs in BCCBBC order use172commands,2334queries and two recency snapshots (4668rows). All4344strong/empty and44ineligible ordered rows remain exactly equal. The280eligible weak rows match an independently computed reference ranking;29rows change. All old results and their relative order within each new relevance tier are retained, without duplicate IDs. The six runs are deterministic. These counts refer to the new distractor/decorated-title catalog, distinct from the earlier0.8.9experiment.
+
+Kernel medians below are medians of three run medians per variant,200 retained observations per query/size/run. Repeated synthetic titles at controlled sizes; no physical input/display measurement.
+
+|Query/catalog|0.8.9 median ms|0.8.10 median ms|
+|---|---:|---:|
+|finder/343|0.011458|0.011209|
+|fnider/343|0.011667|0.016834|
+|zzzzzz/343|0.012500|0.013458|
+|(empty)/343|0.000042|0.000042|
+|finder/10000|0.328542|0.328458|
+|fnider/10000|0.364084|0.492625|
+|zzzzzz/10000|0.421792|0.408417|
+|(empty)/10000|0.001167|0.001084|
+
+The fnider weak-path cost is about0.0052ms at343commands/~0.129ms at10k, rather than a speedup. A read-only live-catalog metadata preflight also finds the intended Finder first with the candidate, even with reversed catalog order; personal catalog/targets/bodies/arguments are not retained. Installation/readback remains separate from that kernel preflight.
+
+Six whole-app ordinary release model runs pass with equal checksums, but observed p95 ranges are wide: at10000commands,0.8.9ranges1.165708–4.454166ms and0.8.10ranges1.152667–5.871500ms. Median p95 values are2.098708→3.332709ms. The512-recent-choice medians are0.494834→0.503791ms, with ranges0.493792–0.498833 and0.493500–1.563417ms. Other catalog sizes also vary substantially, including the unchanged frozen baseline. These runs establish no causal speed improvement or universal relative regression bound; raw variation is retained. Existing absolute model gates remain mandatory.
+
+Prepared ordinary source-build host bytes are3414696→3414712(+16); CLI bytes stay729080. This is file size, not resident memory. No physical latency, general memory, energy or battery benefit is inferred.

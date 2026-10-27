@@ -302,11 +302,23 @@ impl SearchIndex {
                 Some((score, i))
             })
             .collect::<Vec<_>>();
-        // Preserve every established match and its order. Correct a single
-        // title-word typo only when the ordinary search found nothing.
-        if found.is_empty() && (4..=64).contains(&q.chars().take(65).count()) && q.chars().all(char::is_alphanumeric) {
-            found.extend(self.entries.iter().enumerate().filter_map(|(i,e)|
-                e.words.iter().any(|word|one_typo(&q,word)).then_some((6,i))));
+        // Exact/prefix/literal matches keep the full established result list.
+        // A weak subsequence must not hide a direct title-word typo.
+        if found.iter().all(|(score,_)|*score==5) && (4..=64).contains(&q.chars().take(65).count()) && q.chars().all(char::is_alphanumeric) {
+            let had_weak=!found.is_empty();
+            found.clear();
+            found.extend(self.entries.iter().enumerate().filter_map(|(i,e)| {
+                // This length check identifies a complete single-word title
+                // without re-scanning long strings or storing more index data.
+                let whole=e.words.len()==1 && e.words[0].len()==e.title.len();
+                let score=if whole && one_typo(&q,&e.title) {5}
+                    else if !whole && e.words.iter().any(|word|one_typo(&q,word)) {6}
+                    else if had_weak && {
+                        let mut title=e.title.chars();
+                        q.chars().all(|needle|title.any(|c|c==needle))
+                    } {7} else {return None;};
+                Some((score,i))
+            }));
         }
         found.sort_by(|a, b| {
             a.0.cmp(&b.0)
