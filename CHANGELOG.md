@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.11 — one checked product version
+
+- Compile status, analytics and Settings from one product-version declaration; installer and source export read the same checked declaration.
+- Reject missing, ambiguous or malformed version source before export/install staging, and roll installation back if the running host reports another version.
+
 ## 0.8.10 — 2026-10-27
 
 - Recover direct title typos before weak subsequences: `fnider` now finds Finder even when a longer title also matches its letters. Any exact, prefix, word-start/initial or literal match preserves the existing complete result list.

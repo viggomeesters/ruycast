@@ -13,11 +13,13 @@ import tempfile
 import atexit
 import local_signing
 import build_receipt
+from product_version import read_product_version
 from install_support import NEW_ID,OLD_ID,require_owned_bundle,profile_paths,check_profile_paths,migrate_profile,data_hashes,data_files,configuration_path,set_cli_link,require_owned_link,preserve_personal_bridge
 
 REPO=Path(__file__).resolve().parents[1]
 with build_receipt.artifact_lock(REPO):
     receipt=build_receipt.verify(REPO) # Fail before staging or stopping the current app.
+    product_version=read_product_version(REPO)
     HOME_DIR=Path.home()
     DOMAIN='gui/%s'%os.getuid()
     app_dir=Path(os.environ.get('RUYCAST_APP_DIR',os.environ.get('RUSTCAST_APP_DIR','/Applications' if os.access('/Applications',os.W_OK) else str(HOME_DIR/'Applications'))))
@@ -77,7 +79,7 @@ if APP.exists():
     if not str(prior).isdigit():raise RuntimeError('Existing build number is not numeric; installation preserved.')
     previous_build=int(prior)
 info={'CFBundleIdentifier':NEW_ID,'CFBundleName':'Ruycast','CFBundleDisplayName':'Ruycast',
-      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.8.10',
+      'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':product_version,
       'CFBundleVersion':str(max(7,previous_build+1)),'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True}
 if (stage/'Contents/Resources/AppIcon.icns').is_file():info['CFBundleIconFile']='AppIcon'
 (stage/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
@@ -139,6 +141,7 @@ try:
     else:raise RuntimeError('Startup could not be verified: '+status.stdout+status.stderr)
     state=json.loads(status.stdout)
     if state.get('result',{}).get('name')!='Ruycast':raise RuntimeError('Unexpected host identity after installation.')
+    if state.get('result',{}).get('version')!=product_version:raise RuntimeError('Installed host version does not match the tested source.')
     if Path(state.get('result',{}).get('configPath','')).resolve()!=configuration_path(PROFILE).resolve():raise RuntimeError('Installed host is using a different configuration folder.')
     after=data_hashes(PROFILE)
     # Config and authored library must be exact. Clipboard/usage can change after
