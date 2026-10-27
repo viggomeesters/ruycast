@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import LauncherCore
 import LauncherModels
 
@@ -29,6 +30,12 @@ import LauncherModels
     if let bytes=bitmap.bitmapData {for i in 0..<4 {bytes[i*4]=128;bytes[i*4+1]=64;bytes[i*4+2]=32;bytes[i*4+3]=255}}
     // Re-encode after initializing all pixel bytes.
     guard let imageData=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Fixture PNG failed.")}
+    // Real inherited read/execute ACLs must be removed before new image bytes.
+    let inheritedAssets=root.appendingPathComponent("clipboard-assets")
+    try fm.createDirectory(at:inheritedAssets,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
+    let aclProcess=Process();aclProcess.executableURL=URL(fileURLWithPath:"/bin/chmod")
+    aclProcess.arguments=["+a","everyone allow read,execute,readattr,readextattr,readsecurity,file_inherit,directory_inherit",inheritedAssets.path]
+    try aclProcess.run();aclProcess.waitUntilExit();try require(aclProcess.terminationStatus==0,"ACL fixture could not be established.")
     pb.clearContents();pb.setData(imageData,forType:.png)
     guard let image=try store.capture(from:pb,source:"fixture",settings:settings),let path=image.dataFile else {throw LauncherError("Image capture failed.")}
     try require(image.contentType=="image","Image type missing.")
@@ -40,6 +47,12 @@ import LauncherModels
     let fileMode=(try fm.attributesOfItem(atPath:asset.path)[.posixPermissions] as? NSNumber)?.intValue
     let dirMode=(try fm.attributesOfItem(atPath:assets.path)[.posixPermissions] as? NSNumber)?.intValue
     try require(fileMode==0o600 && dirMode==0o700,"Clipboard asset permissions failed.")
+    for candidate in [assets,asset] {
+        if let acl=acl_get_file(candidate.path,ACL_TYPE_EXTENDED) {
+            defer {acl_free(UnsafeMutableRawPointer(acl))};var entry:acl_entry_t?
+            try require(acl_get_entry(acl,Int32(ACL_FIRST_ENTRY.rawValue),&entry) != 0,"Clipboard asset inherited a readable ACL.")
+        } else {try require(errno==ENOENT,"Clipboard ACL inspection failed.")}
+    }
     settings.maxAssetBytes=1
     try rejected {_=try store.capture(from:pb,source:"fixture",settings:settings)}
     settings=ClipboardSettings();settings.maxTotalAssetBytes=imageData.count
@@ -66,5 +79,5 @@ import LauncherModels
     try fm.removeItem(at:symlink);try fm.removeItem(at:unrelated);try fm.removeItem(at:assets)
     try fm.createSymbolicLink(atPath:assets.path,withDestinationPath:root.path)
     try rejected {try store.pruneAssets(keeping:[],settings:settings)}
-    return ["ok":true,"namedPasteboardOnly":true,"textImageFileRoundtrips":true,"privateAssetPermissions":true,"assetAndTotalLimits":true,"safePruningAndSymlinkRejection":true]
+    return ["ok":true,"namedPasteboardOnly":true,"textImageFileRoundtrips":true,"privateAssetPermissions":true,"inheritedAssetACLRemovedBeforeCapture":true,"assetAndTotalLimits":true,"safePruningAndSymlinkRejection":true]
 }

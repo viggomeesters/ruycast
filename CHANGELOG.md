@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.8 — 2026-10-27
+
+- Keep private JSON, analytics exports and icon cache writes private before any content is written. Secure an empty staging directory, create a 0600 payload without inherited ACLs, then atomically replace the destination. Preserve selected folder permissions and old contents on pre-commit failure.
+- Apply the private policy to CLI configuration writes and no-replace initialization/relocation, retaining synchronization and profile aliases. Secure the local profile before state reads or IPC.
+- Remove inherited ACL access from the private clipboard asset directory before creating image data. Add real inherited-ACL, umask, symlink-target and failed-write regression coverage.
+
 ## 0.8.7 — 2026-10-27
 
 - Preserve existing files, symlinks and active control endpoints during startup; recover only verified stale sockets. Remove only the socket identity created by this instance when stopping or rolling back.

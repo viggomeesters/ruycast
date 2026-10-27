@@ -218,7 +218,7 @@ final class AnalyticsStore:ObservableObject,@unchecked Sendable {
     }
     func exportSummary()->[String:Any] {
         let d=snapshot
-        return ["schema":1,"version":"0.8.7","uses":d.totalAttempts+d.priorSuccesses,"attempts":d.totalAttempts,"successes":d.totalSuccesses,"failures":d.totalFailures,"legacySuccesses":d.priorSuccesses,"timings":jsonValue(d.timings),"errors":Dictionary(grouping:d.events,by:{$0.category+":"+$0.code}).mapValues(\.count),"privacy":"No command IDs, input, queries, URLs, arguments or clipboard contents"]
+        return ["schema":1,"version":"0.8.8","uses":d.totalAttempts+d.priorSuccesses,"attempts":d.totalAttempts,"successes":d.totalSuccesses,"failures":d.totalFailures,"legacySuccesses":d.priorSuccesses,"timings":jsonValue(d.timings),"errors":Dictionary(grouping:d.events,by:{$0.category+":"+$0.code}).mapValues(\.count),"privacy":"No command IDs, input, queries, URLs, arguments or clipboard contents"]
     }
     private func save() {
         lock.lock();scheduled=false
@@ -226,8 +226,7 @@ final class AnalyticsStore:ObservableObject,@unchecked Sendable {
         let snapshot=data,version=revision;lock.unlock()
         do {
             let encoded=try Files.encode(snapshot);guard encoded.count<=8_000_000 else {throw LauncherError("Analytics storage limit")}
-            try FileManager.default.createDirectory(at:url.deletingLastPathComponent(),withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
-            try encoded.write(to:url,options:.atomic);try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:url.path)
+            try Files.savePrivate(encoded,to:url)
             lock.lock();savedRevision=version;failure=nil;lock.unlock()
         } catch {lock.lock();failure="Analytics could not be saved. Check available disk space and folder permissions.";lock.unlock()}
         DispatchQueue.main.async { [weak self] in self?.objectWillChange.send() }

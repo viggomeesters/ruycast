@@ -44,9 +44,9 @@ import ImageIO
                 if let fresh=load(origin).flatMap(Self.png) {
                     data=fresh
                     try? fm.createDirectory(at:cache,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
-                    try? fresh.write(to:file,options:.atomic);try? fm.setAttributes([.posixPermissions:0o600],ofItemAtPath:file.path);try? fm.removeItem(at:miss)
+                    try? Files.savePrivate(fresh,to:file);try? fm.removeItem(at:miss)
                 } else {
-                    try? fm.createDirectory(at:cache,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700]);try? Data().write(to:miss);try? fm.setAttributes([.posixPermissions:0o600],ofItemAtPath:miss.path)
+                    try? fm.createDirectory(at:cache,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700]);try? Files.savePrivate(Data(),to:miss)
                 }
                 Self.prune(cache)
             }

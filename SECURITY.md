@@ -18,6 +18,14 @@ The separate owner-only command log stores identifiers, execution metadata and r
 
 Website icons make requests to website origins and discovered icon URLs. Quicklink credentials, paths, query strings and fragments are removed from the initial origin request. Fetches use a bounded downloader and local cache.
 
+## Private writes and recovery
+
+Native JSON storage, CLI configuration writes, analytics export files and the website icon cache use descriptor-based private writers. It first secures an empty staging directory (0700, no extended ACL), then creates the payload file with mode 0600 under that ACL-free directory. Content is written only after owner, mode and ACL checks; replacing the destination is atomic. Merely changing a file's permissions after creation would allow inherited ACL access or an earlier reader to retain a descriptor.
+
+Existing selected portable-folder permissions and ACLs are preserved. The local profile is explicitly owner-only (0700, no extended ACL) before native state reads or control-server startup and before CLI configuration writes; supported profile aliases are retained. Configuration initialization and relocation publish with an atomic no-replace rename, so an existing file or symlink is preserved. The internal clipboard asset directory is kept owner-only with no inherited ACL before new image files are created. These measures do not encrypt content or revoke descriptors opened before the protection was installed. Sync services, deliberate later sharing and administrator access retain their own policies.
+
+The destination filesystem must support these private permissions and ACL checks. Normal masks 000, 022 and 077 work; an unsearchable creation mask such as 0777 fails before payload creation and preserves the old destination. Normal failed writes remove their own temporary stage. A forced termination can leave a private `.ruycast-*.tmp` directory; unknown older temporary files are not automatically deleted. CLI configuration writes retain file and parent-directory synchronization; native create-only configuration publication also synchronizes. A synchronization error after publication can report failure after the destination has changed, so inspect the actual state before retrying. Atomic replacement is not a general claim of power-loss durability or protection against hostile processes running as the same user.
+
 ## Command and operating-system boundaries
 
 The private Unix socket is restricted to the profile owner. It is not a network API or an authentication boundary against other processes running as your user.

@@ -26,6 +26,8 @@ Errors retain a timestamp, category, opaque command key and a fixed reason code;
 
 ## Storage and controls
 
+Persisted analytics and saved summary exports use the private writer described in [Security and data storage](../SECURITY.md#private-writes-and-recovery): payload files start private, including under inherited ACLs. The explicit export still contains the same reduced fields.
+
 Counters update in memory under a short lock. One background writer coalesces persistence, normally within three seconds, and flushes at clean exit. A forced termination may lose the most recent unflushed records. No analytics failure blocks an action. A malformed existing file is preserved; **Reset Analytics** explicitly replaces it. A failed write is visible in Dashboard and retried on the next update or Refresh.
 
 Storage is bounded to 8 MB, 2,048 command summaries, a fixed set of timing names and bounded samples. Command identifiers are stored as stable opaque SHA-256 keys and resolved to titles from the current catalog only in Dashboard. The key is lowercase hex SHA-256 of UTF-8 `ruycast.command:` followed by the canonical command ID, so local agents can map the current catalog without storing raw IDs. No raw IDs, arbitrary metric names or diagnostic text are accepted. Pausing stops new collection; it does not delete existing data. Reset discards pre-reset in-flight analytics completions and preserves commands, shortcuts and clipboard history. `analytics.json` is separate from the shared action configuration and available through the CLI.
