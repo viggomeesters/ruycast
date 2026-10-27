@@ -17,6 +17,7 @@ REPO=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(REPO/'scripts'))
 import local_signing
 import build_receipt
+from product_version import read_product_version
 from install_support import NEW_ID,OLD_ID,profile_paths,migrate_profile,check_profile_paths,data_hashes,set_cli_link,require_owned_bundle,require_owned_link
 
 class MigrationTests(unittest.TestCase):
@@ -89,12 +90,15 @@ class MigrationTests(unittest.TestCase):
         (app/'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier':'org.unrelated.rustcast'}))
         with self.assertRaisesRegex(RuntimeError,'Unrelated app identity'):require_owned_bundle(app,[OLD_ID])
         self.assertTrue(app.exists())
-    def installer_fixture(self,fail=False,signing_fail=False,unrelated=False,receipt_fault=None,existing_alias=False,config_override=False):
+    def installer_fixture(self,fail=False,signing_fail=False,unrelated=False,receipt_fault=None,existing_alias=False,config_override=False,version_fail=False,version_source_fault=False):
         repo=self.root/'repo';scripts=repo/'scripts';scripts.mkdir(parents=True)
-        for name in ['install.py','install_support.py','local_signing.py','build_receipt.py']:shutil.copy2(REPO/'scripts'/name,scripts/name)
+        for name in ['install.py','install_support.py','local_signing.py','build_receipt.py','product_version.py']:shutil.copy2(REPO/'scripts'/name,scripts/name)
         for name in ['.build/swift/release/RuycastApp','.build/rust/release/ruycast']:
             path=repo/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('binary fixture')
         (repo/'Sources').mkdir();(repo/'Sources/Fixture.swift').write_text('source fixture')
+        version_source=repo/'Sources/LauncherCore/ProductVersion.swift';version_source.parent.mkdir()
+        shutil.copy2(REPO/'Sources/LauncherCore/ProductVersion.swift',version_source)
+        if version_source_fault:version_source.write_text('invalid canonical source')
         build_receipt.record(repo,build_receipt.fingerprint(repo))
         if receipt_fault=='source':(repo/'Sources/Fixture.swift').write_text('changed source')
         if receipt_fault=='binary':(repo/'.build/swift/release/RuycastApp').write_text('changed binary')
@@ -123,13 +127,17 @@ class MigrationTests(unittest.TestCase):
             args=list(map(str,args));calls.append(args)
             if fail and args[:2]==['launchctl','bootstrap'] and args[-1].endswith(NEW_ID+'.plist'):
                 raise subprocess.CalledProcessError(1,args)
-            output=json.dumps({'ok':True,'result':{'name':'Ruycast','version':'0.2.1','configPath':str(custom/'config.json') if config_override else str(home/'.config/ruycast/config.json')}}) if args[-1]=='status' else ''
+            output=json.dumps({'ok':True,'result':{'name':'Ruycast','version':'0.0.0' if version_fail else read_product_version(repo),'configPath':str(custom/'config.json') if config_override else str(home/'.config/ruycast/config.json')}}) if args[-1]=='status' else ''
             return subprocess.CompletedProcess(args,0,output,'')
         env={'HOME':str(home),'RUYCAST_APP_DIR':str(apps)}
         custom=home/'synced configuration';custom.mkdir();(custom/'config.json').write_text('{}')
         env['RUYCAST_CONFIG_DIR']=str(custom) if config_override else ''
         for key in ['RUYCAST_HOME','RUSTCAST_HOME','RUSTCAST_APP_DIR']:env[key]=''
         with patch.dict(os.environ,env),patch('subprocess.run',side_effect=run),contextlib.redirect_stdout(io.StringIO()),patch.object(local_signing,'check_installed'),patch.object(local_signing,'verify'),patch.object(local_signing,'record_install'),patch.object(local_signing,'sign',side_effect=RuntimeError('signer unavailable') if signing_fail else None,return_value={'method':'persistent-local-certificate','requirement':'fixture'}):
+            if version_source_fault:
+                with self.assertRaisesRegex(RuntimeError,'one canonical'):runpy.run_path(str(scripts/'install.py'),run_name='__main__')
+                self.assertFalse(calls);self.assertTrue(oldapp.exists());self.assertFalse((apps/'Ruycast.app').exists());self.assertEqual(data_hashes(profile),before)
+                return
             if receipt_fault:
                 with self.assertRaisesRegex(RuntimeError,'receipt|binaries changed'):runpy.run_path(str(scripts/'install.py'),run_name='__main__')
                 self.assertFalse(calls);self.assertTrue(oldapp.exists());self.assertFalse((apps/'Ruycast.app').exists());self.assertEqual(data_hashes(profile),before)
@@ -142,7 +150,9 @@ class MigrationTests(unittest.TestCase):
                 self.assertFalse(profile.is_symlink())
                 self.assertFalse(any(c[0]=='launchctl' or c[-1]=='quit' for c in calls))
                 return
-            if fail:
+            if version_fail:
+                with self.assertRaisesRegex(RuntimeError,'host version'):runpy.run_path(str(scripts/'install.py'),run_name='__main__')
+            elif fail:
                 with self.assertRaises(subprocess.CalledProcessError):runpy.run_path(str(scripts/'install.py'),run_name='__main__')
             else:runpy.run_path(str(scripts/'install.py'),run_name='__main__')
         self.assertEqual((unknown/'user-file').read_text(),'keep me')
@@ -186,3 +196,12 @@ class MigrationTests(unittest.TestCase):
 
     def test_existing_compatibility_alias_does_not_own_other_rustcast_app(self):
         self.installer_fixture(unrelated=True,existing_alias=True)
+
+    def test_invalid_canonical_version_never_stages_or_stops_current_app(self):
+        self.installer_fixture(version_source_fault=True)
+
+    def test_wrong_running_version_restores_old_app_and_registration(self):
+        home,apps,calls=self.installer_fixture(version_fail=True)
+        self.assertTrue((apps/'Rustcast.app').exists());self.assertFalse((apps/'Ruycast.app').exists())
+        self.assertEqual((home/'.local/bin/rustcast').resolve(),apps/'Rustcast.app/Contents/Resources/rustcast')
+        self.assertTrue(any(c[:2]==['launchctl','bootstrap'] and c[-1].endswith(OLD_ID+'.plist') for c in calls))

@@ -1,0 +1,3 @@
+public enum ProductVersion {
+    public static let current = "0.8.11"
+}
