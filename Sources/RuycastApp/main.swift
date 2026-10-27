@@ -167,7 +167,7 @@ if args.first=="--render" {
                 s.analytics.objectWillChange.debounce(for:.seconds(2),scheduler:DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBar() }.store(in:&subscriptions)
 
             }
-        } catch {fputs(error.localizedDescription+"\n",stderr);NSApp.terminate(nil)}
+        } catch {state?.shutdown();server?.stop();server=nil;fputs(error.localizedDescription+"\n",stderr);exit(1)}
     }
     func observeMenuBarState() {
         guard let state else {return}

@@ -29,3 +29,11 @@ Clearing logs leaves configuration, history and analytics intact. A command stil
 First read existing logs. A dry run (`ruycast run ID --dry-run`) inspects the definition without executing it; it does not validate the receiving app or its current document. Reproduce document-changing actions only with the intended note open or an isolated fixture. Do not repeatedly retry an action that reports an uncertain or partially applied result.
 
 Errors from before command logging was installed cannot be reconstructed from aggregate failure counts. A successful read-only preflight also does not prove that a later write succeeds.
+
+## Startup and control socket recovery
+
+A failed startup exits with a nonzero status after releasing its own resources. Inspect the startup error before retrying. The profile's `instance.lock` must be a regular file owned by the current user; a symlink, FIFO or other unexpected type is rejected.
+
+Ruycast preserves an existing regular file or symlink at `control.sock`. It also preserves an existing socket if a nonblocking connection succeeds or its stale state cannot be established. An owned socket that refuses connections is recovered automatically. When stopping or rolling back, Ruycast removes the socket only while its filesystem identity still matches the one created at startup.
+
+If startup reports an occupied or unexpected path, first determine which process or file owns it. Stop that process deliberately, or preserve the unexpected file and resolve its location before retrying. Do not blindly delete the profile or its control files: they may belong to a running instance or contain unrelated data. These checks coordinate normal Ruycast peers through the private profile and instance lock; they do not provide atomic protection against hostile concurrent namespace changes by another process running as the same user.

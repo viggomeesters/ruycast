@@ -7,6 +7,8 @@ import LauncherModels
     typealias Handler = @MainActor @Sendable ([String:Any],ReplySink)->Void
     private var lockFD:Int32 = -1
     private var listener:SocketListener?
+    private struct SocketIdentity:Equatable {let device:dev_t;let inode:ino_t}
+    private var ownedSocket:SocketIdentity?
     private let clients=DispatchSemaphore(value:16)
     private let socketURL:URL
     init(root:URL) { socketURL=root.appendingPathComponent("control.sock") }
@@ -15,27 +17,30 @@ import LauncherModels
         let root=socketURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true,attributes:[.posixPermissions:0o700])
         try FileManager.default.setAttributes([.posixPermissions:0o700],ofItemAtPath:root.path)
-        let lockFD=open(root.appendingPathComponent("instance.lock").path,O_CREAT|O_RDWR,0o600)
+        let lockFD=open(root.appendingPathComponent("instance.lock").path,O_CREAT|O_RDWR|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC,0o600)
         guard lockFD>=0 else {throw LauncherError("Cannot open instance lock.")}
         var committed=false
         defer {if !committed {Darwin.close(lockFD)}}
+        var lockInfo=stat()
+        guard fstat(lockFD,&lockInfo)==0,(lockInfo.st_mode & S_IFMT)==S_IFREG,lockInfo.st_uid==getuid() else {throw LauncherError("Instance lock must be an owned regular file.")}
         guard flock(lockFD,LOCK_EX|LOCK_NB)==0 else {throw LauncherError("Ruycast is already running for this profile.")}
         let fd=socket(AF_UNIX,SOCK_STREAM,0)
         guard fd>=0 else { throw LauncherError("Cannot create control socket.") }
-        var bound=false
-        defer {if !committed {Darwin.close(fd);if bound {unlink(socketURL.path)}}}
+        var boundIdentity:SocketIdentity?
+        defer {if !committed {Darwin.close(fd);if let boundIdentity {removeSocket(matching:boundIdentity)}}}
         var address=sockaddr_un();address.sun_family=sa_family_t(AF_UNIX)
         let bytes=Array(socketURL.path.utf8CString)
         guard bytes.count<=MemoryLayout.size(ofValue:address.sun_path) else { throw LauncherError("Profile path is too long for a Unix socket.") }
         withUnsafeMutableBytes(of:&address.sun_path) { raw in raw.copyBytes(from:bytes.map{UInt8(bitPattern:$0)}) }
-        unlink(socketURL.path)
+        try removeStaleSocket(address:&address)
         let status=withUnsafePointer(to:&address) { p in p.withMemoryRebound(to:sockaddr.self,capacity:1) { Darwin.bind(fd,$0,socklen_t(MemoryLayout<sockaddr_un>.size)) } }
         guard status==0 else {throw LauncherError("Cannot bind control socket: \(String(cString:strerror(errno))).")}
-        bound=true
+        guard let identity=socketIdentityAtPath() else {throw LauncherError("Control socket changed during startup.")}
+        boundIdentity=identity
         guard listen(fd,16)==0 else {throw LauncherError("Cannot listen on control socket: \(String(cString:strerror(errno))).")}
-        chmod(socketURL.path,0o600)
+        guard socketIdentityAtPath()==identity,fchmodat(AT_FDCWD,socketURL.path,0o600,AT_SYMLINK_NOFOLLOW)==0 else {throw LauncherError("Cannot secure control socket.")}
         let listener=SocketListener(fd),clients=clients
-        self.listener=listener;self.lockFD=lockFD;committed=true
+        self.listener=listener;self.lockFD=lockFD;ownedSocket=identity;committed=true
         let descriptor=listener.descriptor
         DispatchQueue.global(qos:.userInitiated).async {
             while listener.running {
@@ -46,6 +51,28 @@ import LauncherModels
                 DispatchQueue.global(qos:.userInitiated).async {defer {clients.signal()};autoreleasepool {Self.receive(client,handler:handler)}}
             }
         }
+    }
+    private func socketIdentityAtPath()->SocketIdentity? {
+        var info=stat()
+        guard lstat(socketURL.path,&info)==0,(info.st_mode & S_IFMT)==S_IFSOCK,info.st_uid==getuid() else {return nil}
+        return SocketIdentity(device:info.st_dev,inode:info.st_ino)
+    }
+    private func removeSocket(matching identity:SocketIdentity) {
+        // Preserve paths replaced after startup. The profile lock coordinates
+        // Ruycast peers; this is not an atomic guard against hostile same-UID edits.
+        if socketIdentityAtPath()==identity {unlink(socketURL.path)}
+    }
+    private func removeStaleSocket(address:inout sockaddr_un) throws {
+        guard let identity=socketIdentityAtPath() else {return} // bind preserves non-socket paths.
+        let probe=socket(AF_UNIX,SOCK_STREAM,0)
+        guard probe>=0 else {throw LauncherError("Cannot inspect existing control socket.")}
+        defer {Darwin.close(probe)}
+        let flags=fcntl(probe,F_GETFL)
+        guard flags>=0,fcntl(probe,F_SETFL,flags|O_NONBLOCK)==0 else {throw LauncherError("Cannot inspect existing control socket.")}
+        let status=withUnsafePointer(to:&address) {p in p.withMemoryRebound(to:sockaddr.self,capacity:1) {Darwin.connect(probe,$0,socklen_t(MemoryLayout<sockaddr_un>.size))}}
+        let code=errno
+        guard status<0,code==ECONNREFUSED || code==ENOENT else {throw LauncherError("Control socket is active or cannot be verified stale.")}
+        removeSocket(matching:identity)
     }
     private nonisolated static func receive(_ client:Int32,handler:@escaping Handler) {
         defer {Darwin.close(client)}
@@ -84,7 +111,7 @@ import LauncherModels
         }
     }
     func stop() {
-        if let listener {listener.stop();self.listener=nil;unlink(socketURL.path)}
+        if let listener {listener.stop();self.listener=nil;if let ownedSocket {removeSocket(matching:ownedSocket)};ownedSocket=nil}
         if lockFD>=0 {Darwin.close(lockFD);lockFD = -1}
     }
     isolated deinit {stop()}
