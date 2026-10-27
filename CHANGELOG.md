@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.7 — 2026-10-27
+
+- Preserve existing files, symlinks and active control endpoints during startup; recover only verified stale sockets. Remove only the socket identity created by this instance when stopping or rolling back.
+- Reject linked or nonregular instance locks without blocking, clean up failed startup and return a failure exit status. Add eight real headless-process recovery tests with disposable profiles.
+
 ## 0.8.6 — 2026-10-27
 
 - Skip foreground-app attribution lookups for unchanged clipboard polls, while preserving activation settling, capture cadence, excluded/concealed sources and snapshot validation.
