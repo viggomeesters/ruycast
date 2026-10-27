@@ -119,6 +119,13 @@
       "kind": "url",
       "target": "https://example.com/app.right",
       "aliases": []
+    },
+    {
+      "id": "distractor.find-reminders",
+      "title": "Find Reminders",
+      "kind": "url",
+      "target": "https://example.com/reminders",
+      "aliases": []
     }
   ],
   "cases": [
@@ -240,7 +247,8 @@
     },
     {
       "query": "fi",
-      "intended": "app.finder"
+      "intended": "distractor.find-reminders",
+      "reason": "Ambiguous strong prefix retains baseline title/catalog ordering after adding the distractor."
     },
     {
       "query": "mali",
@@ -252,7 +260,8 @@
     },
     {
       "query": "fn",
-      "intended": "app.finder"
+      "intended": "distractor.find-reminders",
+      "reason": "Short subsequence retains baseline ordering; length2 is outside typo correction."
     },
     {
       "query": "calendarr",
@@ -273,6 +282,10 @@
     {
       "query": "findxx",
       "intended": null
+    },
+    {
+      "query": "Find Reminders",
+      "intended": "distractor.find-reminders"
     }
   ]
 }

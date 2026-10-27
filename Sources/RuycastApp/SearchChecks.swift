@@ -79,6 +79,12 @@ func searchFixture()->[Command] {
     guard state.results.map(\.id)==["typo.enabled"],state.searchCommands("fnider").isEmpty,
           typoReply.read({$0})==["typo.enabled"]
     else {throw LauncherError("Typo fallback CLI/native or disabled filtering failed")}
+    state.config.commands=[Command(id:"typo.finder",title:"Finder",kind:"url",target:"https://example.com"),Command(id:"typo.distractor",title:"Find Reminders",kind:"url",target:"https://example.com")]
+    try state.searchRanking.recordSuccess("typo.distractor")
+    state.query="fnider"
+    state.handle(["op":"search","query":"fnider"]) {value in typoReply.update {$0=(value["result"] as? [[String:Any]])?.compactMap {$0["id"] as? String} ?? []}}
+    guard state.results.map(\.id)==["typo.finder","typo.distractor"],typoReply.read({$0})==["typo.finder","typo.distractor"]
+    else {throw LauncherError("Weak subsequence hid a direct title typo")}
     let resultChanges=LockedValue(0)
     withObservationTracking {_=state.query;_=state.visibleCommands;_=state.selection} onChange:{resultChanges.update {$0+=1}}
     state.paused.toggle();state.expansionStatus="Fixture";state.configError="Fixture"

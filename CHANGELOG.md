@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.10 — 2026-10-27
+
+- Recover direct title typos before weak subsequences: `fnider` now finds Finder even when a longer title also matches its letters. Any exact, prefix, word-start/initial or literal match preserves the existing complete result list.
+- Prefer a corrected full single-word title over a corrected word inside a longer title. Keep recency within relevance tiers, stable ties, disabled filtering and literal execution IDs/arguments.
+
 ## 0.8.9 — 2026-10-27
 
 - Recover a single title-word typo when normal search finds no matches, including adjacent transpositions such as `fnider`. Existing result lists and their ranking remain unchanged; IDs, aliases and argument text stay literal.
