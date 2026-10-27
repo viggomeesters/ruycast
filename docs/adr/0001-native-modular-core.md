@@ -1,13 +1,13 @@
 # ADR 0001 — Native modular core
 
-Date: 27 October 2026. Status: accepted direction after initial cost experiments; implementation and integrated acceptance remain open.
+Date: 27 October 2026. Status: implemented and released in 0.8.3. Integrated acceptance evidence is recorded with Issue 33.
 Issue: https://github.com/viggomeesters/ruycast/issues/33.
 
 ## Problem and evidence
 
 Ruycast0.7.16 is already a native Swift host with a statically linked Rust domain library and Rust CLI. The accepted performance work reduced model search cost by roughly34–36% versus0.7.13. This is software evidence, not physical display latency. A language rewrite has no measured speed advantage.
 
-The current host concentrates catalog/search, clipboard coordination, configuration lifecycle, command routing and UI interaction in `AppState` (581 lines,29 published properties; inventory must be read against the pinned baseline). Views subscribe to the entire object. C symbols are declared manually with `@_silgen_name`; a signature can diverge from Rust without a shared C declaration. Compile-time architecture and concurrency ownership deserve stronger guarantees.
+The frozen 0.7.16 host concentrates catalog/search, clipboard coordination, configuration lifecycle, command routing and UI interaction in `AppState` (581 lines,29 published properties; inventory must be read against the pinned baseline). Views subscribe to the entire object. C symbols are declared manually with `@_silgen_name`; a signature can diverge from Rust without a shared C declaration. Compile-time architecture and concurrency ownership deserve stronger guarantees.
 
 ### Reference findings
 
@@ -20,7 +20,7 @@ The current host concentrates catalog/search, clipboard coordination, configurat
 
 Sources inspected27 October2026. External apps were neither installed nor benchmarked against Ruycast. Source blobs identify the actual reviewed documents; mutable URLs may advance.
 
-The installed toolchain is Swift6.2.3, while the package selects tools/language compatibility5.9 and macOS14+. A complete-concurrency Swift5 build passes. An isolated Swift6-language probe fails with 41 unique source diagnostics across shared mutable services, main-isolated callbacks and transferred non-Sendable state. These are migration findings, not a claim of 41 observed runtime races. Incremental compiler isolation is therefore part of the migration rather than an unchecked flag change.
+At the baseline, the installed toolchain was Swift 6.2.3 while the package selected tools/language compatibility5.9 and macOS14+. A complete-concurrency Swift5 build passes. An isolated Swift6-language probe fails with 41 unique source diagnostics across shared mutable services, main-isolated callbacks and transferred non-Sendable state. These are migration findings, not a claim of 41 observed runtime races. Incremental compiler isolation is therefore part of the migration rather than an unchecked flag change.
 
 ## Options
 
@@ -60,4 +60,29 @@ Expand checked boundaries, migrate actual shipped callers, then remove obsolete 
 
 Acceptance requires compiler/behavioral checks for the new boundaries, local Rust/Swift/CLI regression gates, search quality, interaction reconciliation and10000-cycle footprint budgets, reviewed public PRs, source release/checksums and tested installation with unchanged profile/signing/permissions. Physical compositor timing and battery claims require separate measurements; fixture timings never imply them.
 
-The architecture is implemented only when the boundaries govern production paths and regression checks prove their behavior. Renaming folders, wrapper classes or an ADR alone do not fulfill Issue33.
+The architecture is implemented only when the boundaries govern production paths and regression checks prove their behavior. Renaming folders, wrapper classes or an ADR alone do not fulfill Issue 33.
+
+
+## Production implementation and acceptance evidence
+
+The selected boundaries now govern production, delivered through [PR34](https://github.com/viggomeesters/ruycast/pull/34), [PR35](https://github.com/viggomeesters/ruycast/pull/35), [PR36](https://github.com/viggomeesters/ruycast/pull/36) and [PR37](https://github.com/viggomeesters/ruycast/pull/37). The [0.8.3 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.3) binds the final runtime sources; local installation/readback preserves profile, signing, permissions and optional private integration. Source artifacts contain no private runtime data.
+
+Portable models, the imported C interface and Swift core are separate targets. All Swift targets use Swift 6 language mode; building requires Swift 6.2. MainActor owns native UI state; catalog, clipboard, settings and palette session have scoped observable owners. Sendable snapshots cross bounded workers. System-search consumers own independent cancellation and fairly share their queue. Bulk clipboard encoding stays on its worker; listener shutdown retains the descriptor until its accept worker exits. Rust remains a single statically linked pure kernel crate with explicit function responsibilities; additional source-file splitting is not a performance objective.
+
+The cost ledger rejects caller-output-buffer reuse as neutral and global Swift size optimization for slowing ordinary search. Production uses size optimization for the native host, speed optimization for the pure core, and Rust thin LTO with unwind preserved. Empty queries retain the immutable catalog directly; usage projection preserves stable ties and limits without unnecessary sorting or materialization. Stripping local/debug symbols retains exact code/data sections and matching diagnostics privately. Independently cached artifacts preserve their original diagnostic provenance; a durable intent supports interrupted preparation recovery.
+
+Six alternating optimized production runs compare frozen locally signed installed 0.7.16 build 39 and 0.8.3 build 43, using identical command fixtures:
+
+| Measurement |0.7.16|0.8.3|
+|---|---:|---:|
+|500 commands, model p95|0.152666ms|0.067583ms|
+|10,000 commands, model p95|2.689083ms|1.175500ms|
+|10,000 commands with trained ranking, model p95|1.364584ms|0.560000ms|
+|Clipboard enqueue p95|0.007291ms|0.003292ms|
+|Locally signed host executable|7,897,536bytes|3,378,208bytes|
+
+Analytics timing-record p95 increases 0.000166 ms and the 0.8.2→0.8.3 CLI p95 measurements have small regressions; there is no universal speedup. Completed clipboard timings are excluded across harness versions after the A3 measurement correction. All 37 backed code/data sections of installed 0.8.3 match the tested source-build host.
+
+Validation includes 85 Python tests (one optional skip), Rust/Swift/imported-ABI behavior, negative compiler isolation probes, real Mach-O preparation/recovery tests, native hidden keyboard/Settings/render fixtures and 10,000 lifecycle cycles with 1.2187729 MiB end growth inside the 10 MiB checkpoint budget. Four ABBA headless observations use explicit 30-second active/idle windows: interrupts fall about 1.63→0.35/s, but do not establish physical energy or ordinary GUI behavior. Footprint/RSS vary with maintenance and reclamation; no retained-memory saving is inferred from endpoints.
+
+Physical keyboard/display acceptance and administrative task closure have their own evidence in Issue 33 and the project dossier; this ADR does not substitute hidden fixtures for visible acceptance. macOS 14 deployment linking is checked, execution on that OS is untested. No toolkit or language is claimed globally fastest without equivalent implementations; the decision remains falsifiable by future measured bottlenecks.
