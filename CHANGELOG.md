@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.13 — primary actions match their result
+
+- Show Open, Run, Insert Snippet, Save… or Save for the selected primary action in the palette footer and Actions menu.
+- Hide the primary-action hint when no result is selected; retain existing keyboard dispatch, busy handling and direct identity-guarded Kill behavior.
+
 ## 0.8.12 — truthful duration-probe results
 
 - Bound measurement child operations and complete socket responses; verify the post-idle endpoint and graceful shutdown before reporting success.
