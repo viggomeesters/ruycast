@@ -8,6 +8,7 @@ struct PaletteActionItem:Identifiable {
     let title:String
     let symbol:String
     var section:Int=0
+    var shortcut:String?=nil
 }
 extension AppState {
     func actionTitle(for command:Command)->String {
@@ -25,7 +26,8 @@ extension AppState {
             if ["snippet","url","path"].contains(command.kind) {items.append(PaletteActionItem(id:"copy-template",title:command.kind=="snippet" ? "Copy Template":"Copy Link",symbol:"doc.on.doc"))}
             if !command.id.hasPrefix("system.") {
             items.append(PaletteActionItem(id:"edit",title:"Edit",symbol:"pencil"))
-            items.append(PaletteActionItem(id:"bindings",title:"Alias & Shortcut…",symbol:"slider.horizontal.3"))
+            items.append(PaletteActionItem(id:"set-alias",title:"Set Alias…",symbol:"text.cursor",shortcut:"cmd+alt+,"))
+            items.append(PaletteActionItem(id:"set-hotkey",title:"Set Hotkey…",symbol:"keyboard",shortcut:"cmd+shift+,"))
             items.append(PaletteActionItem(id:"disable",title:"Disable",symbol:"pause.circle"))
             if config.commands.contains(where:{$0.id==command.id}) {items.append(PaletteActionItem(id:"remove",title:"Remove",symbol:"trash"))}
             }
@@ -49,13 +51,24 @@ extension AppState {
         case "open":if let command {begin(command)}
         case "copy-template":if let command {copyText(command.target)}
         case "edit":if let command {message="";form=CommandForm(command:command,isRun:false)}
-        case "bindings":if let command {message="";var edit=CommandForm(command:command,isRun:false);edit.bindingsOnly=true;edit.bindingBase=command;edit.isNew = !config.commands.contains(where:{$0.id==command.id});form=edit}
+        case "set-alias","set-hotkey":if let command {message="";var edit=CommandForm(command:command,isRun:false);edit.bindingsOnly=true;edit.bindingField=id=="set-alias" ? .alias:.hotkey;edit.bindingBase=command;edit.isNew = !config.commands.contains(where:{$0.id==command.id});form=edit}
         case "disable":if var command {command.enabled=false;saveCommand(command)}
         case "remove":pendingRemoval=command
         case "expand-input":expandInlineInput()
         case "settings":hidePalette?();showManagement?()
         default:break
         }
+    }
+    func handleItemBindingKey(_ event:NSEvent)->Bool {
+        guard form==nil,scriptChoices==nil,detail==nil,inlineCommand==nil,pendingRemoval==nil,confirmationCommand==nil,!busy,!recordingShortcut,event.keyCode==43 else {return false}
+        let modifiers=event.modifierFlags.intersection([.command,.option,.shift,.control,.function])
+        let id:String
+        if modifiers==[.command,.option] {id="set-alias"}
+        else if modifiers==[.command,.shift] {id="set-hotkey"}
+        else {return false}
+        guard actionItems.contains(where:{$0.id==id}) else {return false}
+        if !event.isARepeat {performMenuAction(id)}
+        return true
     }
 }
 struct PaletteActions:View {
@@ -67,7 +80,11 @@ struct PaletteActions:View {
             ForEach(Array(items.enumerated()),id:\.element.id) {index,item in
                 if index>0,item.section != items[index-1].section {Divider().padding(.vertical,4)}
                 Button {state.actionSelection=index;state.performMenuAction(item.id)} label:{
-                    Label(item.title,systemImage:item.symbol).font(.system(size:13)).frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal,8).padding(.vertical,6)
+                    HStack(spacing:8) {
+                        Label(item.title,systemImage:item.symbol)
+                        Spacer(minLength:0)
+                        if let shortcut=item.shortcut {ShortcutBadge(value:shortcut)}
+                    }.font(.system(size:13)).frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal,8).padding(.vertical,6)
                         .background(index==state.actionSelection ? Color.primary.opacity(0.09):Color.clear,in:RoundedRectangle(cornerRadius:5))
                 }.buttonStyle(.plain).accessibilityAddTraits(index==state.actionSelection ? .isSelected:[])
             }
@@ -92,6 +109,7 @@ final class ActionMenuKeyInput:NSView {
 extension AppState {
     func handleActionMenuKey(_ event:NSEvent)->Bool {
         guard actionsOpen else {return false}
+        if handleItemBindingKey(event) {return true}
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,event.charactersIgnoringModifiers?.lowercased()=="k" {actionsOpen=false;return true}
         guard event.modifierFlags.intersection([.command,.control,.option]).isEmpty else {return false}
         switch event.keyCode {

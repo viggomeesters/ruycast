@@ -112,9 +112,12 @@ struct Palette:View {
 
 final class PalettePanel:NSPanel {
     var actions:(()->Void)?
+    var itemBindingKey:((NSEvent)->Bool)?
     override var canBecomeKey:Bool {true}
     override var canBecomeMain:Bool {false}
     override func performKeyEquivalent(with event:NSEvent)->Bool {
+        if let recorder=firstResponder as? ShortcutRecordButton,recorder.recording {return recorder.performKeyEquivalent(with:event)}
+        if itemBindingKey?(event)==true {return true}
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,event.charactersIgnoringModifiers?.lowercased()=="k",let actions {actions();return true}
         return super.performKeyEquivalent(with:event)
     }
@@ -131,6 +134,7 @@ final class PalettePanel:NSPanel {
         self.state=state
         panel=PalettePanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
         panel.actions={ [weak state] in guard state?.form==nil else {return};state?.actionsOpen.toggle() }
+        panel.itemBindingKey={ [weak state] event in state?.handleItemBindingKey(event) ?? false }
         panel.title="Ruycast";panel.isOpaque=false;panel.backgroundColor = .clear;panel.hasShadow=true
         panel.isMovableByWindowBackground=true
         panel.standardWindowButton(.closeButton)?.isHidden=true;panel.standardWindowButton(.miniaturizeButton)?.isHidden=true;panel.standardWindowButton(.zoomButton)?.isHidden=true
@@ -169,7 +173,16 @@ final class PalettePanel:NSPanel {
             if let view=self.panel.contentView,let input=field(view) {self.panel.makeFirstResponder(input)}
         }
     }
-    func hide() {if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true);self.openTrace=nil};PerformanceTrace.shared.cancelInput();panel.orderOut(nil);state.paletteVisible=false;state.actionsOpen=false;if let outside {NSEvent.removeMonitor(outside);self.outside=nil};if let local {NSEvent.removeMonitor(local);self.local=nil}}
+    func hide() {
+        state.paletteVisible=false
+        if let view=panel.contentView {ShortcutRecordButton.stopRecording(in:view)}
+        state.endShortcutRecording()
+        if state.form?.bindingField != nil {state.form=nil}
+        if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true);self.openTrace=nil}
+        PerformanceTrace.shared.cancelInput();panel.orderOut(nil);state.actionsOpen=false
+        if let outside {NSEvent.removeMonitor(outside);self.outside=nil}
+        if let local {NSEvent.removeMonitor(local);self.local=nil}
+    }
     func showToast(_ text:String,_ success:Bool) {
         toastTimer?.invalidate();toast?.orderOut(nil)
         let p=NSPanel(contentRect:NSRect(x:0,y:0,width:340,height:65),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
