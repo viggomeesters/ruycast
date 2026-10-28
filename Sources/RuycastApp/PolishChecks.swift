@@ -8,7 +8,9 @@ import LauncherModels
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let directory=URL(fileURLWithPath:outputPath,isDirectory:true)
     try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
-    let root=directory.appendingPathComponent("profile"),state=try AppState(root:root,headless:true)
+    let root=directory.appendingPathComponent("profile")
+    var systemEffects=SystemServices.Effects();systemEffects.processes={[]};systemEffects.terminate={_ in -1}
+    let state=try AppState(root:root,headless:true,systemServices:SystemServices(effects:systemEffects))
     defer {state.shutdown();try? FileManager.default.removeItem(at:root)}
     func require(_ condition:Bool,_ message:String)throws {if !condition {throw LauncherError(message)}}
     func pump(_ seconds:Double=0.12) {let end=Date().addingTimeInterval(seconds);while Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}}
@@ -18,7 +20,11 @@ import LauncherModels
         guard let image=bitmap.cgImage,let png=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("No polish pixels")}
         try png.write(to:directory.appendingPathComponent(name+".png"))
         let request=VNRecognizeTextRequest();request.recognitionLevel = .accurate;try VNImageRequestHandler(cgImage:image).perform([request])
-        let text=(request.results ?? []).compactMap {$0.topCandidates(1).first?.string}.joined(separator:" ")
+        let lines=(request.results ?? []).compactMap {$0.topCandidates(1).first?.string}
+#if DEBUG
+        try lines.joined(separator:"\n").write(to:directory.appendingPathComponent(name+"-copy.txt"),atomically:true,encoding:.utf8)
+#endif
+        let text=lines.joined(separator:" ")
         try require(required.allSatisfy{text.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")).contains($0.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")))},"Missing polish labels in \(name): \(text)")
         try require(absent.allSatisfy{!text.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")).contains($0.folding(options:[.diacriticInsensitive,.caseInsensitive],locale:Locale(identifier:"en")))},"Technical field leaked in \(name): \(text)")
     }
@@ -31,6 +37,43 @@ import LauncherModels
         let navigation=ManagementNavigation();navigation.select(.general)
         try capture(ManagementView(state:state,navigation:navigation),"settings-"+theme,NSSize(width:980,height:680),required:["Theme","Menu Bar Icon"])
     }
+#if DEBUG
+    let actionFixtures=[state.config.commands.first {$0.id=="app.finder"}!,
+        state.config.commands.first {$0.id=="snippet.greeting"}!,
+        state.config.commands.first {$0.id=="fixture.inline"}!,
+        state.config.commands.first {$0.id=="capture.quick-note"}!,
+        Command(id:"fixture.window",title:"Left Half",kind:"window",target:"left-half")]
+    state.config.commands.append(actionFixtures.last!)
+    for theme in ["light","dark"] {
+        state.config.theme=theme
+        for width in [600,760] {
+            for command in actionFixtures {
+                state.query=command.title;state.selection=0
+                try require(state.selectedCommand?.id==command.id,"Primary action fixture selection changed")
+                try capture(Palette(state:state),"action-\(command.kind)-\(command.id)-\(theme)-\(width)",NSSize(width:width,height:490))
+            }
+            state.begin(actionFixtures[3]);state.inlineInput="Example note"
+            try capture(Palette(state:state),"action-inline-save-\(theme)-\(width)",NSSize(width:width,height:490),required:["Save"],absent:["Open"])
+            let completedBefore=state.counts
+            state.busy=true;state.activateSelection()
+            try require(state.counts==completedBefore && state.inlineInput=="Example note","Busy primary action changed or submitted input")
+            try capture(Palette(state:state),"action-inline-busy-\(theme)-\(width)",NSSize(width:width,height:490),required:["Save"],absent:["Open"])
+            state.busy=false
+            state.cancelInlineInput();state.query="___no-result___"
+            try require(state.selectedCommand==nil,"Empty action fixture returned a result")
+            try capture(Palette(state:state),"action-empty-\(theme)-\(width)",NSSize(width:width,height:490),absent:["Open"])
+        }
+    }
+    state.mode="processes";state.systemServices.cancel()
+    let process=Command(id:"system.kill:fixture",title:"Fixture Process",kind:"builtin",target:"system.kill:fixture")
+    state.applySystemResults([process],resources:[:],preserveSelection:false);state.selection=0
+    for theme in ["light","dark"] {
+        state.config.theme=theme
+        try capture(Palette(state:state),"action-process-"+theme,NSSize(width:600,height:490),required:["Kill"])
+        try require(state.selectedCommand?.id==process.id,"Synthetic process selection changed during rendering")
+    }
+    state.mode="commands";state.query=""
+#endif
     state.inlineSource="hotkey";state.selection=4;state.query="echo-inline Café & spaces"
     try require(state.inlineCommand?.id=="fixture.inline" && state.inlineInput=="Café & spaces" && state.form==nil && state.inlineSource=="launcher" && state.selection==0,"Alias argument did not enter inline mode")
     try capture(Palette(state:state),"inline-query",NSSize(width:760,height:490),required:["Inline Input","Café"])

@@ -64,7 +64,7 @@ struct Palette:View {
                 if isClipboard {
                     Button("Copy ⌘↵") {copy()}.keyboardShortcut(.return,modifiers:.command).buttonStyle(.plain)
                     Text("Paste ↵").foregroundStyle(.secondary)
-                } else {Text(state.mode=="processes" ? "Kill ↵":"Open ↵").foregroundStyle(.secondary)}
+                } else if let command=state.selectedCommand {Text(state.actionTitle(for:command)+" ↵").foregroundStyle(.secondary)}
                 Button("Actions ⌘K") {state.actionsOpen.toggle()}.buttonStyle(.plain).keyboardShortcut("k",modifiers:.command)
                     .popover(isPresented:Binding(get:{state.actionsOpen},set:{state.actionsOpen=$0}),arrowEdge:.bottom) {PaletteActions(state:state)}
                 Button {
