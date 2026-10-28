@@ -44,9 +44,9 @@ import LauncherModels
     }
     state.query="Finder";state.selection=0
     let command=state.selectedCommand!
-    try require(state.actionItems.contains(where:{$0.id=="bindings"}) && state.actionItems.contains(where:{$0.id=="disable"}),"Quick settings actions are missing")
+    try require(state.actionItems.contains(where:{$0.id=="set-alias"}) && state.actionItems.contains(where:{$0.id=="set-hotkey"}) && state.actionItems.contains(where:{$0.id=="disable"}),"Quick settings actions are missing")
     try require(!state.actionItems.contains(where:{$0.id=="create-link" || $0.id=="create-snippet"}),"Creation remains attached to selected command")
-    state.actionsOpen=true;state.performMenuAction("bindings")
+    state.actionsOpen=true;state.performMenuAction("set-alias")
     try require(state.form?.bindingsOnly==true && state.form?.command.id==command.id,"Quick settings lost selected command")
     host.appearance=NSAppearance(named:.darkAqua);try capture("quick-settings-dark")
     var edited=state.form!.command;edited.aliases=["finder-custom"];edited.hotkey="ctrl+alt+f8";var external=state.config

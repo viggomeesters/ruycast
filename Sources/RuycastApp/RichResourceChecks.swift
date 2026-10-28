@@ -29,7 +29,7 @@ import LauncherModels
     state.applySystemResults(without,resources:metrics,preserveSelection:true)
     state.activateSelection();try require(state.selection == -1 && killed.isEmpty,"Disappearing selection activated another process")
     state.query="Obsidian";try wait {state.results.count==1}
-    try require(state.actionItems.first?.title=="Kill" && !state.actionItems.contains(where:{$0.id=="bindings" || $0.id=="disable"}),"Process actions are mislabeled or persist ephemeral targets")
+    try require(state.actionItems.first?.title=="Kill" && !state.actionItems.contains(where:{$0.id=="set-alias" || $0.id=="set-hotkey" || $0.id=="disable"}),"Process actions are mislabeled or persist ephemeral targets")
     state.activateSelection();try wait {!state.busy && state.results.isEmpty}
     try require(killed==[123411] && state.confirmationCommand==nil,"Direct Kill did not execute once without a confirmation")
     // Restore samples for visual checks, never an actual PID.

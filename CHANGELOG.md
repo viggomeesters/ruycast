@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.14 — edit item bindings directly
+
+- Add Set Alias… (Command–Option–comma) and Set Hotkey… (Command–Shift–comma) to Actions and directly from a selected result.
+- Focus alias input immediately; record and save a hotkey without opening Settings. Preserve cancellation, validation and other command fields.
+- Keep recorder shortcuts ahead of palette shortcuts and end active or queued recording when hiding the palette.
+
 ## 0.8.13 — primary actions match their result
 
 - Show Open, Run, Insert Snippet, Save… or Save for the selected primary action in the palette footer and Actions menu.

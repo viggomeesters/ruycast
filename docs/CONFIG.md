@@ -143,3 +143,7 @@ Search supports title word starts (`mic tea` → Microsoft Teams), initials (`mt
 
 
 Interaction diagnostics use schema 2 from 0.7.16: `input.reconcile` ends when SwiftUI applies the binding to the same native field; `host.drawCallback` counts an optional hosting draw override that normal layer-backed display may skip. Neither is result rendering or physical screen latency. The old input.draw/native.draw stages are retired.
+
+### Set an item's alias or hotkey
+
+Select a result and press **Command–Option–comma** for **Set Alias…**, or **Command–Shift–comma** for **Set Hotkey…**. Both actions also appear in the Actions menu with their shortcuts. Alias input is focused immediately; Return saves the comma-separated aliases. Hotkey recording starts immediately and saves the combination you press. Escape cancels; Delete while recording clears the hotkey. Existing validation and conflict errors apply; other command fields are preserved.

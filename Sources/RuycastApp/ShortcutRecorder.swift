@@ -16,11 +16,28 @@ final class ShortcutRecordButton:NSButton {
     var start:(()->Void)?
     var stop:(()->Void)?
     var save:((String?)->Void)?
+    var cancel:(()->Void)?
+    var recordOnAppear=false
+    var canStartAutomatically:(()->Bool)?
+    private var startedAutomatically=false
     var value:String?
     var separateCommandKeys=true
     private(set) var recording=false
     private var solo:UInt16?
     override var acceptsFirstResponder:Bool {true}
+    override func viewDidMoveToWindow() {super.viewDidMoveToWindow();startAutomatically()}
+    func startAutomatically() {
+        guard recordOnAppear,!startedAutomatically,window != nil,isEnabled else {return}
+        startedAutomatically=true
+        DispatchQueue.main.async { [weak self] in
+            guard let self,self.recordOnAppear,self.window != nil,self.isEnabled,!self.recording,self.canStartAutomatically?() != false else {return}
+            self.beginRecording()
+        }
+    }
+    static func stopRecording(in view:NSView) {
+        if let button=view as? ShortcutRecordButton {button.recordOnAppear=false;button.startedAutomatically=true;button.end()}
+        for child in view.subviews {stopRecording(in:child)}
+    }
     func configure(_ value:String?) {
         self.value=value
         if !recording {title=value.map {ShortcutPresentation($0).keys.joined(separator:" ")} ?? "Record Shortcut"}
@@ -30,7 +47,7 @@ final class ShortcutRecordButton:NSButton {
     @objc func beginRecording() {
         if recording {end();return}
         guard window?.makeFirstResponder(self)==true else {return}
-        recording=true;solo=nil;start?();title="Press shortcut…";toolTip="Escape to cancel · Delete to clear"
+        recording=true;solo=nil;start?();title="Press shortcut…";toolTip="Escape to cancel · Delete to clear";setAccessibilityLabel("Press shortcut")
     }
     func end() {guard recording else {return};recording=false;solo=nil;stop?();configure(value)}
     override func resignFirstResponder()->Bool {end();return super.resignFirstResponder()}
@@ -53,8 +70,9 @@ final class ShortcutRecordButton:NSButton {
     }
     override func keyDown(with event:NSEvent) {
         guard recording else {super.keyDown(with:event);return}
+        guard !event.isARepeat else {return}
         solo=nil
-        if event.keyCode==53 {end();return}
+        if event.keyCode==53 {end();cancel?();return}
         if event.keyCode==51,event.modifierFlags.intersection([.control,.option,.shift,.command]).isEmpty {end();save?(nil);return}
         guard let value=Self.shortcut(for:event,separateCommandKeys:separateCommandKeys) else {NSSound.beep();return}
         end();save?(value)
@@ -80,7 +98,10 @@ final class ShortcutRecordButton:NSButton {
 struct ShortcutRecorder:NSViewRepresentable {
     let state:AppState
     var value:String?
+    var recordOnAppear=false
+    var canAutoRecord:()->Bool={true}
     var onSave:(String?)->Void
+    var onCancel:(()->Void)?=nil
     func makeNSView(context:Context)->ShortcutRecordButton {
         let button=ShortcutRecordButton(title:"",target:nil,action:nil)
         button.target=button;button.action=#selector(ShortcutRecordButton.beginRecording)
@@ -91,6 +112,7 @@ struct ShortcutRecorder:NSViewRepresentable {
     func updateNSView(_ button:ShortcutRecordButton,context:Context) {
         button.separateCommandKeys=state.config.separatesCommandKeys;button.configure(value);button.start={state.beginShortcutRecording()};button.stop={state.endShortcutRecording()};button.save=onSave
         button.isEnabled = !state.busy
+        button.cancel=onCancel;button.recordOnAppear=recordOnAppear;button.canStartAutomatically=canAutoRecord;button.startAutomatically()
     }
     static func dismantleNSView(_ button:ShortcutRecordButton,coordinator:()) {button.end()}
 }

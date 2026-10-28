@@ -4,6 +4,7 @@ import CryptoKit
 import LauncherCore
 import LauncherModels
 
+enum CommandBindingField {case alias,hotkey}
 struct CommandForm:Identifiable {
     let id=UUID()
     let dateReference=Date()
@@ -12,6 +13,7 @@ struct CommandForm:Identifiable {
     var isNew=false
     var bindingsOnly=false
     var bindingBase:Command?
+    var bindingField:CommandBindingField?
     var values:[String:String]=[:]
     var source="launcher"
 }
@@ -20,6 +22,8 @@ struct CommandEditor:View {
     @State var form:CommandForm
     var onBack:(@MainActor @Sendable ()->Void)?=nil
     @FocusState private var focused:Bool
+    @FocusState private var aliasFocused:Bool
+    @State private var aliasInput=""
     @Environment(\.colorScheme) private var scheme
     @State var advancedExpanded=false
     private var theme:SettingsTheme {SettingsTheme(dark:(state.preferredColorScheme ?? scheme) == .dark,graphite:state.config.theme=="graphite")}
@@ -76,9 +80,18 @@ struct CommandEditor:View {
                                 }
                             }
                         }
-                        field("Aliases",text:Binding(get:{form.command.aliases.joined(separator:", ")},set:{form.command.aliases=$0.split(separator:",").map {$0.trimmingCharacters(in:.whitespaces)}.filter {!$0.isEmpty}}))
-                        HStack {fieldLabel("Shortcut");Spacer();ShortcutRecorder(state:state,value:form.command.hotkey,onSave:{form.command.hotkey=$0}).frame(width:170,height:28)}
-                        if form.bindingsOnly {Toggle("Enabled",isOn:Binding(get:{form.command.isEnabled},set:{form.command.enabled=$0})).toggleStyle(.switch)}
+                        if form.bindingField == .alias {
+                            VStack(alignment:.leading,spacing:7) {
+                                fieldLabel("Aliases")
+                                TextField("Aliases",text:$aliasInput).textFieldStyle(.roundedBorder).focused($aliasFocused).accessibilityLabel("Aliases for \(form.command.title)")
+                            }
+                        } else if form.bindingField != .hotkey {
+                            field("Aliases",text:Binding(get:{form.command.aliases.joined(separator:", ")},set:{form.command.aliases=$0.split(separator:",").map {$0.trimmingCharacters(in:.whitespaces)}.filter {!$0.isEmpty}}))
+                        }
+                        if form.bindingField != .alias {
+                            HStack {fieldLabel(form.bindingField == .hotkey ? "Hotkey":"Shortcut");Spacer();ShortcutRecorder(state:state,value:form.command.hotkey,recordOnAppear:form.bindingField == .hotkey,canAutoRecord:{state.paletteVisible && state.form?.id==form.id},onSave:{form.command.hotkey=$0;if form.bindingField == .hotkey {submit()}},onCancel:{if form.bindingField == .hotkey {cancelEditing()}}).frame(width:170,height:28)}
+                        }
+                        if form.bindingsOnly && form.bindingField==nil {Toggle("Enabled",isOn:Binding(get:{form.command.isEnabled},set:{form.command.enabled=$0})).toggleStyle(.switch)}
                         if !form.bindingsOnly && form.command.kind=="script" {
                             Divider()
                             DisclosureGroup("Advanced",isExpanded:$advancedExpanded) {
@@ -114,10 +127,12 @@ struct CommandEditor:View {
                 }.padding(.vertical,6).padding(.horizontal,2)
             }
             if !state.message.isEmpty {Text(state.message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)}
-            HStack {if form.isRun && (form.command.id.hasPrefix("capture.") || form.command.target=="utility-set-text") {Text("⇧↵ New line").font(.caption).foregroundStyle(.secondary)};Spacer();if state.busy {ProgressView().controlSize(.small)};Button(form.isRun ? (form.command.id.hasPrefix("capture.") ? "Save":form.command.kind=="snippet" ? "Insert":form.command.kind=="url" ? "Open":"Run"):"Save") {submit()}.keyboardShortcut(.return,modifiers:.command).disabled(state.busy)}
+            HStack {if form.isRun && (form.command.id.hasPrefix("capture.") || form.command.target=="utility-set-text") {Text("⇧↵ New line").font(.caption).foregroundStyle(.secondary)};Spacer();if state.busy {ProgressView().controlSize(.small)};if form.bindingField != .hotkey {Button(form.isRun ? (form.command.id.hasPrefix("capture.") ? "Save":form.command.kind=="snippet" ? "Insert":form.command.kind=="url" ? "Open":"Run"):"Save") {submit()}.keyboardShortcut(.return,modifiers:.command).disabled(state.busy)}}
         }.padding(22).foregroundStyle(theme.ink).tint(theme.accent)
-            .onAppear {focused = !["capture.quick-note","capture.quick-task"].contains(form.command.id)}.onSubmit {submit()}
+            .onAppear {focused = form.bindingField==nil && !["capture.quick-note","capture.quick-task"].contains(form.command.id);aliasInput=form.command.aliases.joined(separator:", ");aliasFocused=form.bindingField == .alias}.onSubmit {submit()}
+            .onExitCommand {if form.bindingField != nil {cancelEditing()}}
     }
+    private func cancelEditing() {guard !state.busy else {return};if let onBack {onBack()} else {state.form=nil};state.restoreSearchFocus?()}
     private var destinationLabel:String {
         switch form.command.kind {
         case "url":return "Website"
@@ -131,6 +146,7 @@ struct CommandEditor:View {
     private func submit() {
         guard !state.busy else {return}
         state.message=""
+        if form.bindingField == .alias {form.command.aliases=aliasInput.split(separator:",").map {$0.trimmingCharacters(in:.whitespaces)}.filter {!$0.isEmpty}}
         if form.isRun {
             var values=form.values
             for field in Templates.fields(form.command) where values[field.id]==nil {values[field.id]=field.defaultValue}
