@@ -70,6 +70,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     var configurationSnapshot:Data {configBytes}
     var configDigestForSave:String {SHA256.hash(data:configBytes).map {String(format:"%02x",$0)}.joined()}
     var message:String {get {paletteSession.message} set {paletteSession.message=newValue}}
+    var menuSearchBusy:Bool {paletteSession.menuSearchBusy}
     var busy:Bool {get {paletteSession.busy} set {paletteSession.busy=newValue}}
     var paused:Bool {get {clipboardState.paused} set {clipboardState.paused=newValue}}
     var clipboardCleanupError:String? {get {clipboardState.clipboardCleanupError} set {clipboardState.clipboardCleanupError=newValue}}
@@ -86,6 +87,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     var showAnalytics:(()->Void)?
     var showSystemMonitor:(()->Void)?
     var processResources:[String:ProcessResource] {get {catalogState.processResources} set {catalogState.processResources=newValue}}
+    var menuActions:[String:MenuActionInfo] {get {catalogState.menuActions} set {catalogState.menuActions=newValue}}
     var processSort:ProcessSort {get {catalogState.processSort} set {catalogState.processSort=newValue;rebuildProcessOrder()}}
     private var lastProcessRefresh=Date.distantPast
     private let monitorSampler=ResourceSampler()
@@ -96,6 +98,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     var showToast:((String,Bool)->Void)?
     var paletteVisible=false
     var previousPID:pid_t?
+    var foregroundPID:()->pid_t? = {NSWorkspace.shared.frontmostApplication?.processIdentifier}
     let windows=WindowManager()
     var hotkeys:Hotkeys?
     var expander:SnippetExpander?
@@ -178,6 +181,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         let started=DispatchTime.now().uptimeNanoseconds
         defer {if !["files","menus","windows","processes"].contains(mode) {analytics.recordTiming("search.model",ms:AnalyticsStore.elapsed(started))}}
         searchEvaluations+=1;if !preserveSelection {selection=0};resultGeneration+=1
+        paletteSession.menuSearchBusy=false
         let generation=resultGeneration
         if mode=="clipboard" {systemServices.cancel();if !results.isEmpty {results=[]};return}
         if ["files","menus","windows","processes"].contains(mode) {
@@ -192,9 +196,11 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                     }
                 }
             } else {
-                systemServices.results(mode:mode,query:query,previousPID:previousPID) { [weak self] result in
+                paletteSession.menuSearchBusy=mode=="menus"
+                systemServices.search(mode:mode,query:query,previousPID:previousPID) { [weak self] result in
                     guard let self,self.resultGeneration==generation else {return}
-                    switch result {case .success(let commands):self.applySystemResults(commands,resources:[:],preserveSelection:preserveSelection);case .failure(let error):self.message=error.localizedDescription}
+                    self.paletteSession.menuSearchBusy=false
+                    switch result {case .success(let snapshot):self.applySystemResults(snapshot.commands,resources:[:],preserveSelection:preserveSelection,menus:snapshot.menus);case .failure(let error):self.message=error.localizedDescription}
                 }
             }
         } else if mode.hasPrefix("utility-") && mode.hasSuffix("history") {
@@ -264,9 +270,9 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         do {try clipboardWork.sync {try store.pruneAssets(keeping:snapshot,settings:settings)};if clipboardCleanupError != nil {clipboardCleanupError=nil}}
         catch {clipboardCleanupError="Clipboard cleanup failed: \(error.localizedDescription) Reload configuration to retry."}
     }
-    func applySystemResults(_ commands:[Command],resources:[String:ProcessResource],preserveSelection:Bool) {
+    func applySystemResults(_ commands:[Command],resources:[String:ProcessResource],preserveSelection:Bool,menus:[String:MenuActionInfo]=[:]) {
         let selectedID=preserveSelection ? selectedCommand?.id:nil
-        processResources=resources;results=commands;rememberServices(commands)
+        processResources=resources;menuActions=menus;results=commands;rememberServices(commands)
         if preserveSelection {selection=selectedID.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
     }
     func rebuildProcessOrder() {
@@ -279,6 +285,8 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     }
     func setProcessSort(_ sort:ProcessSort) {let id=selectedCommand?.id;processSort=sort;selection=id.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
     func refreshProcessResults() {refreshResults(preserveSelection:true)}
+    func refreshMenuResults() {guard mode=="menus" else {return};message="";refreshResults()}
+    func cancelMenuSearch() {guard mode=="menus" else {return};resultGeneration+=1;systemServices.cancel();paletteSession.menuSearchBusy=false}
     private func tick() {
         if paletteVisible,mode=="processes",Date().timeIntervalSince(lastProcessRefresh)>2 {lastProcessRefresh=Date();refreshProcessResults()}
         if Date().timeIntervalSince(lastPruned)>60,!clipboardWorkInFlight {lastPruned=Date();_=processClipboardPayload(nil,source:"maintenance")}
@@ -379,7 +387,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         }
     }
     private func targetPID()->pid_t? {
-        if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {return app.processIdentifier}
+        if let pid=foregroundPID(),pid != getpid() {return pid}
         return previousPID
     }
     func execute(_ id:String,dryRun:Bool,values:[String:String]=[:],openResult:Bool=false,confirmed:Bool=false,source:String="cli",beforeAppLaunch:(()->Void)?=nil,completion:@escaping @MainActor @Sendable ([String:Any])->Void) {
@@ -389,7 +397,8 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         if dryRun {completion(["ok":true,"result":jsonValue(cmd),"dryRun":true]);return}
         if let prompt=cmd.inputPrompt,(values["input"] ?? "").trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {completion(["ok":false,"error":"Enter \(prompt)."]);return}
         cmd.arguments=cmd.arguments.map {$0=="{input}" ? values["input"] ?? "":$0=="{uuid}" ? UUID().uuidString:$0}
-        let started=DispatchTime.now().uptimeNanoseconds,tracked=analytics.recordAttempt(cmd.id,source:source)
+        let ephemeralMenu=cmd.target.hasPrefix("system.menu:")
+        let started=DispatchTime.now().uptimeNanoseconds,tracked=analytics.recordAttempt(ephemeralMenu ? "system.menu":cmd.id,source:source)
         let traceID=UUID().uuidString
         self.commandLog.record(CommandLogEntry(traceID:traceID,commandID:CommandLog.clean(cmd.id,limit:512),source:source,phase:"command.start"))
         let finish:@MainActor @Sendable ([String:Any])->Void={ original in
@@ -406,7 +415,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
             if !ok {result["diagnosticID"]=traceID}
 
             if let tracked {self.analytics.recordCompletion(tracked,success:result["ok"] as? Bool==true,ms:AnalyticsStore.elapsed(started),code:AnalyticsStore.failureCode(result["error"] as? String ?? ""),exitStatus:result["exitCode"] as? Int)}
-            if result["ok"] as? Bool == true {
+            if result["ok"] as? Bool == true,!ephemeralMenu {
                 if source=="launcher" {
                     do {try self.searchRanking.recordSuccess(cmd.id)}
                     catch {self.analytics.recordError("search-ranking",code:"save-failed")}
@@ -553,8 +562,8 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
             case "search":
                 let query=req["query"] as? String ?? "",scope=req["mode"] as? String ?? "commands"
                 if ["files","menus","windows","processes"].contains(scope) {
-                    systemServices.results(mode:scope,query:query,previousPID:targetPID(),session:SystemSearchSession()) {result in
-                        switch result {case .success(let commands):self.rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
+                    systemServices.search(mode:scope,query:query,previousPID:targetPID(),session:SystemSearchSession()) {result in
+                        switch result {case .success(let snapshot):self.rememberServices(snapshot.commands);reply(["ok":true,"result":snapshot.commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let menu=snapshot.menus[command.id] {row["menu"]=jsonValue(menu)};return row}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                     }
                 } else if scope.hasPrefix("utility-") {let commands=try utilities.commands(mode:scope,query:query);rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)])}
                 else {reply(["ok":true,"result":jsonValue(searchCommands(query,mode:scope,limit:req["limit"] as? Int ?? 100))])}

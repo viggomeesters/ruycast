@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.15 — app menu actions and shortcuts
+
+- Search the original app’s menu actions with their menu path, app name and available shortcut; keep unavailable items visible.
+- Decode native menu modifiers, special keys and literal characters separately from Ruycast hotkeys. Recheck captured app/item identity and availability before and after activation.
+- Refresh menu results when reopening or using Refresh; expose Search Menu Actions without adding a duplicate configured command. Keep ephemeral menu actions out of permanent usage/recency and aggregate their analytics.
+
 ## 0.8.14 — edit item bindings directly
 
 - Add Set Alias… (Command–Option–comma) and Set Hotkey… (Command–Shift–comma) to Actions and directly from a selected result.

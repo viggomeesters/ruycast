@@ -14,6 +14,7 @@ import LauncherModels
 @MainActor @Observable final class PaletteSession {
     var query:String = ""
     var mode:String = "commands"
+    var menuSearchBusy=false
     var actionSelection:Int = 0
     var pendingRemoval:Command?
     var actionsOpen:Bool = false
@@ -47,6 +48,7 @@ import LauncherModels
     var results:[Command] = []
     var processOrder:[Command] = []
     var processResources:[String:ProcessResource] = [:]
+    var menuActions:[String:MenuActionInfo] = [:]
     var processSort:ProcessSort = .cpu
     @ObservationIgnored private var index:CommandSearchIndex?
     @ObservationIgnored private var prepared:PreparedCommandSearch?

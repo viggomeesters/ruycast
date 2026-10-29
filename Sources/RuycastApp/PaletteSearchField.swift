@@ -24,6 +24,7 @@ struct PaletteSearchField:NSViewRepresentable {
     }
     func updateNSView(_ field:SearchInput,context:Context) {
         context.coordinator.parent=self;field.placeholderString=placeholder;field.actions=onActions
+        field.setAccessibilityLabel(placeholder)
         field.appearance=NSAppearance(named:scheme == .dark ? .darkAqua:.aqua)
         if field.stringValue != text {field.stringValue=text}
         PerformanceTrace.shared.didReconcileField(fieldID:ObjectIdentifier(field))
