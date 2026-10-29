@@ -46,15 +46,17 @@ struct LauncherCommandResults:View {
                 ScrollViewReader {proxy in ScrollView {
                     LazyVStack(alignment:.leading,spacing:2) {
                         HStack {
-                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
+                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.mode=="menus" ? "Menu Actions":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
                             Spacer()
                             if state.mode=="processes" {Picker("Sort processes",selection:Binding(get:{state.processSort},set:{state.setProcessSort($0)})) {ForEach(ProcessSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}.labelsHidden().frame(width:135)}
                         }.padding(.horizontal,8).padding(.top,6).padding(.bottom,8)
-                            if commands.isEmpty {Text("No commands found").foregroundStyle(.secondary).padding(24)}
+                            if commands.isEmpty {Text(state.mode=="menus" ? (state.menuSearchBusy ? "Searching menu…":"No menu actions found"):"No commands found").foregroundStyle(.secondary).padding(24)}
                             ForEach(Array(commands.enumerated()),id:\.element.id) { index,cmd in
                                 Button {state.selection=index;state.activateSelection()} label:{
                                     HStack(spacing:12) {
-                                        if state.mode=="processes",let process=state.processResources[cmd.id] {ProcessIcon(resource:process)} else {CommandIcon(command:cmd)}
+                                        if state.mode=="processes",let process=state.processResources[cmd.id] {ProcessIcon(resource:process)}
+                                        else if cmd.target.hasPrefix("system.menu:") {Image(systemName:"menubar.rectangle").font(.system(size:17)).foregroundStyle(.secondary).frame(width:24,height:24).accessibilityHidden(true)}
+                                        else {CommandIcon(command:cmd)}
                                         VStack(alignment:.leading,spacing:4) {
                                           HStack(spacing:8) {
                                             Text(cmd.title).font(.system(size:13,weight:.semibold)).lineLimit(1).layoutPriority(2)
@@ -66,6 +68,9 @@ struct LauncherCommandResults:View {
                                                     .lineLimit(1).frame(maxWidth:120,alignment:.leading).fixedSize(horizontal:false,vertical:true)
                                             }
                                           }
+                                          if let menu=state.menuActions[cmd.id] {
+                                              Text(menu.application+(menu.path.isEmpty ? "":" · "+menu.path)).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
+                                          }
                                           if cmd.kind=="snippet" {
                                               let bindings=snippetBindings(cmd)
                                               if !bindings.isEmpty {
@@ -75,17 +80,21 @@ struct LauncherCommandResults:View {
                                           }
                                         }.frame(maxWidth:.infinity,alignment:.leading)
                                         Spacer(minLength:10)
-                                        if let key=cmd.hotkey {
+                                        if let menu=state.menuActions[cmd.id],let shortcut=menu.shortcut {
+                                            MenuShortcutBadge(shortcut:shortcut,application:menu.application)
+                                        } else if let key=cmd.hotkey {
                                             ShortcutBadge(value:key)
                                         }
                                         if state.mode=="processes",let process=state.processResources[cmd.id] {
                                             HStack(spacing:5) {Image(systemName:"cpu");Text(String(format:"%.1f%%",process.cpuPercent)).frame(width:52,alignment:.trailing);Image(systemName:"memorychip");Text(memoryLabel(process.memoryBytes)).frame(width:68,alignment:.trailing)}.font(.system(size:12)).monospacedDigit().foregroundStyle(.secondary)
+                                        } else if cmd.target.hasPrefix("system.menu:") {
+                                            if !cmd.isEnabled {Text("Unavailable").font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
                                         } else {Text(kindLabel(cmd.kind)).font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
                                     }.padding(.horizontal,10).padding(.vertical,8).frame(minHeight:38)
                                         .frame(maxWidth:.infinity,alignment:.leading)
                                         .background(index==state.selection ? highlight:Color.clear,in:RoundedRectangle(cornerRadius:8))
                                         .contentShape(Rectangle())
-                                }.buttonStyle(.plain).id(cmd.id)
+                                }.buttonStyle(.plain).disabled(!cmd.isEnabled).id(cmd.id)
                             }
 
                     }.padding(.horizontal,8).padding(.bottom,12)

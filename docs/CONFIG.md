@@ -147,3 +147,12 @@ Interaction diagnostics use schema 2 from 0.7.16: `input.reconcile` ends when Sw
 ### Set an item's alias or hotkey
 
 Select a result and press **Command–Option–comma** for **Set Alias…**, or **Command–Shift–comma** for **Set Hotkey…**. Both actions also appear in the Actions menu with their shortcuts. Alias input is focused immediately; Return saves the comma-separated aliases. Hotkey recording starts immediately and saves the combination you press. Escape cancels; Delete while recording clears the hotkey. Existing validation and conflict errors apply; other command fields are preserved.
+
+
+### App menu actions
+
+Run **Search Menu Actions** (alias `menu-actions`), or your existing menu-search command, to search the app you were using before opening Ruycast. An existing configured command targeting `search-menu-items` is reused. Results show the action, app name, menu path and the shortcut exposed by macOS. Unavailable actions remain visible; Return runs an available action. Refresh reloads the current app menu.
+
+These shortcuts belong to the source app and are shown separately from Ruycast bindings. They do not register global hotkeys or change command configuration. Menu discovery depends on the source app’s Accessibility support; it does not enumerate every macOS shortcut or detect all conflicts.
+
+`ruycast search --mode menus` returns temporary command results with a `menu` object containing `application`, `path`, `title`, `enabled` and an optional `shortcut` (`keys` and accessible `label`). `ruycast run ID` executes that captured result while its source app and menu identity remain valid. Rerun the search after a result expires or changes. Menu text and shortcuts are not persisted; temporary result IDs do not enter usage/recency storage, and analytics groups menu actions under one category.

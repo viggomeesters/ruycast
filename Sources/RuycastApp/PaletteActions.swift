@@ -13,6 +13,7 @@ struct PaletteActionItem:Identifiable {
 extension AppState {
     func actionTitle(for command:Command)->String {
         if command.target.hasPrefix("system.kill:") {return "Kill"}
+        if command.target.hasPrefix("system.menu:") {return "Run"}
         if command.kind=="snippet" {return "Insert Snippet"}
         if command.id.hasPrefix("capture.") {return inlineCommand?.id==command.id ? "Save":"Save…"}
         return command.kind=="script" || command.kind=="window" ? "Run":"Open"
@@ -22,7 +23,7 @@ extension AppState {
         if mode=="clipboard",filteredClips.indices.contains(selection) {
             items += [PaletteActionItem(id:"paste",title:"Paste",symbol:"doc.on.clipboard"),PaletteActionItem(id:"copy-clip",title:"Copy",symbol:"doc.on.doc"),PaletteActionItem(id:"delete-clip",title:"Delete",symbol:"trash")]
         } else if let command=selectedCommand {
-            items.append(PaletteActionItem(id:"open",title:actionTitle(for:command),symbol:"return"))
+            if command.isEnabled {items.append(PaletteActionItem(id:"open",title:actionTitle(for:command),symbol:"return"))}
             if ["snippet","url","path"].contains(command.kind) {items.append(PaletteActionItem(id:"copy-template",title:command.kind=="snippet" ? "Copy Template":"Copy Link",symbol:"doc.on.doc"))}
             if !command.id.hasPrefix("system.") {
             items.append(PaletteActionItem(id:"edit",title:"Edit",symbol:"pencil"))

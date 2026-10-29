@@ -13,7 +13,8 @@ struct Palette:View {
         return state.confirmationCommand.map {PaletteConfirmation(command:$0,removing:false)}
     }
     private var isClipboard:Bool {state.mode=="clipboard"}
-    private var surface:Color {SettingsTheme(dark:(state.preferredColorScheme ?? colorScheme) == .dark,graphite:state.config.theme=="graphite").background}
+    private var theme:SettingsTheme {SettingsTheme(dark:(state.preferredColorScheme ?? colorScheme) == .dark,graphite:state.config.theme=="graphite")}
+    private var surface:Color {theme.background}
     private var highlight:Color {Color.primary.opacity(colorScheme == .dark ? 0.085:0.065)}
 
     var body:some View {
@@ -35,7 +36,7 @@ struct Palette:View {
                 Image(systemName:isClipboard ? "doc.on.clipboard":"command")
                     .font(.system(size:18,weight:.medium)).foregroundStyle(.tertiary).frame(width:22)
                 if let command=state.inlineCommand {Text(command.title).font(.system(size:12,weight:.semibold)).lineLimit(1).padding(6).background(Color.primary.opacity(0.08),in:RoundedRectangle(cornerRadius:5))}
-                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {TaskDateInput.supports($0) ? "Datum, bijv. morgen of in 3 days":Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
+                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {TaskDateInput.supports($0) ? "Datum, bijv. morgen of in 3 days":Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":state.mode=="menus" ? "Search app menu…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
             }.padding(.horizontal,20).frame(height:62)
 
             if let preview=state.inlineDatePreview,state.inlineCommand.map(TaskDateInput.supports)==true {
@@ -52,7 +53,7 @@ struct Palette:View {
                 Text("Config: \(error)").font(.caption).foregroundStyle(.red).padding(.horizontal,18).padding(.vertical,8)
             }
             if !state.message.isEmpty {
-                Text(state.message).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.horizontal,18).padding(.vertical,8)
+                Text(state.message).font(.caption).foregroundStyle(theme.accent).textSelection(.enabled).padding(.horizontal,18).padding(.vertical,8)
             }
             Divider().opacity(0.5)
             HStack(spacing:12) {
@@ -60,20 +61,21 @@ struct Palette:View {
                     Button {state.mode="commands"} label:{Label("Back",systemImage:"chevron.left")}.buttonStyle(.plain)
                 }
                 Spacer()
-                if state.busy {ProgressView().controlSize(.small)}
+                if state.busy || state.menuSearchBusy {ProgressView().controlSize(.small)}
                 if isClipboard {
                     Button("Copy ⌘↵") {copy()}.keyboardShortcut(.return,modifiers:.command).buttonStyle(.plain)
                     Text("Paste ↵").foregroundStyle(.secondary)
-                } else if let command=state.selectedCommand {Text(state.actionTitle(for:command)+" ↵").foregroundStyle(.secondary)}
+                } else if let command=state.selectedCommand {Text(command.isEnabled ? state.actionTitle(for:command)+" ↵":"Unavailable").foregroundStyle(.secondary)}
                 Button("Actions ⌘K") {state.actionsOpen.toggle()}.buttonStyle(.plain).keyboardShortcut("k",modifiers:.command)
                     .popover(isPresented:Binding(get:{state.actionsOpen},set:{state.actionsOpen=$0}),arrowEdge:.bottom) {PaletteActions(state:state)}
                 Button {
                     if state.mode=="processes" {state.refreshProcessResults();return}
+                    if state.mode=="menus" {state.refreshMenuResults();return}
                     state.handle(["op":"reload"]) {r in
                         state.message=r["ok"] as? Bool == true ? "":r["error"] as? String ?? "Reload failed."
                     }
                 } label:{Image(systemName:"arrow.clockwise").foregroundStyle(.secondary)}
-                    .buttonStyle(.plain).help(state.mode=="processes" ? "Refresh processes":"Reload configuration").accessibilityLabel(state.mode=="processes" ? "Refresh processes":"Reload configuration")
+                    .buttonStyle(.plain).help(state.mode=="processes" ? "Refresh processes":state.mode=="menus" ? "Refresh menu actions":"Reload configuration").accessibilityLabel(state.mode=="processes" ? "Refresh processes":state.mode=="menus" ? "Refresh menu actions":"Reload configuration")
             }.font(.system(size:11)).padding(.horizontal,16).frame(height:38)
         }
         .frame(maxWidth:.infinity,maxHeight:.infinity)
@@ -151,8 +153,10 @@ final class PalettePanel:NSPanel {
         if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true)}
         openTrace=PerformanceTrace.shared.begin(.openReady)
         let trace=openTrace!
+        let refreshMenus=mode=="menus" && state.mode==mode && state.query.isEmpty
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {state.previousPID=app.processIdentifier}
         state.inlineCommand=nil;state.inlineInput="";state.query="";state.message="";state.mode=mode;state.detail=nil;state.scriptChoices=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
+        if refreshMenus {state.refreshMenuResults()}
         let mouse=NSEvent.mouseLocation
         let screen=NSScreen.screens.first {$0.frame.contains(mouse)} ?? NSScreen.main
         if let frame=screen?.visibleFrame {panel.setFrame(PaletteGeometry.frame(in:frame,mode:mode),display:false)}
@@ -175,6 +179,7 @@ final class PalettePanel:NSPanel {
     }
     func hide() {
         state.paletteVisible=false
+        state.cancelMenuSearch()
         if let view=panel.contentView {ShortcutRecordButton.stopRecording(in:view)}
         state.endShortcutRecording()
         if state.form?.bindingField != nil {state.form=nil}

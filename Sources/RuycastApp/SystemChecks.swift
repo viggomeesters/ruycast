@@ -20,6 +20,11 @@ import LauncherModels
     effects.raise={_ in raised+=1;return .success}
     effects.monitor={monitored+=1;return true}
     effects.lock={locked+=1}
+    effects.menuAttribute={_,key in
+        switch key {case kAXTitleAttribute:return "Open" as CFString;case kAXRoleAttribute:return kAXMenuItemRole as CFString;case kAXEnabledAttribute:return kCFBooleanTrue;default:return nil}
+    }
+    effects.menuChildren={_,_ in []}
+    effects.menuElementPID={_ in identity.pid}
     let service=SystemServices(effects:effects)
     let kill=service.remember(kind:"kill",identity:identity,element:nil,key:"fixture")
     try require(!service.requiresConfirmation(target:kill),"Kill still requires confirmation.")
@@ -37,8 +42,10 @@ import LauncherModels
     try require(service.execute(target:foreignTarget,confirmed:true)["ok"] as? Bool==false && killed.count==1,"Another user's process could be terminated.")
     current=identity
     let element=AXUIElementCreateApplication(identity.pid)
-    let menu=service.remember(kind:"menu",identity:identity,element:element,key:"File/Open")
-    try require(menu==service.remember(kind:"menu",identity:identity,element:element,key:"File/Open"),"Menu identity was unstable.")
+    let menuInfo=MenuActionInfo(application:"Fixture",path:"File",title:"Open",shortcut:nil,enabled:true)
+    let ancestors=[MenuAncestor(element:element,title:"Open",role:kAXMenuItemRole)]
+    let menu=service.remember(kind:"menu",identity:identity,element:element,key:"File/Open",menu:menuInfo,ancestors:ancestors)
+    try require(menu==service.remember(kind:"menu",identity:identity,element:element,key:"File/Open",menu:menuInfo,ancestors:ancestors),"Menu identity was unstable.")
     try require(service.execute(target:menu,previousPID:42)["ok"] as? Bool==false && pressed==0 && activated==0,"Menu execution lost its original app.")
     trusted=false
     try require(service.execute(target:menu,previousPID:identity.pid)["ok"] as? Bool==false && pressed==0,"Menu permission was bypassed.")

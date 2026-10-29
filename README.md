@@ -11,6 +11,7 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 - **Launch anything.** Apps, websites, folders and scripts, with your own aliases and hotkeys.
 - **Type less.** Snippets with automatic keyword expansion, parameterized quicklinks and Caps Lock as Hyper.
 - **Keep useful copies.** Search text, images and file references in clipboard history, with previews and retention controls.
+- **Find app actions.** Search the active app’s menus, see their shortcuts and run available actions.
 - **Arrange your windows.** Halves, thirds, maximize, restore and move between displays.
 - **Stay in control.** Native Settings, a system monitor, and a local Dashboard for usage, errors and timings.
 - **Work with your AI tools.** Coding agents can inspect status, edit configuration and run actions in the background. Configuration lives in files you can read and version.
@@ -74,7 +75,7 @@ Validation runs locally. Native checks use hidden windows, isolated profiles and
 
 ## Releases
 
-[Download the 0.8.14 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.14) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
+[Download the 0.8.15 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.15) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
 
 [Changelog](CHANGELOG.md)
 
