@@ -248,11 +248,13 @@ extension AppState {
         var builtins=[Command(id:"builtin.settings",title:"Ruycast Settings",kind:"builtin",target:"settings",aliases:["settings","preferences","manage","beheer","instellingen"]),Command(id:"builtin.dashboard",title:"Ruycast Dashboard",kind:"builtin",target:"analytics",aliases:["analytics","dashboard","activity"]),Command(id:"builtin.open-config",title:"Open Configuration",kind:"builtin",target:"open-config",aliases:["open-config"]),Command(id:"builtin.reload-config",title:"Reload Configuration",kind:"builtin",target:"reload-config",aliases:["reload-config"]),Command(id:"builtin.system-monitor",title:"System Monitor",kind:"builtin",target:"system-monitor",aliases:["system-monitor"])]
         builtins.append(Command(id:"builtin.window-search",title:"Search Windows",kind:"builtin",target:"switch-windows",aliases:["windows","switch-windows"]))
         builtins.append(Command(id:"builtin.menu-actions",title:"Search Menu Actions",kind:"builtin",target:"search-menu-items",aliases:["menu-actions","menu-items"]))
+        builtins.append(Command(id:"builtin.apple-shortcuts",title:"Search Apple Shortcuts",kind:"builtin",target:"apple-shortcuts",aliases:["apple-shortcuts","opdrachten"]))
         builtins.removeAll {candidate in config.commands.contains {$0.id==candidate.id || ($0.kind=="builtin" && $0.target==candidate.target)}}
         return builtins
     }
     func resolveCommand(_ id:String)->Command? {
-        config.resolve(id) ?? systemCommands.first {$0.id==id || $0.aliases.contains(id.lowercased())} ?? results.first {$0.id==id} ?? serviceCommands[id]
+        if id.hasPrefix(AppleShortcuts.prefix),let override=config.commands.first(where:{$0.id==id}) {return override}
+        return config.resolve(id) ?? systemCommands.first {$0.id==id || $0.aliases.contains(id.lowercased())} ?? results.first {$0.id==id} ?? serviceCommands[id]
     }
     func setHyperEnabled(_ enabled:Bool) {setPreference("hyperKeyEnabled",enabled)}
     func setExpansionEnabled(_ enabled:Bool) {setPreference("snippetExpansionEnabled",enabled)}

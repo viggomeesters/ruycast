@@ -207,7 +207,7 @@ pub fn validate(value: &Value) -> Result<Config, String> {
                     "snippets",
                     "quicklinks",
                     "create-snippet",
-                    "create-quicklink", "settings", "open-config", "reload-config", "analytics", "search-files", "search-menu-items", "switch-windows", "kill-process", "system-monitor", "lock-screen", "utility-set-text", "utility-paste-text", "utility-text-history", "utility-password", "utility-username", "utility-password-history", "utility-username-history",
+                    "create-quicklink", "settings", "open-config", "reload-config", "analytics", "search-files", "search-menu-items", "switch-windows", "apple-shortcuts", "kill-process", "system-monitor", "lock-screen", "utility-set-text", "utility-paste-text", "utility-text-history", "utility-password", "utility-username", "utility-password-history", "utility-username-history",
                 ]
                 .contains(&cmd.target.as_str())
                 {
