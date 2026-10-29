@@ -156,3 +156,12 @@ Run **Search Menu Actions** (alias `menu-actions`), or your existing menu-search
 These shortcuts belong to the source app and are shown separately from Ruycast bindings. They do not register global hotkeys or change command configuration. Menu discovery depends on the source app’s Accessibility support; it does not enumerate every macOS shortcut or detect all conflicts.
 
 `ruycast search --mode menus` returns temporary command results with a `menu` object containing `application`, `path`, `title`, `enabled` and an optional `shortcut` (`keys` and accessible `label`). `ruycast run ID` executes that captured result while its source app and menu identity remain valid. Rerun the search after a result expires or changes. Menu text and shortcuts are not persisted; temporary result IDs do not enter usage/recency storage, and analytics groups menu actions under one category.
+
+
+### Open windows
+
+Run **Search Windows** (alias `windows`), or an existing command targeting `switch-windows`, to find windows by title or application name. Results show the window title and app, with **Minimized** when macOS exposes that state. Return switches to the selected captured window; minimized windows are restored first. Refresh reloads open windows. Existing window layouts and bindings are preserved.
+
+`ruycast search --mode windows` returns temporary results with a `window` object containing `application`, `title` and optional `minimized`. `ruycast run ID` switches to that captured window. Closed, changed, unreadable or expired targets require a new search; a same-title window is never used as a fallback. Temporary IDs do not enter persistent usage/recency; analytics groups switching under one category.
+
+Accessibility permission is required. Search considers up to 200 regular applications, 50 exposed windows per app and 100 results within a cooperative two-second traversal budget, with per-read AX timeouts. Availability across Spaces and keyboard focus depend on the source app and macOS; universal cross-Space/focus behavior is not promised. Windows without readable identity/title are skipped; an empty but readable title appears as **Untitled Window**.

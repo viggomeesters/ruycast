@@ -46,15 +46,16 @@ struct LauncherCommandResults:View {
                 ScrollViewReader {proxy in ScrollView {
                     LazyVStack(alignment:.leading,spacing:2) {
                         HStack {
-                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.mode=="menus" ? "Menu Actions":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
+                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.mode=="menus" ? "Menu Actions":state.mode=="windows" ? "Windows":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
                             Spacer()
                             if state.mode=="processes" {Picker("Sort processes",selection:Binding(get:{state.processSort},set:{state.setProcessSort($0)})) {ForEach(ProcessSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}.labelsHidden().frame(width:135)}
                         }.padding(.horizontal,8).padding(.top,6).padding(.bottom,8)
-                            if commands.isEmpty {Text(state.mode=="menus" ? (state.menuSearchBusy ? "Searching menu…":"No menu actions found"):"No commands found").foregroundStyle(.secondary).padding(24)}
+                            if commands.isEmpty {Text(state.mode=="menus" ? (state.menuSearchBusy ? "Searching menu…":"No menu actions found"):state.mode=="windows" ? (state.windowSearchBusy ? "Searching windows…":"No windows found"):"No commands found").foregroundStyle(.secondary).padding(24)}
                             ForEach(Array(commands.enumerated()),id:\.element.id) { index,cmd in
                                 Button {state.selection=index;state.activateSelection()} label:{
                                     HStack(spacing:12) {
                                         if state.mode=="processes",let process=state.processResources[cmd.id] {ProcessIcon(resource:process)}
+                                        else if cmd.target.hasPrefix("system.window:") {Image(systemName:"macwindow").font(.system(size:17)).foregroundStyle(.secondary).frame(width:24,height:24).accessibilityHidden(true)}
                                         else if cmd.target.hasPrefix("system.menu:") {Image(systemName:"menubar.rectangle").font(.system(size:17)).foregroundStyle(.secondary).frame(width:24,height:24).accessibilityHidden(true)}
                                         else {CommandIcon(command:cmd)}
                                         VStack(alignment:.leading,spacing:4) {
@@ -70,6 +71,9 @@ struct LauncherCommandResults:View {
                                           }
                                           if let menu=state.menuActions[cmd.id] {
                                               Text(menu.application+(menu.path.isEmpty ? "":" · "+menu.path)).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
+                                          }
+                                          if let window=state.windowActions[cmd.id] {
+                                              Text(window.application).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
                                           }
                                           if cmd.kind=="snippet" {
                                               let bindings=snippetBindings(cmd)
@@ -87,6 +91,8 @@ struct LauncherCommandResults:View {
                                         }
                                         if state.mode=="processes",let process=state.processResources[cmd.id] {
                                             HStack(spacing:5) {Image(systemName:"cpu");Text(String(format:"%.1f%%",process.cpuPercent)).frame(width:52,alignment:.trailing);Image(systemName:"memorychip");Text(memoryLabel(process.memoryBytes)).frame(width:68,alignment:.trailing)}.font(.system(size:12)).monospacedDigit().foregroundStyle(.secondary)
+                                        } else if cmd.target.hasPrefix("system.window:") {
+                                            if state.windowActions[cmd.id]?.minimized==true {Text("Minimized").font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
                                         } else if cmd.target.hasPrefix("system.menu:") {
                                             if !cmd.isEnabled {Text("Unavailable").font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
                                         } else {Text(kindLabel(cmd.kind)).font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}

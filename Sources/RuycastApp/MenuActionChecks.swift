@@ -53,8 +53,8 @@ private final class MenuFixture:@unchecked Sendable {
     try require(MenuShortcut(character:nil,glyph:nil,virtualKey:80,modifiers:0)?.keys==["⌘","F19"],"Function virtual key did not decode.")
     try require(MenuShortcut(character:"é",glyph:nil,virtualKey:0,modifiers:0)?.keys==["⌘","É"],"Layout-specific key was replaced with physical US letter.")
     try require(MenuShortcut(character:"ß",glyph:nil,virtualKey:nil,modifiers:0)?.keys==["⌘","ß"] && MenuShortcut(character:"\u{f700}",glyph:nil,virtualKey:nil,modifiers:0)?.keys==["⌘","↑"],"Unicode menu keys were expanded or lost.")
-    try require(MenuAccessibility.integer(kCFBooleanFalse)==nil,"A boolean menu attribute was treated as a modifier mask.")
-    try require(MenuAccessibility.boolean(NSNull())==nil,"An unknown AX enabled value was accepted.")
+    try require(SystemAccessibility.integer(kCFBooleanFalse)==nil,"A boolean menu attribute was treated as a modifier mask.")
+    try require(SystemAccessibility.boolean(NSNull())==nil,"An unknown AX enabled value was accepted.")
     try require(MenuShortcut(character:"",glyph:0,virtualKey:0,modifiers:0)==nil && MenuShortcut(character:"X",glyph:nil,virtualKey:nil,modifiers:nil)==nil && MenuShortcut(character:"X",glyph:nil,virtualKey:nil,modifiers:16)==nil,"Missing key or modifiers invented a shortcut.")
     let fixture=MenuFixture()
     let open=fixture.add("Open…",kAXMenuItemRole,true,[],[kAXMenuItemCmdCharAttribute:"O" as CFString,kAXMenuItemCmdModifiersAttribute:NSNumber(value:0)])
@@ -212,7 +212,7 @@ private final class MenuFixture:@unchecked Sendable {
             }
             if ["empty","denied","loading"].contains(variant) {commands=[];menus=[:]}
             state.message=variant=="denied" ? permissionError:""
-            state.paletteSession.menuSearchBusy=variant=="loading"
+            state.paletteSession.nativeSearchBusy=variant=="loading"
             state.applySystemResults(commands,resources:[:],preserveSelection:false,menus:menus)
             state.config.theme=dark ? "dark":"light";state.selection=variant=="disabled" ? snapshot.commands.firstIndex {$0.id==disabled.id}!:0
             controller.panel.setContentSize(NSSize(width:width,height:490));controller.panel.contentView?.layoutSubtreeIfNeeded();for _ in 0..<12 {pump()}
