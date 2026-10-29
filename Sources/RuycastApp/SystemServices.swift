@@ -11,6 +11,7 @@ import LauncherModels
 final class SystemServices:@unchecked Sendable {
     struct Identity: Codable, Equatable, Sendable { let pid: pid_t; let uid: uid_t; let seconds: UInt64; let micros: UInt64 }
     struct Effects:Sendable {
+        var browserTabs=BrowserTabs.Effects()
         var shortcuts: @Sendable (SystemSearchSession.Ticket) throws -> [Command] = AppleShortcuts.discover
         var shortcutClock: @Sendable () -> TimeInterval = {ProcessInfo.processInfo.systemUptime}
         var processes: @Sendable () throws -> [ProcessResource] = ResourceSampler.processTable
@@ -59,6 +60,7 @@ final class SystemServices:@unchecked Sendable {
     }
     struct Target { let kind:String; let identity:Identity; let element:AXUIElement?; let menu:MenuActionInfo?;let menuAncestors:[MenuAncestor];let window:WindowActionInfo? }
     private let effects:Effects
+    private let browserTabs:BrowserTabs
     private let lock=NSLock()
     let interactiveSession=SystemSearchSession()
     private var resources:[String:ProcessResource]=[:]
@@ -69,7 +71,7 @@ final class SystemServices:@unchecked Sendable {
     private var targets:[String:Target]=[:]
     private var targetOrder=[String]()
     private let worker=DispatchQueue(label:"ruycast.system-search",qos:.userInitiated)
-    init(effects:Effects=Effects()) {self.effects=effects}
+    init(effects:Effects=Effects()) {self.effects=effects;self.browserTabs=BrowserTabs(effects:effects.browserTabs)}
 
     static func identity(_ pid:pid_t)->Identity? {
         var info=proc_bsdinfo()
@@ -94,12 +96,24 @@ final class SystemServices:@unchecked Sendable {
                 case "files":return SystemSearchResults(commands:try self.files(query,version:version))
                 case "menus":return try self.menus(query,pid:previousPID,version:version)
                 case "windows":return try self.windows(query,version:version)
+                case "tabs":return try self.browserTabs.search(query,version)
                 case "shortcuts":return SystemSearchResults(commands:try self.shortcuts(version:version))
                 case "processes":return SystemSearchResults(commands:try self.processes(query,version:version))
                 default:throw LauncherError("Unknown system search.")
                 }
             }
             DispatchQueue.main.async {if version.current {completion(result)}}
+        }
+    }
+    func cancelBrowserConsent() {browserTabs.cancelConsent()}
+    func invalidateBrowserCache() {worker.async {self.browserTabs.invalidate()}}
+    func requestBrowserConsent(completion:@escaping @MainActor @Sendable ()->Void) {browserTabs.requestConsent(completion:completion)}
+    func executeTab(_ target:String,completion:@escaping @MainActor @Sendable (Result<Void,Error>)->Void) {
+        // Execution owns its session: hiding the palette cancels discovery only.
+        let session=SystemSearchSession()
+        session.submit(on:worker) {ticket in
+            let result=Result {try self.browserTabs.execute(target,ticket)}
+            DispatchQueue.main.async {completion(result)}
         }
     }
     private func current(_ version:SystemSearchSession.Ticket)->Bool {version.current}
