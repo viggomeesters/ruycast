@@ -7,6 +7,7 @@ struct SystemSearchResults:Sendable {
     let commands:[Command]
     var menus:[String:MenuActionInfo]=[:]
     var windows:[String:WindowActionInfo]=[:]
+    var tabs:[String:BrowserTabInfo]=[:]
 }
 
 /// App-provided shortcuts are presentation data, never launcher registrations.

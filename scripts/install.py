@@ -80,7 +80,8 @@ if APP.exists():
     previous_build=int(prior)
 info={'CFBundleIdentifier':NEW_ID,'CFBundleName':'Ruycast','CFBundleDisplayName':'Ruycast',
       'CFBundleExecutable':'RuycastApp','CFBundlePackageType':'APPL','CFBundleShortVersionString':product_version,
-      'CFBundleVersion':str(max(7,previous_build+1)),'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True}
+      'CFBundleVersion':str(max(7,previous_build+1)),'LSMinimumSystemVersion':'14.0','LSUIElement':True,'NSHighResolutionCapable':True,
+      'NSAppleEventsUsageDescription':'Ruycast searches open Safari tabs and switches to the tab you select.'}
 if (stage/'Contents/Resources/AppIcon.icns').is_file():info['CFBundleIconFile']='AppIcon'
 (stage/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
 signing=local_signing.sign(stage)

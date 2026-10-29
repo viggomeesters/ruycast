@@ -47,15 +47,16 @@ struct LauncherCommandResults:View {
                 ScrollViewReader {proxy in ScrollView {
                     LazyVStack(alignment:.leading,spacing:2) {
                         HStack {
-                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.mode=="menus" ? "Menu Actions":state.mode=="windows" ? "Windows":state.mode=="shortcuts" ? "Apple Shortcuts":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
+                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.mode=="menus" ? "Menu Actions":state.mode=="windows" ? "Windows":state.mode=="tabs" ? "Safari Tabs":state.mode=="shortcuts" ? "Apple Shortcuts":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
                             Spacer()
                             if state.mode=="processes" {Picker("Sort processes",selection:Binding(get:{state.processSort},set:{state.setProcessSort($0)})) {ForEach(ProcessSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}.labelsHidden().frame(width:135)}
                         }.padding(.horizontal,8).padding(.top,6).padding(.bottom,8)
-                            if commands.isEmpty && (state.mode != "shortcuts" || state.message.isEmpty) {Text(state.mode=="menus" ? (state.menuSearchBusy ? "Searching menu…":"No menu actions found"):state.mode=="windows" ? (state.windowSearchBusy ? "Searching windows…":"No windows found"):state.mode=="shortcuts" ? (state.shortcutSearchBusy ? "Loading shortcuts…":"No shortcuts found"):"No commands found").foregroundStyle(.secondary).padding(24)}
+                            if commands.isEmpty && (!["shortcuts","tabs"].contains(state.mode) || state.message.isEmpty) {Text(state.mode=="menus" ? (state.menuSearchBusy ? "Searching menu…":"No menu actions found"):state.mode=="windows" ? (state.windowSearchBusy ? "Searching windows…":"No windows found"):state.mode=="tabs" ? (state.tabSearchBusy ? "Loading tabs…":"No Safari tabs found"):state.mode=="shortcuts" ? (state.shortcutSearchBusy ? "Loading shortcuts…":"No shortcuts found"):"No commands found").foregroundStyle(.secondary).padding(24)}
                             ForEach(Array(commands.enumerated()),id:\.element.id) { index,cmd in
                                 Button {state.selection=index;state.activateSelection()} label:{
                                     HStack(spacing:12) {
                                         if state.mode=="processes",let process=state.processResources[cmd.id] {ProcessIcon(resource:process)}
+                                        else if cmd.target.hasPrefix("system.tab:") {Image(systemName:"safari").font(.system(size:17)).foregroundStyle(.secondary).frame(width:24,height:24).accessibilityHidden(true)}
                                         else if cmd.target.hasPrefix("system.window:") {Image(systemName:"macwindow").font(.system(size:17)).foregroundStyle(.secondary).frame(width:24,height:24).accessibilityHidden(true)}
                                         else if cmd.target.hasPrefix("system.menu:") {Image(systemName:"menubar.rectangle").font(.system(size:17)).foregroundStyle(.secondary).frame(width:24,height:24).accessibilityHidden(true)}
                                         else if AppleShortcuts.recognizes(cmd) {Image(systemName:"square.stack.3d.up.fill").font(.system(size:17)).foregroundStyle(.secondary).frame(width:24,height:24).accessibilityHidden(true)}
@@ -74,6 +75,9 @@ struct LauncherCommandResults:View {
                                           if duplicateShortcutTitles.contains(cmd.title),AppleShortcuts.recognizes(cmd) {Text(String(cmd.id.suffix(8))).font(.system(size:11)).monospaced().foregroundStyle(.secondary)}
                                           if let menu=state.menuActions[cmd.id] {
                                               Text(menu.application+(menu.path.isEmpty ? "":" · "+menu.path)).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
+                                          }
+                                          if let tab=state.browserTabInfo[cmd.id] {
+                                              Text(tab.url).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
                                           }
                                           if let window=state.windowActions[cmd.id] {
                                               Text(window.application).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
@@ -98,7 +102,7 @@ struct LauncherCommandResults:View {
                                             if state.windowActions[cmd.id]?.minimized==true {Text("Minimized").font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
                                         } else if cmd.target.hasPrefix("system.menu:") {
                                             if !cmd.isEnabled {Text("Unavailable").font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
-                                        } else if !AppleShortcuts.recognizes(cmd) {Text(kindLabel(cmd.kind)).font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
+                                        } else if !cmd.target.hasPrefix("system.tab:"),!AppleShortcuts.recognizes(cmd) {Text(kindLabel(cmd.kind)).font(.system(size:12)).foregroundStyle(.secondary).fixedSize()}
                                     }.padding(.horizontal,10).padding(.vertical,8).frame(minHeight:38)
                                         .frame(maxWidth:.infinity,alignment:.leading)
                                         .background(index==state.selection ? highlight:Color.clear,in:RoundedRectangle(cornerRadius:8))

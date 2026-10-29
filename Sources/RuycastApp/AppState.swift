@@ -35,7 +35,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         }
         refreshClips(preserveSelection:paletteVisible)}}
     var query:String {get {paletteSession.query} set {let oldValue=paletteSession.query;paletteSession.query=newValue;if mode=="clipboard" {clipboardState.query=newValue};if query != oldValue {captureInlineQuery();refreshResults();refreshClips()}}}
-    var mode:String {get {paletteSession.mode} set {let oldValue=paletteSession.mode;paletteSession.mode=newValue;if mode != oldValue {inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
+    var mode:String {get {paletteSession.mode} set {let oldValue=paletteSession.mode;paletteSession.mode=newValue;if mode != oldValue {systemServices.cancelBrowserConsent();inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
     var selection:Int {get {mode=="clipboard" ? clipboardState.selection:paletteSession.selection} set {if mode=="clipboard" {clipboardState.selection=newValue} else {paletteSession.selection=newValue}}}
     var clipboardSelection:Int {get {clipboardState.selection} set {clipboardState.selection=newValue}}
     var clipboardQuery:String {clipboardState.query}
@@ -72,6 +72,8 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     var message:String {get {paletteSession.message} set {paletteSession.message=newValue}}
     var menuSearchBusy:Bool {mode=="menus" && paletteSession.nativeSearchBusy}
     var windowSearchBusy:Bool {mode=="windows" && paletteSession.nativeSearchBusy}
+    var browserTabInfo:[String:BrowserTabInfo]=[:]
+    var tabSearchBusy:Bool {mode=="tabs" && paletteSession.nativeSearchBusy}
     var shortcutSearchBusy:Bool {mode=="shortcuts" && paletteSession.nativeSearchBusy}
     var scriptExecution:@Sendable (Command)throws->Data = AppState.runScriptProcess
     var busy:Bool {get {paletteSession.busy} set {paletteSession.busy=newValue}}
@@ -183,12 +185,12 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     }
     private func refreshResults(preserveSelection:Bool=false) {
         let started=DispatchTime.now().uptimeNanoseconds
-        defer {if !["files","menus","windows","shortcuts","processes"].contains(mode) {analytics.recordTiming("search.model",ms:AnalyticsStore.elapsed(started))}}
+        defer {if !["files","menus","windows","tabs","shortcuts","processes"].contains(mode) {analytics.recordTiming("search.model",ms:AnalyticsStore.elapsed(started))}}
         searchEvaluations+=1;if !preserveSelection {selection=0};resultGeneration+=1
         paletteSession.nativeSearchBusy=false
         let generation=resultGeneration
         if mode=="clipboard" {systemServices.cancel();if !results.isEmpty {results=[]};return}
-        if ["files","menus","windows","shortcuts","processes"].contains(mode) {
+        if ["files","menus","windows","tabs","shortcuts","processes"].contains(mode) {
             if !preserveSelection {results=[]}
             if mode=="processes" {
                 systemServices.cancel()
@@ -200,11 +202,11 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                     }
                 }
             } else {
-                paletteSession.nativeSearchBusy=["menus","windows","shortcuts"].contains(mode)
+                paletteSession.nativeSearchBusy=["menus","windows","tabs","shortcuts"].contains(mode)
                 systemServices.search(mode:mode,query:query,previousPID:previousPID) { [weak self] result in
                     guard let self,self.resultGeneration==generation else {return}
                     self.paletteSession.nativeSearchBusy=false
-                    switch result {case .success(let snapshot):self.applySystemResults(snapshot.commands,resources:[:],preserveSelection:preserveSelection,menus:snapshot.menus,windows:snapshot.windows);case .failure(let error):self.message=error.localizedDescription}
+                    switch result {case .success(let snapshot):self.applySystemResults(snapshot.commands,resources:[:],preserveSelection:preserveSelection,menus:snapshot.menus,windows:snapshot.windows,tabs:snapshot.tabs);case .failure(let error):self.message=error.localizedDescription}
                 }
             }
         } else if mode.hasPrefix("utility-") && mode.hasSuffix("history") {
@@ -274,9 +276,9 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         do {try clipboardWork.sync {try store.pruneAssets(keeping:snapshot,settings:settings)};if clipboardCleanupError != nil {clipboardCleanupError=nil}}
         catch {clipboardCleanupError="Clipboard cleanup failed: \(error.localizedDescription) Reload configuration to retry."}
     }
-    func applySystemResults(_ commands:[Command],resources:[String:ProcessResource],preserveSelection:Bool,menus:[String:MenuActionInfo]=[:],windows:[String:WindowActionInfo]=[:]) {
+    func applySystemResults(_ commands:[Command],resources:[String:ProcessResource],preserveSelection:Bool,menus:[String:MenuActionInfo]=[:],windows:[String:WindowActionInfo]=[:],tabs:[String:BrowserTabInfo]=[:]) {
         let selectedID=preserveSelection ? selectedCommand?.id:nil
-        processResources=resources;menuActions=menus;windowActions=windows;results=mode=="shortcuts" ? mergedShortcuts(commands,query:query):commands;rememberServices(results)
+        processResources=resources;browserTabInfo=tabs;menuActions=menus;windowActions=windows;results=mode=="shortcuts" ? mergedShortcuts(commands,query:query):commands;rememberServices(results)
         if preserveSelection {selection=selectedID.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
     }
     func rebuildProcessOrder() {
@@ -289,9 +291,9 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     }
     func setProcessSort(_ sort:ProcessSort) {let id=selectedCommand?.id;processSort=sort;selection=id.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
     func refreshProcessResults() {refreshResults(preserveSelection:true)}
-    func refreshNativeResults() {guard ["menus","windows","shortcuts"].contains(mode) else {return};if mode=="shortcuts" {systemServices.invalidateShortcutCache()};message="";refreshResults()}
+    func refreshNativeResults() {guard ["menus","windows","tabs","shortcuts"].contains(mode) else {return};if mode=="shortcuts" {systemServices.invalidateShortcutCache()};if mode=="tabs" {systemServices.invalidateBrowserCache()};message="";refreshResults()}
     func refreshMenuResults() {guard mode=="menus" else {return};refreshNativeResults()}
-    func cancelNativeSearch() {guard ["menus","windows","shortcuts"].contains(mode) else {return};resultGeneration+=1;systemServices.cancel();paletteSession.nativeSearchBusy=false}
+    func cancelNativeSearch() {guard ["menus","windows","tabs","shortcuts"].contains(mode) else {return};resultGeneration+=1;systemServices.cancelBrowserConsent();systemServices.cancel();paletteSession.nativeSearchBusy=false}
     func cancelMenuSearch() {guard mode=="menus" else {return};cancelNativeSearch()}
     private func tick() {
         if paletteVisible,mode=="processes",Date().timeIntervalSince(lastProcessRefresh)>2 {lastProcessRefresh=Date();refreshProcessResults()}
@@ -403,8 +405,8 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         if dryRun {completion(["ok":true,"result":jsonValue(cmd),"dryRun":true]);return}
         if let prompt=cmd.inputPrompt,(values["input"] ?? "").trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {completion(["ok":false,"error":"Enter \(prompt)."]);return}
         cmd.arguments=cmd.arguments.map {$0=="{input}" ? values["input"] ?? "":$0=="{uuid}" ? UUID().uuidString:$0}
-        let ephemeralSystem=["system.menu:","system.window:"].contains {cmd.target.hasPrefix($0)}
-        let analyticsID=cmd.target.hasPrefix("system.menu:") ? "system.menu":cmd.target.hasPrefix("system.window:") ? "system.window":cmd.id
+        let ephemeralSystem=["system.menu:","system.window:","system.tab:"].contains {cmd.target.hasPrefix($0)}
+        let analyticsID=cmd.target.hasPrefix("system.tab:") ? "system.tab":cmd.target.hasPrefix("system.menu:") ? "system.menu":cmd.target.hasPrefix("system.window:") ? "system.window":cmd.id
         let started=DispatchTime.now().uptimeNanoseconds,tracked=analytics.recordAttempt(analyticsID,source:source)
         let traceID=UUID().uuidString
         self.commandLog.record(CommandLogEntry(traceID:traceID,commandID:CommandLog.clean(cmd.id,limit:512),source:source,phase:"command.start"))
@@ -467,6 +469,12 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                     };finish(["ok":true]);return
                 }
                 if cmd.target=="system-monitor" {guard !headless else {throw LauncherError("The monitor window is unavailable in headless mode. Use ruycast monitor for data.")};hidePalette?();showSystemMonitor?();finish(["ok":true,"result":["state":"opened"]]);return}
+                if cmd.target.hasPrefix("system.tab:") {
+                    if source != "cli" {hidePalette?()}
+                    systemServices.executeTab(cmd.target) {result in
+                        switch result {case .success:finish(["ok":true,"result":["state":"selected"]]);case .failure(let error):finish(["ok":false,"error":error.localizedDescription])}
+                    };return
+                }
                 if cmd.target.hasPrefix("system.") || cmd.target=="lock-screen" {
                     let response=systemServices.execute(target:cmd.target,confirmed:confirmed,previousPID:targetPID())
                     if response["ok"] as? Bool==true {if cmd.target.hasPrefix("system.kill:") {systemServices.invalidateProcessCache();refreshProcessResults();showToast?("Killed "+cmd.title,true)} else {hidePalette?()}};finish(response);return
@@ -476,7 +484,13 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                 else if cmd.target=="settings" {hidePalette?();showManagement?()}
                 else if cmd.target=="create-snippet" {newCommand("snippet")}
                 else if cmd.target=="create-quicklink" {newCommand("url")}
-                else {let modes=["search-files":"files","search-menu-items":"menus","switch-windows":"windows","apple-shortcuts":"shortcuts","kill-process":"processes"];showPalette?(modes[cmd.target] ?? cmd.target)}
+                else {let modes=["search-files":"files","search-menu-items":"menus","switch-windows":"windows","search-safari-tabs":"tabs","apple-shortcuts":"shortcuts","kill-process":"processes"];showPalette?(modes[cmd.target] ?? cmd.target)}
+                if cmd.target=="search-safari-tabs",source != "cli" {
+                    systemServices.requestBrowserConsent { [weak self] in
+                        guard let self,self.paletteVisible,self.mode=="tabs" else {return}
+                        self.refreshNativeResults()
+                    }
+                }
                 finish(["ok":true,"result":["state":"opened"]])
             case "script":
                 if AppleShortcuts.recognizes(cmd),source != "cli" {hidePalette?()}
@@ -579,9 +593,9 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                 reply(["ok":true,"result":status])
             case "search":
                 let query=req["query"] as? String ?? "",scope=req["mode"] as? String ?? "commands"
-                if ["files","menus","windows","shortcuts","processes"].contains(scope) {
+                if ["files","menus","windows","tabs","shortcuts","processes"].contains(scope) {
                     systemServices.search(mode:scope,query:query,previousPID:targetPID(),session:SystemSearchSession()) {result in
-                        switch result {case .success(let snapshot):let commands=scope=="shortcuts" ? self.mergedShortcuts(snapshot.commands,query:query):snapshot.commands;self.rememberServices(commands);reply(["ok":true,"result":commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let menu=snapshot.menus[command.id] {row["menu"]=jsonValue(menu)};if let window=snapshot.windows[command.id] {row["window"]=jsonValue(window)};return row}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
+                        switch result {case .success(let snapshot):let commands=scope=="shortcuts" ? self.mergedShortcuts(snapshot.commands,query:query):snapshot.commands;self.rememberServices(commands);reply(["ok":true,"result":commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let menu=snapshot.menus[command.id] {row["menu"]=jsonValue(menu)};if let window=snapshot.windows[command.id] {row["window"]=jsonValue(window)};if let tab=snapshot.tabs[command.id] {row["tab"]=jsonValue(tab)};return row}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                     }
                 } else if scope.hasPrefix("utility-") {let commands=try utilities.commands(mode:scope,query:query);rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)])}
                 else {reply(["ok":true,"result":jsonValue(searchCommands(query,mode:scope,limit:req["limit"] as? Int ?? 100))])}

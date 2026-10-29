@@ -14,6 +14,7 @@ extension AppState {
     func actionTitle(for command:Command)->String {
         if command.target.hasPrefix("system.kill:") {return "Kill"}
         if command.target.hasPrefix("system.menu:") {return "Run"}
+        if command.target.hasPrefix("system.tab:") {return "Switch to Tab"}
         if command.target.hasPrefix("system.window:") {return "Switch to Window"}
         if AppleShortcuts.recognizes(command) {return "Run Shortcut"}
         if command.kind=="snippet" {return "Insert Snippet"}

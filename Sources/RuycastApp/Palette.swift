@@ -36,7 +36,7 @@ struct Palette:View {
                 Image(systemName:isClipboard ? "doc.on.clipboard":"command")
                     .font(.system(size:18,weight:.medium)).foregroundStyle(.tertiary).frame(width:22)
                 if let command=state.inlineCommand {Text(command.title).font(.system(size:12,weight:.semibold)).lineLimit(1).padding(6).background(Color.primary.opacity(0.08),in:RoundedRectangle(cornerRadius:5))}
-                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {TaskDateInput.supports($0) ? "Datum, bijv. morgen of in 3 days":Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":state.mode=="menus" ? "Search app menu…":state.mode=="windows" ? "Search windows…":state.mode=="shortcuts" ? "Search Apple Shortcuts…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
+                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {TaskDateInput.supports($0) ? "Datum, bijv. morgen of in 3 days":Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":state.mode=="menus" ? "Search app menu…":state.mode=="windows" ? "Search windows…":state.mode=="tabs" ? "Search Safari tabs…":state.mode=="shortcuts" ? "Search Apple Shortcuts…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
             }.padding(.horizontal,20).frame(height:62)
 
             if let preview=state.inlineDatePreview,state.inlineCommand.map(TaskDateInput.supports)==true {
@@ -61,7 +61,7 @@ struct Palette:View {
                     Button {state.mode="commands"} label:{Label("Back",systemImage:"chevron.left")}.buttonStyle(.plain)
                 }
                 Spacer()
-                if state.busy || state.menuSearchBusy || state.windowSearchBusy || state.shortcutSearchBusy {ProgressView().controlSize(.small)}
+                if state.busy || state.menuSearchBusy || state.windowSearchBusy || state.tabSearchBusy || state.shortcutSearchBusy {ProgressView().controlSize(.small)}
                 if isClipboard {
                     Button("Copy ⌘↵") {copy()}.keyboardShortcut(.return,modifiers:.command).buttonStyle(.plain)
                     Text("Paste ↵").foregroundStyle(.secondary)
@@ -70,12 +70,12 @@ struct Palette:View {
                     .popover(isPresented:Binding(get:{state.actionsOpen},set:{state.actionsOpen=$0}),arrowEdge:.bottom) {PaletteActions(state:state)}
                 Button {
                     if state.mode=="processes" {state.refreshProcessResults();return}
-                    if ["menus","windows","shortcuts"].contains(state.mode) {state.refreshNativeResults();return}
+                    if ["menus","windows","tabs","shortcuts"].contains(state.mode) {state.refreshNativeResults();return}
                     state.handle(["op":"reload"]) {r in
                         state.message=r["ok"] as? Bool == true ? "":r["error"] as? String ?? "Reload failed."
                     }
                 } label:{Image(systemName:"arrow.clockwise").foregroundStyle(.secondary)}
-                    .buttonStyle(.plain).help(state.mode=="processes" ? "Refresh processes":state.mode=="menus" ? "Refresh menu actions":state.mode=="windows" ? "Refresh windows":state.mode=="shortcuts" ? "Refresh shortcuts":"Reload configuration").accessibilityLabel(state.mode=="processes" ? "Refresh processes":state.mode=="menus" ? "Refresh menu actions":state.mode=="windows" ? "Refresh windows":state.mode=="shortcuts" ? "Refresh shortcuts":"Reload configuration")
+                    .buttonStyle(.plain).help(state.mode=="processes" ? "Refresh processes":state.mode=="menus" ? "Refresh menu actions":state.mode=="windows" ? "Refresh windows":state.mode=="tabs" ? "Refresh Safari tabs":state.mode=="shortcuts" ? "Refresh shortcuts":"Reload configuration").accessibilityLabel(state.mode=="processes" ? "Refresh processes":state.mode=="menus" ? "Refresh menu actions":state.mode=="windows" ? "Refresh windows":state.mode=="tabs" ? "Refresh Safari tabs":state.mode=="shortcuts" ? "Refresh shortcuts":"Reload configuration")
             }.font(.system(size:11)).padding(.horizontal,16).frame(height:38)
         }
         .frame(maxWidth:.infinity,maxHeight:.infinity)
@@ -153,7 +153,7 @@ final class PalettePanel:NSPanel {
         if let openTrace {PerformanceTrace.shared.finish(openTrace,cancelled:true)}
         openTrace=PerformanceTrace.shared.begin(.openReady)
         let trace=openTrace!
-        let refreshNative=["menus","windows","shortcuts"].contains(mode) && state.mode==mode && state.query.isEmpty
+        let refreshNative=["menus","windows","tabs","shortcuts"].contains(mode) && state.mode==mode && state.query.isEmpty
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {state.previousPID=app.processIdentifier}
         state.inlineCommand=nil;state.inlineInput="";state.query="";state.message="";state.mode=mode;state.detail=nil;state.scriptChoices=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
         if refreshNative {state.refreshNativeResults()}

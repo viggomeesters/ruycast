@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.18 — search existing Safari tabs
+
+- Add Search Safari Tabs with title/address filtering, address subtitles, refresh and CLI parity.
+- Use native PID-addressed AppleEvents with no-prompt data sends, short-lived metadata and checked existing-tab selection. Do not collect browser history or open replacement tabs.
+- Reject known changed/closed/ambiguous targets and verify selection before and after app activation. Safari exposes no immutable tab IDs: identical replacement and non-atomic selection remain documented limitations.
+- Isolate interactive consent from data deadlines, cancel queued requests, discard late callbacks and expire queued app activation before it can run.
+
 ## 0.8.17 — discover and run Apple Shortcuts
 
 - Add Search Apple Shortcuts with on-demand discovery, fixed UUID execution, alias and hotkey actions, and preserved configuration overrides.

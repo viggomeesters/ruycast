@@ -167,6 +167,15 @@ Run **Search Windows** (alias `windows`), or an existing command targeting `swit
 Accessibility permission is required. Search considers up to 200 regular applications, 50 exposed windows per app and 100 results within a cooperative two-second traversal budget, with per-read AX timeouts. Availability across Spaces and keyboard focus depend on the source app and macOS; universal cross-Space/focus behavior is not promised. Windows without readable identity/title are skipped; an empty but readable title appears as **Untitled Window**.
 
 
+### Safari tabs
+
+Run **Search Safari Tabs** (aliases `tabs`, `safari-tabs`, `tabbladen`) to search existing open tabs by title or address. Results show the address; Return switches to that tab. Refresh reloads Safari. Safari must already be running. The first interactive entry can request macOS Automation permission for Safari. Background/CLI data requests never prompt; if access is denied, allow Safari under Ruycast in System Settings → Privacy & Security → Automation and refresh.
+
+CLI: `ruycast search --mode tabs` returns temporary results with a `tab.url` field; `ruycast run ID` selects the captured result. Discovery is on demand, caches for one second, and retains at most 512 tabs from 64 windows with an eight-second data deadline, 8 KiB per metadata string and 2 MiB retained response/metadata limits. The OS allocates AppleEvent replies before their size is checked. Targets expire after 30 seconds or a newer snapshot; they are not saved as alias/hotkey commands. Tab titles and addresses stay in memory; temporary IDs do not enter usage/recency, and analytics uses one category. No history, private browser files or page scripts are read.
+
+Safari has no immutable tab ID in its automation interface. Ruycast checks the captured process lifetime, window ID, position, title and address before selection, then verifies the selected tab before bringing Safari forward and afterwards. Known closed/moved/changed targets and same-window tabs with identical title and address require a new search or manual selection in Safari; there is no name/address fallback, navigation, new tab or automatic retry. A tab closed and identically recreated at the same position cannot be distinguished, and checks plus selection are not atomic. A timeout or mismatch after selection does not undo a change Safari already processed. Cancelling discovery prevents new reads and ignores late results; it cannot revoke processed browser actions or dismiss an already displayed OS permission dialog. Physical focus/Spaces behavior and actual Safari tab activation remain outside the automated fixture acceptance.
+
+
 ### Apple Shortcuts
 
 Run **Search Apple Shortcuts** (aliases `apple-shortcuts`, `opdrachten`) to list existing macOS shortcuts. Type to filter by name or a saved alias; Return runs the selected shortcut by its fixed UUID. Names do not become shell commands. Use **Set Alias…** or **Set Hotkey…** from its Actions menu to save bindings; disabling a shortcut in Ruycast preserves the original in Shortcuts.
