@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.16 — search and switch existing windows
+
+- Find open windows by title or app, with app origin, untitled-window fallback and exposed minimized state. Reuse existing configured Switch Windows commands.
+- Recheck the exact captured window and original app before and after activation; verify minimized restoration before raising. Reject closed, changed, unreadable or reused targets. Bound native reads and traversal.
+- Add native window search, loading, empty and recovery states; refresh and cancel stale results. Keep temporary window results out of persistent usage/recency and aggregate their analytics.
+
 ## 0.8.15 — app menu actions and shortcuts
 
 - Search the original app’s menu actions with their menu path, app name and available shortcut; keep unavailable items visible.

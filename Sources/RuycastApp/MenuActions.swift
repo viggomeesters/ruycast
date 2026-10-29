@@ -6,6 +6,7 @@ import LauncherModels
 struct SystemSearchResults:Sendable {
     let commands:[Command]
     var menus:[String:MenuActionInfo]=[:]
+    var windows:[String:WindowActionInfo]=[:]
 }
 
 /// App-provided shortcuts are presentation data, never launcher registrations.
@@ -47,37 +48,6 @@ struct MenuAncestor {
     let element:AXUIElement
     let title:String
     let role:String
-}
-enum MenuAccessibility {
-    static func boolean(_ value:CFTypeRef?)->Bool? {
-        guard let value,CFGetTypeID(value)==CFBooleanGetTypeID() else {return nil}
-        return value as? Bool
-    }
-    static func integer(_ value:CFTypeRef?)->Int? {
-        guard let value,CFGetTypeID(value)==CFNumberGetTypeID() else {return nil}
-        return (value as? NSNumber)?.intValue
-    }
-    static func pid(_ element:AXUIElement)->pid_t? {
-        var pid:pid_t=0
-        return AXUIElementGetPid(element,&pid) == .success ? pid:nil
-    }
-    static func value(_ element:AXUIElement,_ key:String)->CFTypeRef? {
-        AXUIElementSetMessagingTimeout(element,0.12)
-        var result:CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element,key as CFString,&result) == .success else {return nil}
-        return result
-    }
-    static func children(_ element:AXUIElement,_ limit:Int)->[AXUIElement]? {
-        guard limit>0 else {return []}
-        AXUIElementSetMessagingTimeout(element,0.12)
-        var count:CFIndex=0,raw:CFArray?
-        let status=AXUIElementGetAttributeValueCount(element,kAXChildrenAttribute as CFString,&count)
-        if status == .attributeUnsupported {return []}
-        guard status == .success else {return nil}
-        if count==0 {return []}
-        guard AXUIElementCopyAttributeValues(element,kAXChildrenAttribute as CFString,0,min(count,limit),&raw) == .success else {return nil}
-        return raw as? [AXUIElement]
-    }
 }
 struct MenuShortcutBadge:View {
     let shortcut:MenuShortcut

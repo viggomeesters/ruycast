@@ -14,17 +14,27 @@ final class SystemServices:@unchecked Sendable {
         var processes: @Sendable () throws -> [ProcessResource] = ResourceSampler.processTable
         var identity: @Sendable (pid_t) -> Identity? = SystemServices.identity
         var trusted: @Sendable () -> Bool = { AXIsProcessTrusted() }
+        var windowApplications: @Sendable () -> [WindowSearchApplication] = WindowSearchApplication.running
+        var windowApplication: @Sendable (pid_t) -> AXUIElement = {AXUIElementCreateApplication($0)}
+        var windowAttribute: @Sendable (AXUIElement,String) -> CFTypeRef? = SystemAccessibility.value
+        var windowList: @Sendable (AXUIElement,Int) -> [AXUIElement]? = {SystemAccessibility.elements($0,kAXWindowsAttribute,$1)}
+        var windowElementPID: @Sendable (AXUIElement) -> pid_t? = SystemAccessibility.pid
+        var windowClock: @Sendable () -> TimeInterval = {ProcessInfo.processInfo.systemUptime}
+        var restoreWindow: @MainActor @Sendable (AXUIElement) -> AXError = {element in
+            AXUIElementSetMessagingTimeout(element,0.12)
+            return AXUIElementSetAttributeValue(element,kAXMinimizedAttribute as CFString,kCFBooleanFalse)
+        }
         var menuApplication: @Sendable (pid_t) -> AXUIElement = {AXUIElementCreateApplication($0)}
-        var menuAttribute: @Sendable (AXUIElement,String) -> CFTypeRef? = MenuAccessibility.value
-        var menuChildren: @Sendable (AXUIElement,Int) -> [AXUIElement]? = MenuAccessibility.children
+        var menuAttribute: @Sendable (AXUIElement,String) -> CFTypeRef? = SystemAccessibility.value
+        var menuChildren: @Sendable (AXUIElement,Int) -> [AXUIElement]? = SystemAccessibility.children
         var menuApplicationName: @Sendable (pid_t) -> String = {NSRunningApplication(processIdentifier:$0)?.localizedName ?? "App"}
         var menuClock: @Sendable () -> TimeInterval = {ProcessInfo.processInfo.systemUptime}
-        var menuElementPID: @Sendable (AXUIElement) -> pid_t? = MenuAccessibility.pid
+        var menuElementPID: @Sendable (AXUIElement) -> pid_t? = SystemAccessibility.pid
         var terminate: @MainActor @Sendable (pid_t) -> Int32 = { Darwin.kill($0, SIGKILL) }
         var activate: @MainActor @Sendable (pid_t) -> Bool = { NSRunningApplication(processIdentifier:$0)?.activate(options:[]) ?? false }
         var press: @MainActor @Sendable (AXUIElement) -> AXError = { AXUIElementPerformAction($0,kAXPressAction as CFString) }
         var raise: @MainActor @Sendable (AXUIElement) -> AXError = { element in
-            _ = AXUIElementSetAttributeValue(element,kAXMinimizedAttribute as CFString,kCFBooleanFalse)
+            AXUIElementSetMessagingTimeout(element,0.12)
             return AXUIElementPerformAction(element,kAXRaiseAction as CFString)
         }
         var monitor: @MainActor @Sendable () -> Bool = {
@@ -45,7 +55,7 @@ final class SystemServices:@unchecked Sendable {
             down.post(tap:.cghidEventTap);up.post(tap:.cghidEventTap)
         }
     }
-    struct Target { let kind:String; let identity:Identity; let element:AXUIElement?; let menu:MenuActionInfo?;let menuAncestors:[MenuAncestor] }
+    struct Target { let kind:String; let identity:Identity; let element:AXUIElement?; let menu:MenuActionInfo?;let menuAncestors:[MenuAncestor];let window:WindowActionInfo? }
     private let effects:Effects
     private let lock=NSLock()
     let interactiveSession=SystemSearchSession()
@@ -79,7 +89,7 @@ final class SystemServices:@unchecked Sendable {
                 switch mode {
                 case "files":return SystemSearchResults(commands:try self.files(query,version:version))
                 case "menus":return try self.menus(query,pid:previousPID,version:version)
-                case "windows":return SystemSearchResults(commands:try self.windows(query,version:version))
+                case "windows":return try self.windows(query,version:version)
                 case "processes":return SystemSearchResults(commands:try self.processes(query,version:version))
                 default:throw LauncherError("Unknown system search.")
                 }
@@ -88,14 +98,14 @@ final class SystemServices:@unchecked Sendable {
         }
     }
     private func current(_ version:SystemSearchSession.Ticket)->Bool {version.current}
-    @discardableResult func remember(kind:String,identity:Identity,element:AXUIElement?,key:String,menu:MenuActionInfo?=nil,ancestors:[MenuAncestor]=[])->String {
+    @discardableResult func remember(kind:String,identity:Identity,element:AXUIElement?,key:String,menu:MenuActionInfo?=nil,ancestors:[MenuAncestor]=[],window:WindowActionInfo?=nil)->String {
         let token=Self.token("\(kind):\(identity.pid):\(identity.seconds):\(identity.micros):\(key)")
         lock.lock();defer {lock.unlock()}
         if targets[token]==nil {
             if targetOrder.count>=2048 {targets.removeValue(forKey:targetOrder.removeFirst())}
             targetOrder.append(token)
         }
-        targets[token]=Target(kind:kind,identity:identity,element:element,menu:menu,menuAncestors:ancestors)
+        targets[token]=Target(kind:kind,identity:identity,element:element,menu:menu,menuAncestors:ancestors,window:window)
         return "system.\(kind):\(token)"
     }
     func requiresConfirmation(target:String)->Bool {false}
@@ -125,7 +135,7 @@ final class SystemServices:@unchecked Sendable {
                         guard effects.menuElementPID(ancestor.element)==stored.identity.pid,
                               read(ancestor.element,kAXRoleAttribute) as? String==ancestor.role,
                               read(ancestor.element,kAXTitleAttribute) as? String==ancestor.title,
-                              ancestor.role==kAXMenuBarItemRole ? MenuAccessibility.boolean(read(ancestor.element,kAXEnabledAttribute)) != false:MenuAccessibility.boolean(read(ancestor.element,kAXEnabledAttribute))==true else {throw LauncherError("This menu item changed or is unavailable. Search its menu again.")}
+                              ancestor.role==kAXMenuBarItemRole ? SystemAccessibility.boolean(read(ancestor.element,kAXEnabledAttribute)) != false:SystemAccessibility.boolean(read(ancestor.element,kAXEnabledAttribute))==true else {throw LauncherError("This menu item changed or is unavailable. Search its menu again.")}
                     }
                     guard effects.menuClock()<deadline,effects.menuChildren(element,1)?.isEmpty==true,effects.identity(stored.identity.pid)==stored.identity else {throw LauncherError("This menu item changed or is unavailable. Search its menu again.")}
                 }
@@ -135,7 +145,28 @@ final class SystemServices:@unchecked Sendable {
                 try validate()
                 guard effects.press(element) == .success else {throw LauncherError("This menu item is no longer available.")}
             } else if stored.kind=="window" {
-                guard effects.raise(element) == .success,effects.activate(stored.identity.pid) else {throw LauncherError("Could not switch to this window.")}
+                guard let captured=stored.window else {throw LauncherError("This window has expired. Search again.")}
+                let deadline=effects.windowClock()+2,app=effects.windowApplication(stored.identity.pid)
+                func validate()->(valid:Bool,minimized:Bool?) {
+                    guard effects.windowClock()<deadline,effects.trusted(),effects.identity(stored.identity.pid)==stored.identity,
+                          effects.windowElementPID(element)==stored.identity.pid,effects.windowElementPID(app)==stored.identity.pid,
+                          effects.windowAttribute(element,kAXRoleAttribute) as? String==kAXWindowRole,
+                          effects.windowClock()<deadline,effects.windowAttribute(element,kAXTitleAttribute) as? String==captured.title,
+                          effects.windowClock()<deadline,let members=effects.windowList(app,50),members.contains(where:{CFEqual($0,element)}),
+                          effects.windowClock()<deadline,effects.identity(stored.identity.pid)==stored.identity else {return (false,nil)}
+                    return (true,SystemAccessibility.boolean(effects.windowAttribute(element,kAXMinimizedAttribute)))
+                }
+                guard validate().valid else {throw LauncherError("This window changed or closed. Search again.")}
+                guard effects.activate(stored.identity.pid) else {throw LauncherError("Could not activate this window’s app.")}
+                let current=validate()
+                guard current.valid else {throw LauncherError("This window changed or closed. Search again.")}
+                if current.minimized==true {
+                    guard effects.restoreWindow(element) == .success else {throw LauncherError("Could not restore this window.")}
+                    let restored=validate()
+                    guard restored.valid,restored.minimized==false else {throw LauncherError("This window could not be restored. Search again.")}
+                }
+                guard effects.windowClock()<deadline,effects.trusted(),effects.identity(stored.identity.pid)==stored.identity,
+                      effects.raise(element) == .success else {throw LauncherError("Could not switch to this window.")}
             } else {throw LauncherError("Unknown system action.")}
             return ["ok":true]
         } catch {return ["ok":false,"error":error.localizedDescription]}
@@ -163,9 +194,6 @@ final class SystemServices:@unchecked Sendable {
         }
         return paths.prefix(100).map {Command(id:"system.file."+Self.token($0),title:URL(fileURLWithPath:$0).lastPathComponent,kind:"path",target:$0,aliases:[$0])}
     }
-    private func value(_ element:AXUIElement,_ key:String)->CFTypeRef? {var result:CFTypeRef?;guard AXUIElementCopyAttributeValue(element,key as CFString,&result) == .success else {return nil};return result}
-    private func children(_ element:AXUIElement,_ key:String=kAXChildrenAttribute)->[AXUIElement] {value(element,key) as? [AXUIElement] ?? []}
-    private func text(_ element:AXUIElement,_ key:String=kAXTitleAttribute)->String {value(element,key) as? String ?? ""}
     private func matches(_ title:String,_ query:String)->Bool {query.isEmpty || title.localizedCaseInsensitiveContains(query)}
     private func menus(_ query:String,pid:pid_t?,version:SystemSearchSession.Ticket) throws -> SystemSearchResults {
         guard effects.trusted() else {throw LauncherError("Allow Ruycast in System Settings → Privacy & Security → Accessibility to search app menus.")}
@@ -181,13 +209,13 @@ final class SystemServices:@unchecked Sendable {
             let role=read(node,kAXRoleAttribute) as? String ?? "",title=read(node,kAXTitleAttribute) as? String ?? ""
             let named = !title.isEmpty && (role==kAXMenuItemRole || role==kAXMenuBarItemRole)
             let path=named ? ancestors+[MenuAncestor(element:node,title:title,role:role)]:ancestors
-            let enabled=parentEnabled && (role==kAXMenuItemRole ? MenuAccessibility.boolean(read(node,kAXEnabledAttribute))==true:MenuAccessibility.boolean(read(node,kAXEnabledAttribute)) != false)
+            let enabled=parentEnabled && (role==kAXMenuItemRole ? SystemAccessibility.boolean(read(node,kAXEnabledAttribute))==true:SystemAccessibility.boolean(read(node,kAXEnabledAttribute)) != false)
             guard available() else {return}
             guard let kids=effects.menuChildren(node,1200-visited) else {return}
             if named,kids.isEmpty,role==kAXMenuItemRole {
                 let breadcrumb=path.dropLast().map(\.title).joined(separator:" › ")
                 if matches(name+" "+breadcrumb+" "+title,query) {
-                    let shortcut=MenuShortcut(character:read(node,kAXMenuItemCmdCharAttribute) as? String,glyph:MenuAccessibility.integer(read(node,kAXMenuItemCmdGlyphAttribute)),virtualKey:MenuAccessibility.integer(read(node,kAXMenuItemCmdVirtualKeyAttribute)),modifiers:MenuAccessibility.integer(read(node,kAXMenuItemCmdModifiersAttribute)))
+                    let shortcut=MenuShortcut(character:read(node,kAXMenuItemCmdCharAttribute) as? String,glyph:SystemAccessibility.integer(read(node,kAXMenuItemCmdGlyphAttribute)),virtualKey:SystemAccessibility.integer(read(node,kAXMenuItemCmdVirtualKeyAttribute)),modifiers:SystemAccessibility.integer(read(node,kAXMenuItemCmdModifiersAttribute)))
                     guard available() else {return}
                     let info=MenuActionInfo(application:name,path:breadcrumb,title:title,shortcut:shortcut,enabled:enabled)
                     // A new scan cannot retarget an already returned opaque action.
@@ -201,22 +229,28 @@ final class SystemServices:@unchecked Sendable {
         guard effects.identity(pid)==identity else {throw LauncherError("The original app changed. Search its menu again.")}
         return SystemSearchResults(commands:results,menus:metadata)
     }
-    private func windows(_ query:String,version:SystemSearchSession.Ticket) throws -> [Command] {
-        guard effects.trusted() else {throw LauncherError("Allow Accessibility access to switch windows.")}
-        let deadline=Date().addingTimeInterval(3);var results=[Command]()
-        for app in NSWorkspace.shared.runningApplications where app.processIdentifier != getpid() && app.activationPolicy == .regular {
-            guard current(version),Date()<deadline,results.count<100 else {break}
-            guard let identity=effects.identity(app.processIdentifier) else {continue}
-            let element=AXUIElementCreateApplication(app.processIdentifier);AXUIElementSetMessagingTimeout(element,0.15)
-            for (index,window) in children(element,kAXWindowsAttribute).prefix(50).enumerated() {
-                let title=text(window);guard !title.isEmpty else {continue}
-                let label="\(title) — \(app.localizedName ?? "App")"
-                guard matches(label,query) else {continue}
-                let target=remember(kind:"window",identity:identity,element:window,key:"\(index):\(CFHash(window))")
-                results.append(Command(id:target,title:label,kind:"builtin",target:target));if results.count==100 {break}
+    private func windows(_ query:String,version:SystemSearchSession.Ticket) throws -> SystemSearchResults {
+        guard effects.trusted() else {throw LauncherError("Allow Ruycast in System Settings → Privacy & Security → Accessibility to search windows.")}
+        let deadline=effects.windowClock()+2;var commands=[Command](),metadata=[String:WindowActionInfo]()
+        func available()->Bool {current(version) && effects.windowClock()<deadline && commands.count<100}
+        for app in effects.windowApplications().prefix(200) {
+            guard available() else {break}
+            guard app.pid != getpid(),app.pid>1,let identity=effects.identity(app.pid),identity.uid==getuid() else {continue}
+            let application=effects.windowApplication(app.pid)
+            guard available(),effects.windowElementPID(application)==app.pid,let windows=effects.windowList(application,50) else {continue}
+            for window in windows {
+                guard available() else {break}
+                guard effects.windowElementPID(window)==app.pid,effects.windowAttribute(window,kAXRoleAttribute) as? String==kAXWindowRole,
+                      available(),let title=effects.windowAttribute(window,kAXTitleAttribute) as? String else {continue}
+                guard matches(app.name+" "+title,query),available(),effects.identity(app.pid)==identity else {continue}
+                let minimized=SystemAccessibility.boolean(effects.windowAttribute(window,kAXMinimizedAttribute))
+                guard available() else {break}
+                let info=WindowActionInfo(application:app.name,title:title,minimized:minimized)
+                let target=remember(kind:"window",identity:identity,element:window,key:UUID().uuidString,window:info)
+                metadata[target]=info;commands.append(Command(id:target,title:title.isEmpty ? "Untitled Window":title,kind:"builtin",target:target))
             }
         }
-        return results
+        return SystemSearchResults(commands:commands,windows:metadata)
     }
     func invalidateProcessCache() {worker.async { [weak self] in self?.processCacheDate=Date.distantPast}}
     var processResources:[String:ProcessResource] {lock.lock();defer {lock.unlock()};return resources}

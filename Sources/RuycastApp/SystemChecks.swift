@@ -3,6 +3,8 @@ import ApplicationServices
 import LauncherCore
 import LauncherModels
 
+private final class SystemWindowFixture:@unchecked Sendable {let element=AXUIElementCreateApplication(123456)}
+
 /// Uses fake process identities and injected effects; never changes the desktop.
 @MainActor func checkSystemServices() throws -> [String:Any] {
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
@@ -12,7 +14,11 @@ import LauncherModels
     var killed=[pid_t](),pressed=0,raised=0,activated=0,monitored=0,locked=0
     let trustedBox=LockedValue(true)
     var trusted:Bool {get {trustedBox.read {$0}} set {trustedBox.update {$0=newValue}}}
+    let windowFixture=SystemWindowFixture()
     var effects=SystemServices.Effects()
+    effects.windowApplication={_ in windowFixture.element};effects.windowElementPID={_ in identity.pid}
+    effects.windowList={_,_ in [windowFixture.element]}
+    effects.windowAttribute={_,key in switch key {case kAXRoleAttribute:return kAXWindowRole as CFString;case kAXTitleAttribute:return "Fixture" as CFString;case kAXMinimizedAttribute:return kCFBooleanFalse;default:return nil}}
     effects.identity={_ in currentBox.read {$0}};effects.trusted={trustedBox.read {$0}}
     effects.terminate={killed.append($0);return 0}
     effects.activate={_ in activated+=1;return true}
@@ -51,7 +57,7 @@ import LauncherModels
     try require(service.execute(target:menu,previousPID:identity.pid)["ok"] as? Bool==false && pressed==0,"Menu permission was bypassed.")
     trusted=true
     try require(service.execute(target:menu,previousPID:identity.pid)["ok"] as? Bool==true && pressed==1 && activated==1,"Menu action was not routed to its original app.")
-    let window=service.remember(kind:"window",identity:identity,element:element,key:"window")
+    let window=service.remember(kind:"window",identity:identity,element:windowFixture.element,key:"window",window:WindowActionInfo(application:"Fixture",title:"Fixture",minimized:false))
     try require(raised==0,"Window enumeration raised a window.")
     try require(service.execute(target:window)["ok"] as? Bool==true && raised==1 && activated==2,"Window action did not raise and activate.")
     try require(service.execute(target:kill.replacingOccurrences(of:"system.kill:",with:"system.menu:"),confirmed:true)["ok"] as? Bool==false,"A token could be used for another action.")
