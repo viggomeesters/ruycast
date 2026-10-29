@@ -72,6 +72,8 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     var message:String {get {paletteSession.message} set {paletteSession.message=newValue}}
     var menuSearchBusy:Bool {mode=="menus" && paletteSession.nativeSearchBusy}
     var windowSearchBusy:Bool {mode=="windows" && paletteSession.nativeSearchBusy}
+    var shortcutSearchBusy:Bool {mode=="shortcuts" && paletteSession.nativeSearchBusy}
+    var scriptExecution:@Sendable (Command)throws->Data = AppState.runScriptProcess
     var busy:Bool {get {paletteSession.busy} set {paletteSession.busy=newValue}}
     var paused:Bool {get {clipboardState.paused} set {clipboardState.paused=newValue}}
     var clipboardCleanupError:String? {get {clipboardState.clipboardCleanupError} set {clipboardState.clipboardCleanupError=newValue}}
@@ -181,12 +183,12 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     }
     private func refreshResults(preserveSelection:Bool=false) {
         let started=DispatchTime.now().uptimeNanoseconds
-        defer {if !["files","menus","windows","processes"].contains(mode) {analytics.recordTiming("search.model",ms:AnalyticsStore.elapsed(started))}}
+        defer {if !["files","menus","windows","shortcuts","processes"].contains(mode) {analytics.recordTiming("search.model",ms:AnalyticsStore.elapsed(started))}}
         searchEvaluations+=1;if !preserveSelection {selection=0};resultGeneration+=1
         paletteSession.nativeSearchBusy=false
         let generation=resultGeneration
         if mode=="clipboard" {systemServices.cancel();if !results.isEmpty {results=[]};return}
-        if ["files","menus","windows","processes"].contains(mode) {
+        if ["files","menus","windows","shortcuts","processes"].contains(mode) {
             if !preserveSelection {results=[]}
             if mode=="processes" {
                 systemServices.cancel()
@@ -198,7 +200,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                     }
                 }
             } else {
-                paletteSession.nativeSearchBusy=["menus","windows"].contains(mode)
+                paletteSession.nativeSearchBusy=["menus","windows","shortcuts"].contains(mode)
                 systemServices.search(mode:mode,query:query,previousPID:previousPID) { [weak self] result in
                     guard let self,self.resultGeneration==generation else {return}
                     self.paletteSession.nativeSearchBusy=false
@@ -274,7 +276,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     }
     func applySystemResults(_ commands:[Command],resources:[String:ProcessResource],preserveSelection:Bool,menus:[String:MenuActionInfo]=[:],windows:[String:WindowActionInfo]=[:]) {
         let selectedID=preserveSelection ? selectedCommand?.id:nil
-        processResources=resources;menuActions=menus;windowActions=windows;results=commands;rememberServices(commands)
+        processResources=resources;menuActions=menus;windowActions=windows;results=mode=="shortcuts" ? mergedShortcuts(commands,query:query):commands;rememberServices(results)
         if preserveSelection {selection=selectedID.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
     }
     func rebuildProcessOrder() {
@@ -287,9 +289,9 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     }
     func setProcessSort(_ sort:ProcessSort) {let id=selectedCommand?.id;processSort=sort;selection=id.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
     func refreshProcessResults() {refreshResults(preserveSelection:true)}
-    func refreshNativeResults() {guard ["menus","windows"].contains(mode) else {return};message="";refreshResults()}
+    func refreshNativeResults() {guard ["menus","windows","shortcuts"].contains(mode) else {return};if mode=="shortcuts" {systemServices.invalidateShortcutCache()};message="";refreshResults()}
     func refreshMenuResults() {guard mode=="menus" else {return};refreshNativeResults()}
-    func cancelNativeSearch() {guard ["menus","windows"].contains(mode) else {return};resultGeneration+=1;systemServices.cancel();paletteSession.nativeSearchBusy=false}
+    func cancelNativeSearch() {guard ["menus","windows","shortcuts"].contains(mode) else {return};resultGeneration+=1;systemServices.cancel();paletteSession.nativeSearchBusy=false}
     func cancelMenuSearch() {guard mode=="menus" else {return};cancelNativeSearch()}
     private func tick() {
         if paletteVisible,mode=="processes",Date().timeIntervalSince(lastProcessRefresh)>2 {lastProcessRefresh=Date();refreshProcessResults()}
@@ -474,28 +476,39 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                 else if cmd.target=="settings" {hidePalette?();showManagement?()}
                 else if cmd.target=="create-snippet" {newCommand("snippet")}
                 else if cmd.target=="create-quicklink" {newCommand("url")}
-                else {let modes=["search-files":"files","search-menu-items":"menus","switch-windows":"windows","kill-process":"processes"];showPalette?(modes[cmd.target] ?? cmd.target)}
+                else {let modes=["search-files":"files","search-menu-items":"menus","switch-windows":"windows","apple-shortcuts":"shortcuts","kill-process":"processes"];showPalette?(modes[cmd.target] ?? cmd.target)}
                 finish(["ok":true,"result":["state":"opened"]])
-            case "script":runScript(cmd,openResult:openResult,source:source,completion:finish)
+            case "script":
+                if AppleShortcuts.recognizes(cmd),source != "cli" {hidePalette?()}
+                runScript(cmd,openResult:openResult,source:source,completion:finish)
             default:throw LauncherError("Unsupported command kind.")
             }
         } catch {finish(["ok":false,"error":error.localizedDescription])}
     }
+    nonisolated static func runScriptProcess(_ cmd:Command)throws->Data {
+        let process=Process()
+        let bundled=Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/ruycast")
+        let runnerSource=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build/rust/release/ruycast")
+        process.executableURL=FileManager.default.fileExists(atPath:bundled.path) ? bundled:runnerSource
+        process.arguments=["__run-script"]
+        let input=Pipe(),out=Pipe();process.standardInput=input;process.standardOutput=out;process.standardError=FileHandle.nullDevice
+        try process.run()
+        try input.fileHandleForWriting.write(contentsOf:Files.encode(cmd));try input.fileHandleForWriting.close()
+        let data=out.fileHandleForReading.readDataToEndOfFile();process.waitUntilExit();return data
+    }
+    func mergedShortcuts(_ commands:[Command],query:String)->[Command] {
+        let overrides=Dictionary(config.commands.map {($0.id,$0)},uniquingKeysWith:{$1})
+        let rows=commands.map {overrides[$0.id] ?? $0}.filter(\.isEnabled)
+        return rows.filter {query.isEmpty || ($0.title+" "+$0.aliases.joined(separator:" ")).localizedCaseInsensitiveContains(query)}
+    }
     private func runScript(_ cmd:Command,openResult:Bool,source:String,completion:@escaping @MainActor @Sendable ([String:Any])->Void) {
+        let executor=scriptExecution,isShortcut=AppleShortcuts.recognizes(cmd)
         DispatchQueue.global(qos:.userInitiated).async {
-            let process=Process()
-            let bundled=Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/ruycast")
-            let runnerSource=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build/rust/release/ruycast")
-            process.executableURL=FileManager.default.fileExists(atPath:bundled.path) ? bundled:runnerSource
-            process.arguments=["__run-script"]
-            let input=Pipe(),out=Pipe();process.standardInput=input;process.standardOutput=out;process.standardError=FileHandle.nullDevice
             do {
-                try process.run()
-                try input.fileHandleForWriting.write(contentsOf:Files.encode(cmd));try input.fileHandleForWriting.close()
-                // The trusted runner owns and closes its output independently of child scripts.
-                let data=out.fileHandleForReading.readDataToEndOfFile();process.waitUntilExit()
+                let data=try executor(cmd)
                 guard let result=try JSONSerialization.jsonObject(with:data) as? [String:Any] else {throw LauncherError("Script runner returned an invalid response.")}
                 DispatchQueue.main.async {
+                    if isShortcut {completion(AppleShortcuts.response(result));return}
                     let value=(result["result"] as? [String:Any]) ?? result
                     let native=(value["stdout"] as? String).flatMap {$0.data(using:.utf8)}.flatMap {try? JSONSerialization.jsonObject(with:$0) as? [String:Any]}
                     let hasUIEnvelope=native?["ok"] as? Bool != nil && (native?["choices"] as? [String:Any] != nil || native?["detail"] as? String != nil)
@@ -526,7 +539,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                         completion(["ok":true,"result":capture])
                     } else {completion(result)}
                 }
-            } catch {DispatchQueue.main.async {completion(["ok":false,"error":error.localizedDescription])}}
+            } catch {DispatchQueue.main.async {completion(["ok":false,"error":isShortcut ? AppleShortcuts.failure:error.localizedDescription])}}
         }
     }
     func handle(_ req:[String:Any],reply:@escaping @MainActor @Sendable ([String:Any])->Void) {
@@ -566,9 +579,9 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                 reply(["ok":true,"result":status])
             case "search":
                 let query=req["query"] as? String ?? "",scope=req["mode"] as? String ?? "commands"
-                if ["files","menus","windows","processes"].contains(scope) {
+                if ["files","menus","windows","shortcuts","processes"].contains(scope) {
                     systemServices.search(mode:scope,query:query,previousPID:targetPID(),session:SystemSearchSession()) {result in
-                        switch result {case .success(let snapshot):self.rememberServices(snapshot.commands);reply(["ok":true,"result":snapshot.commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let menu=snapshot.menus[command.id] {row["menu"]=jsonValue(menu)};if let window=snapshot.windows[command.id] {row["window"]=jsonValue(window)};return row}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
+                        switch result {case .success(let snapshot):let commands=scope=="shortcuts" ? self.mergedShortcuts(snapshot.commands,query:query):snapshot.commands;self.rememberServices(commands);reply(["ok":true,"result":commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let menu=snapshot.menus[command.id] {row["menu"]=jsonValue(menu)};if let window=snapshot.windows[command.id] {row["window"]=jsonValue(window)};return row}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                     }
                 } else if scope.hasPrefix("utility-") {let commands=try utilities.commands(mode:scope,query:query);rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)])}
                 else {reply(["ok":true,"result":jsonValue(searchCommands(query,mode:scope,limit:req["limit"] as? Int ?? 100))])}

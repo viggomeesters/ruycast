@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.17 — discover and run Apple Shortcuts
+
+- Add Search Apple Shortcuts with on-demand discovery, fixed UUID execution, alias and hotkey actions, and preserved configuration overrides.
+- Bound list output, deadlines and cancellation; cache only successful snapshots and refresh explicitly.
+- Discard workflow output before Ruycast UI processing and logs. Keep native input dialogs in Shortcuts and report uncertain timeout outcomes without automatic retries.
+- Verify discovery, execution routing, private-output handling and native Return with isolated fixtures; no personal workflow is executed by checks.
+
 ## 0.8.16 — search and switch existing windows
 
 - Find open windows by title or app, with app origin, untitled-window fallback and exposed minimized state. Reuse existing configured Switch Windows commands.

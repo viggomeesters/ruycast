@@ -15,6 +15,7 @@ extension AppState {
         if command.target.hasPrefix("system.kill:") {return "Kill"}
         if command.target.hasPrefix("system.menu:") {return "Run"}
         if command.target.hasPrefix("system.window:") {return "Switch to Window"}
+        if AppleShortcuts.recognizes(command) {return "Run Shortcut"}
         if command.kind=="snippet" {return "Insert Snippet"}
         if command.id.hasPrefix("capture.") {return inlineCommand?.id==command.id ? "Save":"Save…"}
         return command.kind=="script" || command.kind=="window" ? "Run":"Open"

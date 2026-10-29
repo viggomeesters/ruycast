@@ -165,3 +165,14 @@ Run **Search Windows** (alias `windows`), or an existing command targeting `swit
 `ruycast search --mode windows` returns temporary results with a `window` object containing `application`, `title` and optional `minimized`. `ruycast run ID` switches to that captured window. Closed, changed, unreadable or expired targets require a new search; a same-title window is never used as a fallback. Temporary IDs do not enter persistent usage/recency; analytics groups switching under one category.
 
 Accessibility permission is required. Search considers up to 200 regular applications, 50 exposed windows per app and 100 results within a cooperative two-second traversal budget, with per-read AX timeouts. Availability across Spaces and keyboard focus depend on the source app and macOS; universal cross-Space/focus behavior is not promised. Windows without readable identity/title are skipped; an empty but readable title appears as **Untitled Window**.
+
+
+### Apple Shortcuts
+
+Run **Search Apple Shortcuts** (aliases `apple-shortcuts`, `opdrachten`) to list existing macOS shortcuts. Type to filter by name or a saved alias; Return runs the selected shortcut by its fixed UUID. Names do not become shell commands. Use **Set Alias…** or **Set Hotkey…** from its Actions menu to save bindings; disabling a shortcut in Ruycast preserves the original in Shortcuts.
+
+Discovery runs on demand, caches successful lists for 30 seconds, and Refresh reloads them. The list is bounded to 1,000 shortcuts and 64 KiB per output stream, with an eight-second deadline. Unsupported list formatting, including multiline names, gives a recovery error instead of partial results. Equal names remain separate UUID targets. No shortcut is run while searching.
+
+A run uses the existing bounded script runner, with a default five-minute timeout that can be changed through Edit. Shortcuts may display their own input or permission dialogs after you run them. Ruycast discards workflow output; it cannot interpret that output as a report or another action. A timeout ends Ruycast's wait, but does not prove that the underlying workflow or its effects stopped. Check Shortcuts before retrying. No workflow is retried automatically.
+
+CLI: search with `ruycast search --mode shortcuts`, then execute the returned command ID. Saved aliases and hotkeys work after restart without discovery. Removing a saved binding command restores automatic discovery of that original shortcut; it does not delete the shortcut from macOS.

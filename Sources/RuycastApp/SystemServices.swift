@@ -11,6 +11,8 @@ import LauncherModels
 final class SystemServices:@unchecked Sendable {
     struct Identity: Codable, Equatable, Sendable { let pid: pid_t; let uid: uid_t; let seconds: UInt64; let micros: UInt64 }
     struct Effects:Sendable {
+        var shortcuts: @Sendable (SystemSearchSession.Ticket) throws -> [Command] = AppleShortcuts.discover
+        var shortcutClock: @Sendable () -> TimeInterval = {ProcessInfo.processInfo.systemUptime}
         var processes: @Sendable () throws -> [ProcessResource] = ResourceSampler.processTable
         var identity: @Sendable (pid_t) -> Identity? = SystemServices.identity
         var trusted: @Sendable () -> Bool = { AXIsProcessTrusted() }
@@ -61,6 +63,8 @@ final class SystemServices:@unchecked Sendable {
     let interactiveSession=SystemSearchSession()
     private var resources:[String:ProcessResource]=[:]
     private var processCache:[ProcessResource]=[]
+    private var shortcutCache:[Command]?
+    private var shortcutCacheTime:TimeInterval=0
     private var processCacheDate=Date.distantPast
     private var targets:[String:Target]=[:]
     private var targetOrder=[String]()
@@ -90,6 +94,7 @@ final class SystemServices:@unchecked Sendable {
                 case "files":return SystemSearchResults(commands:try self.files(query,version:version))
                 case "menus":return try self.menus(query,pid:previousPID,version:version)
                 case "windows":return try self.windows(query,version:version)
+                case "shortcuts":return SystemSearchResults(commands:try self.shortcuts(version:version))
                 case "processes":return SystemSearchResults(commands:try self.processes(query,version:version))
                 default:throw LauncherError("Unknown system search.")
                 }
@@ -252,6 +257,14 @@ final class SystemServices:@unchecked Sendable {
         }
         return SystemSearchResults(commands:commands,windows:metadata)
     }
+    // Query filtering follows configuration overrides in AppState, including aliases.
+    private func shortcuts(version:SystemSearchSession.Ticket) throws -> [Command] {
+        if let shortcutCache,effects.shortcutClock()-shortcutCacheTime<30 {return shortcutCache}
+        let commands=try effects.shortcuts(version)
+        guard version.current else {throw LauncherError("Shortcut search cancelled.")}
+        shortcutCache=commands;shortcutCacheTime=effects.shortcutClock();return commands
+    }
+    func invalidateShortcutCache() {worker.async { [weak self] in self?.shortcutCache=nil}}
     func invalidateProcessCache() {worker.async { [weak self] in self?.processCacheDate=Date.distantPast}}
     var processResources:[String:ProcessResource] {lock.lock();defer {lock.unlock()};return resources}
     func processDetails(_ query:String,session:SystemSearchSession?=nil,completion:@escaping @MainActor @Sendable (Result<[(Command,ProcessResource)],Error>)->Void) {

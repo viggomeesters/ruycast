@@ -52,6 +52,9 @@ if args.first=="--check-settings" {
 if args.first=="--check-actions-menu" {
     do {output(try checkActionsMenu(output:args.count>1 ? args[1]:nil));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
+if args.first=="--check-apple-shortcuts" {
+    do {output(try checkAppleShortcuts(args.count>1 ? args[1]:nil));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
+}
 if args.first=="--check-window-search" {
     do {output(try checkWindowSearch(args.count>1 ? args[1]:nil));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
