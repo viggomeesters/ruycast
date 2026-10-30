@@ -189,10 +189,16 @@ extension AppState {
         else if !fields.isEmpty {form=CommandForm(command:command,isRun:true,source:source)}
         else {perform(command.id,source:source)}
     }
-    func newCommand(_ kind:String) {
+    func newCommandForm(_ kind:String,pasteboard:NSPasteboard = .general)->CommandForm {
+        let title=kind=="snippet" ? "New Snippet":kind=="script" ? "New Shell Command":"New Quicklink"
+        let clipboard=kind=="url" ? (pasteboard.string(forType:.string)?.trimmingCharacters(in:.whitespacesAndNewlines) ?? ""):""
+        let urlTarget=clipboard.isEmpty ? "https://":clipboard
+        return CommandForm(command:Command(id:kind+"."+UUID().uuidString.lowercased(),title:title,kind:kind,target:kind=="snippet" ? "":kind=="script" ? "/usr/bin/true":urlTarget),isRun:false,isNew:true)
+    }
+    func newCommand(_ kind:String,pasteboard:NSPasteboard = .general) {
         if !paletteVisible {showPalette?("commands")}
         actionsOpen=false;message=""
-        form=CommandForm(command:Command(id:kind+"."+UUID().uuidString.lowercased(),title:kind=="snippet" ? "New Snippet":"New Quicklink",kind:kind,target:kind=="snippet" ? "":"https://"),isRun:false,isNew:true)
+        form=newCommandForm(kind,pasteboard:pasteboard)
     }
     func editSelection() {guard let cmd=selectedCommand else {return};actionsOpen=false;message="";form=CommandForm(command:cmd,isRun:false)}
     func saveBindings(_ edited:Command,original:Command,isNew:Bool=false,onSuccess:(@MainActor @Sendable ()->Void)?=nil) {
