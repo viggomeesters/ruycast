@@ -190,6 +190,7 @@ extension AppState {
         else {perform(command.id,source:source)}
     }
     func newCommand(_ kind:String) {
+        if !paletteVisible {showPalette?("commands")}
         actionsOpen=false;message=""
         form=CommandForm(command:Command(id:kind+"."+UUID().uuidString.lowercased(),title:kind=="snippet" ? "New Snippet":"New Quicklink",kind:kind,target:kind=="snippet" ? "":"https://"),isRun:false,isNew:true)
     }
