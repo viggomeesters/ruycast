@@ -54,11 +54,11 @@ public enum SnippetOutput {
         }
         if let cursor,mappedCursor==nil {mappedCursor=plain.utf16.count+max(0,min(cursor,ns.length)-position)}
         append(ns.substring(from:position))
-        // Explicit rows preserve blank lines in editors that discard CSS margins.
+        // Use ordinary paragraphs: Teams displays presentation tables as a real grid.
         let lines=rich.components(separatedBy:"\n")
         let body:String
         if mode=="teams" {
-            body="<table role=\"presentation\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\"><tbody>"+lines.map {"<tr><td>"+($0.isEmpty ? "&nbsp;":$0)+"</td></tr>"}.joined()+"</tbody></table>"
+            body=lines.map {"<p style=\"margin:0\">"+($0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty ? "<br>":$0)+"</p>"}.joined()
         } else {body="<div>"+lines.joined(separator:"<br>")+"</div>"}
         return Payload(text:plain,html:"<html><head><meta charset=\"utf-8\"></head><body>"+body+"</body></html>",cursor:mappedCursor)
     }

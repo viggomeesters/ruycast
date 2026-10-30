@@ -25,6 +25,23 @@ import LauncherModels
         let parsed=try NSAttributedString(data:Data(board.string(forType:.html)!.utf8),options:[.documentType:NSAttributedString.DocumentType.html],documentAttributes:nil)
         var links=0;parsed.enumerateAttribute(.link,in:NSRange(location:0,length:parsed.length)) {value,_,_ in if value != nil {links+=1}}
         try require(links==1 && parsed.string.contains("Guide"),"HTML hyperlink could not be imported")
+        if mode=="teams" {
+            try require(!board.string(forType:.html)!.lowercased().contains("<table"),"Teams clipboard still contains a table")
+            var hasTextTable=false
+            parsed.enumerateAttribute(.paragraphStyle,in:NSRange(location:0,length:parsed.length)) {value,_,_ in
+                if let style=value as? NSParagraphStyle,!style.textBlocks.isEmpty {hasTextTable=true}
+            }
+            try require(!hasTextTable && parsed.string == board.string(forType:.string)!+"\n","Teams import contains table blocks or lost blank paragraphs")
+        }
+    }
+    for sample in ["","a","a\n","\n","\n\n","a\n\n","a\n \t\nb"] {
+        let payload=SnippetOutput.render(sample,mode:"teams")
+        let parsed=try NSAttributedString(data:Data(payload.html!.utf8),options:[.documentType:NSAttributedString.DocumentType.html],documentAttributes:nil)
+        let visible=sample.components(separatedBy:"\n").map {$0.trimmingCharacters(in:.whitespaces).isEmpty ? "":$0}.joined(separator:"\n")
+        try require(parsed.string==visible+"\n","Teams paragraph import lost a leading, trailing or consecutive blank line")
+        parsed.enumerateAttribute(.paragraphStyle,in:NSRange(location:0,length:parsed.length)) {value,_,_ in
+            if let style=value as? NSParagraphStyle {precondition(style.textBlocks.isEmpty,"Teams output imported as a table")}
+        }
     }
     events=[]
     try require(SnippetClipboard.apply(replacement,mode:nil,board:board,onWrite:{events.append("write")},key:{_ in},paste:{events.append("paste")},moveCursor:{events.append("cursor:\($0)")},insert:{_ in events.append("unicode")}) && events.contains("unicode") && !events.contains("write"),"Legacy keyword behavior changed")
