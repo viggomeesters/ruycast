@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.22 — visible snippet hotkey action
+
+- Add Set Hotkey… directly to the footer for selected snippets, reusing the existing recorder and validated save flow.
+- Preserve snippet text, keywords and aliases; keep cancellation and conflicting bindings safe.
+
 ## 0.8.21 — snippet keyword values
 
 - Show the configured snippet keyword under its name without repeating the Keyword label. Preserve aliases and hotkey badges.

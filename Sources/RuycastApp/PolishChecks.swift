@@ -127,8 +127,8 @@ import LauncherModels
         Command(id:"fixture.none",title:"Unbound snippet",kind:"snippet",target:"Example")]
     for theme in ["light","dark"] {
         state.config.theme=theme
-        try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
-        try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["salutation","final-alias","Unbound snippet"],absent:["Keyword"])
+        try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Set Hotkey","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
+        try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["Set Hotkey","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
     }
     state.query="salutation"
     try require(state.visibleCommands.map(\.id)==["fixture.greet"],"Alias search lost the snippet")

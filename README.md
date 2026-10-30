@@ -77,7 +77,7 @@ Validation runs locally. Native checks use hidden windows, isolated profiles and
 
 ## Releases
 
-[Download the 0.8.21 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.21) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
+[Download the 0.8.22 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.22) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
 
 [Changelog](CHANGELOG.md)
 

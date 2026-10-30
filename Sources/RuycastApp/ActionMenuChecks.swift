@@ -74,7 +74,7 @@ import LauncherModels
     }
     state.paletteVisible=false;state.actionsOpen=false
     try checkItemBindingEditing(output:output)
-    return ["ok":true,"commandKOpensAtFirstAction":true,"nativeMenuFirstResponder":true,"arrowsStayInMenu":true,"modeSwitchRestoresSearchFocus":true,"fieldEditorFallback":true,"returnExecutesHighlightedAction":true,"escapeRestoresSearchFocus":true,"commandKTogglesClosed":true,"clipboardActions":true,"removalPayloadPreserved":true,"directItemAliasAndHotkey":true,"aliasNativeFocusAndEnterSave":true,"recorderAutoFocusAndAccessibleName":true,"recordedPaletteShortcutsNotIntercepted":true,"cancelRepeatClearAndConflictRetry":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["ok":true,"commandKOpensAtFirstAction":true,"nativeMenuFirstResponder":true,"arrowsStayInMenu":true,"modeSwitchRestoresSearchFocus":true,"fieldEditorFallback":true,"returnExecutesHighlightedAction":true,"escapeRestoresSearchFocus":true,"commandKTogglesClosed":true,"clipboardActions":true,"removalPayloadPreserved":true,"snippetFooterAccessiblePressAndHotkeySave":true,"directItemAliasAndHotkey":true,"aliasNativeFocusAndEnterSave":true,"recorderAutoFocusAndAccessibleName":true,"recordedPaletteShortcutsNotIntercepted":true,"cancelRepeatClearAndConflictRetry":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
 
 /// Exercise the real hidden panel, field editor, recorder and CLI-backed config writer.
@@ -174,6 +174,30 @@ import LauncherModels
         queued?.removeFromSuperview()
     }
     state.paletteVisible=true
+    // The visible snippet footer action uses the existing recorder and writer.
+    state.mode="snippets";state.query="Greeting";state.selection=0;pump()
+    guard let snippet=state.selectedCommand,snippet.kind=="snippet" else {throw LauncherError("Snippet fixture was not selected.")}
+    func snippetHotkeyButton(_ view:NSView)->NSButton? {
+        if let button=view as? NSButton,button.title=="Set Hotkey…" {return button}
+        return view.subviews.lazy.compactMap {snippetHotkeyButton($0)}.first
+    }
+    func pressSnippetHotkey() throws {
+        pump()
+        guard let view=panel.contentView,let button=snippetHotkeyButton(view) else {throw LauncherError("Visible snippet Set Hotkey button is missing.")}
+        try require(button.accessibilityLabel()=="Set Hotkey…" && button.isEnabled,"Snippet hotkey action is not accessible or enabled.")
+        button.performClick(nil);pump()
+    }
+    let beforeSnippet=try Data(contentsOf:state.configURL)
+    try pressSnippetHotkey()
+    _=try recordButton()
+    try require(state.form?.command.id==snippet.id && state.form?.bindingField == .hotkey,"Snippet footer opened the wrong editor.")
+    _=panel.performKeyEquivalent(with:event(53));pump()
+    try require(state.form==nil && (try Data(contentsOf:state.configURL))==beforeSnippet,"Snippet hotkey cancellation changed configuration.")
+    try pressSnippetHotkey()
+    _=try recordButton();_=panel.performKeyEquivalent(with:event(101,[.control,.option]));try waitForSave()
+    let boundSnippet=state.config.commands.first {$0.id==snippet.id}!
+    try require(boundSnippet.hotkey=="ctrl+alt+f9" && boundSnippet.target==snippet.target && boundSnippet.keyword==snippet.keyword && boundSnippet.aliases==snippet.aliases,"Snippet hotkey save changed snippet content or invocation fields.")
+    state.mode="commands";state.query="finder-a";state.selection=0;pump()
     // A newly discovered app is materialized with its target intact, using the same writer.
     let discovered=Command(id:"app.fixture-binding",title:"Discovered Fixture App",kind:"app",target:"org.example.fixture-binding")
     state.applications=[discovered];state.query=discovered.title;state.selection=0

@@ -60,6 +60,9 @@ struct Palette:View {
                 if state.mode != "commands" {
                     Button {state.mode="commands"} label:{Label("Back",systemImage:"chevron.left")}.buttonStyle(.plain)
                 }
+                if !isClipboard,state.inlineCommand==nil,state.selectedCommand?.kind=="snippet" {
+                    SnippetHotkeyButton(state:state).frame(width:88,height:26)
+                }
                 Spacer()
                 if state.busy || state.mainSearchBusy || state.menuSearchBusy || state.windowSearchBusy || state.tabSearchBusy || state.shortcutSearchBusy {ProgressView().controlSize(.small)}
                 if isClipboard {
@@ -203,5 +206,23 @@ final class PalettePanel:NSPanel {
 final class TracedPaletteHost<Content:View>:NSHostingView<Content> {
     override func draw(_ dirtyRect:NSRect) {
         PerformanceTrace.shared.measure(.hostDraw) {super.draw(dirtyRect)}
+    }
+}
+
+/// Native footer action shares the existing item binding editor and writer.
+struct SnippetHotkeyButton:NSViewRepresentable {
+    let state:AppState
+    func makeCoordinator()->Coordinator {Coordinator(state)}
+    func makeNSView(context:Context)->NSButton {
+        let button=NSButton(title:"Set Hotkey…",target:context.coordinator,action:#selector(Coordinator.press))
+        button.isBordered=false;button.font = .systemFont(ofSize:11)
+        button.setAccessibilityLabel("Set Hotkey…")
+        return button
+    }
+    func updateNSView(_ button:NSButton,context:Context) {context.coordinator.state=state;button.isEnabled = !state.busy}
+    @MainActor final class Coordinator:NSObject {
+        var state:AppState
+        init(_ state:AppState) {self.state=state}
+        @objc func press() {state.performMenuAction("set-hotkey")}
     }
 }
