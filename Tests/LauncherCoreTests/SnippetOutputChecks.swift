@@ -10,7 +10,7 @@ func checkSnippetOutput() throws {
         precondition(value.text==expected && value.cursor==expected.utf16.count)
         precondition(value.html!.contains("href=\"https://example.com/a_(b)?x=1&amp;y=2\""))
         precondition(value.html!.contains("Guide &amp; tips</a>") && !value.html!.contains("[Guide"))
-        if mode=="teams" {precondition(value.html!.components(separatedBy:"<tr>").count==6 && value.html!.contains("<td>&nbsp;</td>"))}
+        if mode=="teams" {precondition(!value.html!.contains("<table") && !value.html!.contains("<td") && value.html!.components(separatedBy:"<p style=\"margin:0\">").count==6 && value.html!.contains("<p style=\"margin:0\"><br></p>"),"Teams snippets must be normal paragraphs, never a visible table")}
         else {precondition(value.html!.contains("Hi 👋<br><br>See"))}
     }
     precondition(SnippetOutput.render(source,mode:nil).text==source && SnippetOutput.render(source,mode:nil).html==nil)

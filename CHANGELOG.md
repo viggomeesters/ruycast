@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.25 — Teams paragraphs without a table
+
+- Replace Teams snippet tables with ordinary paragraphs, preserving links and explicit blank lines without a visible grid.
+- Keep existing snippets, bindings, plain-text and mail output unchanged; reject table structure in rich clipboard/import regressions.
+
 ## 0.8.24 — snippet editing and rich output
 
 - Add logical line numbers with wrapping and scrolling, plus a link form for inserting and editing snippet hyperlinks.
