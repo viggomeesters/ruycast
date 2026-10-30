@@ -9,14 +9,18 @@ struct CaptureTextEditor:NSViewRepresentable {
     func makeCoordinator()->Coordinator {Coordinator(self)}
     func makeNSView(context:Context)->NSScrollView {
         let scroll=NSScrollView(frame:NSRect(x:0,y:0,width:600,height:240));scroll.hasVerticalScroller=true;scroll.drawsBackground=false
-        let editor=CaptureInput(frame:NSRect(x:0,y:0,width:600,height:240));editor.isRichText=false;editor.isAutomaticQuoteSubstitutionEnabled=false;editor.isAutomaticDashSubstitutionEnabled=false
-        editor.font = .systemFont(ofSize:14);editor.textColor = .labelColor;editor.drawsBackground=false
-        editor.textContainerInset=NSSize(width:10,height:10);editor.isVerticallyResizable=true;editor.isHorizontallyResizable=false
-        editor.autoresizingMask=[.width];editor.textContainer?.widthTracksTextView=true
+        let editor=Self.makeInput()
         editor.delegate=context.coordinator;editor.setAccessibilityLabel(placeholder)
         editor.onSubmit={context.coordinator.parent.onSubmit()}
         scroll.documentView=editor
         return scroll
+    }
+    static func makeInput()->CaptureInput {
+        let editor=CaptureInput(frame:NSRect(x:0,y:0,width:600,height:240));editor.allowsUndo=true;editor.isRichText=false;editor.isAutomaticQuoteSubstitutionEnabled=false;editor.isAutomaticDashSubstitutionEnabled=false
+        editor.font = .systemFont(ofSize:14);editor.textColor = .labelColor;editor.drawsBackground=false
+        editor.textContainerInset=NSSize(width:10,height:10);editor.isVerticallyResizable=true;editor.isHorizontallyResizable=false
+        editor.autoresizingMask=[.width];editor.textContainer?.widthTracksTextView=true
+        return editor
     }
     func updateNSView(_ scroll:NSScrollView,context:Context) {
         context.coordinator.parent=self

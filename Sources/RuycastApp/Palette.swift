@@ -123,6 +123,7 @@ final class PalettePanel:NSPanel {
     override func performKeyEquivalent(with event:NSEvent)->Bool {
         if let recorder=firstResponder as? ShortcutRecordButton,recorder.recording {return recorder.performKeyEquivalent(with:event)}
         if itemBindingKey?(event)==true {return true}
+        if NativeEditCommands.perform(event,responder:firstResponder) {return true}
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,event.charactersIgnoringModifiers?.lowercased()=="k",let actions {actions();return true}
         return super.performKeyEquivalent(with:event)
     }
