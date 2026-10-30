@@ -35,8 +35,10 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         }
         refreshClips(preserveSelection:paletteVisible)}}
     var query:String {get {paletteSession.query} set {let oldValue=paletteSession.query;paletteSession.query=newValue;if mode=="clipboard" {clipboardState.query=newValue};if query != oldValue {captureInlineQuery();refreshResults();refreshClips()}}}
-    var mode:String {get {paletteSession.mode} set {let oldValue=paletteSession.mode;paletteSession.mode=newValue;if mode != oldValue {systemServices.cancelBrowserConsent();inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
-    var selection:Int {get {mode=="clipboard" ? clipboardState.selection:paletteSession.selection} set {if mode=="clipboard" {clipboardState.selection=newValue} else {paletteSession.selection=newValue}}}
+    var mode:String {get {paletteSession.mode} set {let oldValue=paletteSession.mode;paletteSession.mode=newValue;if mode != oldValue {systemServices.mainTabSession.cancel();systemServices.cancelBrowserConsent();inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
+    var mainTabSearchEnabled:Bool
+    private var selectionRevision=0
+    var selection:Int {get {mode=="clipboard" ? clipboardState.selection:paletteSession.selection} set {selectionRevision+=1;if mode=="clipboard" {clipboardState.selection=newValue} else {paletteSession.selection=newValue}}}
     var clipboardSelection:Int {get {clipboardState.selection} set {clipboardState.selection=newValue}}
     var clipboardQuery:String {clipboardState.query}
     var actionSelection:Int {get {paletteSession.actionSelection} set {paletteSession.actionSelection=newValue}}
@@ -73,6 +75,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     var menuSearchBusy:Bool {mode=="menus" && paletteSession.nativeSearchBusy}
     var windowSearchBusy:Bool {mode=="windows" && paletteSession.nativeSearchBusy}
     var browserTabInfo:[String:BrowserTabInfo]=[:]
+    var mainSearchBusy:Bool {mode=="commands" && paletteSession.nativeSearchBusy}
     var tabSearchBusy:Bool {mode=="tabs" && paletteSession.nativeSearchBusy}
     var shortcutSearchBusy:Bool {mode=="shortcuts" && paletteSession.nativeSearchBusy}
     var scriptExecution:@Sendable (Command)throws->Data = AppState.runScriptProcess
@@ -120,7 +123,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     var configURL:URL {configDirectory.appendingPathComponent("config.json")}
     init(root:URL,headless:Bool,systemServices:SystemServices=SystemServices()) throws {
         try Files.securePrivateDirectory(root)
-        self.root=root;self.headless=headless;self.searchRanking=SearchRanking(root:root);self.systemServices=systemServices;self.analytics=AnalyticsStore(root:root);self.commandLog=CommandLog(root:root);self.clipboardStore=ClipboardStore(root:root)
+        self.root=root;self.headless=headless;self.mainTabSearchEnabled = !headless;self.searchRanking=SearchRanking(root:root);self.systemServices=systemServices;self.analytics=AnalyticsStore(root:root);self.commandLog=CommandLog(root:root);self.clipboardStore=ClipboardStore(root:root)
         let url=try ConfigurationLocation.initialize(root:root)
         let initialBytes=try Data(contentsOf:url)
         settings=LauncherSettingsState(configDirectory:url.deletingLastPathComponent(),config:try Files.config(data:initialBytes));configBytes=initialBytes;lastAttempt=initialBytes
@@ -135,7 +138,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
             lastClipboardPID=NSWorkspace.shared.frontmostApplication?.processIdentifier
             hotkeys=Hotkeys();hotkeys?.onAction={ [weak self] action in
                 guard let self,!self.recordingShortcut else {return}
-                if action=="@launcher" {self.showPalette?("commands")}
+                if action=="@launcher" {self.showPalette?("commands");self.requestMainTabAccess()}
                 else if action=="@clipboard" {self.showPalette?("clipboard")}
                 else if let command=self.config.resolve(action),!Templates.fields(command).isEmpty {
                     if !self.paletteVisible {self.showPalette?("commands")}
@@ -184,11 +187,33 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
         return CommandProjection.emptyQuery(found,usage:counts,limit:limit)
     }
     private func refreshResults(preserveSelection:Bool=false) {
+        let priorSelected=preserveSelection ? selectedCommand?.id:nil
         let started=DispatchTime.now().uptimeNanoseconds
         defer {if !["files","menus","windows","tabs","shortcuts","processes"].contains(mode) {analytics.recordTiming("search.model",ms:AnalyticsStore.elapsed(started))}}
         searchEvaluations+=1;if !preserveSelection {selection=0};resultGeneration+=1
         paletteSession.nativeSearchBusy=false
         let generation=resultGeneration
+        if mode=="commands",paletteVisible,mainTabSearchEnabled {
+            let local=searchCommands(query)
+            paletteSession.nativeSearchBusy=true
+            results=local;browserTabInfo=[:];menuActions=[:];windowActions=[:]
+            if preserveSelection {selection=priorSelected.flatMap {id in local.firstIndex {$0.id==id}} ?? -1}
+            let revision=selectionRevision
+            systemServices.interactiveSession.cancel()
+            systemServices.mainTabs(query:query) { [weak self] snapshot in
+                guard let self,self.resultGeneration==generation,self.paletteVisible,self.mode=="commands" else {return}
+                self.paletteSession.nativeSearchBusy=false
+                guard !self.mainTabInteractionActive else {return}
+                let changed=self.selectionRevision != revision
+                let selected=changed ? self.selectedCommand?.id:(priorSelected ?? self.selectedCommand?.id),navigated=preserveSelection || changed
+                self.browserTabInfo=snapshot.tabs
+                self.results=Self.mergeMainResults(local:local,tabs:snapshot.commands,limit:100)
+                self.rememberServices(snapshot.commands)
+                if navigated {self.selection=selected.flatMap {id in self.results.firstIndex {$0.id==id}} ?? -1}
+                else {self.paletteSession.selection=0}
+            }
+            return
+        }
         if mode=="clipboard" {systemServices.cancel();if !results.isEmpty {results=[]};return}
         if ["files","menus","windows","tabs","shortcuts","processes"].contains(mode) {
             if !preserveSelection {results=[]}
@@ -291,9 +316,23 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
     }
     func setProcessSort(_ sort:ProcessSort) {let id=selectedCommand?.id;processSort=sort;selection=id.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
     func refreshProcessResults() {refreshResults(preserveSelection:true)}
+    static func mergeMainResults(local:[Command],tabs:[Command],limit:Int)->[Command] {
+        let ids=Set(tabs.map(\.id)),combined=tabs+local.filter {!ids.contains($0.id)}
+        return limit<=0 ? combined:Array(combined.prefix(limit))
+    }
+    func refreshMainSearch() {guard mode=="commands",paletteVisible else {return};message="";refreshResults()}
+    private var mainTabInteractionActive:Bool {actionsOpen || form != nil || inlineCommand != nil || confirmationCommand != nil || pendingRemoval != nil || detail != nil || scriptChoices != nil}
+    func requestMainTabAccess() {
+        guard mode=="commands",paletteVisible else {return}
+        let revision=selectionRevision
+        systemServices.requestBrowserConsent { [weak self] in
+            guard let self,self.mode=="commands",self.paletteVisible,!self.mainTabInteractionActive else {return}
+            self.systemServices.invalidateBrowserCache();self.refreshResults(preserveSelection:self.selectionRevision != revision)
+        }
+    }
     func refreshNativeResults() {guard ["menus","windows","tabs","shortcuts"].contains(mode) else {return};if mode=="shortcuts" {systemServices.invalidateShortcutCache()};if mode=="tabs" {systemServices.invalidateBrowserCache()};message="";refreshResults()}
     func refreshMenuResults() {guard mode=="menus" else {return};refreshNativeResults()}
-    func cancelNativeSearch() {guard ["menus","windows","tabs","shortcuts"].contains(mode) else {return};resultGeneration+=1;systemServices.cancelBrowserConsent();systemServices.cancel();paletteSession.nativeSearchBusy=false}
+    func cancelNativeSearch() {guard ["commands","menus","windows","tabs","shortcuts"].contains(mode) else {return};resultGeneration+=1;systemServices.cancelBrowserConsent();systemServices.cancel();paletteSession.nativeSearchBusy=false}
     func cancelMenuSearch() {guard mode=="menus" else {return};cancelNativeSearch()}
     private func tick() {
         if paletteVisible,mode=="processes",Date().timeIntervalSince(lastProcessRefresh)>2 {lastProcessRefresh=Date();refreshProcessResults()}
@@ -593,7 +632,14 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
                 reply(["ok":true,"result":status])
             case "search":
                 let query=req["query"] as? String ?? "",scope=req["mode"] as? String ?? "commands"
-                if ["files","menus","windows","tabs","shortcuts","processes"].contains(scope) {
+                if scope=="commands",mainTabSearchEnabled {
+                    let local=searchCommands(query,mode:scope,limit:0),limit=req["limit"] as? Int ?? 100
+                    systemServices.mainTabs(query:query,session:SystemSearchSession()) {snapshot in
+                        self.rememberServices(snapshot.commands)
+                        let commands=Self.mergeMainResults(local:local,tabs:snapshot.commands,limit:limit)
+                        reply(["ok":true,"result":commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let tab=snapshot.tabs[command.id] {row["tab"]=jsonValue(tab)};return row}])
+                    }
+                } else if ["files","menus","windows","tabs","shortcuts","processes"].contains(scope) {
                     systemServices.search(mode:scope,query:query,previousPID:targetPID(),session:SystemSearchSession()) {result in
                         switch result {case .success(let snapshot):let commands=scope=="shortcuts" ? self.mergedShortcuts(snapshot.commands,query:query):snapshot.commands;self.rememberServices(commands);reply(["ok":true,"result":commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let menu=snapshot.menus[command.id] {row["menu"]=jsonValue(menu)};if let window=snapshot.windows[command.id] {row["window"]=jsonValue(window)};if let tab=snapshot.tabs[command.id] {row["tab"]=jsonValue(tab)};return row}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
                     }

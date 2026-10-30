@@ -181,5 +181,147 @@ private final class SafariWire:@unchecked Sendable {
         }}}
         controller.hide();try require(!controller.panel.isVisible,"Safari fixture showed its panel.")
     }
-    return ["ok":true,"actualNativeAETransportShapeAndNoPromptFlags":true,"capturedSnapshotGuardAndAmbiguousDuplicateRejection":true,"staleAndPostSelectionMutationsRejected":true,"cliAndNativeReturn":output != nil,"boundedCacheTargetsAndMetadata":true,"noPrivateMetadataInLogs":true,"realSafariActivation":false,"immutableTabIdentity":false,"atomicSelection":false]
+    let main=try checkMainBrowserTabs(output.map {$0+"/main"})
+    return ["mainSearch":main,"ok":true,"actualNativeAETransportShapeAndNoPromptFlags":true,"capturedSnapshotGuardAndAmbiguousDuplicateRejection":true,"staleAndPostSelectionMutationsRejected":true,"cliAndNativeReturn":output != nil,"boundedCacheTargetsAndMetadata":true,"noPrivateMetadataInLogs":true,"realSafariActivation":false,"immutableTabIdentity":false,"atomicSelection":false]
+}
+
+@MainActor private func checkMainBrowserTabs(_ output:String?)throws->[String:Any] {
+    let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-main-tabs-"+UUID().uuidString)
+    defer {try? FileManager.default.removeItem(at:root)}
+    func require(_ condition:Bool,_ message:String)throws {if !condition {throw LauncherError(message)}}
+    func pump() {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.004))}
+    func wait(_ condition:()->Bool)throws {let end=Date().addingTimeInterval(4);while !condition(),Date()<end {pump()};try require(condition(),"Main tab fixture timed out.")}
+    let wire=SafariWire(),hold=LockedValue<DispatchSemaphore?>(nil),entered=LockedValue(false),consentHold=LockedValue<DispatchSemaphore?>(nil),consentEntered=LockedValue(false)
+    var effects=SystemServices.Effects();effects.mainTabBudget=0.3;effects.browserTabs=wire.effects
+    effects.browserTabs.clock={ProcessInfo.processInfo.systemUptime}
+    let send=effects.browserTabs.send
+    effects.browserTabs.send={pid,event,flags,timeout in
+        let gate=hold.update {gate -> DispatchSemaphore? in let result=gate;gate=nil;return result}
+        if let gate {entered.update {$0=true};gate.wait()}
+        return try send(pid,event,flags,timeout)
+    }
+    let consent=effects.browserTabs.consent
+    effects.browserTabs.consent={pid in
+        let gate=consentHold.update {value -> DispatchSemaphore? in let result=value;value=nil;return result}
+        if let gate {consentEntered.update {$0=true};gate.wait()}
+        return consent(pid)
+    }
+    let service=SystemServices(effects:effects),state=try AppState(root:root,headless:true,systemServices:service)
+    state.config.commands=[Command(id:"fixture.notes",title:"Project Notes",kind:"builtin",target:"settings"),Command(id:"fixture.local",title:"Local Command",kind:"builtin",target:"reload-config")];try Files.save(state.config,to:state.configURL);try state.reload()
+    try require(wire.state.read({$0.sends})==0,"Main tabs polled during startup.")
+    state.mainTabSearchEnabled=true;state.paletteVisible=true;state.refreshMainSearch()
+    try require(state.results.contains(where:{$0.id=="fixture.local"}) && !state.results.first!.target.hasPrefix("system.tab:"),"Local search waited for Safari.")
+    try wait {state.results.first?.target.hasPrefix("system.tab:root.")==true}
+    try require(state.results.contains(where:{$0.id=="fixture.local"}) && state.browserTabInfo.count==2,"Main merge lost local commands or tab metadata.")
+    state.query="other";try wait {state.results.first?.target.hasPrefix("system.tab:root.")==true}
+    try require(state.browserTabInfo[state.results[0].id]?.url=="https://example.test/other","Main address matching failed.")
+    var reply:[String:Any]?
+    state.handle(["op":"search","query":"other","limit":1]) {reply=$0};try wait {reply != nil}
+    let cliRows=reply?["result"] as? [[String:Any]] ?? []
+    try require(cliRows.count==1 && (cliRows[0]["tab"] as? [String:Any])?["url"] as? String=="https://example.test/other","Main CLI lost tab matching/metadata/limit.")
+    reply=nil
+    state.execute(state.results[0].id,dryRun:false) {reply=$0};try wait {reply != nil}
+    try require(reply?["ok"] as? Bool==true && wire.state.read({$0.selected})==2,"Root target was sent to the wrong store.")
+    // Root and dedicated targets have separate stores and never execution fallback.
+    var dedicated:SystemSearchResults?
+    service.search(mode:"tabs",query:"",previousPID:nil,session:SystemSearchSession()) {result in dedicated=try? result.get()}
+    try wait {dedicated != nil};try require(dedicated!.commands.allSatisfy {!$0.id.hasPrefix("system.tab:root.")},"Dedicated namespace changed.")
+    state.rememberServices(dedicated!.commands);reply=nil
+    state.execute(dedicated!.commands[0].id,dryRun:false) {reply=$0};try wait {reply != nil}
+    try require(reply?["ok"] as? Bool==true && wire.state.read({$0.selected})==1,"Dedicated target went to root store.")
+    func pause()throws->DispatchSemaphore {
+        entered.update {$0=false};let gate=DispatchSemaphore(value:0);hold.update {$0=gate}
+        service.invalidateBrowserCache();state.query="";state.refreshMainSearch();try wait {entered.read {$0}};return gate
+    }
+    var gate=try pause();state.selection=state.results.firstIndex {$0.id=="fixture.local"}!
+    gate.signal();try wait {state.results.first?.target.hasPrefix("system.tab:root.")==true}
+    try require(state.selectedCommand?.id=="fixture.local","Late tabs moved the navigated selection.")
+    gate=try pause();state.selection=0;let actionID=state.selectedCommand?.id;state.actionsOpen=true;gate.signal()
+    for _ in 0..<30 {pump()}
+    try require(state.selectedCommand?.id==actionID && !state.results.first!.target.hasPrefix("system.tab:"),"Late tabs retargeted Actions.")
+    state.actionsOpen=false
+    gate=try pause();state.paletteVisible=false;state.cancelNativeSearch();gate.signal()
+    for _ in 0..<30 {pump()}
+    try require(!state.results.first!.target.hasPrefix("system.tab:"),"Hidden palette received tabs.")
+    state.paletteVisible=true;state.refreshMainSearch();try wait {state.results.first?.target.hasPrefix("system.tab:root.")==true}
+    gate=try pause();state.mode="snippets";gate.signal();for _ in 0..<30 {pump()}
+    try require(state.mode=="snippets" && !state.results.contains(where:{$0.target.hasPrefix("system.tab:")}),"Old tab query crossed a mode change.")
+    state.mode="commands";state.query="";state.refreshMainSearch();try wait {state.results.first?.target.hasPrefix("system.tab:root.")==true}
+    // A blocked provider cannot hold the main CLI response past its root budget.
+    gate=try pause();var firstCallbacks=0,secondCallbacks=0
+    let started=ProcessInfo.processInfo.systemUptime;reply=nil
+    state.handle(["op":"search","query":"Local"]) {reply=$0;secondCallbacks+=1}
+    try wait {reply != nil}
+    try require(ProcessInfo.processInfo.systemUptime-started<0.9 && reply?["ok"] as? Bool==true && (reply?["result"] as? [[String:Any]])?.contains(where:{$0["id"] as? String=="fixture.local"})==true,"Busy root worker blocked CLI local results.")
+    gate.signal();for _ in 0..<30 {pump()};try require(secondCallbacks==1,"Late provider delivered CLI twice.")
+    // Superseding a query must not let its old timer cancel the latest consumer.
+    service.invalidateBrowserCache();entered.update {$0=false};gate=DispatchSemaphore(value:0);hold.update {$0=gate}
+    service.mainTabs(query:"notes") {_ in firstCallbacks+=1};try wait {entered.read {$0}}
+    service.mainTabs(query:"other") {snapshot in if snapshot.commands.count==1 {secondCallbacks+=1}}
+    gate.signal();try wait {secondCallbacks==2};for _ in 0..<85 {pump()}
+    try require(firstCallbacks==1 && secondCallbacks==2,"Old timer cancelled or duplicated a newer query.")
+    wire.state.update {$0.status = -1743};service.invalidateBrowserCache();state.refreshMainSearch();for _ in 0..<30 {pump()}
+    try require(state.results.contains(where:{$0.id=="fixture.local"}) && state.message.isEmpty,"Permission denial broke main search.")
+    let failedReads=wire.state.read {$0.sends};state.query="Local";for _ in 0..<20 {pump()}
+    try require(wire.state.read({$0.sends})==failedReads,"Denied root reads were not throttled.")
+    wire.state.update {$0.status=0;$0.running=false};service.invalidateBrowserCache();state.query="";state.refreshMainSearch();for _ in 0..<20 {pump()}
+    try require(state.results.contains(where:{$0.id=="fixture.local"}) && state.message.isEmpty,"Missing Safari broke main search.")
+    wire.state.update {s in s=SafariWire.State();s.tabs=(1...60).map {BrowserTabs.Tab(window:101,index:Int32($0),title:"Tab \($0)",url:"https://example.test/\($0)")}}
+    service.invalidateBrowserCache();state.refreshMainSearch();try wait {state.browserTabInfo.count==5}
+    state.query="Tab";try wait {state.browserTabInfo.count==50}
+    try require(state.results.filter {$0.target.hasPrefix("system.tab:")}.count==50,"Root result cap changed.")
+    try require(wire.state.read({$0.consents})==0,"Main discovery or CLI requested consent.")
+    state.query="";try wait {!state.mainSearchBusy}
+    consentEntered.update {$0=false};gate=DispatchSemaphore(value:0);consentHold.update {$0=gate}
+    state.requestMainTabAccess();try wait {consentEntered.read {$0}}
+    state.selection=state.results.firstIndex {$0.id=="fixture.local"}!
+    let consentSelection=state.selectedCommand?.id,consentReads=wire.state.read {$0.sends}
+    gate.signal();try wait {wire.state.read({$0.sends})>consentReads && !state.mainSearchBusy}
+    try require(state.selectedCommand?.id==consentSelection,"Late consent refresh reset a navigated row.")
+    consentEntered.update {$0=false};gate=DispatchSemaphore(value:0);consentHold.update {$0=gate}
+    state.requestMainTabAccess();try wait {consentEntered.read {$0}}
+    state.actionsOpen=true;let consentAction=state.selectedCommand?.id,actionReads=wire.state.read {$0.sends}
+    gate.signal();try wait {wire.state.read {$0.consents}==2};for _ in 0..<20 {pump()}
+    try require(state.selectedCommand?.id==consentAction && wire.state.read({$0.sends})==actionReads,"Late consent retargeted Actions.")
+    state.actionsOpen=false
+    // Render only synthetic data; all ordinary headless fixtures remain local-only.
+    wire.state.update {$0=SafariWire.State()};service.invalidateBrowserCache();state.refreshMainSearch();try wait {state.browserTabInfo.count==2}
+    state.selection=0;consentEntered.update {$0=false};gate=DispatchSemaphore(value:0);consentHold.update {$0=gate}
+    let defaultReads=wire.state.read {$0.sends}
+    state.requestMainTabAccess();try wait {consentEntered.read {$0}};gate.signal()
+    try wait {wire.state.read({$0.sends})>defaultReads && !state.mainSearchBusy}
+    try require(state.selection==0 && state.selectedCommand?.target.hasPrefix("system.tab:root.")==true,"Consent left the untouched default tab unselected.")
+    if let output {
+        let directory=URL(fileURLWithPath:output);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
+        let controller=PaletteController(state:state);state.paletteVisible=true;state.showToast=nil
+        controller.panel.contentView?.layoutSubtreeIfNeeded();for _ in 0..<12 {pump()}
+        let tabs=state.results.filter {$0.target.hasPrefix("system.tab:")},metadata=state.browserTabInfo,locals=state.results.filter {!$0.target.hasPrefix("system.tab:")}
+        func field(_ view:NSView)->SearchInput? {if let value=view as? SearchInput {return value};return view.subviews.compactMap {field($0)}.first}
+        guard let host=controller.panel.contentView,let input=field(host) else {throw LauncherError("Main native search field missing.")}
+        try require(input.accessibilityLabel()=="Search apps, tabs or commands…","Main accessible search name stale.")
+        state.selection=0;controller.restoreSearchFocus();for _ in 0..<5 {pump()}
+        guard let editor=controller.panel.firstResponder as? NSTextView else {throw LauncherError("Main native editor missing.")}
+        let activations=wire.state.read {$0.activates}
+        editor.keyDown(with:NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[],timestamp:0,windowNumber:controller.panel.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!)
+        try wait {wire.state.read({$0.activates})==activations+1 && !state.busy}
+        try require(!state.paletteVisible && !controller.panel.isVisible,"Main Return did not hide or execute exactly once.")
+        state.mainTabSearchEnabled=false
+        for dark in [false,true] {for width in [600,760] {for variant in ["normal","typed","long","no-tabs","loading","empty"] {
+            state.query=variant=="typed" ? "Project":(["loading","empty"].contains(variant) ? "unmatched-address":"")
+            var rows=tabs,info=metadata
+            let matchingLocals=["loading","empty"].contains(variant) ? []:(variant=="typed" ? locals.filter {$0.title.contains("Project")}:locals)
+            if variant=="long",!rows.isEmpty {rows[0].title="A Very Long Safari Tab Title for Project Notes and a Daily Workspace Review";info[rows[0].id]=BrowserTabInfo(url:"https://example.test/projects/a-long-address-for-workspace-notes-and-daily-review")}
+            if ["no-tabs","loading","empty"].contains(variant) {rows=[];info=[:]}
+            state.paletteSession.nativeSearchBusy=variant=="loading"
+            state.applySystemResults(AppState.mergeMainResults(local:matchingLocals,tabs:rows,limit:100),resources:[:],preserveSelection:false,tabs:info);state.selection=0
+            state.config.theme=dark ? "dark":"light";controller.panel.setContentSize(NSSize(width:width,height:490));controller.panel.contentView?.layoutSubtreeIfNeeded();for _ in 0..<12 {pump()}
+            guard let view=controller.panel.contentView,let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("Root tab render missing.")}
+            view.cacheDisplay(in:view.bounds,to:bitmap);guard let data=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Root PNG missing.")}
+            try data.write(to:directory.appendingPathComponent("main-\(dark ? "dark":"light")-\(width)-\(variant).png"))
+        }}}
+        controller.hide();try require(!controller.panel.isVisible,"Root fixture showed a visible panel.")
+    }
+    state.commandLog.flush()
+    let log=try String(contentsOf:state.commandLog.url,encoding:.utf8);try require(!log.contains("example.test") && !log.contains("Project Notes"),"Main tab metadata reached logs.")
+    return ["ok":true,"localResultsImmediate":true,"rootAndDedicatedOwners":true,"selectionAndActionsStable":true,"hideModeAndStaleQueries":true,"busyWorkerDeadlineAndOnceOnly":true,"failureThrottleAndFallback":true,"caps5And50":true,"explicitConsentOnly":true,"delayedConsentSelectionStable":true,"mainNativeReturn":output != nil,"realSafariReadOrActivation":false]
 }

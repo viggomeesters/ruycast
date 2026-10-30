@@ -65,12 +65,13 @@ final class BrowserTabs:@unchecked Sendable {
     static func property(_ name:String,_ from:NSAppleEventDescriptor)->NSAppleEventDescriptor {object("prop",from,"prop",NSAppleEventDescriptor(typeCode:code(name)))}
     private struct Target {let browser:Browser;let tab:Tab;let time:TimeInterval}
     private let effects:Effects
+    private let namespace:String
     private let targets=LockedValue<[String:Target]>([:])
     private struct ConsentState:Sendable {var epoch=0;var pending=false}
     private let consentState=LockedValue(ConsentState())
     // Cache belongs exclusively to SystemServices' serial worker.
     private var cache:(Browser,TimeInterval,[Command],[String:BrowserTabInfo])?
-    init(effects:Effects=Effects()) {self.effects=effects}
+    init(effects:Effects=Effects(),namespace:String="") {self.effects=effects;self.namespace=namespace}
     func invalidate() {cache=nil}
     /// Only an explicit interactive entry calls this. The OS consent wait may be
     /// unbounded; it is separate from data deadlines and never holds the main queue.
@@ -127,11 +128,11 @@ final class BrowserTabs:@unchecked Sendable {
         guard titles.count==urls.count,try read("pnam")==titles,try read("pURL")==urls else {throw LauncherError(Self.expired)}
         return titles.indices.map {Tab(window:id,index:Int32($0+1),title:titles[$0],url:urls[$0])}
     }
-    func search(_ query:String,_ ticket:SystemSearchSession.Ticket)throws->SystemSearchResults {
+    func search(_ query:String,_ ticket:SystemSearchSession.Ticket,deadline requestedDeadline:TimeInterval?=nil)throws->SystemSearchResults {
         guard let browser=effects.browser() else {throw LauncherError("Open Safari to search its tabs.")}
-        let now=effects.clock()
-        if let (previous,time,commands,metadata)=cache,previous==browser,now-time<1 {return filter(commands,metadata,query)}
-        let deadline=now+8
+        let now=effects.clock(),deadline=min(requestedDeadline ?? effects.clock()+8,effects.clock()+8)
+        try check(browser,ticket,deadline)
+        if let (previous,time,commands,metadata)=cache,previous==browser,now-time<1 {return try filter(commands,metadata,query,ticket,deadline)}
         let ref=Self.property("ID  ",Self.object("cwin",.null(),"indx",Self.all()))
         let ids=try send("getd",browser,ticket,deadline,ref)
         guard ids.descriptorType==typeAEList,ids.numberOfItems<=64 else {throw LauncherError("Too many Safari windows to load. The limit is 64.")}
@@ -146,16 +147,27 @@ final class BrowserTabs:@unchecked Sendable {
         try check(browser,ticket,deadline)
         var commands=[Command](),metadata=[String:BrowserTabInfo](),nextTargets=[String:Target]()
         for tab in rows {
-            let token="system.tab:"+UUID().uuidString.lowercased()
+            let token="system.tab:"+namespace+UUID().uuidString.lowercased()
             commands.append(Command(id:token,title:tab.title.isEmpty ? (tab.url.isEmpty ? "Untitled Tab":tab.url):tab.title,kind:"builtin",target:token))
             metadata[token]=BrowserTabInfo(url:tab.url);nextTargets[token]=Target(browser:browser,tab:tab,time:now)
         }
         targets.update {$0=nextTargets};cache=(browser,now,commands,metadata)
-        return filter(commands,metadata,query)
+        return try filter(commands,metadata,query,ticket,deadline)
     }
-    private func filter(_ commands:[Command],_ metadata:[String:BrowserTabInfo],_ query:String)->SystemSearchResults {
+    private func filter(_ commands:[Command],_ metadata:[String:BrowserTabInfo],_ query:String,_ ticket:SystemSearchSession.Ticket,_ deadline:TimeInterval)throws->SystemSearchResults {
         let words=query.split(whereSeparator:{$0.isWhitespace}).map(String.init)
-        return SystemSearchResults(commands:commands.filter {command in words.allSatisfy {word in (command.title+" "+(metadata[command.id]?.url ?? "")).range(of:word,options:[.caseInsensitive,.diacriticInsensitive]) != nil}},tabs:metadata)
+        var matches=[Command]()
+        for command in commands {
+            let text=command.title+" "+(metadata[command.id]?.url ?? "")
+            var found=true
+            for word in words {
+                guard ticket.current,effects.clock()<deadline else {throw LauncherError("Safari search cancelled or timed out. Refresh to retry.")}
+                if text.range(of:word,options:[.caseInsensitive,.diacriticInsensitive])==nil {found=false;break}
+            }
+            if found {matches.append(command)}
+        }
+        guard ticket.current,effects.clock()<deadline else {throw LauncherError("Safari search cancelled or timed out. Refresh to retry.")}
+        return SystemSearchResults(commands:matches,tabs:metadata)
     }
     func execute(_ token:String,_ ticket:SystemSearchSession.Ticket)throws {
         guard let target=targets.read({$0[token]}),effects.clock()-target.time<30 else {throw LauncherError(Self.expired)}

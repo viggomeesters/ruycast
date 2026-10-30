@@ -12,6 +12,7 @@ final class SystemServices:@unchecked Sendable {
     struct Identity: Codable, Equatable, Sendable { let pid: pid_t; let uid: uid_t; let seconds: UInt64; let micros: UInt64 }
     struct Effects:Sendable {
         var browserTabs=BrowserTabs.Effects()
+        var mainTabBudget:TimeInterval=1
         var shortcuts: @Sendable (SystemSearchSession.Ticket) throws -> [Command] = AppleShortcuts.discover
         var shortcutClock: @Sendable () -> TimeInterval = {ProcessInfo.processInfo.systemUptime}
         var processes: @Sendable () throws -> [ProcessResource] = ResourceSampler.processTable
@@ -61,6 +62,10 @@ final class SystemServices:@unchecked Sendable {
     struct Target { let kind:String; let identity:Identity; let element:AXUIElement?; let menu:MenuActionInfo?;let menuAncestors:[MenuAncestor];let window:WindowActionInfo? }
     private let effects:Effects
     private let browserTabs:BrowserTabs
+    private let mainBrowserTabs:BrowserTabs
+    private let mainTabWorker=DispatchQueue(label:"ruycast.main-tabs",qos:.userInitiated)
+    let mainTabSession=SystemSearchSession()
+    private var mainTabRetryAfter:TimeInterval=0
     private let lock=NSLock()
     let interactiveSession=SystemSearchSession()
     private var resources:[String:ProcessResource]=[:]
@@ -71,7 +76,7 @@ final class SystemServices:@unchecked Sendable {
     private var targets:[String:Target]=[:]
     private var targetOrder=[String]()
     private let worker=DispatchQueue(label:"ruycast.system-search",qos:.userInitiated)
-    init(effects:Effects=Effects()) {self.effects=effects;self.browserTabs=BrowserTabs(effects:effects.browserTabs)}
+    init(effects:Effects=Effects()) {self.effects=effects;self.browserTabs=BrowserTabs(effects:effects.browserTabs);self.mainBrowserTabs=BrowserTabs(effects:effects.browserTabs,namespace:"root.")}
 
     static func identity(_ pid:pid_t)->Identity? {
         var info=proc_bsdinfo()
@@ -84,7 +89,7 @@ final class SystemServices:@unchecked Sendable {
         let escaped=query.replacingOccurrences(of:"\\",with:"\\\\").replacingOccurrences(of:"\"",with:"\\\"").replacingOccurrences(of:"*",with:"\\*").replacingOccurrences(of:"?",with:"\\?")
         return "kMDItemFSName == \"*\(escaped)*\"cd"
     }
-    func cancel() {interactiveSession.cancel()}
+    func cancel() {interactiveSession.cancel();mainTabSession.cancel()}
     func results(mode:String,query:String,previousPID:pid_t?,session:SystemSearchSession?=nil,completion:@escaping @MainActor @Sendable (Result<[Command],Error>)->Void) {
         search(mode:mode,query:query,previousPID:previousPID,session:session) {completion($0.map(\.commands))}
     }
@@ -106,13 +111,38 @@ final class SystemServices:@unchecked Sendable {
         }
     }
     func cancelBrowserConsent() {browserTabs.cancelConsent()}
-    func invalidateBrowserCache() {worker.async {self.browserTabs.invalidate()}}
+    func invalidateBrowserCache() {worker.async {self.browserTabs.invalidate()};mainTabWorker.async {self.mainBrowserTabs.invalidate();self.mainTabRetryAfter=0}}
     func requestBrowserConsent(completion:@escaping @MainActor @Sendable ()->Void) {browserTabs.requestConsent(completion:completion)}
+    /// The root palette/CLI gets a single bounded optional tab group. Its
+    /// worker/store is isolated from the longer dedicated native searches.
+    func mainTabs(query:String,session:SystemSearchSession?=nil,completion:@escaping @MainActor @Sendable (SystemSearchResults)->Void) {
+        let start=effects.browserTabs.clock(),budget=min(1,max(0.01,effects.mainTabBudget)),deadline=start+budget
+        let done=LockedValue(false),consumer=session ?? mainTabSession
+        let deliver:@MainActor @Sendable (SystemSearchResults)->Void={snapshot in
+            guard done.update({if $0 {return false};$0=true;return true}) else {return}
+            completion(self.effects.browserTabs.clock()<deadline ? snapshot:SystemSearchResults(commands:[]))
+        }
+        DispatchQueue.main.asyncAfter(deadline:.now()+budget) {deliver(SystemSearchResults(commands:[]))}
+        consumer.submit(on:mainTabWorker) {ticket in
+            guard ticket.current,!done.read({$0}),self.effects.browserTabs.clock()<deadline else {return}
+            var snapshot=SystemSearchResults(commands:[])
+            if self.effects.browserTabs.clock()>=self.mainTabRetryAfter {
+                do {snapshot=try self.mainBrowserTabs.search(query,ticket,deadline:deadline)}
+                catch {if ticket.current {self.mainTabRetryAfter=self.effects.browserTabs.clock()+1}}
+            }
+            guard ticket.current else {return}
+            let limit=query.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty ? 5:50
+            let commands=Array(snapshot.commands.prefix(limit)),ids=Set(commands.map(\.id))
+            let result=SystemSearchResults(commands:commands,tabs:snapshot.tabs.filter {ids.contains($0.key)})
+            DispatchQueue.main.async {deliver(result)}
+        }
+    }
     func executeTab(_ target:String,completion:@escaping @MainActor @Sendable (Result<Void,Error>)->Void) {
         // Execution owns its session: hiding the palette cancels discovery only.
         let session=SystemSearchSession()
-        session.submit(on:worker) {ticket in
-            let result=Result {try self.browserTabs.execute(target,ticket)}
+        let root=target.hasPrefix("system.tab:root.")
+        session.submit(on:root ? mainTabWorker:worker) {ticket in
+            let result=Result {try (root ? self.mainBrowserTabs:self.browserTabs).execute(target,ticket)}
             DispatchQueue.main.async {completion(result)}
         }
     }

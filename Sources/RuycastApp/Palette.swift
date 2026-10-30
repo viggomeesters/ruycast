@@ -36,7 +36,7 @@ struct Palette:View {
                 Image(systemName:isClipboard ? "doc.on.clipboard":"command")
                     .font(.system(size:18,weight:.medium)).foregroundStyle(.tertiary).frame(width:22)
                 if let command=state.inlineCommand {Text(command.title).font(.system(size:12,weight:.semibold)).lineLimit(1).padding(6).background(Color.primary.opacity(0.08),in:RoundedRectangle(cornerRadius:5))}
-                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {TaskDateInput.supports($0) ? "Datum, bijv. morgen of in 3 days":Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":state.mode=="menus" ? "Search app menu…":state.mode=="windows" ? "Search windows…":state.mode=="tabs" ? "Search Safari tabs…":state.mode=="shortcuts" ? "Search Apple Shortcuts…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
+                PaletteSearchField(text:Binding(get:{state.inlineCommand==nil ? state.query:state.inlineInput},set:{if state.inlineCommand==nil {state.query=$0} else {state.inlineInput=$0}}),placeholder:state.inlineCommand.map {TaskDateInput.supports($0) ? "Datum, bijv. morgen of in 3 days":Templates.fields($0).first?.label ?? "Input"} ?? (isClipboard ? "Search clipboard…":state.mode=="processes" ? "Filter processes…":state.mode=="menus" ? "Search app menu…":state.mode=="windows" ? "Search windows…":state.mode=="tabs" ? "Search Safari tabs…":state.mode=="shortcuts" ? "Search Apple Shortcuts…":state.mode=="commands" ? "Search apps, tabs or commands…":"Search for apps or commands…"),onMove:state.moveSelection,onSubmit:state.activateSelection,onCancel:state.cancelPaletteInput,onActions:{state.actionsOpen.toggle()},onTab:state.beginInlineSelection,onExpand:state.expandInlineInput).frame(height:28)
             }.padding(.horizontal,20).frame(height:62)
 
             if let preview=state.inlineDatePreview,state.inlineCommand.map(TaskDateInput.supports)==true {
@@ -61,7 +61,7 @@ struct Palette:View {
                     Button {state.mode="commands"} label:{Label("Back",systemImage:"chevron.left")}.buttonStyle(.plain)
                 }
                 Spacer()
-                if state.busy || state.menuSearchBusy || state.windowSearchBusy || state.tabSearchBusy || state.shortcutSearchBusy {ProgressView().controlSize(.small)}
+                if state.busy || state.mainSearchBusy || state.menuSearchBusy || state.windowSearchBusy || state.tabSearchBusy || state.shortcutSearchBusy {ProgressView().controlSize(.small)}
                 if isClipboard {
                     Button("Copy ⌘↵") {copy()}.keyboardShortcut(.return,modifiers:.command).buttonStyle(.plain)
                     Text("Paste ↵").foregroundStyle(.secondary)
@@ -156,6 +156,7 @@ final class PalettePanel:NSPanel {
         let refreshNative=["menus","windows","tabs","shortcuts"].contains(mode) && state.mode==mode && state.query.isEmpty
         if let app=NSWorkspace.shared.frontmostApplication,app.processIdentifier != getpid() {state.previousPID=app.processIdentifier}
         state.inlineCommand=nil;state.inlineInput="";state.query="";state.message="";state.mode=mode;state.detail=nil;state.scriptChoices=nil;state.form=nil;state.actionsOpen=false;state.paletteVisible=true
+        if mode=="commands" {state.refreshMainSearch()}
         if refreshNative {state.refreshNativeResults()}
         let mouse=NSEvent.mouseLocation
         let screen=NSScreen.screens.first {$0.frame.contains(mouse)} ?? NSScreen.main

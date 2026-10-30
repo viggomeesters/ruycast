@@ -12,7 +12,7 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 - **Type less.** Snippets with automatic keyword expansion, parameterized quicklinks and Caps Lock as Hyper.
 - **Keep useful copies.** Search text, images and file references in clipboard history, with previews and retention controls.
 - **Find app actions.** Search the active app’s menus, see their shortcuts and run available actions.
-- **Find Safari tabs.** Search open tabs by title or address and switch to the selected tab.
+- **Find Safari tabs.** See open tabs first when you open the launcher, or search by title or address alongside apps and commands.
 - **Find open windows.** Search by document or app name and switch to the selected existing window.
 - **Arrange your windows.** Halves, thirds, maximize, restore and move between displays.
 - **Stay in control.** Native Settings, a system monitor, and a local Dashboard for usage, errors and timings.
@@ -77,7 +77,7 @@ Validation runs locally. Native checks use hidden windows, isolated profiles and
 
 ## Releases
 
-[Download the 0.8.18 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.18) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
+[Download the 0.8.19 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.19) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
 
 [Changelog](CHANGELOG.md)
 
