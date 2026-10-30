@@ -202,7 +202,7 @@ if args.first=="--render" {
         statusItem?.button?.toolTip=healthy ? "Ruycast · Running":"Ruycast · Needs attention"
         statusItem?.button?.setAccessibilityLabel(healthy ? "Ruycast, running":"Ruycast, needs attention")
     }
-    @objc func openLauncher() {palette?.show("commands")}
+    @objc func openLauncher() {palette?.show("commands");state?.requestMainTabAccess()}
     @objc func openClipboard() {palette?.show("clipboard")}
     @objc func openDashboard() {state?.showAnalytics?()}
     @objc func openSettings() {management?.show()}

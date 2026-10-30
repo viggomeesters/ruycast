@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.19 — Safari tabs in the main search
+
+- Show a Safari Tabs group first when opening the main launcher; match tab titles and addresses alongside existing apps and commands.
+- Keep local results immediate, with a separate one-second tab lookup and a local-only fallback when Safari is slow, unavailable or not permitted.
+- Preserve navigated selections and open Actions/editors when late tab results or consent replies arrive; cancel hidden and superseded work.
+- Reuse checked tab execution and explicit interactive consent. No background polling or prompts; dedicated tab search remains available.
+
 ## 0.8.18 — search existing Safari tabs
 
 - Add Search Safari Tabs with title/address filtering, address subtitles, refresh and CLI parity.

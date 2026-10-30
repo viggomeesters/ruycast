@@ -43,16 +43,20 @@ struct LauncherCommandResults:View {
     }
     var body:some View {
         let commands=state.visibleCommands
+        let mainTabs=state.mode=="commands" && commands.first?.target.hasPrefix("system.tab:")==true
         let duplicateShortcutTitles=state.mode=="shortcuts" ? Set(Dictionary(grouping:commands,by: \.title).filter {$0.value.count>1}.keys):Set<String>()
                 ScrollViewReader {proxy in ScrollView {
                     LazyVStack(alignment:.leading,spacing:2) {
                         HStack {
-                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.mode=="menus" ? "Menu Actions":state.mode=="windows" ? "Windows":state.mode=="tabs" ? "Safari Tabs":state.mode=="shortcuts" ? "Apple Shortcuts":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
+                            Text(state.mode=="processes" ? "Processes · \(commands.count)":state.mode=="menus" ? "Menu Actions":state.mode=="windows" ? "Windows":(state.mode=="tabs" || mainTabs) ? "Safari Tabs":state.mode=="shortcuts" ? "Apple Shortcuts":state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary)
                             Spacer()
                             if state.mode=="processes" {Picker("Sort processes",selection:Binding(get:{state.processSort},set:{state.setProcessSort($0)})) {ForEach(ProcessSort.allCases,id:\.self) {Text($0.rawValue).tag($0)}}.labelsHidden().frame(width:135)}
                         }.padding(.horizontal,8).padding(.top,6).padding(.bottom,8)
-                            if commands.isEmpty && (!["shortcuts","tabs"].contains(state.mode) || state.message.isEmpty) {Text(state.mode=="menus" ? (state.menuSearchBusy ? "Searching menu…":"No menu actions found"):state.mode=="windows" ? (state.windowSearchBusy ? "Searching windows…":"No windows found"):state.mode=="tabs" ? (state.tabSearchBusy ? "Loading tabs…":"No Safari tabs found"):state.mode=="shortcuts" ? (state.shortcutSearchBusy ? "Loading shortcuts…":"No shortcuts found"):"No commands found").foregroundStyle(.secondary).padding(24)}
+                            if commands.isEmpty && (!["shortcuts","tabs"].contains(state.mode) || state.message.isEmpty) {Text(state.mode=="commands" && state.mainSearchBusy ? "Searching…":state.mode=="menus" ? (state.menuSearchBusy ? "Searching menu…":"No menu actions found"):state.mode=="windows" ? (state.windowSearchBusy ? "Searching windows…":"No windows found"):state.mode=="tabs" ? (state.tabSearchBusy ? "Loading tabs…":"No Safari tabs found"):state.mode=="shortcuts" ? (state.shortcutSearchBusy ? "Loading shortcuts…":"No shortcuts found"):"No commands found").foregroundStyle(.secondary).padding(24)}
                             ForEach(Array(commands.enumerated()),id:\.element.id) { index,cmd in
+                                if mainTabs,!cmd.target.hasPrefix("system.tab:"),index>0,commands[index-1].target.hasPrefix("system.tab:") {
+                                    Text(state.query.isEmpty ? "Suggestions":"Results").font(.system(size:11,weight:.medium)).foregroundStyle(.secondary).padding(.horizontal,8).padding(.top,10).padding(.bottom,6)
+                                }
                                 Button {state.selection=index;state.activateSelection()} label:{
                                     HStack(spacing:12) {
                                         if state.mode=="processes",let process=state.processResources[cmd.id] {ProcessIcon(resource:process)}
