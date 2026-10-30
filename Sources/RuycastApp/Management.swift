@@ -190,8 +190,7 @@ struct ManagementView:View {
     }
     private func create(_ kind:String) {
         state.message=""
-        let title=kind=="snippet" ? "New Snippet":kind=="script" ? "New Shell Command":"New Quicklink"
-        navigation.form=CommandForm(command:Command(id:kind+"."+UUID().uuidString.lowercased(),title:title,kind:kind,target:kind=="snippet" ? "":kind=="script" ? "/usr/bin/true":"https://"),isRun:false,isNew:true)
+        navigation.form=state.newCommandForm(kind)
     }
 }
 func jsonString(_ text:String)->String {String(data:try! JSONEncoder().encode(text),encoding:.utf8)!}

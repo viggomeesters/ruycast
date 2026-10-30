@@ -37,7 +37,7 @@ func featureFixture()->[Command] {
     guard panel.performKeyEquivalent(with:event),state.actionsOpen else {throw LauncherError("Command K did not open actions.")}
     state.query="quick note";state.begin(state.selectedCommand!);state.expandInlineInput()
     guard state.form?.command.id=="capture.quick-note",state.form?.isRun==true else {throw LauncherError("Quick Note did not request input.")}
-    state.form=nil;state.newCommand("url")
+    state.form=nil;state.newCommand("url",pasteboard:NSPasteboard(name:NSPasteboard.Name("rc-create-fixture-"+UUID().uuidString)))
     guard state.form?.isNew==true,state.form?.command.kind=="url" else {throw LauncherError("Quicklink editor did not open.")}
     state.form=nil;state.mode="snippets"
     guard state.visibleCommands.map(\.id)==["snippet.greeting"] else {throw LauncherError("Snippet navigation failed.")}

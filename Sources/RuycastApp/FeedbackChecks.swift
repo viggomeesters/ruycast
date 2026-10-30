@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Vision
 import LauncherCore
 import LauncherModels
 
@@ -12,14 +13,16 @@ import LauncherModels
     var config=state.config;config.commands=featureFixture()
     for index in config.commands.indices where config.commands[index].id.hasPrefix("capture.") {config.commands[index].arguments=["%s",#"{"ok":true}"#]}
     try Files.save(config,to:state.configURL);try state.reload()
+    let creationPasteboard=NSPasteboard(name:NSPasteboard.Name("rc-quicklink-"+UUID().uuidString))
+    defer {creationPasteboard.clearContents()}
     var presented=0
     state.showPalette={mode in presented+=1;state.paletteVisible=true;state.form=nil;state.mode=mode}
     for kind in ["url","snippet"] {
         state.paletteVisible=false;state.form=nil
-        state.newCommand(kind)
+        state.newCommand(kind,pasteboard:creationPasteboard)
         try require(state.paletteVisible && state.form?.isNew==true && state.form?.command.kind==kind,"New command from closed launcher remained invisible.")
         let count=presented
-        state.newCommand(kind)
+        state.newCommand(kind,pasteboard:creationPasteboard)
         try require(presented==count && state.form?.command.kind==kind,"Creation re-presented an already open launcher.")
     }
     state.showPalette=nil;state.form=nil;state.paletteVisible=false
@@ -32,7 +35,50 @@ import LauncherModels
     defer {window.close()}
     let host=NSHostingView(rootView:Palette(state:state));window.contentView=host;host.frame=NSRect(x:0,y:0,width:760,height:490)
     let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
-    func capture(_ name:String) throws {pump();host.layoutSubtreeIfNeeded();guard let bitmap=host.bitmapImageRepForCachingDisplay(in:host.bounds) else {throw LauncherError("No feedback preview")};host.cacheDisplay(in:host.bounds,to:bitmap);try bitmap.representation(using:.png,properties:[:])!.write(to:directory.appendingPathComponent(name+".png"))}
+    func capture(_ name:String,view:NSView?=nil) throws {
+        pump();let view=view ?? host;view.layoutSubtreeIfNeeded()
+        guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("No feedback preview")}
+        view.cacheDisplay(in:view.bounds,to:bitmap)
+        try bitmap.representation(using:.png,properties:[:])!.write(to:directory.appendingPathComponent(name+".png"))
+        if let image=bitmap.cgImage {
+            let request=VNRecognizeTextRequest();request.recognitionLevel = .accurate
+            try VNImageRequestHandler(cgImage:image).perform([request])
+            let text=(request.results ?? []).compactMap {$0.topCandidates(1).first?.string}.joined(separator:"\n")
+            try text.write(to:directory.appendingPathComponent(name+"-copy.txt"),atomically:true,encoding:.utf8)
+        }
+    }
+    // Only a named synthetic pasteboard is read; never the user's clipboard.
+    let copied="https://example.test/copied?q=1#part",raw=" \n"+copied+" \n"
+    creationPasteboard.declareTypes([.string],owner:nil);creationPasteboard.setString(raw,forType:.string)
+    let clipboardRevision=creationPasteboard.changeCount,configBeforeCreation=try Data(contentsOf:state.configURL)
+    state.newCommand("url",pasteboard:creationPasteboard)
+    try require(state.form?.command.target==copied,"New Quicklink did not prefill the current clipboard.")
+    let settingsForm=state.newCommandForm("url",pasteboard:creationPasteboard)
+    try require(settingsForm.command.target==copied && settingsForm.isNew && !settingsForm.isRun,"Settings creation did not use the same clipboard prefill.")
+    try require(state.newCommandForm("snippet",pasteboard:creationPasteboard).command.target.isEmpty && state.newCommandForm("script",pasteboard:creationPasteboard).command.target=="/usr/bin/true","Clipboard replaced non-quicklink content.")
+    let oldTheme=state.config.theme
+    for theme in ["light","dark"] {
+        state.config.theme=theme
+        for width in [760,600] {window.setContentSize(NSSize(width:width,height:490));host.frame=NSRect(x:0,y:0,width:width,height:490);try capture("quicklink-prefill-\(theme)-\(width)")}
+        let navigation=ManagementNavigation();navigation.select(.quicklinks);navigation.form=settingsForm
+        let settings=NSHostingView(rootView:ManagementView(state:state,navigation:navigation));settings.frame=NSRect(x:0,y:0,width:980,height:680)
+        try capture("quicklink-settings-\(theme)",view:settings)
+    }
+    state.config.theme=oldTheme;window.setContentSize(NSSize(width:760,height:490));host.frame=NSRect(x:0,y:0,width:760,height:490)
+    try require(creationPasteboard.changeCount==clipboardRevision && creationPasteboard.string(forType:.string)==raw && (try Data(contentsOf:state.configURL))==configBeforeCreation,"Prefill mutated clipboard or saved without confirmation.")
+    var quicklinkDraft=state.form!.command;quicklinkDraft.title="Fixture Quicklink";quicklinkDraft.target="https://example.test/edited"
+    state.form?.command=quicklinkDraft;creationPasteboard.setString("https://example.test/later",forType:.string);pump()
+    try require(state.form?.command.target==quicklinkDraft.target,"A later clipboard change replaced user edits.")
+    state.form=nil
+    try require((try Data(contentsOf:state.configURL))==configBeforeCreation,"Cancelling a new quicklink saved it.")
+    state.saveCommand(quicklinkDraft,isNew:true);try wait();try state.reload()
+    try require(state.config.commands.first {$0.id==quicklinkDraft.id}?.target==quicklinkDraft.target,"Explicit quicklink save lost the edited target.")
+    creationPasteboard.clearContents()
+    try require(state.newCommandForm("url",pasteboard:creationPasteboard).command.target=="https://","Empty clipboard lost the existing URL fallback.")
+    let binaryType=NSPasteboard.PasteboardType("org.example.quicklink-fixture")
+    creationPasteboard.declareTypes([binaryType],owner:nil);creationPasteboard.setData(Data([0,1,2]),forType:binaryType)
+    try require(state.newCommandForm("url",pasteboard:creationPasteboard).command.target=="https://","Non-text clipboard became an invalid URL.")
+    state.form=nil;state.paletteVisible=false
     for id in ["capture.quick-note","capture.quick-task"] {
         state.begin(state.config.commands.first {$0.id==id}!);try require(state.inlineCommand?.id==id && state.form==nil,"Capture did not start inline");state.expandInlineInput();pump();host.layoutSubtreeIfNeeded();pump()
         guard let editor=input(host) else {throw LauncherError("Quick capture did not render multiline editor")}
@@ -71,11 +117,11 @@ import LauncherModels
     state.query="finder-custom";state.selection=0;state.actionsOpen=true;state.performMenuAction("disable");try wait()
     try require(state.config.commands.first {$0.id==command.id}?.enabled==false && state.searchCommands("finder-custom").isEmpty,"Disable did not persist or remained searchable")
     state.query="nothing-matches-zz"
-    for kind in ["url","snippet"] {state.newCommand(kind);try require(state.form?.isNew==true && state.form?.command.id != command.id && state.form?.command.target != command.target,"Creation inherited selected command");state.form=nil}
+    for kind in ["url","snippet"] {state.newCommand(kind,pasteboard:creationPasteboard);try require(state.form?.isNew==true && state.form?.command.id != command.id && state.form?.command.target != command.target,"Creation inherited selected command");state.form=nil}
     state.query="";try capture("global-create-dark")
     // Process actions use fixture effects, never a real termination or app launch.
     let services=try checkSystemServices()
     try require(services["ok"] as? Bool==true,"Process tools failed platform boundary checks")
     try require(!window.isVisible,"Feedback test opened a visible window")
-    return ["ok":true,"quickNoteAndTaskMultiline":true,"nativeCaptureFocus":true,"enterSubmits":true,"shiftEnterAddsLine":true,"commandEnterSubmits":true,"imeCommitDoesNotSubmit":true,"enterCompletesThroughRunnerOnce":true,"quickAliasHotkeySave":true,"bindingSavePreservesExternalDefinition":true,"quickDisable":true,"creationIndependentOfSelection":true,"processToolsVerifiedWithoutDesktopEffects":true,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"quickNoteAndTaskMultiline":true,"nativeCaptureFocus":true,"enterSubmits":true,"shiftEnterAddsLine":true,"commandEnterSubmits":true,"imeCommitDoesNotSubmit":true,"enterCompletesThroughRunnerOnce":true,"quickAliasHotkeySave":true,"bindingSavePreservesExternalDefinition":true,"quickDisable":true,"clipboardQuicklinkPrefill":true,"clipboardUnchangedAndSaveExplicit":true,"settingsCreationUsesSamePrefill":true,"emptyAndNonTextClipboardFallback":true,"creationIndependentOfSelection":true,"processToolsVerifiedWithoutDesktopEffects":true,"visibleWindowOpened":false,"desktopInputSent":false]
 }

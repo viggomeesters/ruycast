@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.23 — quicklink clipboard prefill
+
+- Prefill New Quicklink from the current text clipboard in the launcher and Settings using one shared form factory.
+- Keep the address editable and save/cancel explicit; preserve the clipboard and the existing empty/non-text fallback.
+
 ## 0.8.22 — visible snippet hotkey action
 
 - Add Set Hotkey… directly to the footer for selected snippets, reusing the existing recorder and validated save flow.
