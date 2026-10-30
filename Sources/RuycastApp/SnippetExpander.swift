@@ -71,8 +71,9 @@ import LauncherModels
                 return !state.paletteVisible && state.config.snippetExpansionEnabled==true && state.windows.trusted && !IsSecureEventInputEnabled() && !self.secureField() && !state.config.clipboard.excludedApps.contains(active.bundleIdentifier ?? "") && state.config.commands.contains(command)
             },apply:{ [weak state] replacement in
                 let started=DispatchTime.now().uptimeNanoseconds,tracked=state?.analytics.recordAttempt(command.id,source:"snippet")
-                replacement.apply(key:Self.key,insert:Self.insert)
-                if let tracked {state?.analytics.recordCompletion(tracked,success:true,ms:AnalyticsStore.elapsed(started))}
+                let applied=SnippetClipboard.apply(replacement,mode:command.snippetOutput,board:.general,onWrite:{state?.ignoreOwnClipboardChange()},key:Self.key,paste:Self.paste,moveCursor:{ [weak self] in self?.moveCursor($0,pid:pid) },insert:Self.insert)
+                if !applied {state?.showToast?("Could not copy snippet. Type the keyword again.",false)}
+                if let tracked {state?.analytics.recordCompletion(tracked,success:applied,ms:AnalyticsStore.elapsed(started))}
             },failure:{ [weak state] in state?.showToast?($0,false) })
             choice=controller;controller.onFinish={ [weak self] in self?.choice=nil;self?.matcher.reset() }
             DispatchQueue.main.asyncAfter(deadline:.now()+0.03) { [weak controller] in controller?.present() }
@@ -83,10 +84,18 @@ import LauncherModels
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier==pid,!IsSecureEventInputEnabled(),!secureField() else {return Unmanaged.passUnretained(event)}
         let replacement=SnippetReplacement(keyword:keyword,finalInput:text,text:rendered.0,cursor:rendered.1)
         let started=DispatchTime.now().uptimeNanoseconds,tracked=state.analytics.recordAttempt(command.id,source:"snippet")
-        replacement.apply(key:Self.key,insert:Self.insert)
-        if let tracked {state.analytics.recordCompletion(tracked,success:true,ms:AnalyticsStore.elapsed(started))}
-        return nil
+        let applied=SnippetClipboard.apply(replacement,mode:command.snippetOutput,board:.general,onWrite:{state.ignoreOwnClipboardChange()},key:Self.key,paste:Self.paste,moveCursor:{ [weak self] in self?.moveCursor($0,pid:pid) },insert:Self.insert)
+        if !applied {state.showToast?("Could not copy snippet.",false)}
+        if let tracked {state.analytics.recordCompletion(tracked,success:applied,ms:AnalyticsStore.elapsed(started))}
+        return applied ? nil:Unmanaged.passUnretained(event)
     }
+    private func moveCursor(_ steps:Int,pid:pid_t) {
+        DispatchQueue.main.asyncAfter(deadline:.now()+0.08) { [weak self] in
+            guard let self,NSWorkspace.shared.frontmostApplication?.processIdentifier==pid,!IsSecureEventInputEnabled(),!self.secureField() else {return}
+            for _ in 0..<steps {Self.key(123)}
+        }
+    }
+    private static func paste() {for down in [true,false] {let event=CGEvent(keyboardEventSource:nil,virtualKey:9,keyDown:down);event?.flags = .maskCommand;event?.setIntegerValueField(.eventSourceUserData,value:generatedTag);event?.post(tap:.cghidEventTap)}}
     private static func insert(_ value:String) {
         let units=Array(value.utf16)
         for down in [true,false] {

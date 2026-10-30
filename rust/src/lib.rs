@@ -48,6 +48,8 @@ pub struct Command {
     pub application_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "snippetOutput")]
+    pub snippet_output: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -138,6 +140,11 @@ pub fn validate(value: &Value) -> Result<Config, String> {
         for n in std::iter::once(&cmd.id).chain(cmd.aliases.iter()) {
             if n.trim().is_empty() || n.trim() != n || !names.insert(n.to_lowercase()) {
                 return Err(format!("Empty or duplicate command id/alias: {n}"));
+            }
+        }
+        if let Some(output) = &cmd.snippet_output {
+            if cmd.kind != "snippet" || !["plain", "teams", "html"].contains(&output.as_str()) {
+                return Err("Snippet output must be plain, teams or html on a snippet.".into());
             }
         }
         if let Some(keyword) = &cmd.keyword {

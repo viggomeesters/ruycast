@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.24 — snippet editing and rich output
+
+- Add logical line numbers with wrapping and scrolling, plus a link form for inserting and editing snippet hyperlinks.
+- Add per-snippet Plain text, Teams and Mail (HTML) output. Rich modes preserve labeled links and line breaks through manual insertion and keyword/choice expansion; old snippets remain plain text.
+- Keep source text escaped in HTML, accept only web/mail links, and retain native editing, undo and existing bindings.
+
 ## 0.8.23 — quicklink clipboard prefill
 
 - Prefill New Quicklink from the current text clipboard in the launcher and Settings using one shared form factory.

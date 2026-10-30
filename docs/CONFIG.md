@@ -191,3 +191,10 @@ Discovery runs on demand, caches successful lists for 30 seconds, and Refresh re
 A run uses the existing bounded script runner, with a default five-minute timeout that can be changed through Edit. Shortcuts may display their own input or permission dialogs after you run them. Ruycast discards workflow output; it cannot interpret that output as a report or another action. A timeout ends Ruycast's wait, but does not prove that the underlying workflow or its effects stopped. Check Shortcuts before retrying. No workflow is retried automatically.
 
 CLI: search with `ruycast search --mode shortcuts`, then execute the returned command ID. Saved aliases and hotkeys work after restart without discovery. Removing a saved binding command restores automatic discovery of that original shortcut; it does not delete the shortcut from macOS.
+
+
+## Snippet output
+
+Snippet commands accept optional `snippetOutput`: `plain` (the default), `teams`, or `html`. The editor exposes these as Plain text, Teams and Mail (HTML). Rich modes interpret Markdown links such as `[Guide](https://example.com)` and place HTML plus a plain text fallback on the clipboard. Teams uses a presentation table with one row per source line, including blank lines; mail uses HTML line breaks. Text and link attributes are escaped, and links support HTTPS, HTTP and mailto. Raw HTML is treated as text. The source, keyword, aliases and hotkey remain editable. Choose Link… with a selection or a caret inside an existing link to add or edit its text and URL.
+
+The receiving app controls paste handling. Rich output requires normal paste into a rich-text composer; plain-text paste intentionally drops formatting. App import fixtures verify links and spacing; live client behavior can differ.

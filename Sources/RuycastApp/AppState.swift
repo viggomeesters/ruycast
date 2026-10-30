@@ -477,7 +477,7 @@ func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject
             switch cmd.kind {
             case "snippet":
                 let rendered=try Templates.render(cmd,values:values,clipboard:cmd.target.contains("{clipboard}") ? NSPasteboard.general.string(forType:.string):nil)
-                try pasteText(rendered.0,cursor:rendered.1)
+                try pasteText(rendered.0,cursor:rendered.1,output:cmd.snippetOutput)
                 finish(["ok":true,"result":["state":"pasted"]])
             case "app":
                 guard let url=applicationURL(cmd.target) else {throw LauncherError("App is not installed: \(cmd.target)")}

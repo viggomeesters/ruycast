@@ -55,6 +55,22 @@ class CLIIntegration(unittest.TestCase):
             raise AssertionError(r)
         return r
 
+    def test_snippet_output_roundtrip_and_rejection(self):
+        command={'id':'test.rich-snippet','title':'Rich fixture','kind':'snippet','target':'Hello\n\n[Guide](https://example.com/?a=1&b=2)','keyword':';fixture-rich','snippetOutput':'teams'}
+        try:
+            self.cli('config','add',json.dumps(command),ok=True)
+            current=self.cli('config','get',ok=True)
+            saved=next(c for c in current['result']['commands'] if c['id']==command['id'])
+            self.assertEqual(saved['snippetOutput'],'teams')
+            self.assertEqual(saved['target'],command['target'])
+            self.cli('config','set','theme','"dark"',ok=True)
+            saved=next(c for c in self.cli('config','get',ok=True)['result']['commands'] if c['id']==command['id'])
+            self.assertEqual(saved['snippetOutput'],'teams')
+            self.cli('config','add',json.dumps(dict(command,id='test.bad-output',keyword=';bad-output',snippetOutput='unknown')),ok=False)
+            self.cli('config','add',json.dumps(dict(command,id='test.bad-kind',kind='url',keyword=None)),ok=False)
+        finally:
+            self.cli('config','remove',command['id'],ok=True)
+
     def test_bounded_privacy_safe_performance_summary_and_confirmed_reset(self):
         summary=self.cli('performance',ok=True)['result']
         self.assertEqual(summary['sampleLimitPerStage'],256)
