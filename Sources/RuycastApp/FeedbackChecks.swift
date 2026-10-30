@@ -12,6 +12,17 @@ import LauncherModels
     var config=state.config;config.commands=featureFixture()
     for index in config.commands.indices where config.commands[index].id.hasPrefix("capture.") {config.commands[index].arguments=["%s",#"{"ok":true}"#]}
     try Files.save(config,to:state.configURL);try state.reload()
+    var presented=0
+    state.showPalette={mode in presented+=1;state.paletteVisible=true;state.form=nil;state.mode=mode}
+    for kind in ["url","snippet"] {
+        state.paletteVisible=false;state.form=nil
+        state.newCommand(kind)
+        try require(state.paletteVisible && state.form?.isNew==true && state.form?.command.kind==kind,"New command from closed launcher remained invisible.")
+        let count=presented
+        state.newCommand(kind)
+        try require(presented==count && state.form?.command.kind==kind,"Creation re-presented an already open launcher.")
+    }
+    state.showPalette=nil;state.form=nil;state.paletteVisible=false
     let server=ControlServer(root:root);try server.start {req,reply in state.handle(req,sink:reply)};defer {server.stop()}
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     func pump() {let end=Date().addingTimeInterval(0.15);while Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}}
@@ -23,7 +34,7 @@ import LauncherModels
     let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     func capture(_ name:String) throws {pump();host.layoutSubtreeIfNeeded();guard let bitmap=host.bitmapImageRepForCachingDisplay(in:host.bounds) else {throw LauncherError("No feedback preview")};host.cacheDisplay(in:host.bounds,to:bitmap);try bitmap.representation(using:.png,properties:[:])!.write(to:directory.appendingPathComponent(name+".png"))}
     for id in ["capture.quick-note","capture.quick-task"] {
-        state.begin(state.config.commands.first {$0.id==id}!);try require(state.inlineCommand?.id==id && state.form==nil,"Capture did not start inline");state.expandInlineInput();pump();host.layoutSubtreeIfNeeded()
+        state.begin(state.config.commands.first {$0.id==id}!);try require(state.inlineCommand?.id==id && state.form==nil,"Capture did not start inline");state.expandInlineInput();pump();host.layoutSubtreeIfNeeded();pump()
         guard let editor=input(host) else {throw LauncherError("Quick capture did not render multiline editor")}
         try require(window.firstResponder===editor,"Quick capture editor did not acquire native focus")
         editor.insertText("First line",replacementRange:editor.selectedRange());editor.keyDown(with:NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.shift,timestamp:0,windowNumber:window.windowNumber,context:nil,characters:"\r",charactersIgnoringModifiers:"\r",isARepeat:false,keyCode:36)!);editor.insertText("Second line Ω",replacementRange:editor.selectedRange())

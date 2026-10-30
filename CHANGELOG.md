@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.20 — show creation forms from global hotkeys
+
+- Present the launcher before opening New Quicklink or New Snippet from a global hotkey when it was closed.
+- Keep an already open launcher visible when creating another item; preserve the existing keyboard bindings.
+
 ## 0.8.19 — Safari tabs in the main search
 
 - Show a Safari Tabs group first when opening the main launcher; match tab titles and addresses alongside existing apps and commands.
