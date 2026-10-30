@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.26 — native editing shortcuts
+
+- Restore Command-V/C/X/A and Undo/Redo in native capture and text fields, with a standard Edit menu for ordinary windows.
+- Preserve the focused text responder, exact multiline input, shortcut recording and existing command bindings; enable capture Undo.
+- Check real panel and menu key dispatch offscreen using a private fixture pasteboard.
+
 ## 0.8.25 — Teams paragraphs without a table
 
 - Replace Teams snippet tables with ordinary paragraphs, preserving links and explicit blank lines without a visible grid.

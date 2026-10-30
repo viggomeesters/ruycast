@@ -3,6 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 directory="${RUYCAST_CHECK_OUTPUT:-.build/native-checks}"
 mkdir -p "$directory"
+.build/swift/debug/RuycastApp --check-edit-commands > "$directory/edit-commands.json"
+cat "$directory/edit-commands.json"
 .build/swift/debug/RuycastApp --check-settings "$directory" > "$directory/interaction.json"
 .build/swift/debug/RuycastApp --check-interactions > "$directory/launcher-interaction.json"
 .build/swift/debug/RuycastApp --check-actions-menu > "$directory/actions-interaction.json"

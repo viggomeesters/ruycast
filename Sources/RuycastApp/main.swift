@@ -17,6 +17,7 @@ if args.first=="--benchmark-clipboard-poll" {
     output(["ok":false,"error":"Build with -Xswiftc -DRUYCAST_POLL_BENCHMARK to run this fixture."]);exit(1)
 #endif
 }
+if args.first=="--check-edit-commands" {do {output(try checkNativeEditCommands());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-concurrency" {do {output(try checkConcurrencyOwnership());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--benchmark-interactions" {do {output(try checkInteractionPerformance());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-script-choices" {
@@ -214,4 +215,5 @@ if args.first=="--render" {
 }
 let app=NSApplication.shared
 app.setActivationPolicy(.accessory)
+NativeEditCommands.installMenu()
 let delegate=AppDelegate();app.delegate=delegate;app.run()
