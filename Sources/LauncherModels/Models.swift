@@ -7,14 +7,14 @@ public struct LauncherError:Error,LocalizedError {
 }
 public struct Command:Codable,Sendable,Identifiable,Equatable {
     public var id:String;public var title:String;public var kind:String;public var target:String
-    public var aliases:[String];public var arguments:[String];public var hotkey:String?;public var timeout:Double?;public var inputPrompt:String?;public var keyword:String?;public var applicationID:String?;public var enabled:Bool?;public var isEnabled:Bool {enabled != false}
-    public init(id:String,title:String,kind:String,target:String,aliases:[String]=[],arguments:[String]=[],hotkey:String?=nil,timeout:Double?=nil,inputPrompt:String?=nil,keyword:String?=nil,applicationID:String?=nil,enabled:Bool?=nil) {self.id=id;self.title=title;self.kind=kind;self.target=target;self.aliases=aliases;self.arguments=arguments;self.hotkey=hotkey;self.timeout=timeout;self.inputPrompt=inputPrompt;self.keyword=keyword;self.applicationID=applicationID;self.enabled=enabled}
-    enum CodingKeys:String,CodingKey {case id,title,kind,target,aliases,arguments,hotkey,timeout,inputPrompt,keyword,applicationID,enabled}
+    public var aliases:[String];public var arguments:[String];public var hotkey:String?;public var timeout:Double?;public var inputPrompt:String?;public var keyword:String?;public var applicationID:String?;public var snippetOutput:String?;public var enabled:Bool?;public var isEnabled:Bool {enabled != false}
+    public init(id:String,title:String,kind:String,target:String,aliases:[String]=[],arguments:[String]=[],hotkey:String?=nil,timeout:Double?=nil,inputPrompt:String?=nil,keyword:String?=nil,applicationID:String?=nil,enabled:Bool?=nil,snippetOutput:String?=nil) {self.id=id;self.title=title;self.kind=kind;self.target=target;self.aliases=aliases;self.arguments=arguments;self.hotkey=hotkey;self.timeout=timeout;self.inputPrompt=inputPrompt;self.keyword=keyword;self.applicationID=applicationID;self.enabled=enabled;self.snippetOutput=snippetOutput}
+    enum CodingKeys:String,CodingKey {case id,title,kind,target,aliases,arguments,hotkey,timeout,inputPrompt,keyword,applicationID,enabled,snippetOutput}
     public init(from decoder:Decoder) throws {
         let c=try decoder.container(keyedBy:CodingKeys.self)
         id=try c.decode(String.self,forKey:.id);title=try c.decode(String.self,forKey:.title);kind=try c.decode(String.self,forKey:.kind);target=try c.decode(String.self,forKey:.target)
         aliases=try c.decodeIfPresent([String].self,forKey:.aliases) ?? [];arguments=try c.decodeIfPresent([String].self,forKey:.arguments) ?? []
-        hotkey=try c.decodeIfPresent(String.self,forKey:.hotkey);timeout=try c.decodeIfPresent(Double.self,forKey:.timeout);inputPrompt=try c.decodeIfPresent(String.self,forKey:.inputPrompt);keyword=try c.decodeIfPresent(String.self,forKey:.keyword);applicationID=try c.decodeIfPresent(String.self,forKey:.applicationID);enabled=try c.decodeIfPresent(Bool.self,forKey:.enabled)
+        hotkey=try c.decodeIfPresent(String.self,forKey:.hotkey);timeout=try c.decodeIfPresent(Double.self,forKey:.timeout);inputPrompt=try c.decodeIfPresent(String.self,forKey:.inputPrompt);keyword=try c.decodeIfPresent(String.self,forKey:.keyword);applicationID=try c.decodeIfPresent(String.self,forKey:.applicationID);enabled=try c.decodeIfPresent(Bool.self,forKey:.enabled);snippetOutput=try c.decodeIfPresent(String.self,forKey:.snippetOutput)
     }
 }
 public struct ClipboardSettings:Codable,Sendable,Equatable {

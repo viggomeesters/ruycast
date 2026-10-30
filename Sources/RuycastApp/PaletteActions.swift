@@ -133,11 +133,13 @@ extension AppState {
         if board.setString(text,forType:.string) {ignoreOwnClipboardChange();showToast?("Copied",true)}
         else {message="Could not copy text."}
     }
-    func pasteText(_ text:String,cursor:Int?=nil) throws {
+    func pasteText(_ source:String,cursor sourceCursor:Int?=nil,output:String?=nil) throws {
+        let payload=SnippetOutput.render(source,mode:output,cursor:sourceCursor)
+        let text=payload.text,cursor=payload.cursor
         guard windows.trusted else {throw LauncherError("Allow Ruycast in System Settings → Privacy & Security → Accessibility to insert text.")}
         guard !headless,let pid=previousPID,let app=NSRunningApplication(processIdentifier:pid) else {throw LauncherError("Choose an app to insert the snippet into.")}
-        let board=NSPasteboard.general;board.clearContents()
-        guard board.setString(text,forType:.string) else {throw LauncherError("Could not copy text.")}
+        let board=NSPasteboard.general
+        guard SnippetClipboard.write(payload,to:board) else {throw LauncherError("Could not copy text.")}
         ignoreOwnClipboardChange();hidePalette?();app.activate(options:[])
         DispatchQueue.main.asyncAfter(deadline:.now()+0.15) { [weak self] in
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier==pid else {self?.showToast?("Copied · target app did not activate",false);return}

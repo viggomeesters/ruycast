@@ -24,6 +24,8 @@ struct CommandEditor:View {
     @FocusState private var focused:Bool
     @FocusState private var aliasFocused:Bool
     @State private var aliasInput=""
+    @State private var snippetSelection=NSRange(location:0,length:0)
+    @State private var linkDraft:SnippetLinkDraft?
     @Environment(\.colorScheme) private var scheme
     @State var advancedExpanded=false
     private var theme:SettingsTheme {SettingsTheme(dark:(state.preferredColorScheme ?? scheme) == .dark,graphite:state.config.theme=="graphite")}
@@ -58,12 +60,17 @@ struct CommandEditor:View {
                             field("Name",text:$form.command.title)
                             if form.command.kind=="snippet" {
                                 VStack(alignment:.leading,spacing:7) {
-                                    fieldLabel("Text")
-                                    TextEditor(text:$form.command.target).font(.system(size:13))
-                                        .scrollContentBackground(.hidden).padding(8).frame(minHeight:150)
+                                    HStack {fieldLabel("Text");Spacer();Button("Link…") {linkDraft=SnippetLinkDraft.make(source:form.command.target,selection:snippetSelection)}.accessibilityLabel("Add or edit link")}
+                                    SnippetTextEditor(text:$form.command.target,selection:$snippetSelection).frame(height:230).clipped()
                                         .background(theme.surface,in:RoundedRectangle(cornerRadius:7))
                                         .overlay(RoundedRectangle(cornerRadius:7).strokeBorder(theme.ink.opacity(0.12)))
                                         .accessibilityLabel("Text")
+                                }
+                                VStack(alignment:.leading,spacing:7) {
+                                    fieldLabel("Output")
+                                    Picker("Output",selection:Binding(get:{form.command.snippetOutput ?? "plain"},set:{form.command.snippetOutput=$0=="plain" ? nil:$0})) {
+                                        Text("Plain text").tag("plain");Text("Teams").tag("teams");Text("Mail (HTML)").tag("html")
+                                    }.labelsHidden()
                                 }
                                 field("Keyword",text:Binding(get:{form.command.keyword ?? ""},set:{form.command.keyword=$0.isEmpty ? nil:$0}))
                             } else if form.command.kind != "script" {
@@ -129,6 +136,9 @@ struct CommandEditor:View {
             if !state.message.isEmpty {Text(state.message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)}
             HStack {if form.isRun && (form.command.id.hasPrefix("capture.") || form.command.target=="utility-set-text") {Text("⇧↵ New line").font(.caption).foregroundStyle(.secondary)};Spacer();if state.busy {ProgressView().controlSize(.small)};if form.bindingField != .hotkey {Button(form.isRun ? (form.command.id.hasPrefix("capture.") ? "Save":form.command.kind=="snippet" ? "Insert":form.command.kind=="url" ? "Open":"Run"):"Save") {submit()}.keyboardShortcut(.return,modifiers:.command).disabled(state.busy)}}
         }.padding(22).foregroundStyle(theme.ink).tint(theme.accent)
+            .sheet(item:$linkDraft) {draft in SnippetLinkForm(draft:draft,save:{value in
+                if let (text,range)=value.applying(to:form.command.target) {form.command.target=text;snippetSelection=range;linkDraft=nil}
+            },cancel:{linkDraft=nil})}
             .onAppear {focused = form.bindingField==nil && !["capture.quick-note","capture.quick-task"].contains(form.command.id);aliasInput=form.command.aliases.joined(separator:", ");aliasFocused=form.bindingField == .alias}.onSubmit {submit()}
             .onExitCommand {if form.bindingField != nil {cancelEditing()}}
     }
