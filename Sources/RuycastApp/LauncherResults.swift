@@ -37,7 +37,7 @@ struct LauncherCommandResults:View {
     private func kindLabel(_ kind:String)->String {["snippet":"Snippet","app":"Application","url":"Quicklink","path":"File or Folder","script":"Command","window":"Window","builtin":"Command"][kind] ?? "Command"}
     private func snippetBindings(_ command:Command)->String {
         var parts:[String]=[]
-        if let keyword=command.keyword,!keyword.isEmpty {parts.append("Keyword "+keyword)}
+        if let keyword=command.keyword,!keyword.isEmpty {parts.append(keyword)}
         if !command.aliases.isEmpty {parts.append("Aliases "+command.aliases.joined(separator:", "))}
         return parts.joined(separator:" · ")
     }
