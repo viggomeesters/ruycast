@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.21 — snippet keyword values
+
+- Show the configured snippet keyword under its name without repeating the Keyword label. Preserve aliases and hotkey badges.
+
 ## 0.8.20 — show creation forms from global hotkeys
 
 - Present the launcher before opening New Quicklink or New Snippet from a global hotkey when it was closed.
