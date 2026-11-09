@@ -100,6 +100,20 @@ pub fn default_config() -> Value {
 }
 pub fn shortcut(s: &str) -> Result<String, String> {
     let lower = s.to_lowercase();
+    if lower == "fn" {
+        return Ok(lower);
+    }
+    if let Some(key) = lower.strip_prefix("double:") {
+        if ["ctrl", "alt", "cmd", "shift", "left-ctrl", "right-ctrl", "left-alt",
+            "right-alt", "left-cmd", "right-cmd", "left-shift", "right-shift", "fn"].contains(&key)
+            || (!key.contains(['+', ':'])
+                && !["left-control", "left-option", "backspace"].contains(&key)
+                && shortcut(&format!("ctrl+{key}")).is_ok())
+        {
+            return Ok(lower);
+        }
+        return Err("Choose a single supported key after double:.".into());
+    }
     let mut parts = lower.split('+').collect::<Vec<_>>();
     let key = parts.pop().unwrap_or("");
     let known_key = key.len() == 1
@@ -135,7 +149,7 @@ pub fn shortcut(s: &str) -> Result<String, String> {
     if !known_key
         || parts.is_empty()
         || parts.iter().any(|m| {
-            !["ctrl", "alt", "shift", "cmd", "left-cmd", "right-cmd"].contains(m)
+            !["ctrl", "alt", "right-alt", "shift", "cmd", "left-cmd", "right-cmd", "fn"].contains(m)
                 || !mods.insert(*m)
         })
     {
@@ -148,6 +162,9 @@ pub fn shortcut(s: &str) -> Result<String, String> {
         > 1
     {
         return Err("Choose cmd, left-cmd or right-cmd, not a combination.".into());
+    }
+    if mods.contains("alt") && mods.contains("right-alt") {
+        return Err("Choose alt or right-alt, not both.".into());
     }
     parts.sort();
     Ok(format!("{}+{key}", parts.join("+")))
@@ -299,6 +316,15 @@ pub fn validate(value: &Value) -> Result<Config, String> {
                 }
             }
             _ => return Err(format!("Unknown command kind: {}", cmd.kind)),
+        }
+    }
+    for (single, doubles) in [
+        ("ctrl+left-control", ["double:ctrl", "double:left-ctrl"]),
+        ("alt+left-option", ["double:alt", "double:left-alt"]),
+        ("fn", ["double:fn", "double:fn"]),
+    ] {
+        if keys.contains(single) && doubles.iter().any(|key| keys.contains(*key)) {
+            return Err(format!("Choose a single or double tap for {single}."));
         }
     }
     Ok(c)

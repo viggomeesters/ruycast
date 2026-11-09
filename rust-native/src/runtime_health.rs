@@ -27,10 +27,10 @@ impl Requirements {
             )
         {
             let key = key.to_lowercase();
-            needed.sided |= config.separate_command_keys.unwrap_or(true)
-                && key
-                    .split('+')
-                    .any(|p| matches!(p, "left-cmd" | "right-cmd"));
+            needed.sided |= key.starts_with("double:") || key.split('+').any(|part| {
+                matches!(part, "right-alt" | "fn")
+                    || config.separate_command_keys.unwrap_or(true) && matches!(part, "left-cmd" | "right-cmd")
+            });
             needed.modifier_taps |= key
                 .split('+')
                 .next_back()
