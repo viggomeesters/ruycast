@@ -4,7 +4,7 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 ![Ruycast's native launcher and Settings](assets/hero.png)
 
-**Source preview · macOS 14+ · Rust + Swift**
+**Rust native rewrite candidate · macOS 14+**
 
 ## Your everyday shortcuts
 
@@ -20,15 +20,18 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 ## Install
 
-Build from source with macOS command-line developer tools, Rust, Swift and Python 3.10+ installed:
+The production host, CLI, build receipts and packaging are Rust. This rewrite candidate still needs complete functional and F1 delivery acceptance; it is not a new signed or notarized release. Historical Swift sources are retained as test oracles.
+
+Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Python 3.10+ is needed only for compatibility entrypoints and unchanged test validators; Swift is needed for explicit historical parity oracles, not the production build. Dependencies must already be cached for the offline build:
+
+Run these commands from the reviewed Rust candidate checkout or source snapshot.
 
 ```sh
-git clone https://github.com/viggomeesters/ruycast.git
-cd ruycast
-make install
+bash scripts/build-native.sh -c release
+python3 scripts/build_receipt.py verify
 ```
 
-This installs `Ruycast.app`, adds `ruycast` to `~/.local/bin` and starts the menu bar app at login. The installer preserves your profile and reuses a stable local signing identity on updates.
+These commands build and verify the Rust pair under `.build/full-rust-release`. They do not install, sign or publish it. Follow the [installation procedure](docs/INSTALLATION.md) when the candidate is accepted for your intended use.
 
 Allow Ruycast in **System Settings → Privacy & Security → Accessibility** for window management, Hyper, snippet expansion and pasting into other apps. Enable Hyper and snippet expansion in Settings when you want them.
 
@@ -68,16 +71,18 @@ Website icons contact the relevant websites and use a local cache. Only add scri
 ```sh
 make check
 bash scripts/check-settings.sh
-bash scripts/check-performance.sh
+python3 scripts/build_receipt.py verify-check
 ```
 
-Validation runs locally. Native checks use hidden windows, isolated profiles and fake destructive effects. They do not operate your desktop.
+Validation runs locally. The complete native matrix retains its existing leaf validators and explicitly binds test compatibility copies. Performance verification requires the independently reviewed complete F1 runner, pinned authority and preserved dataset; `check-performance.sh` fails closed without them. Historical Swift-host checks must not run without their complete pre-entry SDK guard.
+
+The full `check` entrypoint still refuses its unmapped original Python-discovery gate. The `settings` inventory has no unmapped gates, but requires the complete current native validation and its qualified settings cases. An inventory or native-only pass does not establish the full check, F1 or delivery acceptance.
 
 [Contributing](CONTRIBUTING.md) · [Performance](docs/PERFORMANCE.md) · [Product contract](docs/vision.json)
 
 ## Releases
 
-[Download the 0.8.26 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.26) or clone this repository and build locally. This source preview has no prebuilt notarized app. See the [release status](docs/RELEASING.md) for supported installation and distribution details.
+[The historical 0.8.25 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.25) predates this rewrite. A local Rust build receipt or unsigned candidate does not declare the rewrite release-ready. See the [release status](docs/RELEASING.md).
 
 [Changelog](CHANGELOG.md)
 

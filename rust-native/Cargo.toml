@@ -1,0 +1,134 @@
+[package]
+name = "ruycast-native"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+test-tools = []
+local-preview = []
+
+[[bin]]
+name = "private-results-fixture"
+path = "src/bin/private_results_fixture.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "analytics-probe"
+path = "src/bin/analytics_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "foundation-probe"
+path = "src/bin/foundation_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "script-probe"
+path = "src/bin/script_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "supervision-probe"
+path = "src/bin/supervision_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "workspace-probe"
+path = "src/bin/workspace_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "template-probe"
+path = "src/bin/template_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "manager-probe"
+path = "src/bin/manager_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "snippet-probe"
+path = "src/bin/snippet_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "keyboard-probe"
+path = "src/bin/keyboard_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "hid-state-probe"
+path = "src/bin/hid_state_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "caps-probe"
+path = "src/bin/caps_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "hid-probe"
+path = "src/bin/hid_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "keyword-probe"
+path = "src/bin/keyword_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "keyword-native-probe"
+path = "src/bin/keyword_native_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "keyword-capture-probe"
+path = "src/bin/keyword_capture_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "snippet-choice-probe"
+path = "src/bin/snippet_choice_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "native-snippet-choice-probe"
+path = "src/bin/native_snippet_choice_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "system-search-probe"
+path = "src/bin/system_search_probe.rs"
+required-features = ["test-tools"]
+
+[[bin]]
+name = "macos-effects-probe"
+path = "src/bin/macos_effects_probe.rs"
+required-features = ["test-tools"]
+
+[[test]]
+name = "clipboard_pause_repair"
+path = "tests/clipboard_pause_repair.rs"
+required-features = ["test-tools"]
+
+[dependencies]
+rustcast-core = { path = "../rust" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+libc = "0.2"
+block2 = "0.6.2"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+unicode-segmentation = "=1.12.0"
+objc2 = "0.6.3"
+objc2-uniform-type-identifiers = { version = "0.3.2", default-features = false, features = ["std", "UTType"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFRunLoop", "CFString", "CFDate"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSObject", "NSString", "NSGeometry", "NSNotification", "NSOperation", "NSArray", "NSData", "NSValue", "NSRunLoop", "NSDate", "NSIndexSet", "NSUndoManager", "NSURL", "NSUUID", "NSLocale", "NSDateFormatter", "NSCalendar", "NSISO8601DateFormatter", "NSAppleEventDescriptor", "libc", "objc2-core-services", "NSTimeZone", "NSCharacterSet", "NSRegularExpression", "NSTextCheckingResult", "NSFileManager", "NSPathUtilities", "NSEnumerator", "NSBundle", "NSError", "NSDictionary", "block2", "NSProcessInfo", "NSByteCountFormatter", "NSURLSession", "NSURLRequest", "NSURLResponse", "NSURLCache", "NSHTTPCookieStorage", "NSURLCredentialStorage"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "libc", "objc2-core-foundation", "objc2-uniform-type-identifiers", "NSRulerView", "NSLayoutManager", "NSStringDrawing", "NSAttributedString", "NSSavePanel", "NSOpenPanel", "NSStatusBar", "NSStatusItem", "NSStatusBarButton", "NSApplication", "NSRunningApplication", "NSResponder", "NSWindow", "NSPanel", "NSView", "NSControl", "NSTextField", "NSText", "NSTextView", "NSFont", "NSFontDescriptor", "NSColor", "NSImage", "NSImageView", "NSImageRep", "NSBitmapImageRep", "NSGraphics", "NSBezierPath", "NSGraphicsContext", "NSAccessibility", "NSAccessibilityConstants", "NSAccessibilityProtocols", "NSAppearance", "NSEvent", "NSTableView", "NSTableColumn", "NSTableHeaderView", "NSScrollView", "NSClipView", "NSScroller", "NSTableRowView", "NSCell", "NSButton", "NSButtonCell", "NSScreen", "NSUserInterfaceItemIdentification", "NSParagraphStyle", "NSWorkspace", "block2", "NSPopUpButton", "NSMenu", "NSMenuItem", "NSTextContainer", "NSPasteboard", "NSPasteboardItem", "NSVisualEffectView", "NSLayoutConstraint"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "unwind"

@@ -22,3 +22,9 @@ def read_product_version(root):
     match=_DECLARATION.fullmatch(source)
     if match is None:raise RuntimeError("Expected one canonical ProductVersion.current semantic-version literal.")
     return match.group(1)
+
+if __name__=='__main__':
+    # The import function is a frozen Swift-version test oracle; CLI is Rust.
+    import sys
+    root=Path(__file__).resolve().parents[1]
+    os.execvp('cargo',['cargo','run','--quiet','--locked','--offline','--target-dir',str(root/'.build/delivery-tools'),'--manifest-path',str(root/'rust-native/Cargo.toml'),'--bin','ruycast-build','--','compat','version','--repo',str(root),'--',*sys.argv[1:]])

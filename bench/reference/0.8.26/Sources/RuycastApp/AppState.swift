@@ -1,0 +1,701 @@
+import AppKit
+import Observation
+import CryptoKit
+import LauncherCore
+import LauncherModels
+
+func jsonValue<T:Encodable>(_ value:T)->Any { (try? JSONSerialization.jsonObject(with:Files.encode(value))) ?? NSNull() }
+
+@MainActor final class AppState {
+    let settings:LauncherSettingsState
+    let paletteSession=PaletteSession()
+    let clipboardState=ClipboardState()
+    let catalogState=CatalogState()
+    let root:URL
+    var configDirectory:URL {get {settings.configDirectory} set {settings.configDirectory=newValue}}
+    let headless:Bool
+    let searchRanking:SearchRanking
+    var applicationURL:(String)->URL? = {NSWorkspace.shared.urlForApplication(withBundleIdentifier:$0)}
+    var openApplication:@MainActor (URL,@escaping @MainActor @Sendable (Error?)->Void)->Void = {url,completion in
+        NSWorkspace.shared.openApplication(at:url,configuration:NSWorkspace.OpenConfiguration()) {_,error in DispatchQueue.main.async {completion(error)}}
+    }
+    var config:Configuration {
+        get {settings.config}
+        set {
+            let catalogChanged=settings.config.commands != newValue.commands
+            settings.config=newValue
+            if catalogChanged {rebuildCatalog()}
+        }
+    }
+    var clipboardDataRevision:Int {get {clipboardState.clipboardDataRevision} set {clipboardState.clipboardDataRevision=newValue}}
+    var clips:[Clip] {get {clipboardState.clips} set {clipboardState.clips=newValue;clipboardDataRevision+=1;clipboardWork.invalidate()
+        if mode != "clipboard" {
+            let current=Dictionary(clips.map {($0.id,$0)},uniquingKeysWith:{$1})
+            filteredClips=filteredClips.compactMap {current[$0.id]}
+        }
+        refreshClips(preserveSelection:paletteVisible)}}
+    var query:String {get {paletteSession.query} set {let oldValue=paletteSession.query;paletteSession.query=newValue;if mode=="clipboard" {clipboardState.query=newValue};if query != oldValue {captureInlineQuery();refreshResults();refreshClips()}}}
+    var mode:String {get {paletteSession.mode} set {let oldValue=paletteSession.mode;paletteSession.mode=newValue;if mode != oldValue {systemServices.mainTabSession.cancel();systemServices.cancelBrowserConsent();inlineCommand=nil;inlineInput="";query="";selection=0;actionsOpen=false;form=nil;detail=nil;refreshResults();refreshClips();restoreSearchFocus?()}}}
+    var mainTabSearchEnabled:Bool
+    private var selectionRevision=0
+    var selection:Int {get {mode=="clipboard" ? clipboardState.selection:paletteSession.selection} set {selectionRevision+=1;if mode=="clipboard" {clipboardState.selection=newValue} else {paletteSession.selection=newValue}}}
+    var clipboardSelection:Int {get {clipboardState.selection} set {clipboardState.selection=newValue}}
+    var clipboardQuery:String {clipboardState.query}
+    var actionSelection:Int {get {paletteSession.actionSelection} set {paletteSession.actionSelection=newValue}}
+    var pendingRemoval:Command? {get {paletteSession.pendingRemoval} set {paletteSession.pendingRemoval=newValue}}
+    var restoreSearchFocus:(()->Void)?
+    var actionsOpen:Bool {get {paletteSession.actionsOpen} set {let oldValue=paletteSession.actionsOpen;paletteSession.actionsOpen=newValue;if actionsOpen && !oldValue {actionSelection=0}
+        if !actionsOpen && oldValue {restoreSearchFocus?()}}}
+    var inlineCommand:Command? {get {paletteSession.inlineCommand} set {paletteSession.inlineCommand=newValue}}
+    var inlineSource="launcher"
+    var inlineInput:String {get {paletteSession.inlineInput} set {paletteSession.inlineInput=newValue;if let command=inlineCommand,TaskDateInput.supports(command) {inlineDatePreview=TaskDateInput.resolve(inlineInput);message=""}
+        else {inlineDatePreview=nil}}}
+    var inlineDatePreview:TaskDateInput? {get {paletteSession.inlineDatePreview} set {paletteSession.inlineDatePreview=newValue}}
+    var form:CommandForm? {get {paletteSession.form} set {paletteSession.form=newValue}}
+    var confirmationCommand:Command? {get {paletteSession.confirmationCommand} set {paletteSession.confirmationCommand=newValue}}
+    let commandLog:CommandLog
+    let analytics:AnalyticsStore
+    let systemServices:SystemServices
+    let clipboardStore:ClipboardStore
+    let clipboardWork=ClipboardWork()
+    private(set) var clipboardWorkInFlight=false
+    private var configObserver:ConfigurationObserver?
+    private let clipboardSearch=ClipboardSearch()
+    private(set) var clipboardSearchBusy:Bool {get {clipboardState.clipboardSearchBusy} set {clipboardState.clipboardSearchBusy=newValue}}
+    lazy var utilities=Utilities(root:root)
+    var scriptChoices:ScriptChoiceSession? {get {paletteSession.scriptChoices} set {paletteSession.scriptChoices=newValue}}
+    var scriptChoiceQuery:String {get {paletteSession.scriptChoiceQuery} set {paletteSession.scriptChoiceQuery=newValue;scriptChoiceSelection=0}}
+    var scriptChoiceSelection:Int {get {paletteSession.scriptChoiceSelection} set {paletteSession.scriptChoiceSelection=newValue}}
+    var detail:String? {get {paletteSession.detail} set {paletteSession.detail=newValue}}
+    private var resultGeneration=0
+    var serviceCommands:[String:Command]=[:]
+    var configurationSnapshot:Data {configBytes}
+    var configDigestForSave:String {SHA256.hash(data:configBytes).map {String(format:"%02x",$0)}.joined()}
+    var message:String {get {paletteSession.message} set {paletteSession.message=newValue}}
+    var menuSearchBusy:Bool {mode=="menus" && paletteSession.nativeSearchBusy}
+    var windowSearchBusy:Bool {mode=="windows" && paletteSession.nativeSearchBusy}
+    var browserTabInfo:[String:BrowserTabInfo]=[:]
+    var mainSearchBusy:Bool {mode=="commands" && paletteSession.nativeSearchBusy}
+    var tabSearchBusy:Bool {mode=="tabs" && paletteSession.nativeSearchBusy}
+    var shortcutSearchBusy:Bool {mode=="shortcuts" && paletteSession.nativeSearchBusy}
+    var scriptExecution:@Sendable (Command)throws->Data = AppState.runScriptProcess
+    var busy:Bool {get {paletteSession.busy} set {paletteSession.busy=newValue}}
+    var paused:Bool {get {clipboardState.paused} set {clipboardState.paused=newValue}}
+    var clipboardCleanupError:String? {get {clipboardState.clipboardCleanupError} set {clipboardState.clipboardCleanupError=newValue}}
+    var configError:String? {get {settings.configError} set {settings.configError=newValue}}
+    var applications:[Command] {get {catalogState.applications} set {catalogState.applications=newValue;rebuildCatalog()}}
+    var counts:[String:Int]=[:] {didSet {if query.isEmpty {refreshResults()}}}
+    private(set) var results:[Command] {get {catalogState.results} set {catalogState.results=newValue;rebuildProcessOrder()}}
+    private(set) var processOrder:[Command] {get {catalogState.processOrder} set {catalogState.processOrder=newValue}}
+    private(set) var filteredClips:[Clip] {get {clipboardState.filteredClips} set {clipboardState.filteredClips=newValue}}
+    var searchPreparationCount:Int {catalogState.preparationCount}
+    private(set) var searchEvaluations=0
+    var showPalette:((String)->Void)?
+    var showManagement:(()->Void)?
+    var showAnalytics:(()->Void)?
+    var showSystemMonitor:(()->Void)?
+    var processResources:[String:ProcessResource] {get {catalogState.processResources} set {catalogState.processResources=newValue}}
+    var windowActions:[String:WindowActionInfo] {get {catalogState.windowActions} set {catalogState.windowActions=newValue}}
+    var menuActions:[String:MenuActionInfo] {get {catalogState.menuActions} set {catalogState.menuActions=newValue}}
+    var processSort:ProcessSort {get {catalogState.processSort} set {catalogState.processSort=newValue;rebuildProcessOrder()}}
+    private var lastProcessRefresh=Date.distantPast
+    private let monitorSampler=ResourceSampler()
+    private let monitorWorker=DispatchQueue(label:"ruycast.monitor-cli",qos:.utility)
+    var managementVisible=false
+    var recordingShortcut=false
+    var hidePalette:(()->Void)?
+    var showToast:((String,Bool)->Void)?
+    var paletteVisible=false
+    var previousPID:pid_t?
+    var foregroundPID:()->pid_t? = {NSWorkspace.shared.frontmostApplication?.processIdentifier}
+    let windows=WindowManager()
+    var hotkeys:Hotkeys?
+    var expander:SnippetExpander?
+    var expansionStatus:String {get {settings.expansionStatus} set {settings.expansionStatus=newValue}}
+    private var timer:Timer?
+    private var changeCount=0
+    private var configBytes:Data
+    private var lastAttempt:Data
+    private var observer:NSObjectProtocol?
+    private var clipboardAttributionUncertain=false
+    private var lastClipboardPID:pid_t?
+    private var lastPruned=Date()
+    var configURL:URL {configDirectory.appendingPathComponent("config.json")}
+    init(root:URL,headless:Bool,systemServices:SystemServices=SystemServices()) throws {
+        try Files.securePrivateDirectory(root)
+        self.root=root;self.headless=headless;self.mainTabSearchEnabled = !headless;self.searchRanking=SearchRanking(root:root);self.systemServices=systemServices;self.analytics=AnalyticsStore(root:root);self.commandLog=CommandLog(root:root);self.clipboardStore=ClipboardStore(root:root)
+        let url=try ConfigurationLocation.initialize(root:root)
+        let initialBytes=try Data(contentsOf:url)
+        settings=LauncherSettingsState(configDirectory:url.deletingLastPathComponent(),config:try Files.config(data:initialBytes));configBytes=initialBytes;lastAttempt=initialBytes
+        let history=root.appendingPathComponent("clipboard.json")
+        if FileManager.default.fileExists(atPath:history.path) {clips=try Files.decode([Clip].self,data:Data(contentsOf:history))}
+        let retained=try History.updateChecked(clips,clip:nil,settings:config.clipboard)
+        if retained != clips {clips=retained;try Files.save(clips,to:history)}
+        if let d=try? Data(contentsOf:root.appendingPathComponent("usage.json")) {counts=try Files.decode([String:Int].self,data:d)}
+        paused=(try? Files.decode(Bool.self,data:Data(contentsOf:root.appendingPathComponent("paused.json")))) ?? false
+        if !headless {
+            changeCount=NSPasteboard.general.changeCount
+            lastClipboardPID=NSWorkspace.shared.frontmostApplication?.processIdentifier
+            hotkeys=Hotkeys();hotkeys?.onAction={ [weak self] action in
+                guard let self,!self.recordingShortcut else {return}
+                if action=="@launcher" {self.showPalette?("commands");self.requestMainTabAccess()}
+                else if action=="@clipboard" {self.showPalette?("clipboard")}
+                else if let command=self.config.resolve(action),!Templates.fields(command).isEmpty {
+                    if !self.paletteVisible {self.showPalette?("commands")}
+                    self.begin(command,source:"hotkey")
+                } else {self.perform(action,source:"hotkey")}
+            };do {try hotkeys?.update(config)} catch {configError=error.localizedDescription;analytics.recordError("config",code:"config-invalid")}
+            observer=NSWorkspace.shared.notificationCenter.addObserver(forName:NSWorkspace.didActivateApplicationNotification,object:nil,queue:.main) { [weak self] note in
+                let pid=(note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+                MainActor.assumeIsolated {
+                    self?.clipboardApplicationActivated(pid)
+                }
+            }
+            discoverApps()
+        }
+        analytics.importLegacy(counts)
+        rebuildCatalog();refreshClips()
+        if !headless {expander=SnippetExpander(state:self)}
+        observeConfiguration()
+        timer=mainRunLoopTimer(every:headless ? 60:0.75) { [weak self] in self?.tick() }
+    }
+    func observeConfiguration() {
+        let directory=configDirectory
+        configObserver=ConfigurationObserver(root:directory,initial:configBytes) { [weak self] result in
+            guard let self,self.configDirectory==directory else {return}
+            do {let observed=try result.get();guard observed.bytes != self.lastAttempt || self.configError != nil else {return};self.lastAttempt=observed.bytes;try self.reload(observedData:observed.bytes,observedConfig:observed.config)}
+            catch {self.configError=error.localizedDescription;self.analytics.recordError("config",code:"config-invalid")}
+        }
+    }
+    private func rebuildCatalog() {
+        let ids=Set(config.commands.filter {$0.kind=="app"}.map(\.target))
+        let commands=config.commands.filter(\.isEnabled)+systemCommands+applications.filter {!ids.contains($0.target)}
+        catalogState.replace(commands:commands)
+        refreshResults()
+    }
+    func rememberServices(_ commands:[Command]) {if serviceCommands.count>2048 {serviceCommands=[:]};for command in commands {serviceCommands[command.id]=command}}
+    func searchCommands(_ query:String,mode:String="commands",limit:Int=100)->[Command] {
+        let found=PerformanceTrace.shared.measure(.searchModel) {
+            let matches=catalogState.search(query,ranking:searchRanking)
+            switch mode {
+            case "snippets":return matches.filter { @Sendable in $0.kind=="snippet" }
+            case "quicklinks":return matches.filter { @Sendable in $0.kind=="url" || $0.kind=="path" }
+            default:return matches
+            }
+        }
+        if !query.isEmpty {return limit<=0 ? found:Array(found.prefix(limit))}
+        return CommandProjection.emptyQuery(found,usage:counts,limit:limit)
+    }
+    private func refreshResults(preserveSelection:Bool=false) {
+        let priorSelected=preserveSelection ? selectedCommand?.id:nil
+        let started=DispatchTime.now().uptimeNanoseconds
+        defer {if !["files","menus","windows","tabs","shortcuts","processes"].contains(mode) {analytics.recordTiming("search.model",ms:AnalyticsStore.elapsed(started))}}
+        searchEvaluations+=1;if !preserveSelection {selection=0};resultGeneration+=1
+        paletteSession.nativeSearchBusy=false
+        let generation=resultGeneration
+        if mode=="commands",paletteVisible,mainTabSearchEnabled {
+            let local=searchCommands(query)
+            paletteSession.nativeSearchBusy=true
+            results=local;browserTabInfo=[:];menuActions=[:];windowActions=[:]
+            if preserveSelection {selection=priorSelected.flatMap {id in local.firstIndex {$0.id==id}} ?? -1}
+            let revision=selectionRevision
+            systemServices.interactiveSession.cancel()
+            systemServices.mainTabs(query:query) { [weak self] snapshot in
+                guard let self,self.resultGeneration==generation,self.paletteVisible,self.mode=="commands" else {return}
+                self.paletteSession.nativeSearchBusy=false
+                guard !self.mainTabInteractionActive else {return}
+                let changed=self.selectionRevision != revision
+                let selected=changed ? self.selectedCommand?.id:(priorSelected ?? self.selectedCommand?.id),navigated=preserveSelection || changed
+                self.browserTabInfo=snapshot.tabs
+                self.results=Self.mergeMainResults(local:local,tabs:snapshot.commands,limit:100)
+                self.rememberServices(snapshot.commands)
+                if navigated {self.selection=selected.flatMap {id in self.results.firstIndex {$0.id==id}} ?? -1}
+                else {self.paletteSession.selection=0}
+            }
+            return
+        }
+        if mode=="clipboard" {systemServices.cancel();if !results.isEmpty {results=[]};return}
+        if ["files","menus","windows","tabs","shortcuts","processes"].contains(mode) {
+            if !preserveSelection {results=[]}
+            if mode=="processes" {
+                systemServices.cancel()
+                systemServices.processDetails(query,session:systemServices.interactiveSession) { [weak self] result in
+                    guard let self,self.resultGeneration==generation else {return}
+                    switch result {
+                    case .success(let rows):self.applySystemResults(rows.map { $0.0 },resources:Dictionary(uniqueKeysWithValues:rows.map { ($0.0.id,$0.1) }),preserveSelection:preserveSelection)
+                    case .failure(let error):self.message=error.localizedDescription
+                    }
+                }
+            } else {
+                paletteSession.nativeSearchBusy=["menus","windows","tabs","shortcuts"].contains(mode)
+                systemServices.search(mode:mode,query:query,previousPID:previousPID) { [weak self] result in
+                    guard let self,self.resultGeneration==generation else {return}
+                    self.paletteSession.nativeSearchBusy=false
+                    switch result {case .success(let snapshot):self.applySystemResults(snapshot.commands,resources:[:],preserveSelection:preserveSelection,menus:snapshot.menus,windows:snapshot.windows,tabs:snapshot.tabs);case .failure(let error):self.message=error.localizedDescription}
+                }
+            }
+        } else if mode.hasPrefix("utility-") && mode.hasSuffix("history") {
+            systemServices.cancel();do {results=try utilities.commands(mode:mode,query:query)} catch {results=[];message=error.localizedDescription}
+        } else {systemServices.cancel();results=searchCommands(query,mode:mode)}
+    }
+    private func refreshClips(preserveSelection:Bool=false) {
+        let selectedID=preserveSelection && filteredClips.indices.contains(selection) ? filteredClips[selection].id:nil
+        clipboardSearch.cancel();clipboardSearchBusy=false
+        guard mode=="clipboard" else {return}
+        if query.isEmpty {filteredClips=clips;if let selectedID {selection=filteredClips.firstIndex {$0.id==selectedID} ?? -1};return}
+        let started=DispatchTime.now().uptimeNanoseconds
+        clipboardSearchBusy=true;filteredClips=[]
+        clipboardSearch.search(clips,query:query) { [weak self] next in
+            guard let self,self.mode=="clipboard" else {return};self.filteredClips=next;self.clipboardSearchBusy=false
+            if let selectedID {self.selection=next.firstIndex {$0.id==selectedID} ?? -1}
+            self.analytics.recordTiming("search.clipboard",ms:AnalyticsStore.elapsed(started))
+        }
+    }
+    private func discoverApps() {
+        DispatchQueue.global(qos:.utility).async { [weak self] in
+            var apps:[String:Command]=[:]
+            for path in ["/Applications","/System/Applications",NSString(string:"~/Applications").expandingTildeInPath] {
+                guard let enumerator=FileManager.default.enumerator(at:URL(fileURLWithPath:path),includingPropertiesForKeys:nil,options:[.skipsHiddenFiles]) else {continue}
+                for case let url as URL in enumerator {
+                    if url.pathExtension=="app" {
+                        enumerator.skipDescendants()
+                        guard let bundle=Bundle(url:url),let id=bundle.bundleIdentifier else {continue}
+                        let title=(bundle.object(forInfoDictionaryKey:"CFBundleDisplayName") as? String) ?? (bundle.object(forInfoDictionaryKey:"CFBundleName") as? String) ?? url.deletingPathExtension().lastPathComponent
+                        apps[id]=Command(id:"discovered."+id,title:title,kind:"app",target:id)
+                    } else if enumerator.level>3 {enumerator.skipDescendants()}
+                }
+            }
+            let sorted=apps.values.sorted {$0.title.localizedStandardCompare($1.title) == .orderedAscending}
+            DispatchQueue.main.async {self?.applications=sorted}
+        }
+    }
+    // The closure is the platform registration boundary; checks inject failures without global keys.
+    func reload(observedData:Data?=nil,observedConfig:Configuration?=nil,registerHotkeys:((Configuration)throws->Void)?=nil) throws {
+        let started=DispatchTime.now().uptimeNanoseconds
+        defer {analytics.recordTiming("config.reload",ms:AnalyticsStore.elapsed(started))}
+        let data=try observedData ?? Data(contentsOf:configURL)
+        let candidate=try observedConfig ?? Files.config(data:data)
+        var trimmed=clips
+        let register=registerHotkeys ?? {try self.hotkeys?.update($0)}
+        try register(candidate)
+        do {if candidate.clipboard != config.clipboard {
+            let fallback=clips,store=clipboardStore,url=root.appendingPathComponent("clipboard.json")
+            trimmed=try clipboardWork.sync {
+                let base=try store.history(fallback:fallback)
+                let next=try History.updateChecked(base,clip:nil,settings:candidate.clipboard)
+                if next != base {try Files.save(next,to:url)}
+                return next
+            }
+        }}
+        catch {
+            let saveError=error
+            do {try register(config)} catch {configError="Could not restore shortcuts: \(error.localizedDescription)"}
+            throw saveError
+        }
+        config=candidate;configBytes=data;lastAttempt=data;if clips != trimmed {clips=trimmed};configError=nil;configObserver?.acknowledge(data)
+        cleanupClipboardAssets()
+    }
+    private func cleanupClipboardAssets() {
+        guard !clipboardWorkInFlight else {return}
+        let store=clipboardStore,snapshot=clips,settings=config.clipboard
+        do {try clipboardWork.sync {try store.pruneAssets(keeping:snapshot,settings:settings)};if clipboardCleanupError != nil {clipboardCleanupError=nil}}
+        catch {clipboardCleanupError="Clipboard cleanup failed: \(error.localizedDescription) Reload configuration to retry."}
+    }
+    func applySystemResults(_ commands:[Command],resources:[String:ProcessResource],preserveSelection:Bool,menus:[String:MenuActionInfo]=[:],windows:[String:WindowActionInfo]=[:],tabs:[String:BrowserTabInfo]=[:]) {
+        let selectedID=preserveSelection ? selectedCommand?.id:nil
+        processResources=resources;browserTabInfo=tabs;menuActions=menus;windowActions=windows;results=mode=="shortcuts" ? mergedShortcuts(commands,query:query):commands;rememberServices(results)
+        if preserveSelection {selection=selectedID.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
+    }
+    func rebuildProcessOrder() {
+        guard mode=="processes" else {processOrder=[];return}
+        processOrder=results.sorted {a,b in
+                guard let x=processResources[a.id],let y=processResources[b.id] else {return a.id<b.id}
+                switch processSort {case .cpu:if x.cpuPercent != y.cpuPercent {return x.cpuPercent>y.cpuPercent};case .memory:if x.memoryBytes != y.memoryBytes {return x.memoryBytes>y.memoryBytes};case .name:break}
+                return x.name==y.name ? x.id<y.id:x.name.localizedStandardCompare(y.name) == .orderedAscending
+            }
+    }
+    func setProcessSort(_ sort:ProcessSort) {let id=selectedCommand?.id;processSort=sort;selection=id.flatMap {id in visibleCommands.firstIndex(where:{$0.id==id})} ?? -1}
+    func refreshProcessResults() {refreshResults(preserveSelection:true)}
+    static func mergeMainResults(local:[Command],tabs:[Command],limit:Int)->[Command] {
+        let ids=Set(tabs.map(\.id)),combined=tabs+local.filter {!ids.contains($0.id)}
+        return limit<=0 ? combined:Array(combined.prefix(limit))
+    }
+    func refreshMainSearch() {guard mode=="commands",paletteVisible else {return};message="";refreshResults()}
+    private var mainTabInteractionActive:Bool {actionsOpen || form != nil || inlineCommand != nil || confirmationCommand != nil || pendingRemoval != nil || detail != nil || scriptChoices != nil}
+    func requestMainTabAccess() {
+        guard mode=="commands",paletteVisible else {return}
+        let revision=selectionRevision
+        systemServices.requestBrowserConsent { [weak self] in
+            guard let self,self.mode=="commands",self.paletteVisible,!self.mainTabInteractionActive else {return}
+            self.systemServices.invalidateBrowserCache();self.refreshResults(preserveSelection:self.selectionRevision != revision)
+        }
+    }
+    func refreshNativeResults() {guard ["menus","windows","tabs","shortcuts"].contains(mode) else {return};if mode=="shortcuts" {systemServices.invalidateShortcutCache()};if mode=="tabs" {systemServices.invalidateBrowserCache()};message="";refreshResults()}
+    func refreshMenuResults() {guard mode=="menus" else {return};refreshNativeResults()}
+    func cancelNativeSearch() {guard ["commands","menus","windows","tabs","shortcuts"].contains(mode) else {return};resultGeneration+=1;systemServices.cancelBrowserConsent();systemServices.cancel();paletteSession.nativeSearchBusy=false}
+    func cancelMenuSearch() {guard mode=="menus" else {return};cancelNativeSearch()}
+    private func tick() {
+        if paletteVisible,mode=="processes",Date().timeIntervalSince(lastProcessRefresh)>2 {lastProcessRefresh=Date();refreshProcessResults()}
+        if Date().timeIntervalSince(lastPruned)>60,!clipboardWorkInFlight {lastPruned=Date();_=processClipboardPayload(nil,source:"maintenance")}
+        guard !headless else {return}
+        pollClipboard(from:NSPasteboard.general)
+    }
+    func clipboardApplicationActivated(_ pid:pid_t?) {
+        clipboardAttributionUncertain=true
+        if let pid,pid != getpid() {previousPID=pid}
+    }
+    /// The provider seam lets named-pasteboard fixtures cover the production poll
+    /// without installing desktop hooks or reading the general pasteboard.
+    func pollClipboard(from pb:NSPasteboard,activeApplication:()->NSRunningApplication? = {NSWorkspace.shared.frontmostApplication}) {
+        guard !paused,config.clipboard.enabled,!clipboardWorkInFlight else {return}
+        let observedChangeCount=pb.changeCount
+        // Still settle activation uncertainty on the next ordinary poll. Never
+        // postpone source validation when a new payload actually needs capture.
+        guard observedChangeCount != changeCount || clipboardAttributionUncertain else {return}
+        let active=activeApplication()
+        let uncertain=clipboardAttributionUncertain || active?.processIdentifier != lastClipboardPID
+        clipboardAttributionUncertain=false;lastClipboardPID=active?.processIdentifier
+        guard !clipboardWorkInFlight else {return}
+        guard changeCount != observedChangeCount else {return};changeCount=observedChangeCount
+        guard !uncertain else {return}
+        let skip=["org.nspasteboard.ConcealedType","org.nspasteboard.TransientType","org.nspasteboard.AutoGeneratedType"]
+        guard !(pb.types ?? []).contains(where:{skip.contains($0.rawValue)}) else {return}
+        let app=active?.bundleIdentifier ?? "unknown"
+        guard !config.clipboard.excludedApps.contains(app) else {return}
+        do {
+            guard let payload=try clipboardStore.snapshot(from:pb,settings:config.clipboard),pb.changeCount==changeCount,activeApplication()?.processIdentifier==active?.processIdentifier else {return}
+            _=processClipboardPayload(payload,source:app)
+        } catch {message="Clipboard could not be saved: \(error.localizedDescription)";analytics.recordError("clipboard",code:"clipboard-io")}
+    }
+    @discardableResult func processClipboardPayload(_ payload:ClipboardPayload?,source:String,completion:(@MainActor @Sendable ()->Void)?=nil)->Bool {
+        guard !clipboardWorkInFlight else {return false};clipboardWorkInFlight=true
+        let work=clipboardWork
+        let token=work.revision,base=clips,settings=config.clipboard,store=clipboardStore,url=root.appendingPathComponent("clipboard.json"),capturedAt=Date(),started=DispatchTime.now().uptimeNanoseconds
+        clipboardWork.perform { [weak self] in
+            guard let self else {return}
+            var cleanupError:String?
+            let result=Result { () throws -> [Clip] in
+                guard work.current(token) else {return base}
+                var clip=try payload.flatMap {try store.capture($0,source:source,settings:settings)}
+                clip?.date=Date(timeIntervalSince1970:capturedAt.timeIntervalSince1970.rounded(.down))
+                let next=try History.updateChecked(base,clip:clip,settings:settings)
+                guard work.current(token) else {return base}
+                if next != base {try Files.save(next,to:url)}
+                if work.current(token) {do {try store.pruneAssets(keeping:next,settings:settings)} catch {cleanupError=error.localizedDescription}}
+                return next
+            }
+            DispatchQueue.main.async {
+                self.clipboardWorkInFlight=false
+                guard work.current(token) else {self.cleanupClipboardAssets();completion?();return}
+                switch result {
+                case .success(let next):
+                    if next != self.clips {self.clips=next}
+                    if let cleanupError {self.clipboardCleanupError="Clipboard cleanup failed: \(cleanupError) Reload configuration to retry."}
+                    else if self.clipboardCleanupError != nil {self.clipboardCleanupError=nil}
+                case .failure(let error):self.message="Clipboard could not be saved: \(error.localizedDescription)";self.analytics.recordError("clipboard",code:"clipboard-io")
+                }
+                if payload != nil {self.analytics.recordTiming("clipboard.capture",ms:AnalyticsStore.elapsed(started))};completion?()
+            }
+        }
+        return true
+    }
+    func shutdown() {clipboardSearch.cancel();configObserver=nil;timer?.invalidate();clipboardWork.drain();analytics.flushSynchronously();commandLog.flush()}
+    func configurationReads(_ completion:@escaping @MainActor @Sendable (Int)->Void) {if let configObserver {configObserver.reads(completion)} else {completion(0)}}
+    func ignoreOwnClipboardChange() {changeCount=NSPasteboard.general.changeCount}
+    func copyClip(_ id:String,paste:Bool=false) throws {
+        guard let clip=clips.first(where:{$0.id==id}) else {throw LauncherError("Clipboard item not found.")}
+        if paste,!windows.trusted {throw LauncherError("Allow Accessibility in System Settings before using Paste.")}
+        let pb=NSPasteboard.general;try clipboardStore.copy(clip,to:pb);changeCount=pb.changeCount
+        if paste {
+            guard let pid=previousPID,let app=NSRunningApplication(processIdentifier:pid) else {throw LauncherError("Text copied. The previous app is no longer available.")}
+            hidePalette?();app.activate(options:[])
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.15) {
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier==pid else {self.showToast?("Copied · target app did not activate",false);return}
+                for down in [true,false] {let event=CGEvent(keyboardEventSource:nil,virtualKey:9,keyDown:down);event?.flags = .maskCommand;event?.setIntegerValueField(.eventSourceUserData,value:HyperKey.generatedTag);event?.post(tap:.cghidEventTap)}
+            }
+        } else {hidePalette?();showToast?("Copied",true)}
+    }
+    func perform(_ id:String,values:[String:String]=[:],confirmed:Bool=false,source:String="launcher") {
+        var values=values
+        if let command=resolveCommand(id),TaskDateInput.supports(command) {
+            let input=values["input"] ?? ""
+            let preview=(inlineCommand?.id==id && inlineDatePreview?.input==input ? inlineDatePreview:nil) ?? TaskDateInput.resolve(input)
+            guard let date=preview.value else {if inlineCommand?.id != id {message=preview.label};return}
+            values["input"]=date
+        }
+        if let command=resolveCommand(id),systemServices.requiresConfirmation(target:command.target),!confirmed {confirmationCommand=command;return}
+        guard !busy else {return};busy=true
+        var dismissedForAppLaunch=false
+        execute(id,dryRun:false,values:values,openResult:true,confirmed:confirmed,source:source,beforeAppLaunch:{ [weak self] in dismissedForAppLaunch=true;self?.form=nil;self?.hidePalette?() }) { [weak self] response in
+            guard let self else {return};self.busy=false
+            if response["ok"] as? Bool == true {
+                if !dismissedForAppLaunch && self.resolveCommand(id)?.kind != "builtin" && self.detail==nil && self.scriptChoices==nil {self.form=nil;self.hidePalette?();self.showToast?("Done",true)}
+            } else {self.message=response["error"] as? String ?? "Action failed.";self.showToast?(self.message,false)}
+        }
+    }
+    private func targetPID()->pid_t? {
+        if let pid=foregroundPID(),pid != getpid() {return pid}
+        return previousPID
+    }
+    func execute(_ id:String,dryRun:Bool,values:[String:String]=[:],openResult:Bool=false,confirmed:Bool=false,source:String="cli",beforeAppLaunch:(()->Void)?=nil,completion:@escaping @MainActor @Sendable ([String:Any])->Void) {
+        if config.commands.contains(where:{!$0.isEnabled && ($0.id.lowercased()==id.lowercased() || $0.aliases.contains(where:{$0.lowercased()==id.lowercased()}))}) {completion(["ok":false,"error":"Command is disabled: \(id)"]);return}
+        guard var cmd=resolveCommand(id) ?? applications.first(where:{$0.id==id}) else {completion(["ok":false,"error":"Unknown command: \(id)"]);return}
+        guard cmd.isEnabled,!config.commands.contains(where:{!$0.isEnabled && ($0.id==id || ($0.kind=="app" && cmd.kind=="app" && $0.target==cmd.target))}) else {completion(["ok":false,"error":"Command is disabled."]);return}
+        if dryRun {completion(["ok":true,"result":jsonValue(cmd),"dryRun":true]);return}
+        if let prompt=cmd.inputPrompt,(values["input"] ?? "").trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {completion(["ok":false,"error":"Enter \(prompt)."]);return}
+        cmd.arguments=cmd.arguments.map {$0=="{input}" ? values["input"] ?? "":$0=="{uuid}" ? UUID().uuidString:$0}
+        let ephemeralSystem=["system.menu:","system.window:","system.tab:"].contains {cmd.target.hasPrefix($0)}
+        let analyticsID=cmd.target.hasPrefix("system.tab:") ? "system.tab":cmd.target.hasPrefix("system.menu:") ? "system.menu":cmd.target.hasPrefix("system.window:") ? "system.window":cmd.id
+        let started=DispatchTime.now().uptimeNanoseconds,tracked=analytics.recordAttempt(analyticsID,source:source)
+        let traceID=UUID().uuidString
+        self.commandLog.record(CommandLogEntry(traceID:traceID,commandID:CommandLog.clean(cmd.id,limit:512),source:source,phase:"command.start"))
+        let finish:@MainActor @Sendable ([String:Any])->Void={ original in
+            var result=original
+            let ok=result["ok"] as? Bool==true,elapsed=AnalyticsStore.elapsed(started)
+            let secrets=Array(values.values)
+            var details:[String:String]=[:]
+            if let raw=result["diagnostics"] as? [String:Any] {
+                for key in ["provider","providerExitCode","providerStderr","exception","runnerError"] {
+                    if let value=raw[key] {details[key]=CommandLog.clean(String(describing:value),secrets:secrets,limit:1000)}
+                }
+            }
+            self.commandLog.record(CommandLogEntry(traceID:traceID,commandID:CommandLog.clean(cmd.id,limit:512),source:source,phase:"command.finish",success:ok,durationMS:elapsed,code:CommandLog.clean(result["code"] as? String ?? (ok ? "success":AnalyticsStore.failureCode(result["error"] as? String ?? "")),limit:80),message:ok ? nil:CommandLog.clean(result["error"] as? String ?? "Action failed",secrets:secrets),exitStatus:result["exitCode"] as? Int,applied:result["applied"] as? Bool ?? result["actionCompleted"] as? Bool,details:details.isEmpty ? nil:details))
+            if !ok {result["diagnosticID"]=traceID}
+
+            if let tracked {self.analytics.recordCompletion(tracked,success:result["ok"] as? Bool==true,ms:AnalyticsStore.elapsed(started),code:AnalyticsStore.failureCode(result["error"] as? String ?? ""),exitStatus:result["exitCode"] as? Int)}
+            if result["ok"] as? Bool == true,!ephemeralSystem {
+                if source=="launcher" {
+                    do {try self.searchRanking.recordSuccess(cmd.id)}
+                    catch {self.analytics.recordError("search-ranking",code:"save-failed")}
+                }
+                self.counts[cmd.id,default:0]+=1
+                do {try Files.save(self.counts,to:self.root.appendingPathComponent("usage.json"))}
+                catch {completion(["ok":false,"error":"Action completed, but usage could not be saved: \(error.localizedDescription)","actionCompleted":true]);return}
+            };completion(result)
+        }
+        do {
+            switch cmd.kind {
+            case "snippet":
+                let rendered=try Templates.render(cmd,values:values,clipboard:cmd.target.contains("{clipboard}") ? NSPasteboard.general.string(forType:.string):nil)
+                try pasteText(rendered.0,cursor:rendered.1,output:cmd.snippetOutput)
+                finish(["ok":true,"result":["state":"pasted"]])
+            case "app":
+                guard let url=applicationURL(cmd.target) else {throw LauncherError("App is not installed: \(cmd.target)")}
+                beforeAppLaunch?()
+                openApplication(url) {error in if let error {finish(["ok":false,"error":error.localizedDescription])} else {finish(["ok":true,"result":["command":cmd.id,"state":"opened"]])}}
+            case "url","path":
+                let url:URL
+                if cmd.kind=="url" {cmd.target=try Templates.render(cmd,values:values,clipboard:cmd.target.contains("{clipboard}") ? NSPasteboard.general.string(forType:.string):nil).0}
+                if cmd.kind=="path" {let path=NSString(string:cmd.target).expandingTildeInPath;guard FileManager.default.fileExists(atPath:path) else {throw LauncherError("Path does not exist: \(path)")};url=URL(fileURLWithPath:path)} else {guard let parsed=URL(string:cmd.target) else {throw LauncherError("Invalid URL.")};url=parsed}
+                if let applicationID=cmd.applicationID {
+                    guard let appURL=NSWorkspace.shared.urlForApplication(withBundleIdentifier:applicationID) else {throw LauncherError("The selected app is not installed. Choose another app in Settings.")}
+                    NSWorkspace.shared.open([url],withApplicationAt:appURL,configuration:NSWorkspace.OpenConfiguration()) {_,error in DispatchQueue.main.async {if let error {finish(["ok":false,"error":error.localizedDescription])} else {finish(["ok":true,"result":["state":"opened"]])}}}
+                } else {guard NSWorkspace.shared.open(url) else {throw LauncherError("macOS could not open \(cmd.title).")};finish(["ok":true,"result":["command":cmd.id,"state":"opened"]])}
+            case "window": let f=try windows.move(cmd.target,pid:targetPID());finish(["ok":true,"result":jsonValue(f)])
+            case "builtin":
+                if cmd.target=="reload-config" {try reload();showToast?("Configuration reloaded",true);finish(["ok":true,"result":["state":"reloaded"]]);return}
+                if cmd.target=="open-config" {guard !headless else {throw LauncherError("Open Configuration requires the app interface.")};NSWorkspace.shared.open(configURL);finish(["ok":true,"result":["state":"opened"]]);return}
+                if cmd.target.hasPrefix("utility-") || cmd.target.hasPrefix("utility.history:") {
+                    if cmd.target.hasSuffix("history") {showPalette?(cmd.target);finish(["ok":true]);return}
+                    switch try utilities.execute(target:cmd.target,input:values["input"]) {
+                    case .saved(let text):hidePalette?();showToast?(text,true)
+                    case .paste(let text):try pasteText(text)
+                    case .copy(let text,let secret):
+                        let board=NSPasteboard.general;board.clearContents()
+                        if secret {_=board.setData(Data(),forType:NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))}
+                        guard board.setString(text,forType:.string) else {throw LauncherError("Could not copy text.")}
+                        ignoreOwnClipboardChange();hidePalette?();showToast?("Copied",true)
+                    };finish(["ok":true]);return
+                }
+                if cmd.target=="system-monitor" {guard !headless else {throw LauncherError("The monitor window is unavailable in headless mode. Use ruycast monitor for data.")};hidePalette?();showSystemMonitor?();finish(["ok":true,"result":["state":"opened"]]);return}
+                if cmd.target.hasPrefix("system.tab:") {
+                    if source != "cli" {hidePalette?()}
+                    systemServices.executeTab(cmd.target) {result in
+                        switch result {case .success:finish(["ok":true,"result":["state":"selected"]]);case .failure(let error):finish(["ok":false,"error":error.localizedDescription])}
+                    };return
+                }
+                if cmd.target.hasPrefix("system.") || cmd.target=="lock-screen" {
+                    let response=systemServices.execute(target:cmd.target,confirmed:confirmed,previousPID:targetPID())
+                    if response["ok"] as? Bool==true {if cmd.target.hasPrefix("system.kill:") {systemServices.invalidateProcessCache();refreshProcessResults();showToast?("Killed "+cmd.title,true)} else {hidePalette?()}};finish(response);return
+                }
+                guard !headless else {throw LauncherError("The palette is unavailable in headless mode.")}
+                if cmd.target=="analytics" {hidePalette?();showAnalytics?()}
+                else if cmd.target=="settings" {hidePalette?();showManagement?()}
+                else if cmd.target=="create-snippet" {newCommand("snippet")}
+                else if cmd.target=="create-quicklink" {newCommand("url")}
+                else {let modes=["search-files":"files","search-menu-items":"menus","switch-windows":"windows","search-safari-tabs":"tabs","apple-shortcuts":"shortcuts","kill-process":"processes"];showPalette?(modes[cmd.target] ?? cmd.target)}
+                if cmd.target=="search-safari-tabs",source != "cli" {
+                    systemServices.requestBrowserConsent { [weak self] in
+                        guard let self,self.paletteVisible,self.mode=="tabs" else {return}
+                        self.refreshNativeResults()
+                    }
+                }
+                finish(["ok":true,"result":["state":"opened"]])
+            case "script":
+                if AppleShortcuts.recognizes(cmd),source != "cli" {hidePalette?()}
+                runScript(cmd,openResult:openResult,source:source,completion:finish)
+            default:throw LauncherError("Unsupported command kind.")
+            }
+        } catch {finish(["ok":false,"error":error.localizedDescription])}
+    }
+    nonisolated static func runScriptProcess(_ cmd:Command)throws->Data {
+        let process=Process()
+        let bundled=Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/ruycast")
+        let runnerSource=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent(".build/rust/release/ruycast")
+        process.executableURL=FileManager.default.fileExists(atPath:bundled.path) ? bundled:runnerSource
+        process.arguments=["__run-script"]
+        let input=Pipe(),out=Pipe();process.standardInput=input;process.standardOutput=out;process.standardError=FileHandle.nullDevice
+        try process.run()
+        try input.fileHandleForWriting.write(contentsOf:Files.encode(cmd));try input.fileHandleForWriting.close()
+        let data=out.fileHandleForReading.readDataToEndOfFile();process.waitUntilExit();return data
+    }
+    func mergedShortcuts(_ commands:[Command],query:String)->[Command] {
+        let overrides=Dictionary(config.commands.map {($0.id,$0)},uniquingKeysWith:{$1})
+        let rows=commands.map {overrides[$0.id] ?? $0}.filter(\.isEnabled)
+        return rows.filter {query.isEmpty || ($0.title+" "+$0.aliases.joined(separator:" ")).localizedCaseInsensitiveContains(query)}
+    }
+    private func runScript(_ cmd:Command,openResult:Bool,source:String,completion:@escaping @MainActor @Sendable ([String:Any])->Void) {
+        let executor=scriptExecution,isShortcut=AppleShortcuts.recognizes(cmd)
+        DispatchQueue.global(qos:.userInitiated).async {
+            do {
+                let data=try executor(cmd)
+                guard let result=try JSONSerialization.jsonObject(with:data) as? [String:Any] else {throw LauncherError("Script runner returned an invalid response.")}
+                DispatchQueue.main.async {
+                    if isShortcut {completion(AppleShortcuts.response(result));return}
+                    let value=(result["result"] as? [String:Any]) ?? result
+                    let native=(value["stdout"] as? String).flatMap {$0.data(using:.utf8)}.flatMap {try? JSONSerialization.jsonObject(with:$0) as? [String:Any]}
+                    let hasUIEnvelope=native?["ok"] as? Bool != nil && (native?["choices"] as? [String:Any] != nil || native?["detail"] as? String != nil)
+                    if cmd.arguments.contains(where:{$0.hasSuffix("personal_bridge.py")}) || hasUIEnvelope || self.scriptChoices?.commandID==cmd.id {
+                        guard let native else {completion(["ok":false,"error":"The app returned an invalid response. Check its current state before retrying.","exitCode":result["exitCode"] as Any? ?? NSNull(),"diagnostics":["runnerError":String((result["stderr"] as? String ?? "").suffix(2000))]]);return}
+                        var response=native
+                        if let status=value["exitCode"] {response["exitCode"]=status}
+                        if result["ok"] as? Bool==false,native["ok"] as? Bool==true {response["ok"]=false;response["error"]=result["error"] ?? "Provider process failed."}
+                        if openResult,let raw=response["choices"],response["ok"] as? Bool==true {
+                            do {
+                                let choices=try Files.decode(ScriptChoices.self,data:JSONSerialization.data(withJSONObject:raw));try choices.validate()
+                                if self.scriptChoices==nil {self.showPalette?("script-choices")}
+                                self.scriptChoiceQuery="";self.scriptChoiceSelection=0
+                                self.scriptChoices=ScriptChoiceSession(commandID:cmd.id,choices:choices,source:source)
+                            } catch {completion(["ok":false,"error":"The command returned invalid choices. Reload and try again."]);return}
+                        } else if response["ok"] as? Bool==true,self.scriptChoices?.commandID==cmd.id {self.scriptChoices=nil}
+                        if openResult,let text=response["detail"] as? String {self.showPalette?("report");self.detail=text}
+                        completion(response)
+                    } else if cmd.id.hasPrefix("capture."),result["ok"] as? Bool==true {
+                        guard let value=result["result"] as? [String:Any],let stdout=value["stdout"] as? String,let bytes=stdout.data(using:.utf8),
+                              let capture=try? JSONSerialization.jsonObject(with:bytes) as? [String:Any] else {completion(["ok":false,"error":"Capture returned an invalid response. Check the inbox before retrying."]);return}
+                        guard capture["ok"] as? Bool==true else {completion(["ok":false,"error":capture["error"] as? String ?? "Capture failed."]);return}
+                        if let error=capture["daily_error"] as? String,!error.isEmpty {completion(["ok":false,"error":"Saved · daily link failed: \(error)","actionCompleted":true]);return}
+                        if openResult,!self.headless,cmd.id=="capture.quick-note",let path=capture["note_path"] as? String {
+                            var parts=URLComponents();parts.scheme="obsidian";parts.host="open";parts.queryItems=[URLQueryItem(name:"path",value:path)]
+                            guard let url=parts.url,NSWorkspace.shared.open(url) else {completion(["ok":false,"error":"Note saved · could not open Obsidian.","actionCompleted":true]);return}
+                        }
+                        completion(["ok":true,"result":capture])
+                    } else {completion(result)}
+                }
+            } catch {DispatchQueue.main.async {completion(["ok":false,"error":isShortcut ? AppleShortcuts.failure:error.localizedDescription])}}
+        }
+    }
+    func handle(_ req:[String:Any],reply:@escaping @MainActor @Sendable ([String:Any])->Void) {
+        handle(req,sink:ReplySink(ui:reply))
+    }
+    func handle(_ req:[String:Any],sink:ReplySink) {
+        let reply:@MainActor @Sendable ([String:Any])->Void={sink.send($0)}
+        let started=DispatchTime.now().uptimeNanoseconds
+        defer {if !((req["op"] as? String ?? "")=="analytics" || (req["op"] as? String ?? "").hasPrefix("analytics.")) {analytics.recordTiming("cli.dispatch",ms:AnalyticsStore.elapsed(started))}}
+        do {
+            switch req["op"] as? String {
+            case "performance":reply(["ok":true,"result":PerformanceTrace.shared.snapshot()])
+            case "performance.reset":PerformanceTrace.shared.reset();reply(["ok":true,"result":PerformanceTrace.shared.snapshot()])
+            case "logs":
+                reply(["ok":true,"result":jsonValue(commandLog.entries(commandID:req["commandID"] as? String,errorsOnly:req["errorsOnly"] as? Bool ?? false,limit:req["limit"] as? Int ?? 50)),"path":commandLog.url.path,"storageError":commandLog.storageError as Any? ?? NSNull()])
+            case "logs.path":reply(["ok":true,"result":["path":commandLog.url.path]])
+            case "logs.clear":
+                guard req["confirmed"] as? Bool==true else {throw LauncherError("Confirm clearing command logs.")}
+                commandLog.clear();reply(["ok":commandLog.storageError==nil,"storageError":commandLog.storageError as Any? ?? NSNull()])
+            case "analytics":reply(["ok":true,"result":jsonValue(analytics.snapshot),"storageError":analytics.storageError as Any? ?? NSNull()])
+            case "analytics.export":reply(["ok":true,"result":analytics.exportSummary()])
+            case "analytics.settings":
+                try analytics.configure(enabled:req["enabled"] as? Bool,retentionDays:req["retentionDays"] as? Int)
+                analytics.flush {reply(["ok":self.analytics.storageError==nil,"result":jsonValue(self.analytics.snapshot),"storageError":self.analytics.storageError as Any? ?? NSNull()])}
+            case "analytics.reset":
+                guard req["confirmed"] as? Bool==true else {throw LauncherError("Confirm resetting analytics.")}
+                analytics.reset();analytics.flush {reply(["ok":self.analytics.storageError==nil,"result":jsonValue(self.analytics.snapshot)])}
+            case "monitor":
+                monitorWorker.async {let snapshot=self.monitorSampler.sample();DispatchQueue.main.async {reply(["ok":true,"result":jsonValue(snapshot)])}}
+            case "processes":
+                systemServices.processDetails(req["query"] as? String ?? "") {result in
+                    switch result {case .success(let rows):reply(["ok":true,"result":rows.map {["command":jsonValue($0.0),"metrics":jsonValue($0.1)]}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
+                }
+            case "status":
+                var status:[String:Any]=["version":ProductVersion.current,"name":"Ruycast","pid":getpid(),"profile":root.path,"configPath":configURL.path,"configDirectory":configDirectory.path,"headless":headless,"commands":config.commands.count,"discoveredApps":applications.count,"clipboardCount":clips.count,"snippetExpansion":expansionStatus,"keyboard":hotkeys?.keyboardStatus ?? "Off","hyper":hotkeys?.hyperStatus ?? "Off","modifierTaps":hotkeys?.modifierStatus ?? "Off","clipboardEnabled":config.clipboard.enabled,"clipboardPaused":paused,"accessibility":windows.trusted,"hotkeyWarnings":hotkeys?.warnings ?? [],"configError":configError as Any? ?? NSNull(),"clipboardCleanupError":clipboardCleanupError as Any? ?? NSNull()]
+                status["inputMonitoring"]=CGPreflightListenEventAccess();status["separateCommandKeys"]=config.separatesCommandKeys;status["theme"]=config.theme ?? "system";status["menuBarVisible"]=config.menuBarVisible ?? true;status["health"]=runtimeHealthy ? "healthy":"needs-attention"
+                reply(["ok":true,"result":status])
+            case "search":
+                let query=req["query"] as? String ?? "",scope=req["mode"] as? String ?? "commands"
+                if scope=="commands",mainTabSearchEnabled {
+                    let local=searchCommands(query,mode:scope,limit:0),limit=req["limit"] as? Int ?? 100
+                    systemServices.mainTabs(query:query,session:SystemSearchSession()) {snapshot in
+                        self.rememberServices(snapshot.commands)
+                        let commands=Self.mergeMainResults(local:local,tabs:snapshot.commands,limit:limit)
+                        reply(["ok":true,"result":commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let tab=snapshot.tabs[command.id] {row["tab"]=jsonValue(tab)};return row}])
+                    }
+                } else if ["files","menus","windows","tabs","shortcuts","processes"].contains(scope) {
+                    systemServices.search(mode:scope,query:query,previousPID:targetPID(),session:SystemSearchSession()) {result in
+                        switch result {case .success(let snapshot):let commands=scope=="shortcuts" ? self.mergedShortcuts(snapshot.commands,query:query):snapshot.commands;self.rememberServices(commands);reply(["ok":true,"result":commands.map {command -> Any in var row=jsonValue(command) as? [String:Any] ?? [:];if let menu=snapshot.menus[command.id] {row["menu"]=jsonValue(menu)};if let window=snapshot.windows[command.id] {row["window"]=jsonValue(window)};if let tab=snapshot.tabs[command.id] {row["tab"]=jsonValue(tab)};return row}]);case .failure(let error):reply(["ok":false,"error":error.localizedDescription])}
+                    }
+                } else if scope.hasPrefix("utility-") {let commands=try utilities.commands(mode:scope,query:query);rememberServices(commands);reply(["ok":true,"result":jsonValue(commands)])}
+                else {reply(["ok":true,"result":jsonValue(searchCommands(query,mode:scope,limit:req["limit"] as? Int ?? 100))])}
+            case "commands":reply(["ok":true,"result":jsonValue(config.commands)])
+            case "search-ranking":reply(["ok":true,"result":searchRanking.summary])
+            case "search-ranking.reset":
+                guard req["confirmed"] as? Bool==true else {throw LauncherError("Confirm search ranking reset.")}
+                try searchRanking.reset();refreshResults();reply(["ok":true,"result":searchRanking.summary])
+            case "execute":guard let id=req["id"] as? String else {throw LauncherError("Missing command id.")};execute(id,dryRun:req["dryRun"] as? Bool ?? false,values:req["values"] as? [String:String] ?? [:],confirmed:req["confirmed"] as? Bool ?? false,completion:reply)
+            case "config.directory":
+                guard let path=req["directory"] as? String else {throw LauncherError("Missing configuration folder.")}
+                try relocateConfiguration(to:path);reply(["ok":true,"result":["directory":configDirectory.path,"path":configURL.path,"originalRetained":true]])
+            case "reload":
+                if let expected=req["configPath"] as? String,expected != configURL.path {throw LauncherError("Configuration folder differs from the running app. Restart Ruycast to use the selected folder.")}
+                try reload();reply(["ok":true,"result":["commands":config.commands.count,"hotkeyWarnings":hotkeys?.warnings ?? []]])
+            case "show":guard !headless else {throw LauncherError("The palette is unavailable in headless mode.")};showPalette?(req["mode"] as? String ?? "commands");reply(["ok":true,"result":["state":"opened"]])
+            case "utilities.import":
+                guard let profile=req["profile"] as? [String:Any] else {throw LauncherError("Missing utilities profile.")}
+                reply(["ok":true,"result":try utilities.importProfile(profile)])
+            case "clipboard.import":
+                guard let raw=req["items"] as? [[String:Any]],raw.count<=100 else {throw LauncherError("Import at most 100 clipboard items per batch.")}
+                let incoming=try Files.decode([Clip].self,data:JSONSerialization.data(withJSONObject:raw))
+                let fallback=clips,settings=config.clipboard,store=clipboardStore,url=root.appendingPathComponent("clipboard.json")
+                let (next,accepted,duplicated,excluded)=try clipboardWork.sync { () throws -> ([Clip],Int,Int,Int) in
+                var accepted=0;var duplicated=0;var excluded=0
+                var next=try store.history(fallback:fallback)
+                for var clip in incoming.reversed() {
+                    guard clip.id.hasPrefix("raycast-"),["text","files"].contains(clip.contentType ?? "text"),clip.dataFile==nil else {throw LauncherError("Invalid imported clipboard item.")}
+                    if clip.source.hasPrefix("/"),let bundle=Bundle(path:clip.source)?.bundleIdentifier {clip.source=bundle}
+                    if settings.excludedApps.contains(clip.source) {excluded+=1;continue}
+                    if next.contains(where:{$0.id==clip.id || ($0.text==clip.text && $0.fileURLs==clip.fileURLs)}) {duplicated+=1;continue}
+                    next.append(clip);accepted+=1
+                }
+                next.sort {$0.date>$1.date};next=try History.updateChecked(next,clip:nil,settings:settings)
+                try Files.save(next,to:url);return (next,accepted,duplicated,excluded)
+                };clips=next
+                reply(["ok":true,"result":["accepted":accepted,"deduplicated":duplicated,"excluded":excluded,"retained":next.count]])
+            case "clipboard.list":
+                let q=req["query"] as? String ?? "",snapshot=clips
+                DispatchQueue.global(qos:.userInitiated).async {autoreleasepool {sink.sendFromWorker(["ok":true,"result":jsonValue(snapshot.filter {q.isEmpty || $0.text.localizedCaseInsensitiveContains(q)})])}}
+            case "clipboard.copy","clipboard.paste":guard let id=req["id"] as? String else {throw LauncherError("Missing clipboard id.")};try copyClip(id,paste:req["op"] as? String=="clipboard.paste");reply(["ok":true,"result":["state":"copied"]])
+            case "clipboard.clear","clipboard.delete":
+                let fallback=clips,store=clipboardStore,settings=config.clipboard,url=root.appendingPathComponent("clipboard.json")
+                let deleting=req["op"] as? String=="clipboard.delete",id=req["id"] as? String
+                let next=try clipboardWork.sync { () throws -> [Clip] in
+                    let base=try store.history(fallback:fallback),next:[Clip]
+                    if deleting {guard let id,base.contains(where:{$0.id==id}) else {throw LauncherError("Clipboard item not found.")};next=base.filter {$0.id != id}} else {next=[]}
+                    try Files.save(next,to:url);return next
+                };clips=next;try clipboardWork.sync {try store.pruneAssets(keeping:next,settings:settings)};reply(["ok":true,"result":["count":clips.count]])
+            case "clipboard.pause":let next=req["paused"] as? Bool ?? true;try Files.save(next,to:root.appendingPathComponent("paused.json"));paused=next;reply(["ok":true,"result":["paused":paused]])
+            case "usage":reply(["ok":true,"result":counts])
+            case "quit":reply(["ok":true,"result":["state":"stopping"]]);DispatchQueue.main.asyncAfter(deadline:.now()+0.25) {NSApp.terminate(nil)}
+            default:throw LauncherError("Unknown operation.")
+            }
+        } catch {reply(["ok":false,"error":error.localizedDescription])}
+    }
+}

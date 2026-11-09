@@ -1,0 +1,242 @@
+[
+  {
+    "path": "assets/app-icon.png",
+    "sha256": "2cc22c4aae255bdc777524156df87910706ae6c09851dc31ac47ddecc127762f"
+  },
+  {
+    "path": "bench/f1-runner/examples/apple_event_data.rs",
+    "sha256": "880f1c4052bb6c16ad4bd52c185999d316d7b8eabb9e9a26a79d06799397def0"
+  },
+  {
+    "path": "bench/f1-runner/inputs/compile-only-pins.rs",
+    "sha256": "19b543bbba4d8396c1a90dcb24c517d774d2e936fa6208b957bb431a088f3121"
+  },
+  {
+    "path": "bench/f1-runner/src/guardian.rs",
+    "sha256": "928e26d8cfe85ff234fbeb993e77ec250fae4f8c0404b5a78fe2b06e6ed3c424"
+  },
+  {
+    "path": "bench/f1-runner/src/guardian_alive.rs",
+    "sha256": "0643a9b330f66d47da003abf321b949a9db5289e96232906bf59b9df11b53d44"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/accessibility/abi.rs",
+    "sha256": "56551248e1157b08e946656f0997aacdbbb0bc588412e4af01a1957355bb752f"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/accessibility/mod.rs",
+    "sha256": "bddf3b48fb439930608f40439c06dabffbdf8263fe378cba481c049ad9cd5356"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/accessibility/model.rs",
+    "sha256": "b37bfe1a689970153125657c069726f3572b697a9ddfb3596e147ec93e9daa22"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/accessibility/opaque.rs",
+    "sha256": "7b3e64c901bf4356dc3afd4cdc322f6b7564a97b2e11e6b9161a70583f2f9b71"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/accessibility/tests.rs",
+    "sha256": "4f57a49c6bc9bf6c4100a24efa2bd401ed043324a6d7566d8fba838f844c4dbf"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/bootstrap.rs",
+    "sha256": "bd566a8ca0809421e3b72e2fbea3f736a759b305666e89ef5af138ae22be7b9d"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/clipboard.rs",
+    "sha256": "5ede361cbb0cc37ba51f71c8d10f819d861892ec8fd254164d926bd28be5cea4"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/core_preentry.rs",
+    "sha256": "244da4acce3450b2ff79a6318b70f247febbdc8e1e4acc0b88c0f1184184ed24"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/data_family_preentry.rs",
+    "sha256": "5894ec99dd05622aa82b250611230f90c6a1d8a7dd836f62972418823200e826"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/descriptors.rs",
+    "sha256": "c255870f8a3dd383086de24ca9cf8be7c82c14302a071c29b73f5cca02ed957d"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/imports.rs",
+    "sha256": "dbb7c6aa03507f3508c8c757db8017232deb062a9b9ace9432463819379d66bd"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/input_carbon.rs",
+    "sha256": "47b43c58b57905effa82ebca7dda3aaebcfc574b7c5432a1fd6c5933b407ce5c"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/input_events.rs",
+    "sha256": "98ec873f504d3b445325cdc3f84a2e3d8e66fc57b9ac64e9f44c2bc9f171d372"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/input_hid.rs",
+    "sha256": "f2c88b0935d755eb3f91857c092085d8f0cb9058ac4ce8b204f40a44b9324db5"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/input_permissions_caps.rs",
+    "sha256": "478ddae8eb29d1f5b06b982ab22a5dcd4e725736d679230a7d05064585177ffd"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/metadata.rs",
+    "sha256": "46f11c787b589ac1c4374485848be2401f438817d5efdd6c09d29733563c79d1"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/mod.rs",
+    "sha256": "03ea669564e91eedaa1d292baa9eed7eb229260474682429155ac98fbb826743"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/owned.rs",
+    "sha256": "391b6d4897a8dfaee1a693f3788b46d33fdc97cfda5a0536d45f0ed17e4098e5"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/private_network.rs",
+    "sha256": "c3f2d97203035241c6c426ce6fb1f2a58882dbad6d39e6cc30a63760d7c19ddf"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/process_abi.rs",
+    "sha256": "2ca3f3125cc01f73e68dfaba7c924cd7c1d5c8757e033d8119117395f7dce146"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/process_dispatch.rs",
+    "sha256": "59f3933e26ad7b65db174b5d28e4c28e0e76d084bd4d95aae1d587656eaad308"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/process_fork.rs",
+    "sha256": "c8e513ac89f9cbc4263dc55fcc39453b57f36e843d0f9bca41cd513c23956ab4"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/process_router.rs",
+    "sha256": "499ea67bca33abc0de36d38c0c46abdab663c89057acfd2fdf248d3d01a5f753"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/profile_io.rs",
+    "sha256": "3927acfb45a333c17f5eb02745d9b24210d84fb280264dd88c7071b5682f73d8"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/system_providers.rs",
+    "sha256": "f92ae78e5f36ac5453de2c1980cbb41ff988f734ec78d17de4fabca1002606d5"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/system_providers/import_patch.rs",
+    "sha256": "b9b0cf7530fe96cea06b1aed4cdf6fccc3ec2e7871ca633bc9e419cecda08bac"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace.rs",
+    "sha256": "9674f58376d2fd91742705305002f13d3f31f9e08bc18ccbbf69379c89e8cb67"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_apple_events.rs",
+    "sha256": "43501f195bace1ba31452d40b167c1434d61647b19935f951a7918c5e78c1400"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_application.rs",
+    "sha256": "5fb8438f4391c398be41f4e0a25ba58474654e63b30864cf599882b2c19f94ef"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_callbacks.rs",
+    "sha256": "7ea21dd3e5cf1ffca2a299cb0f467feced2e9530aa5453d33174bf89069e4232"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_cf_loop.rs",
+    "sha256": "5c4433e0895ce1bb232ac639110d6e1a70165082d071df7bf96165a5cc0eebeb"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_classes.rs",
+    "sha256": "910b149aafacf2edab8be9ce1cb0d1d1a45cd5dd5a9c4bc8a9a9a2c5407e1b97"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_clipboard.rs",
+    "sha256": "15c09c5b3aa8786a4c293cd8b1c9b7387857d1794a5bca79fa83b28060ecd91f"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_controls.rs",
+    "sha256": "396e208559e12cbdd8cfbfe6930302991070fec3c1efd2bc02f0bf7662f616fe"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_data_objc.rs",
+    "sha256": "2118262a90ffccc12aa34270530f74ee030f0aa1685aa8ee07298f58ce48f981"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_delegate.rs",
+    "sha256": "15891e4a58bb3f20b523fe3fd9f33d08dd3f1e30524b8ba4d4fbf63aab937695"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_factory.rs",
+    "sha256": "d354e0c5e70c72fb9226cd3e5206c77053208faae4f18d1234f69aae2fd502cb"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_foundation.rs",
+    "sha256": "963637647a384df08934bc61087899e07eab8789d8b20993049fd9aca4e85b3c"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_foundation_data.rs",
+    "sha256": "aec0bc5555ad94049f9f931c3637c1bee252f157cdbbd26c54d90a0614cfa497"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_images.rs",
+    "sha256": "7b5c917d5ce4c7217007af4e9d9c07fd97bc480bd656c47dfc777fd3526d2b24"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_loop.rs",
+    "sha256": "362288d1b573a3fdb9713a55f0982e28828d2f98607462ebdda51980f5d8379b"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_notification_objc.rs",
+    "sha256": "cdad226b5f03a2fc15ae43d5199eea820469f26c84331e4bf0f023b886af1a22"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_notifications.rs",
+    "sha256": "c37c5be414bc089c229c0d00388ea9775c50eca85c663302f67ea126e1fa2d44"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_objc.rs",
+    "sha256": "8069f0d7f9d239251295de00036cb1d40b7dc3a573d052f05e01f2d05f5f465e"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_receiver.rs",
+    "sha256": "b00e266d09d6988ea73a5c92d497fa541152b66a818273b327593ef4453aee80"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_receiver_canary.rs",
+    "sha256": "2a2f6d5c6b6481c77626f1e6cb0574184823613c9b870e490616d17a54a54aff"
+  },
+  {
+    "path": "bench/f1-runner/src/sdk/workspace_roster.rs",
+    "sha256": "1df0c24cbf30fb40b671ec085414d8ebc315f75f01ef2e3b23821ccd3e0e8f6b"
+  },
+  {
+    "path": "bench/reference/0.8.26/Sources/RuycastApp/AppState.swift",
+    "sha256": "ffba512c44134bf74005bd6cc409c1c92d09b4a13ee9709ca60a7b6e895abd14"
+  },
+  {
+    "path": "bench/reference/0.8.26/Sources/RuycastApp/WebsiteIcons.swift",
+    "sha256": "2708e4accf997b102fe831dd271fab41cf40aa6911a00454e6d0a4ad181aadc8"
+  },
+  {
+    "path": "bench/reference/0.8.26/Sources/RuycastApp/main.swift",
+    "sha256": "9a2ed4af5088d3dfa31dc743475fdfe6677c223feaedb075cd4be2e61147b648"
+  },
+  {
+    "path": "rust-native/src/applications.rs",
+    "sha256": "f9cb78d91f713a69105181150c56397415465e6169b24b6c6e79e7ef60de8139"
+  },
+  {
+    "path": "rust-native/src/main.rs",
+    "sha256": "064c336732bb34727c6f4692e173aa06430eacb24d5e65169d4ac843cd85c0a5"
+  },
+  {
+    "path": "rust-native/src/native_rows.rs",
+    "sha256": "456a2d80b8a29c7902b023211b31bd9eddc56311e8468a177f0044060a44b895"
+  },
+  {
+    "path": "rust-native/src/profile.rs",
+    "sha256": "6dff51a543b8895c04b5c5cc64cec33750ff3062a1326bbd6d49f8348637aea1"
+  },
+  {
+    "path": "rust/src/bin/ruycast.rs",
+    "sha256": "f152cf6e60fe3abf793a41b5f008178a09b21f4954f8d3c8eccb8a0bdc9b451b"
+  }
+]

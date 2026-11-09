@@ -1,0 +1,29 @@
+[package]
+name = "ruycast-f1-runner"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "ruycast_f1_sdk"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "f1-runner"
+path = "src/main.rs"
+
+[dependencies]
+ruycast-native = { path = "../../rust-native", features = ["test-tools"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+libc = "0.2"
+objc2 = "=0.6.5"
+block2 = "=0.6.2"
+objc2-core-foundation = { version = "=0.3.2", default-features = false, features = ["std", "CFRunLoop", "CFString", "CFDate"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSObject", "NSString", "NSURL", "NSArray", "NSEnumerator", "NSFileManager", "NSPathUtilities", "NSError", "NSDictionary", "NSValue"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "unwind"

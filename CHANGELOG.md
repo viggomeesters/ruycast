@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 — Rust candidate (unreleased)
+
+- Move the native app, command-line interface, configuration and local storage to Rust, preserving the existing launcher, editors and macOS integration routes.
+- Build and package the app through Rust tooling. Historical Swift sources remain test references.
+- Complete performance, endurance, public-source and installation acceptance before publishing this candidate. The working 0.8.26/build66 installation remains in place.
+
 ## 0.8.26 — native editing shortcuts
 
 - Restore Command-V/C/X/A and Undo/Redo in native capture and text fields, with a standard Edit menu for ordinary windows.
@@ -111,6 +117,7 @@
 - Preserve existing files, symlinks and active control endpoints during startup; recover only verified stale sockets. Remove only the socket identity created by this instance when stopping or rolling back.
 - Reject linked or nonregular instance locks without blocking, clean up failed startup and return a failure exit status. Add eight real headless-process recovery tests with disposable profiles.
 
+
 ## 0.8.6 — 2026-10-27
 
 - Skip foreground-app attribution lookups for unchanged clipboard polls, while preserving activation settling, capture cadence, excluded/concealed sources and snapshot validation.
@@ -127,6 +134,7 @@
 
 - Prepare stable title/catalog ordering once per immutable search index; avoid repeated Unicode-length scans and eager title comparisons per query. Preserve relevance, recency and tied-result order.
 - Roll back instance locks and socket descriptors when control-server startup fails, allowing the same instance to retry without an explicit stop. Preserve active-owner socket handling.
+
 
 ## 0.8.3 — 2026-10-27
 
@@ -185,25 +193,17 @@
 - Add searchable keyboard selection for script-provided choices, retaining failed selections and provider reports.
 - Allow a local adapter update to be staged directly before signing, without entering public source.
 
-## 0.7.10 — 2026-10-26
-
-- Close the launcher immediately when opening an app; report launch failures and keep a reopened palette visible.
-
 ## 0.7.9 — 2026-10-26 · Snippet keyboard controls
 
 - Switch snippet choices immediately with Up/Down or Left/Right after typing the keyword.
 - Insert with Return or keypad Enter and cancel with Escape, without opening the dropdown first.
 - Preserve free-text editing, IME composition and modifier shortcuts; suppress repeated insertion.
 
+
 ## 0.7.8 — 2026-10-26 · Natural dates
 
 - Accept English and Dutch natural dates in existing ISO date script inputs, with a live date preview before Enter. Invalid or incomplete dates keep the input open.
 
-## 0.7.7 — 2026-10-26 · Snippet choices
-
-- Typing an imported snippet keyword with argument options opens a native choice menu.
-- Confirm replaces the keyword in the original editor; Escape leaves it untouched.
-- Recheck the app, available field metadata and secure-input policy before inserting.
 
 ## 0.7.6 — 2026-10-26 · Accessibility read recovery
 

@@ -126,6 +126,7 @@ def prepare(root):
     return record
 
 if __name__=='__main__':
-    import sys
+    # Imported functions above remain historical whitebox-test oracles only.
+    import os,sys
     root=Path(__file__).resolve().parents[1]
-    recover(root) if sys.argv[1:]==['--recover'] else prepare(root)
+    os.execvp('cargo',['cargo','run','--quiet','--locked','--offline','--target-dir',str(root/'.build/delivery-tools'),'--manifest-path',str(root/'rust-native/Cargo.toml'),'--bin','ruycast-build','--','compat','prepare-release','--repo',str(root),'--',*sys.argv[1:]])

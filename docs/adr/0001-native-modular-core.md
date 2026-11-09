@@ -1,5 +1,17 @@
 # ADR 0001 — Native modular core
 
+## Superseding decision — complete Rust native rewrite
+
+The maintainer's later explicit decision is full Rust, including the native host and all new delivery/runtime writes. The earlier hybrid recommendation below remains historical evidence; it no longer selects the production architecture. Native AppKit behavior, shared configuration authority, public CLI/wire contracts, accessibility, privacy and failure semantics remain acceptance requirements. A language percentage or wrapper rename is not completion.
+
+Rust owns the domain/CLI and `rust-native` owns the AppKit host/services. Production build, preparation, version, package/install and validation policy are Rust. Existing Python/shell entrypoints are bounded compatibility dispatch; unchanged leaf validators and frozen Swift bodies can remain test oracles. Production artifacts must have no Swift host/compiler/helper dependency or fallback. New dependencies require an explicit bounded justification; this delivery migration adds none.
+
+Release build v4 retains the v3 explicit-target fix and adds mandatory code/UUID/dSYM preparation binding. The one inherited `.build/artifacts.lock` protects compiler children and final consumers even after controller death. Source exports use an explicit reviewed allowlist, separate from private `.go`/profiles/signing state. Packaging rebinds every public manifest file/mode and the complete production inventory after build; clean archive verification is a separate earlier gate.
+
+Full F1 acceptance compares the frozen 0.8.26 baseline and final Rust candidate with the same complete functional workloads, ordered outputs, instrumentation, SDK confinement and natural lifecycle checkpoints. Historical numbers below are not Rust rewrite gains. Physical focus/input/display acceptance and Developer ID/notarization remain explicit separate gates; deferred tests or unavailable credentials are not silently passed. Development receipts keep `productionAccepted: false` until root delivery acceptance is actually established.
+
+## Historical decision and evidence
+
 Date: 27 October 2026. Status: implemented and released in 0.8.3. Implementation checks and current-version visible keyboard acceptance passed; final review and administrative closure are in progress under Issue 33.
 Issue: https://github.com/viggomeesters/ruycast/issues/33.
 

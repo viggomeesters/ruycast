@@ -1,6 +1,31 @@
 # Architecture
 
-Ruycast has a shared Rust domain library, a native Rust CLI and a Swift macOS host. The user selected this split explicitly on 24 October 2026; AI-enabled means configurable/operable by external agents through files and a background CLI.
+## Current Rust candidate
+
+The maintainer selected a complete Rust rewrite after the earlier hybrid decision. The production palette, Settings, menu bar, runtime services, CLI, configuration and delivery policy are Rust. AppKit/Foundation are accessed through Rust bindings; production builds do not compile or fall back to a Swift host/helper.
+
+| Owner | Responsibility |
+|---|---|
+| `rust/src/` | Shared deterministic model/config/search rules and the Rust CLI |
+| `rust-native/src/main.rs`, `native*.rs` | Native AppKit entrypoint, presentation and interaction |
+| `rust-native/src/runtime*.rs` | Serialized state, bounded services, cancellation and CLI/native routing |
+| `rust-native/src/startup.rs`, `profile.rs` | Explicit profile/config authority, legacy aliases, offline relocation and safe startup selection |
+| `rust/src/private_storage.rs` | Shared checked storage and atomic private writes |
+| `rust-native/src/bin/ruycast-build*` | Explicit-target builds, v4 receipts, diagnostics, unsigned packaging and validation orchestration |
+| `rust-native/src/artifact_lease.rs` | One inherited checkout-local artifact lease through final synchronous consumers |
+| `rust-native/src/bin/ruycast-source*` | Explicit allowlisted local source export; no implicit publication |
+
+`rust/src/product_version.rs` is the one product-version literal. Host and CLI handle `--version` before resolving profiles or initializing native services. The build tool validates the narrow literal, both compiled metadata responses and the current source inventory. Python/shell CLI files only dispatch; retained import implementations serve historical tests.
+
+Release builds use concrete Rust host-target paths under `.build/full-rust-release/{core,native}/TARGET/release`. Debug builds use `.build/full-rust-debug`. V4 release authority binds sources, both binaries, library loads, version, build commands and mandatory release preparation. Preparation retains matching original executables and dSYM under `.build/full-rust-release/symbols`, verifies backed sections/UUID, and persists a recoverable intent before replacing a pair. A debug or historical v3 receipt cannot authorize packaging/install.
+
+The shared lease transfers a live descriptor with checked root/device/inode/owner identity. It is not released by an explicit unlock when a controller exits; synchronous children keep it alive. Tool process groups are retired before their leader is reaped, including descendants holding pipes after leader exit. Source/artifact readbacks and final lease validation precede evidence publication.
+
+Native validation retains the full ordered leaf-validator matrix. Explicit-target outputs may be copied to old hardcoded test paths only with fresh hash binding and `productionAuthority: false`. Production package/install authority never reads those compatibility aliases. Historical Swift source is a frozen oracle; raw Swift host startup requires complete pre-entry SDK confinement. Full F1 acceptance uses an independently reviewed authority and complete preserved baseline/candidate dataset. None of these development receipts alone declares the whole rewrite accepted.
+
+## Historical hybrid architecture (0.8.x)
+
+The remaining sections describe the previous shipped Swift host and its measurements. They are preserved as migration contracts and test-oracle history, not the current production language, version or build authority. That split was selected on 24 October 2026 and later superseded by the complete Rust decision.
 
 | Layer | Responsibility |
 |---|---|
