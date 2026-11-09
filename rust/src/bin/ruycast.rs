@@ -335,6 +335,40 @@ fn imports_quicklinks_and_scripts_without_overwriting_existing_commands() {
     assert!(config["commands"][initial + 1].get("importedHotkey").is_none());
 }
 
+fn activate_imported_hotkeys(config: &mut Value) -> Result<usize> {
+    let commands = config["commands"].as_array_mut().ok_or("Commands must be an array.")?;
+    let mut activated = 0;
+    for command in commands {
+        let fields = command.as_object_mut().ok_or("Command must be an object.")?;
+        let Some(imported) = fields.remove("importedHotkey").filter(|key| !key.is_null()) else {
+            continue;
+        };
+        if fields.get("hotkey").is_some_and(|key| !key.is_null() && *key != imported) {
+            return Err("An imported shortcut would replace a different configured shortcut.".into());
+        }
+        fields.insert("hotkey".into(), imported);
+        activated += 1;
+    }
+    validate(config)?;
+    Ok(activated)
+}
+
+#[test]
+fn activation_validates_imported_shortcut_conflicts() {
+    let mut config = default_config();
+    let launcher = config["launcherHotkey"].clone();
+    config["commands"].as_array_mut().unwrap().push(json!({
+        "id":"fixture.activation","title":"Activation","kind":"script",
+        "target":"/usr/bin/true","importedHotkey":launcher
+    }));
+    let index = config["commands"].as_array().unwrap().len() - 1;
+    assert!(activate_imported_hotkeys(&mut config.clone()).is_err());
+    config["commands"][index]["importedHotkey"] = json!("ctrl+shift+alt+cmd+f8");
+    assert_eq!(activate_imported_hotkeys(&mut config).unwrap(), 1);
+    assert_eq!(config["commands"][index]["hotkey"], "ctrl+shift+alt+cmd+f8");
+    assert!(config["commands"][index].get("importedHotkey").is_none());
+}
+
 fn config_edit(args: &[String]) -> Result<Value> {
     let r = root()?;
     private_dir(&r)?;
@@ -374,6 +408,17 @@ fn config_edit(args: &[String]) -> Result<Value> {
     };
     let mut import = None;
     match action {
+        "activate-imported-hotkeys" => {
+            let options = &args[2..];
+            let dry_run = options == ["--dry-run"];
+            if !dry_run && !(options.len() == 2 && options[0] == "--expect-sha256") {
+                return Err("Use config activate-imported-hotkeys --dry-run or --expect-sha256 SHA.".into());
+            }
+            let count = activate_imported_hotkeys(&mut value)?;
+            if dry_run || count == 0 {
+                return Ok(json!({"ok":true,"bindings":count,"written":false}));
+            }
+        }
         "import-commands" => {
             let source = Path::new(argument(args, 2, "source configuration path")?);
             let options = &args[3..];
@@ -608,6 +653,7 @@ fn execute(args: &[String]) -> Result<Value> {
         ).map(|mut value|{value["commands"].as_array_mut().expect("help command list").extend([
             json!("utilities import JSON_OR_@FILE"),
             json!("config import-commands SOURCE [--dry-run] [--without-hotkeys]"),
+            json!("config activate-imported-hotkeys --dry-run | --expect-sha256 SHA"),
         ]);value}),
         "__run-script" => {
             let mut data = String::new();
