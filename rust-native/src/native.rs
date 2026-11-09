@@ -520,6 +520,19 @@ define_class!(
                     _ => command.title.to_string(),
                 };
                 let identifier = column.identifier();
+                if !session.management() && identifier.to_string() == "kind" {
+                    let height = crate::native_rows::height(&command, false);
+                    let view = NSView::initWithFrame(NSView::alloc(self.mtm()), rect(0., 0., column.width(), height));
+                    let field = label(self.mtm(), &text, rect(0., 0., column.width(), 18.), 12.);
+                    let text_height = field.intrinsicContentSize().height.ceil();
+                    field.setFrame(rect(0., (height - text_height) / 2., column.width(), text_height));
+                    field.setTextColor(Some(&NSColor::secondaryLabelColor()));
+                    field.setAlignment(NSTextAlignment::Right);
+                    field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
+                    field.setAutoresizingMask(NSAutoresizingMaskOptions::ViewWidthSizable);
+                    view.addSubview(&field);
+                    return Some(view);
+                }
                 let view = unsafe { table.makeViewWithIdentifier_owner(&identifier, None) };
                 let field = if let Some(view) = view {
                     view.downcast::<NSTextField>().ok()?
@@ -819,7 +832,7 @@ impl Controller {
         panel.setContentView(Some(&view));
         let input = NSTextField::textFieldWithString(ns_string!(""), mtm);
         input.setFrame(rect(24., if management {height-145.} else {420. + search_offset}, width - 48., 44.));
-        input.setFont(Some(&NSFont::systemFontOfSize(23.)));
+        input.setFont(Some(&NSFont::systemFontOfSize(if management { 23. } else { 17. })));
         let prompt = if management {
             ns_string!("Search commands…")
         } else {
