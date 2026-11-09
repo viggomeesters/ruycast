@@ -45,6 +45,19 @@ Configured shortcuts are physical macOS keycodes (US key-position naming). An in
 
 ## CLI
 
+Use `ruycast config import-commands SOURCE --dry-run` to preview a local
+import of URL and file quicklinks and scripts from another Ruycast
+`config.json`. Remove `--dry-run` to apply it. The CLI uses the destination
+profile selected by `RUYCAST_HOME`. For the Rust beta, point that variable at
+`~/Library/Application Support/Ruycast Rust Preview` and use the Rust CLI.
+Unset `RUYCAST_CONFIG_DIR` and `RUSTCAST_CONFIG_DIR` for these commands and
+check `ruycast config path` before applying the import.
+
+Exact repeats are skipped. Conflicting entries are reported and existing
+commands are kept. The import keeps script paths and arguments and reports
+unavailable script files. Scripts are executed only when invoked separately.
+Use `--without-hotkeys` when the original app keeps using the shortcuts.
+
 All successful commands return `{"ok":true,...}` and exit 0. Failures return `{"ok":false,"error":"..."}` and exit 1. `--help` lists supported forms. Config commands work with the host stopped; execution/history commands require it.
 
 - `status`: process/profile/version, commands/discovered apps, clip count and state, Accessibility, config and hotkey errors. No clipboard bodies.
