@@ -369,6 +369,50 @@ fn activation_validates_imported_shortcut_conflicts() {
     assert!(config["commands"][index].get("importedHotkey").is_none());
 }
 
+fn import_window_hotkeys(config: &mut Value, source: &Value) -> Result<usize> {
+    let source_commands = source["commands"].as_array().ok_or("Source commands must be an array.")?;
+    let commands = config["commands"].as_array_mut().ok_or("Commands must be an array.")?;
+    let mut imported = 0;
+    for previous in source_commands.iter().filter(|command| {
+        command["kind"] == "window" && command["enabled"] != false && !command["hotkey"].is_null()
+    }) {
+        let id = previous["id"].as_str().ok_or("Source window command needs an ID.")?;
+        let command = commands.iter_mut().find(|command| command["id"] == id)
+            .ok_or_else(|| format!("Window command {id} is missing from the destination."))?;
+        if command["kind"] != "window" || command["target"] != previous["target"] || command["enabled"] == false {
+            return Err(format!("Window command {id} does not match an enabled destination layout."));
+        }
+        if command["hotkey"] == previous["hotkey"] {
+            continue;
+        }
+        if !command["hotkey"].is_null() {
+            return Err(format!("Window command {id} already has a different shortcut."));
+        }
+        command["hotkey"] = previous["hotkey"].clone();
+        imported += 1;
+    }
+    validate(config)?;
+    Ok(imported)
+}
+
+#[test]
+fn window_shortcut_import_preserves_destination_and_checks_layout() {
+    let mut config = default_config();
+    let index = config["commands"].as_array().unwrap().iter().position(|command| command["id"] == "window.left-half").unwrap();
+    config["commands"][index]["title"] = json!("Custom title");
+    let mut source = json!({"commands":[
+        {"id":"window.left-half","kind":"window","target":"left-half","hotkey":"ctrl+alt+cmd+shift+left"},
+        {"id":"unrelated","kind":"script","hotkey":"ctrl+alt+x"}
+    ]});
+    let mut expected = config.clone();
+    expected["commands"][index]["hotkey"] = source["commands"][0]["hotkey"].clone();
+    assert_eq!(import_window_hotkeys(&mut config, &source).unwrap(), 1);
+    assert_eq!(config, expected);
+    assert_eq!(import_window_hotkeys(&mut config, &source).unwrap(), 0);
+    source["commands"][0]["target"] = json!("right-half");
+    assert!(import_window_hotkeys(&mut config, &source).is_err());
+}
+
 fn config_edit(args: &[String]) -> Result<Value> {
     let r = root()?;
     private_dir(&r)?;
@@ -408,6 +452,28 @@ fn config_edit(args: &[String]) -> Result<Value> {
     };
     let mut import = None;
     match action {
+        "import-window-hotkeys" => {
+            let source = Path::new(argument(args, 2, "source configuration path")?);
+            let options = &args[3..];
+            let dry_run = options == ["--dry-run"];
+            if !dry_run && !(options.len() == 2 && options[0] == "--expect-sha256") {
+                return Err("Use config import-window-hotkeys SOURCE --dry-run or --expect-sha256 SHA.".into());
+            }
+            let count = import_window_hotkeys(&mut value, &parse(&read(source)?)?)?;
+            if dry_run || count == 0 {
+                return Ok(json!({"ok":true,"bindings":count,"written":false}));
+            }
+            let status = rpc(json!({"op":"status"}))?;
+            let destination = &status["result"];
+            if status["ok"] != true
+                || destination["headless"] != false
+                || destination["profile"] != json!(r)
+                || destination["configPath"] != json!(path)
+                || destination["accessibility"] != true
+            {
+                return Err("Enable Accessibility for the running destination app before moving window shortcuts.".into());
+            }
+        }
         "activate-imported-hotkeys" => {
             let options = &args[2..];
             let dry_run = options == ["--dry-run"];
@@ -654,6 +720,7 @@ fn execute(args: &[String]) -> Result<Value> {
             json!("utilities import JSON_OR_@FILE"),
             json!("config import-commands SOURCE [--dry-run] [--without-hotkeys]"),
             json!("config activate-imported-hotkeys --dry-run | --expect-sha256 SHA"),
+            json!("config import-window-hotkeys SOURCE --dry-run | --expect-sha256 SHA"),
         ]);value}),
         "__run-script" => {
             let mut data = String::new();
