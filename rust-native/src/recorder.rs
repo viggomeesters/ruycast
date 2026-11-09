@@ -117,11 +117,23 @@ impl Recorder {
         .filter(|(flag, _)| mods & flag != 0)
         .map(|(_, name)| name)
         .collect();
+        if flags & crate::keyboard_state::FUNCTION != 0
+            && key_name(code).is_some_and(|name| !name.starts_with('f') || name == "f")
+        {
+            names.push("fn");
+        }
         if names.is_empty() {
             return Recorded::Ignore;
         }
-        if separate && names.len() != 4 {
-            if let Some(i) = names.iter().position(|&name| name == "cmd") {
+        if names.len() != 4 {
+            if flags & (crate::keyboard_state::LEFT_OPTION | crate::keyboard_state::RIGHT_OPTION)
+                == crate::keyboard_state::RIGHT_OPTION
+            {
+                if let Some(i) = names.iter().position(|&name| name == "alt") {
+                    names[i] = "right-alt";
+                }
+            }
+            if let Some(i) = names.iter().position(|&name| separate && name == "cmd") {
                 match flags & (LEFT_COMMAND | RIGHT_COMMAND) {
                     LEFT_COMMAND => names[i] = "left-cmd",
                     RIGHT_COMMAND => names[i] = "right-cmd",
@@ -135,16 +147,19 @@ impl Recorder {
         Recorded::Shortcut(format!("{}+{key}", names.join("+")))
     }
     pub fn flags(&mut self, code: u16, flags: u64) -> Recorded {
-        let flags = flags & (CONTROL | OPTION | SHIFT | COMMAND);
-        if (code == 59 && flags == CONTROL) || (code == 58 && flags == OPTION) {
+        let function = crate::keyboard_state::FUNCTION;
+        let flags = flags & (CONTROL | OPTION | SHIFT | COMMAND | function);
+        if (code == 59 && flags == CONTROL) || (code == 58 && flags == OPTION)
+            || (code == 63 && flags == function)
+        {
             self.solo = Some(code);
         } else if flags == 0 {
             if let Some(code) = self.solo.take() {
                 return Recorded::Shortcut(
-                    if code == 59 {
-                        "ctrl+left-control"
-                    } else {
-                        "alt+left-option"
+                    match code {
+                        59 => "ctrl+left-control",
+                        63 => "fn",
+                        _ => "alt+left-option",
                     }
                     .into(),
                 );

@@ -45,6 +45,15 @@ Configured shortcuts are physical macOS keycodes (US key-position naming). An in
 
 ## CLI
 
+Use `right-alt+k` for Right Option, `fn+k` for Fn plus an ordinary key, or `fn`
+for a short Fn/Globe tap. Use `double:ctrl`, `double:alt`, `double:cmd`,
+`double:space`, `double:fn` or `double:right-cmd` for two short taps.
+Set double taps in the configuration file or with the CLI. They observe
+both taps and leave the key events available to the focused app. A single
+tap binding cannot share the same physical key with a double tap binding.
+These bindings require Accessibility and Input Monitoring. Fn/Globe works
+when macOS delivers the key event to the app's keyboard filter.
+
 Use `ruycast config import-commands SOURCE --dry-run` to preview a local
 import of URL and file quicklinks and scripts from another Ruycast
 `config.json`. Remove `--dry-run` to apply it. The CLI uses the destination

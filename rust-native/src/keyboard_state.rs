@@ -2,12 +2,77 @@
 //! permission request, persistent mapping, text history or native handle.
 use crate::recorder::{COMMAND, CONTROL, LEFT_COMMAND, OPTION, RIGHT_COMMAND, SHIFT};
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::{Duration, Instant};
 
 pub const CAPS: u64 = 1 << 16;
 pub const FUNCTION: u64 = 1 << 23;
 pub const HYPER: u64 = CONTROL | OPTION | SHIFT | COMMAND;
 pub const GENERATED_HYPER: i64 = 0x52554859504552;
 pub const GENERATED_SNIPPET: i64 = 0x5255535443415354;
+pub const LEFT_OPTION: u64 = 0x20;
+pub const RIGHT_OPTION: u64 = 0x40;
+
+#[derive(Default)]
+pub struct TapSequence {
+    held: BTreeSet<u16>,
+    pressed: Option<(u16, Instant)>,
+    released: Option<(u16, Instant)>,
+}
+
+impl TapSequence {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+
+    pub fn observe(&mut self, key: u16, down: bool, repeated: bool, now: Instant) -> Option<bool> {
+        if repeated {
+            self.pressed = None;
+            self.released = None;
+            return None;
+        }
+        if down {
+            if !self.held.insert(key) || self.held.len() > 1 {
+                self.pressed = None;
+                self.released = None;
+                return None;
+            }
+            if self.released.is_some_and(|(previous, _)| previous != key) {
+                self.released = None;
+            }
+            self.pressed = Some((key, now));
+            return None;
+        }
+        if !self.held.remove(&key) || !self.pressed.take().is_some_and(|(previous, start)| {
+            previous == key && now.saturating_duration_since(start) <= Duration::from_millis(250)
+        }) {
+            self.pressed = None;
+            self.released = None;
+            return None;
+        }
+        if self.released.take().is_some_and(|(previous, end)| {
+            previous == key && now.saturating_duration_since(end) <= Duration::from_millis(350)
+        }) {
+            return Some(true);
+        }
+        self.released = Some((key, now));
+        Some(false)
+    }
+}
+
+pub fn modifier_key(code: u16) -> Option<(&'static str, &'static str, u64, u64)> {
+    Some(match code {
+        59 => ("left-ctrl", "ctrl", CONTROL, 0x1),
+        62 => ("right-ctrl", "ctrl", CONTROL, 0x2000),
+        58 => ("left-alt", "alt", OPTION, LEFT_OPTION),
+        61 => ("right-alt", "alt", OPTION, RIGHT_OPTION),
+        55 => ("left-cmd", "cmd", COMMAND, LEFT_COMMAND),
+        54 => ("right-cmd", "cmd", COMMAND, RIGHT_COMMAND),
+        56 => ("left-shift", "shift", SHIFT, 0x2),
+        60 => ("right-shift", "shift", SHIFT, 0x4),
+        63 => ("fn", "fn", FUNCTION, FUNCTION),
+        _ => return None,
+    })
+}
 
 #[derive(Clone, Debug)]
 struct Tap {
@@ -138,6 +203,7 @@ pub struct Binding {
     pub key: u16,
     pub flags: u64,
     pub side: u64,
+    pub side_mask: u64,
     pub action: String,
 }
 impl Binding {
@@ -145,13 +211,20 @@ impl Binding {
         let canonical = rustcast_core::shortcut(value)?;
         let mut parts = canonical.split('+').collect::<Vec<_>>();
         let key = parts.pop().expect("Validated shortcut has a key");
-        let side = if parts.contains(&"right-cmd") {
+        let command_side = if parts.contains(&"right-cmd") {
             RIGHT_COMMAND
         } else if parts.contains(&"left-cmd") {
             LEFT_COMMAND
         } else {
-            return Err("A sided Command shortcut is required.".into());
+            0
         };
+        let right_alt = parts.contains(&"right-alt");
+        if command_side == 0 && !right_alt && !parts.contains(&"fn") {
+            return Err("An extended shortcut is required.".into());
+        }
+        let side = command_side | if right_alt { RIGHT_OPTION } else { 0 };
+        let side_mask = if command_side != 0 { LEFT_COMMAND | RIGHT_COMMAND } else { 0 }
+            | if right_alt { LEFT_OPTION | RIGHT_OPTION } else { 0 };
         let code = match key {
             "left-control" => Some(59),
             "left-option" => Some(58),
@@ -161,10 +234,12 @@ impl Binding {
             }),
         }
         .ok_or_else(|| format!("Unsupported shortcut key: {key}"))?;
-        let flags = parts.iter().fold(COMMAND, |bits, m| {
+        let flags = parts.iter().fold(0, |bits, m| {
             bits | match *m {
                 "ctrl" => CONTROL,
-                "alt" => OPTION,
+                "alt" | "right-alt" => OPTION,
+                "cmd" | "left-cmd" | "right-cmd" => COMMAND,
+                "fn" => FUNCTION,
                 "shift" => SHIFT,
                 _ => 0,
             }
@@ -173,6 +248,7 @@ impl Binding {
             key: code,
             flags,
             side,
+            side_mask,
             action,
         })
     }
@@ -220,13 +296,13 @@ impl CommandFilter {
                 action: None,
             };
         }
-        let side = flags & (LEFT_COMMAND | RIGHT_COMMAND);
         let modifiers = flags & (COMMAND | CONTROL | OPTION | SHIFT | FUNCTION);
         let binding = (!repeated)
             .then(|| {
                 self.bindings
                     .iter()
-                    .find(|b| b.key == key && b.side == side && b.flags == modifiers)
+                    .filter(|b| b.key == key && b.side == flags & b.side_mask && b.flags == modifiers)
+                    .max_by_key(|binding| binding.side_mask.count_ones())
             })
             .flatten();
         if let Some(binding) = binding {
@@ -261,6 +337,45 @@ impl CommandFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn double_taps_require_two_short_releases_of_the_same_key() {
+        let start = Instant::now();
+        let at = |ms| start + Duration::from_millis(ms);
+        for key in [59, 58, 55, 49, 63, 54] {
+            let mut sequence = TapSequence::default();
+            assert_eq!(sequence.observe(key, true, false, at(0)), None);
+            assert_eq!(sequence.observe(key, false, false, at(50)), Some(false));
+            assert_eq!(sequence.observe(key, true, false, at(100)), None);
+            assert_eq!(sequence.observe(key, false, false, at(150)), Some(true));
+            assert_eq!(sequence.observe(key, false, false, at(151)), None);
+            sequence.observe(key, true, false, at(200));
+            assert_eq!(sequence.observe(key, false, false, at(500)), None);
+            sequence.observe(key, true, false, at(600));
+            sequence.reset();
+            assert_eq!(sequence.observe(key, false, false, at(610)), None);
+            sequence.observe(key, true, false, at(700));
+            sequence.observe(0, true, false, at(710));
+            assert_eq!(sequence.observe(key, false, false, at(720)), None);
+            assert_eq!(sequence.observe(0, false, false, at(730)), None);
+        }
+    }
+
+    #[test]
+    fn right_option_and_fn_chords_keep_their_modifier_boundaries() {
+        let mut filter = CommandFilter::default();
+        filter.set_bindings(vec![
+            Binding::parse("right-alt+k", "right".into()).unwrap(),
+            Binding::parse("fn+k", "function".into()).unwrap(),
+            Binding::parse("fn+alt+k", "generic option".into()).unwrap(),
+            Binding::parse("fn+right-alt+k", "right option with fn".into()).unwrap(),
+        ]);
+        let key = 40;
+        assert_eq!(filter.preview(Event::Down, key, OPTION | LEFT_OPTION, false).action, None);
+        assert_eq!(filter.preview(Event::Down, key, OPTION | RIGHT_OPTION, false).action.as_deref(), Some("right"));
+        assert_eq!(filter.preview(Event::Down, key, FUNCTION, false).action.as_deref(), Some("function"));
+        assert_eq!(filter.preview(Event::Down, key, FUNCTION | COMMAND, false).action, None);
+        assert_eq!(filter.preview(Event::Down, key, FUNCTION | OPTION | RIGHT_OPTION, false).action.as_deref(), Some("right option with fn"));
+    }
     #[test]
     fn isolated_tap_boundary_duplicates_strays_and_chords() {
         let mut p = Physical::default();

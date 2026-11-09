@@ -29,6 +29,7 @@ pub(crate) struct Callback {
     generation: Cell<u64>,
     plan: RefCell<Rc<Plan>>,
     physical: RefCell<Physical>,
+    taps: RefCell<keyboard_state::TapSequence>,
     filter: RefCell<CommandFilter>,
     epoch: Cell<u64>,
     emitted_hyper: Cell<bool>,
@@ -63,6 +64,7 @@ impl Callback {
         let gate = (self.gate)();
         if self.epoch.replace(gate.epoch) != gate.epoch {
             self.physical.borrow_mut().cancel_tap();
+            self.taps.borrow_mut().reset();
             self.filter.borrow_mut().reset();
         }
         gate
@@ -214,6 +216,9 @@ impl Callback {
             return;
         }
         let plan = self.plan.borrow().clone();
+        if usage == 0x39 {
+            self.taps.borrow_mut().reset();
+        }
         let (action, changed, held, modifiers) = {
             let mut state = self.physical.borrow_mut();
             let was = state.caps_held();
@@ -324,6 +329,7 @@ impl Callback {
         let revision = self.revision.get();
         let flags = if plan.hyper {
             if kind == 12 && key == 57 {
+                self.taps.borrow_mut().reset();
                 if self.caps.clear().is_err() {
                     self.interrupt();
                     return event;
@@ -350,6 +356,45 @@ impl Callback {
         let Ok(key) = u16::try_from(key) else {
             return event;
         };
+        if plan.sided.contains_key("fn") || plan.sided.keys().any(|key| key.starts_with("double:")) {
+            let modifiers = flags & (keyboard_state::HYPER | keyboard_state::FUNCTION);
+            let tap = if kind == 12 {
+                keyboard_state::modifier_key(key).and_then(|(specific, generic, mask, side)| {
+                    let family = match generic {
+                        "ctrl" => 0x2001,
+                        "alt" => keyboard_state::LEFT_OPTION | keyboard_state::RIGHT_OPTION,
+                        "cmd" => crate::recorder::LEFT_COMMAND | crate::recorder::RIGHT_COMMAND,
+                        "shift" => 0x6,
+                        _ => keyboard_state::FUNCTION,
+                    };
+                    let down = flags & side != 0 || (flags & family == 0 && modifiers == mask);
+                    (modifiers & !mask == 0).then_some((specific, generic, down))
+                })
+            } else if matches!(kind, 10 | 11) {
+                crate::recorder::key_name(key)
+                    .filter(|name| modifiers == 0 || (modifiers == keyboard_state::FUNCTION
+                        && name.strip_prefix('f').is_some_and(|number| number.parse::<u8>().is_ok())))
+                    .map(|name| (name, name, kind == 10))
+            } else {
+                None
+            };
+            let mut taps = self.taps.borrow_mut();
+            let admitted = tap.and_then(|(specific, generic, down)| {
+                let specific_key = format!("double:{specific}");
+                let generic_key = format!("double:{generic}");
+                let double = plan.sided.get_key_value(&specific_key).or_else(|| plan.sided.get_key_value(&generic_key));
+                let single = (specific == "fn").then(|| plan.sided.get_key_value("fn")).flatten();
+                let complete = taps.observe(key, down, repeated, std::time::Instant::now())?;
+                if complete { double.or(single) } else { single }
+            });
+            if tap.is_none() {
+                taps.reset();
+            }
+            drop(taps);
+            if let Some((canonical, action)) = admitted {
+                (self.sink)(Press { generation, canonical: canonical.clone(), action: action.clone() });
+            }
+        }
         let event_kind = match kind {
             10 => Event::Down,
             11 => Event::Up,
@@ -523,6 +568,7 @@ impl Service {
                 generation: Cell::new(0),
                 plan: RefCell::new(Rc::new(Plan::default())),
                 physical: RefCell::new(Physical::default()),
+                taps: RefCell::new(keyboard_state::TapSequence::default()),
                 filter: RefCell::new(CommandFilter::default()),
                 epoch: Cell::new(0),
                 emitted_hyper: Cell::new(false),
@@ -628,6 +674,7 @@ impl Service {
             balance.set(Some(modifiers));
         }
         callback.physical.borrow_mut().reset();
+        callback.taps.borrow_mut().reset();
         callback.filter.borrow_mut().reset();
         if let Some(flags) = balance.get() {
             if callback.emit_mode(false, flags, true) {

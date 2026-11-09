@@ -126,6 +126,25 @@ fn apple_shortcut(command: &Command) -> bool {
 }
 pub fn shortcut(value: &str) -> (String, String) {
     let lower = value.to_lowercase();
+    if let Some(key) = lower.strip_prefix("double:") {
+        let symbol = match key {
+            "ctrl" | "left-ctrl" => "⌃",
+            "right-ctrl" => "R⌃",
+            "alt" | "left-alt" => "⌥",
+            "right-alt" => "R⌥",
+            "cmd" | "left-cmd" => "⌘",
+            "right-cmd" => "R⌘",
+            "shift" | "left-shift" => "⇧",
+            "right-shift" => "R⇧",
+            "space" => "␣",
+            "fn" => "Fn",
+            _ => key,
+        };
+        return (format!("2× {symbol}"), format!("Double tap {key}"));
+    }
+    if lower == "fn" {
+        return ("Fn".into(), "Fn".into());
+    }
     let parts: Vec<_> = lower.split('+').collect();
     let key = parts.last().copied().unwrap_or("");
     let modifiers = &parts[..parts.len().saturating_sub(1)];
@@ -144,6 +163,8 @@ pub fn shortcut(value: &str) -> (String, String) {
             for (modifier, symbol, name) in [
                 ("ctrl", "⌃", "Control"),
                 ("alt", "⌥", "Option"),
+                ("right-alt", "R⌥", "Right Option"),
+                ("fn", "Fn", "Fn"),
                 ("shift", "⇧", "Shift"),
                 ("cmd", "⌘", "Command"),
                 ("left-cmd", "L⌘", "Left Command"),

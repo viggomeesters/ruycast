@@ -36,12 +36,20 @@ impl Plan {
             ..Self::default()
         };
         for (canonical, action) in desired {
+            if canonical == "fn" || canonical.starts_with("double:") {
+                plan.sided.insert(canonical, action);
+                continue;
+            }
             let mut parts = canonical.split('+').collect::<Vec<_>>();
             let key = parts.pop().expect("validated shortcut has a key");
             if parts.iter().any(|m| ["left-cmd", "right-cmd"].contains(m)) {
                 if config.separate_command_keys.unwrap_or(true) {
                     plan.sided.insert(canonical, action);
                 }
+                continue;
+            }
+            if parts.iter().any(|m| ["right-alt", "fn"].contains(m)) {
+                plan.sided.insert(canonical, action);
                 continue;
             }
             if ["left-control", "left-option"].contains(&key) {
