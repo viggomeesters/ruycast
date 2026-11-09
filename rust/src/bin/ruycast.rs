@@ -242,6 +242,70 @@ fn binary() -> Result<PathBuf> {
         .find(|p| p.is_file())
         .ok_or("Ruycast app is not installed or built. Build the Rust host or install the matching Ruycast app.".into())
 }
+fn import_commands(config: &mut Value, source: &Value, without_hotkeys: bool) -> Result<Value> {
+    validate(config)?;
+    let source_commands = source["commands"].as_array().ok_or("Source commands must be an array.")?;
+    let mut imported = 0;
+    let mut duplicates = 0;
+    let mut omitted_hotkeys = 0;
+    let mut conflicts = Vec::new();
+    let mut unavailable_scripts = Vec::new();
+    for command in source_commands {
+        let kind = command["kind"].as_str().unwrap_or_default();
+        if !matches!(kind, "url" | "path" | "script") {
+            continue;
+        }
+        let mut candidate = command.clone();
+        let omitted = without_hotkeys
+            && candidate.as_object_mut().and_then(|fields| fields.remove("hotkey")).is_some_and(|key| !key.is_null());
+        let existing = config["commands"].as_array_mut().ok_or("Commands must be an array.")?;
+        if existing.contains(&candidate) {
+            duplicates += 1;
+            continue;
+        }
+        existing.push(candidate);
+        if let Err(reason) = validate(config) {
+            config["commands"].as_array_mut().expect("validated command array").pop();
+            conflicts.push(json!({"id":command["id"],"reason":reason}));
+            continue;
+        }
+        imported += 1;
+        omitted_hotkeys += usize::from(omitted);
+        if kind == "script" {
+            let target = command["target"].as_str().expect("validated script target");
+            if !absolute_directory(target).is_ok_and(|path| path.is_file()) {
+                unavailable_scripts.push(command["id"].clone());
+            }
+        }
+    }
+    Ok(json!({"imported":imported,"duplicates":duplicates,"conflicts":conflicts,
+        "omittedHotkeys":omitted_hotkeys,"unavailableScripts":unavailable_scripts}))
+}
+
+#[test]
+fn imports_quicklinks_and_scripts_without_overwriting_existing_commands() {
+    let mut config = default_config();
+    let source = json!({"commands":[
+        {"id":"fixture.link","title":"Link","kind":"url","target":"https://example.invalid"},
+        {"id":"fixture.script","title":"Script","kind":"script","target":"/usr/bin/true",
+            "arguments":["fixture"],"aliases":["fixture-test"],"hotkey":"alt+shift+f8","enabled":false},
+        {"id":"fixture.link","title":"Collision","kind":"path","target":"/"},
+        {"id":"fixture.app","title":"App","kind":"app","target":"example.app"}
+    ]});
+    let initial = config["commands"].as_array().unwrap().len();
+    let report = import_commands(&mut config, &source, true).unwrap();
+    assert_eq!(report["imported"], 2);
+    assert_eq!(report["omittedHotkeys"], 1);
+    assert_eq!(report["conflicts"].as_array().unwrap().len(), 1);
+    assert_eq!(config["commands"][initial], source["commands"][0]);
+    let mut script = source["commands"][1].clone();
+    script.as_object_mut().unwrap().remove("hotkey");
+    assert_eq!(config["commands"][initial + 1], script);
+    let repeat = import_commands(&mut config, &source, true).unwrap();
+    assert_eq!(repeat["imported"], 0);
+    assert_eq!(repeat["duplicates"], 2);
+}
+
 fn config_edit(args: &[String]) -> Result<Value> {
     let r = root()?;
     private_dir(&r)?;
@@ -279,7 +343,20 @@ fn config_edit(args: &[String]) -> Result<Value> {
             parse(s.as_bytes())
         }
     };
+    let mut import = None;
     match action {
+        "import-commands" => {
+            let source = Path::new(argument(args, 2, "source configuration path")?);
+            let options = &args[3..];
+            if options.iter().any(|s| !matches!(s.as_str(), "--dry-run" | "--without-hotkeys")) {
+                return Err("Use config import-commands SOURCE [--dry-run] [--without-hotkeys].".into());
+            }
+            let report = import_commands(&mut value, &parse(&read(source)?)?, options.iter().any(|s| s == "--without-hotkeys"))?;
+            if options.iter().any(|s| s == "--dry-run") || report["imported"] == 0 {
+                return Ok(json!({"ok":true,"import":report,"written":false}));
+            }
+            import = Some(report);
+        }
         "replace" => {
             if !args.iter().any(|s| s == "--expect-sha256") {
                 return Err("Config replace requires --expect-sha256.".into());
@@ -345,6 +422,10 @@ fn config_edit(args: &[String]) -> Result<Value> {
         if activation.as_ref().is_ok_and(|v| v["ok"] == true) {
             let mut result = activation?;
             result["configPath"] = json!(path);
+            if let Some(report) = import {
+                result["import"] = report;
+                result["written"] = json!(true);
+            }
             Ok(result)
         } else {
             // An external editor is outside this lock: never roll back its newer bytes.
@@ -369,7 +450,12 @@ fn config_edit(args: &[String]) -> Result<Value> {
             )
         }
     } else {
-        Ok(json!({"ok":true,"result":{"path":path,"reload":"on_next_start"}}))
+        let mut result = json!({"ok":true,"result":{"path":path,"reload":"on_next_start"}});
+        if let Some(report) = import {
+            result["import"] = report;
+            result["written"] = json!(true);
+        }
+        Ok(result)
     }
 }
 fn run_script(value: Value) -> Result<Value> {
@@ -490,7 +576,10 @@ fn execute(args: &[String]) -> Result<Value> {
         "--version" | "version" if args.len() == 1 => Ok(json!({"ok":true,"result":{"name":"Ruycast","version":rustcast_core::product_version::CURRENT,"implementation":"rust","component":"cli"}})),
         "--help" | "help" | "-h" => Ok(
             json!({"ok":true,"commands":["status","performance [summary|reset --confirm]","search-ranking [summary|reset --confirm]","logs [--command ID] [--errors] [--limit N] | path | clear --confirm","analytics [summary|export|pause|resume|retention DAYS|reset --confirm]","monitor","processes [query]","commands","search [query] [--mode MODE]","run ID [--dry-run] [--input JSON_OR_TEXT] [--confirm] [--foreground ORIGINAL_JSON]","snippets list [query]|add JSON|remove ID","quicklinks list [query]|add JSON|remove ID","window LAYOUT","show [commands|clipboard|snippets|quicklinks|files|menus|windows|processes|settings|analytics]","usage","reload","start [--headless]","quit","config path|get|init|validate [PATH]|reload", "config directory [ABSOLUTE_PATH]","config set KEY JSON [--expect-sha256 SHA]","config replace @FILE --expect-sha256 SHA","config add JSON_OR_@FILE [--expect-sha256 SHA]","config remove ID [--expect-sha256 SHA]","clipboard list [query]|export [query]|import JSON_OR_@FILE|copy ID|paste ID|delete ID|clear|pause|resume"],"profile":root()?,"configFormat":"Readable JSON, version 1"}),
-        ).map(|mut value|{value["commands"].as_array_mut().expect("help command list").push(json!("utilities import JSON_OR_@FILE"));value}),
+        ).map(|mut value|{value["commands"].as_array_mut().expect("help command list").extend([
+            json!("utilities import JSON_OR_@FILE"),
+            json!("config import-commands SOURCE [--dry-run] [--without-hotkeys]"),
+        ]);value}),
         "__run-script" => {
             let mut data = String::new();
             io::stdin()
