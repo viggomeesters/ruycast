@@ -751,6 +751,7 @@ impl WindowRuntime {
                         title: r.title.clone(),
                         kind: r.subtitle.clone(),
                         hotkey: None,
+                        imported_hotkey: None,
                         action: "Choose",
                         is_group: false,
                         aliases: vec![],

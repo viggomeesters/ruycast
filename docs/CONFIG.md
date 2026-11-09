@@ -57,6 +57,8 @@ Exact repeats are skipped. Conflicting entries are reported and existing
 commands are kept. The import keeps script paths and arguments and reports
 unavailable script files. Scripts are executed only when invoked separately.
 Use `--without-hotkeys` when the original app keeps using the shortcuts.
+The launcher shows these imported shortcuts as inactive. Rerunning the import
+also restores the display for matching commands imported by earlier betas.
 
 All successful commands return `{"ok":true,...}` and exit 0. Failures return `{"ok":false,"error":"..."}` and exit 1. `--help` lists supported forms. Config commands work with the host stopped; execution/history commands require it.
 

@@ -169,6 +169,7 @@ fn metadata(url: &NSURL) -> Option<Command> {
         target: id,
         aliases: vec![],
         hotkey: None,
+        imported_hotkey: None,
         input_prompt: None,
         keyword: None,
         arguments: vec![],

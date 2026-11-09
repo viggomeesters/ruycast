@@ -483,7 +483,9 @@ define_class!(
                     return Some(crate::native_rows::title(self.mtm(),&command,column.width(),!self.ivars().panel.ivars().ordering_allowed,session.management()));
                 }
                 if !session.management() && column.identifier().to_string()=="shortcut" {
-                    if let Some(value)=command.hotkey { return Some(crate::native_rows::shortcut(self.mtm(),value,column.width())); }
+                    if let Some(value) = command.hotkey.or(command.imported_hotkey) {
+                        return Some(crate::native_rows::shortcut(self.mtm(), value, column.width(), command.hotkey.is_none()));
+                    }
                 }
                 if column.identifier().to_string()=="enabled" {
                     if let Model::Live{view,..}=&*session {

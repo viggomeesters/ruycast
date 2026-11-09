@@ -646,12 +646,16 @@ pub fn title(
     root.setAccessibilityLabel(Some(&NSString::from_str(&texts(&root).join(" "))));
     root
 }
-pub fn shortcut(main: MainThreadMarker, value: &str, width: f64) -> Retained<NSView> {
+pub fn shortcut(main: MainThreadMarker, value: &str, width: f64, imported: bool) -> Retained<NSView> {
     let (keys, label) = ruycast_native::presentation::shortcut(value);
+    let label = if imported { format!("{label} (from previous profile, inactive here)") } else { label };
     let root = NSView::initWithFrame(NSView::alloc(main), rect(0., 0., width, 39.));
     root.setIdentifier(Some(&NSString::from_str("shortcut-keycaps")));
     root.setAccessibilityLabel(Some(&NSString::from_str(&label)));
     root.setToolTip(Some(&NSString::from_str(&label)));
+    if imported {
+        root.setAlphaValue(0.65);
+    }
     let keys = keys.split(' ').collect::<Vec<_>>();
     let total = keys
         .iter()

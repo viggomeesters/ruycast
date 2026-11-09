@@ -36,6 +36,8 @@ pub struct Command {
     pub arguments: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hotkey: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "importedHotkey")]
+    pub imported_hotkey: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<f64>,
     #[serde(
@@ -210,6 +212,9 @@ pub fn validate(value: &Value) -> Result<Config, String> {
             if cmd.enabled != Some(false) && !keys.insert(canonical) {
                 return Err(format!("Duplicate hotkey: {k}"));
             }
+        }
+        if let Some(k) = &cmd.imported_hotkey {
+            shortcut(k)?;
         }
         match cmd.kind.as_str() {
             "app" => {}

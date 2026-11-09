@@ -15,16 +15,16 @@ fn same_command(a: &Command, b: &Command) -> bool {
     // Exhaustive typed projection: metadata used by execution is part of the
     // snapshot too. Adding a Command field must update this comparison.
     let Command { id, title, kind, target, aliases, arguments, hotkey, timeout,
-        input_prompt, keyword, application_id, enabled, snippet_output } = a;
+        input_prompt, keyword, application_id, enabled, snippet_output, imported_hotkey } = a;
     let Command { id: bid, title: btitle, kind: bkind, target: btarget,
         aliases: baliases, arguments: barguments, hotkey: bhotkey, timeout: btimeout,
         input_prompt: binput_prompt, keyword: bkeyword, application_id: bapplication_id,
-        enabled: benabled, snippet_output: bsnippet_output } = b;
+        enabled: benabled, snippet_output: bsnippet_output, imported_hotkey: bimported_hotkey } = b;
     id == bid && title == btitle && kind == bkind && target == btarget
         && aliases == baliases && arguments == barguments && hotkey == bhotkey
         && timeout == btimeout && input_prompt == binput_prompt && keyword == bkeyword
         && application_id == bapplication_id && enabled == benabled
-        && snippet_output == bsnippet_output
+        && snippet_output == bsnippet_output && imported_hotkey == bimported_hotkey
 }
 
 pub struct Catalog {
