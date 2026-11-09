@@ -45,7 +45,7 @@ Configured shortcuts are physical macOS keycodes (US key-position naming). An in
 
 ## CLI
 
-Use `right-alt+k` for Right Option, `fn+k` for Fn plus a key, or `fn`
+Use `right-alt+k` for Right Option, `fn+k` for Fn plus an ordinary key, or `fn`
 for a short Fn/Globe tap. Use `double:ctrl`, `double:alt`, `double:cmd`,
 `double:space`, `double:fn` or `double:right-cmd` for two short taps.
 Set double taps in the configuration file or with the CLI. They observe

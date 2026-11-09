@@ -166,6 +166,14 @@ pub fn shortcut(s: &str) -> Result<String, String> {
     if mods.contains("alt") && mods.contains("right-alt") {
         return Err("Choose alt or right-alt, not both.".into());
     }
+    if (key == "left-control" && parts != ["ctrl"])
+        || (key == "left-option" && parts != ["alt"])
+    {
+        return Err("Use Ctrl+Left-Control or Alt+Left-Option for a single modifier tap.".into());
+    }
+    if mods.contains("fn") && key.strip_prefix('f').is_some_and(|number| number.parse::<u8>().is_ok()) {
+        return Err("Use Fn with an ordinary key. macOS does not consistently distinguish Fn with an F-key.".into());
+    }
     parts.sort();
     Ok(format!("{}+{key}", parts.join("+")))
 }

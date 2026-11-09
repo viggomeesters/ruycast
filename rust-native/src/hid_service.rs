@@ -216,6 +216,9 @@ impl Callback {
             return;
         }
         let plan = self.plan.borrow().clone();
+        if usage == 0x39 {
+            self.taps.borrow_mut().reset();
+        }
         let (action, changed, held, modifiers) = {
             let mut state = self.physical.borrow_mut();
             let was = state.caps_held();
@@ -326,6 +329,7 @@ impl Callback {
         let revision = self.revision.get();
         let flags = if plan.hyper {
             if kind == 12 && key == 57 {
+                self.taps.borrow_mut().reset();
                 if self.caps.clear().is_err() {
                     self.interrupt();
                     return event;
