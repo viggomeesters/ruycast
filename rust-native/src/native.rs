@@ -1203,7 +1203,13 @@ impl Controller {
             }
             (session.row_count(), selection, reveal)
         };
-        state.heading.setStringValue(&NSString::from_str(&state.session.borrow().results_heading()));
+        let (heading, hide_suggestions) = {
+            let model = state.session.borrow();
+            let heading = model.results_heading();
+            let hide = !model.management() && model.clipboard().is_none() && heading == "Suggestions";
+            (heading, hide)
+        };
+        state.heading.setStringValue(&NSString::from_str(if hide_suggestions { "" } else { &heading }));
         let mut message = state.session.borrow().message().to_string();
         let date_preview = state.session.borrow().surface().editor
             .filter(|e|e.run_inline)
@@ -1223,7 +1229,7 @@ impl Controller {
         state.notice.setStringValue(&NSString::from_str(&message));
         state.notice.setHidden(message.is_empty());
         let width = state.scroll.frame().size.width;
-        let table_height=state.panel.contentView().map(|v|(v.bounds().size.height-if state.session.borrow().management(){250.}else{168.}).max(80.)).unwrap_or(state.table_height);
+        let table_height=state.panel.contentView().map(|v|(v.bounds().size.height-if state.session.borrow().management(){250.}else if hide_suggestions {140.}else{168.}).max(80.)).unwrap_or(state.table_height);
         state.scroll.setFrame(if message.is_empty() {
             rect(16., 50., width, table_height)
         } else {
@@ -1335,7 +1341,7 @@ impl Controller {
                 && data.editor.is_none()
                 && !data.actions_open;
         state.input.setHidden(editing);
-        state.heading.setHidden(editing);
+        state.heading.setHidden(editing || hide_suggestions);
         state.scroll.setHidden(editing);
         state.footer.setHidden(editing);
         if editing {
