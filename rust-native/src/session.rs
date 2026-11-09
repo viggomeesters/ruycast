@@ -268,6 +268,7 @@ pub fn fixture(size: usize) -> Vec<Command> {
             aliases: vec![format!("alias{i}")],
             arguments: vec![],
             hotkey: None,
+            imported_hotkey: None,
             timeout: None,
             input_prompt: None,
             keyword: None,

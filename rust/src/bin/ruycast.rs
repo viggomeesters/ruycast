@@ -248,6 +248,7 @@ fn import_commands(config: &mut Value, source: &Value, without_hotkeys: bool) ->
     let mut imported = 0;
     let mut duplicates = 0;
     let mut omitted_hotkeys = 0;
+    let mut restored_hotkeys = 0;
     let mut conflicts = Vec::new();
     let mut unavailable_scripts = Vec::new();
     for command in source_commands {
@@ -257,11 +258,28 @@ fn import_commands(config: &mut Value, source: &Value, without_hotkeys: bool) ->
         }
         let mut candidate = command.clone();
         let omitted = without_hotkeys
-            && candidate.as_object_mut().and_then(|fields| fields.remove("hotkey")).is_some_and(|key| !key.is_null());
+            && candidate.as_object_mut().and_then(|fields| fields.remove("hotkey")).is_some_and(|key| {
+                if key.is_null() { return false; }
+                candidate["importedHotkey"] = key;
+                true
+            });
+        if omitted && !candidate["importedHotkey"].as_str().is_some_and(|key| rustcast_core::shortcut(key).is_ok()) {
+            conflicts.push(json!({"id":command["id"],"reason":"Invalid source shortcut."}));
+            continue;
+        }
         let existing = config["commands"].as_array_mut().ok_or("Commands must be an array.")?;
         if existing.contains(&candidate) {
             duplicates += 1;
             continue;
+        }
+        if omitted {
+            let mut previous = candidate.clone();
+            previous.as_object_mut().expect("imported command object").remove("importedHotkey");
+            if let Some(entry) = existing.iter_mut().find(|entry| **entry == previous) {
+                *entry = candidate;
+                restored_hotkeys += 1;
+                continue;
+            }
         }
         existing.push(candidate);
         if let Err(reason) = validate(config) {
@@ -279,7 +297,7 @@ fn import_commands(config: &mut Value, source: &Value, without_hotkeys: bool) ->
         }
     }
     Ok(json!({"imported":imported,"duplicates":duplicates,"conflicts":conflicts,
-        "omittedHotkeys":omitted_hotkeys,"unavailableScripts":unavailable_scripts}))
+        "omittedHotkeys":omitted_hotkeys,"restoredHotkeys":restored_hotkeys,"unavailableScripts":unavailable_scripts}))
 }
 
 #[test]
@@ -300,10 +318,21 @@ fn imports_quicklinks_and_scripts_without_overwriting_existing_commands() {
     assert_eq!(config["commands"][initial], source["commands"][0]);
     let mut script = source["commands"][1].clone();
     script.as_object_mut().unwrap().remove("hotkey");
+    script["importedHotkey"] = source["commands"][1]["hotkey"].clone();
     assert_eq!(config["commands"][initial + 1], script);
     let repeat = import_commands(&mut config, &source, true).unwrap();
     assert_eq!(repeat["imported"], 0);
     assert_eq!(repeat["duplicates"], 2);
+    config["commands"][initial + 1].as_object_mut().unwrap().remove("importedHotkey");
+    let upgrade = import_commands(&mut config, &source, true).unwrap();
+    assert_eq!(upgrade["restoredHotkeys"], 1);
+    assert_eq!(config["commands"][initial + 1], script);
+    config["commands"][initial + 1].as_object_mut().unwrap().remove("importedHotkey");
+    let mut malformed = source.clone();
+    malformed["commands"][1]["hotkey"] = json!("not a shortcut");
+    let report = import_commands(&mut config, &malformed, true).unwrap();
+    assert_eq!(report["restoredHotkeys"], 0);
+    assert!(config["commands"][initial + 1].get("importedHotkey").is_none());
 }
 
 fn config_edit(args: &[String]) -> Result<Value> {
@@ -352,7 +381,7 @@ fn config_edit(args: &[String]) -> Result<Value> {
                 return Err("Use config import-commands SOURCE [--dry-run] [--without-hotkeys].".into());
             }
             let report = import_commands(&mut value, &parse(&read(source)?)?, options.iter().any(|s| s == "--without-hotkeys"))?;
-            if options.iter().any(|s| s == "--dry-run") || report["imported"] == 0 {
+            if options.iter().any(|s| s == "--dry-run") || (report["imported"] == 0 && report["restoredHotkeys"] == 0) {
                 return Ok(json!({"ok":true,"import":report,"written":false}));
             }
             import = Some(report);

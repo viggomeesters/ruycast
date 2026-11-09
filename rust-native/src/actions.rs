@@ -459,6 +459,7 @@ impl Editing {
             application_id: None,
             enabled: None,
             snippet_output: None,
+            imported_hotkey: None,
         };
         self.open(store, &command, Mode::Edit);
         self.editor.as_mut().unwrap().view.is_new = true;

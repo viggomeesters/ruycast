@@ -20,6 +20,7 @@ pub struct Row {
     pub title: String,
     pub kind: String,
     pub hotkey: Option<String>,
+    pub imported_hotkey: Option<String>,
     pub action: &'static str,
     pub is_group: bool,
     pub aliases: Vec<String>,
@@ -132,6 +133,7 @@ impl View {
                         title: c.title.clone(),
                         kind: c.kind.clone(),
                         hotkey: c.hotkey.clone(),
+                        imported_hotkey: c.imported_hotkey.clone(),
                         action: if session.library.is_some() {
                             "Edit"
                         } else {
@@ -184,6 +186,7 @@ impl View {
                     ),
                     kind: String::new(),
                     hotkey: None,
+                    imported_hotkey: None,
                     action: "",
                     is_group: true,
                     aliases: vec![],
