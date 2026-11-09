@@ -60,6 +60,14 @@ Use `--without-hotkeys` when the original app keeps using the shortcuts.
 The launcher shows these imported shortcuts as inactive. Rerunning the import
 also restores the display for matching commands imported by earlier betas.
 
+To move these shortcuts to the destination profile, first run
+`ruycast config activate-imported-hotkeys --dry-run` there. Release the
+matching shortcuts in the previous app, then run
+`ruycast config activate-imported-hotkeys --expect-sha256 SHA`, using the
+destination hash returned by `config get`. Activation checks for collisions
+and retains the previous destination configuration if the running app rejects
+the new bindings. Caps Lock as Hyper needs a single app handling the remap.
+
 All successful commands return `{"ok":true,...}` and exit 0. Failures return `{"ok":false,"error":"..."}` and exit 1. `--help` lists supported forms. Config commands work with the host stopped; execution/history commands require it.
 
 - `status`: process/profile/version, commands/discovered apps, clip count and state, Accessibility, config and hotkey errors. No clipboard bodies.
