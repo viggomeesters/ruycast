@@ -309,6 +309,7 @@ pub(crate) struct State {
     inline_autosave_allowed: Cell<bool>,
     inline_autosave: RefCell<Option<crate::main_loop::Timer>>,
     rendered_revision: Cell<u64>,
+    rendered_navigation: RefCell<Option<(String, u64, Option<usize>)>>,
     rendered_bindings: Cell<Option<(u64, u64, u64)>>,
     rendered_title_width: Cell<Option<f64>>,
     #[cfg(feature = "test-tools")]
@@ -1013,6 +1014,7 @@ impl Controller {
             inline_autosave_allowed: Cell::new(true),
             inline_autosave: RefCell::new(None),
             rendered_revision: Cell::new(u64::MAX),
+            rendered_navigation: RefCell::new(None),
             rendered_bindings: Cell::new(None),
             rendered_title_width: Cell::new(None),
         });
@@ -1180,15 +1182,24 @@ impl Controller {
             if let Some(monitor)=state.monitor.borrow().as_ref(){monitor.apply(self,surface,state.session.borrow().theme());}
         }
         let revision = state.session.borrow().results_revision();
+        let previous_revision = state.rendered_revision.get();
         let bindings = state.session.borrow().library_binding_stamp();
         if state.rendered_revision.get() != revision || state.rendered_bindings.get() != bindings {
             state.table.reloadData();
             state.rendered_revision.set(revision);
             state.rendered_bindings.set(bindings);
         }
-        let (count, selection) = {
+        let (count, selection, reveal_selection) = {
             let session = state.session.borrow();
-            (session.row_count(), session.selection())
+            let selection = session.selection();
+            let mut previous = state.rendered_navigation.borrow_mut();
+            let reveal = previous.as_ref().is_none_or(|(query, show, row)| {
+                query != session.query()
+                    || *show != session.show_serial()
+                    || (previous_revision == revision && *row != selection)
+            });
+            *previous = Some((session.query().to_owned(), session.show_serial(), selection));
+            (session.row_count(), selection, reveal)
         };
         state.heading.setStringValue(&NSString::from_str(&state.session.borrow().results_heading()));
         let mut message = state.session.borrow().message().to_string();
@@ -1218,11 +1229,15 @@ impl Controller {
         });
         state.empty.setHidden(count != 0);
         if let Some(index) = selection {
-            state.table.selectRowIndexes_byExtendingSelection(
-                &NSIndexSet::indexSetWithIndex(index),
-                false,
-            );
-            state.table.scrollRowToVisible(index as isize);
+            if state.table.selectedRow() != index as isize {
+                state.table.selectRowIndexes_byExtendingSelection(
+                    &NSIndexSet::indexSetWithIndex(index),
+                    false,
+                );
+            }
+            if reveal_selection {
+                state.table.scrollRowToVisible(index as isize);
+            }
         } else {
             unsafe {
                 state.table.deselectAll(None);
@@ -1785,6 +1800,18 @@ pub fn check(
             || visible.location + visible.length <= 24
         {
             return Err("keyboard selection did not scroll into view".into());
+        }
+        let clip = state.scroll.contentView();
+        state.table.scrollRowToVisible(60);
+        let manual_y = clip.bounds().origin.y;
+        controller.reconcile();
+        if clip.bounds().origin.y != manual_y {
+            return Err("refresh moved the manually scrolled launcher viewport".into());
+        }
+        state.rendered_revision.set(u64::MAX);
+        controller.reconcile();
+        if clip.bounds().origin.y != manual_y {
+            return Err("row reload moved the manually scrolled launcher viewport".into());
         }
         state
             .table
