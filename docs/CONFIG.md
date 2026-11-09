@@ -68,6 +68,14 @@ destination hash returned by `config get`. Activation checks for collisions
 and retains the previous destination configuration if the running app rejects
 the new bindings. Caps Lock as Hyper needs a single app handling the remap.
 
+Use `ruycast config import-window-hotkeys SOURCE --dry-run` to check window
+shortcuts separately. The source command ID and layout must match an enabled
+command in the destination. Save a copy of the source configuration before
+releasing its shortcuts and use that copy as `SOURCE` for the import. Check
+that the running destination reports Accessibility access, release the old
+shortcuts, then apply with `--expect-sha256 SHA`. The destination keeps its
+other command settings.
+
 All successful commands return `{"ok":true,...}` and exit 0. Failures return `{"ok":false,"error":"..."}` and exit 1. `--help` lists supported forms. Config commands work with the host stopped; execution/history commands require it.
 
 - `status`: process/profile/version, commands/discovered apps, clip count and state, Accessibility, config and hotkey errors. No clipboard bodies.
