@@ -525,7 +525,8 @@ define_class!(
                     let view = NSView::initWithFrame(NSView::alloc(self.mtm()), rect(0., 0., column.width(), height));
                     let field = label(self.mtm(), &text, rect(0., 0., column.width(), 18.), 12.);
                     let text_height = field.intrinsicContentSize().height.ceil();
-                    field.setFrame(rect(0., (height - text_height) / 2., column.width(), text_height));
+                    let label_width = (column.width() - 12.).max(0.);
+                    field.setFrame(rect(0., (height - text_height) / 2., label_width, text_height));
                     field.setTextColor(Some(&NSColor::secondaryLabelColor()));
                     field.setAlignment(NSTextAlignment::Right);
                     field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
@@ -855,7 +856,7 @@ impl Controller {
         view.addSubview(&heading);
         let scroll = NSScrollView::new(mtm);
         scroll.setFrame(rect(16., 50., width - 32., 322. + search_offset));
-        scroll.setHasVerticalScroller(true);
+        scroll.setHasVerticalScroller(management);
         scroll.setAutohidesScrollers(true);
         scroll.setDrawsBackground(false);
         scroll.setBorderType(NSBorderType::NoBorder);
@@ -1147,6 +1148,13 @@ impl Controller {
     fn reconcile(&self) {
         let state = self.ivars();
         state.reconciling.set(true);
+        let show_scroller = {
+            let model = state.session.borrow();
+            model.management() || model.clipboard().is_some()
+        };
+        if state.scroll.hasVerticalScroller() != show_scroller {
+            state.scroll.setHasVerticalScroller(show_scroller);
+        }
         if let Some(parent)=state.panel.contentView(){let size=parent.bounds().size;state.surface.layout(size.width,size.height,state.session.borrow().management());let graphite=self.management_graphite();if let Some(content)=parent.downcast_ref::<PaletteContent>(){content.ivars().set(graphite);content.setNeedsDisplay(true);}state.surface.theme(graphite);}
         if state.session.borrow().management() {
             if let Some(parent)=state.panel.contentView(){
@@ -1862,6 +1870,13 @@ pub fn check(
         }
         state.session.borrow_mut().move_selection(24);
         controller.reconcile();
+        let kind = state.table.rectOfColumn(2);
+        let viewport = state.table.visibleRect();
+        if state.scroll.hasVerticalScroller()
+            || kind.origin.x + kind.size.width - 12. > viewport.origin.x + viewport.size.width
+        {
+            return Err("launcher type labels extend beyond the scrollbar-free viewport".into());
+        }
         snapshot(&controller, output)?;
         let screen_text = screen_text(&controller);
         if state.failed.get() {
