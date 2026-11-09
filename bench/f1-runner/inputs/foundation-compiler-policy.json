@@ -1,0 +1,11 @@
+{
+  "schema": "ruycast.f1.data-compiler-policy.v1",
+  "role": "foundation-data-v1",
+  "toolchain": "1.92.0",
+  "edition": "2021",
+  "test_no_main": true,
+  "optimized": true,
+  "debug_assertions": true,
+  "lto": "thin",
+  "codegen_units": 1
+}

@@ -133,25 +133,8 @@ def verify_pipeline(root,kind):
     return value
 
 if __name__=='__main__':
+    # Imported functions above are frozen historical whitebox-test oracles.
+    # Production CLI policy, builds, receipts and locking belong to Rust.
+    import os,sys
     root=Path(__file__).resolve().parents[1]
-    try:
-        action=sys.argv[1] if len(sys.argv)>1 else ''
-        if action=='build':
-            with artifact_lock(root) as lease:
-                raise SystemExit(build_locked(root,sys.argv[2:],lease))
-        if action in PIPELINES:
-            if len(sys.argv)!=2:raise RuntimeError('Verification pipelines do not accept positional arguments.')
-            began=time.monotonic()
-            with artifact_lock(root) as lease:
-                raise SystemExit(run_pipeline(root,action,lease,time.monotonic()-began))
-        if action.startswith('verify-') and action[7:] in PIPELINES:
-            if len(sys.argv)!=2:raise RuntimeError('Verification receipt checks do not accept positional arguments.')
-            with artifact_lock(root):print(json.dumps(verify_pipeline(root,action[7:])))
-            raise SystemExit(0)
-        p=argparse.ArgumentParser();p.add_argument('action',choices=['fingerprint','record','verify']);p.add_argument('--before');a=p.parse_args()
-        if a.action=='fingerprint':print(fingerprint(root))
-        elif a.action=='record':
-            if not a.before:p.error('--before is required')
-            print(json.dumps(record(root,a.before)))
-        else:print(json.dumps(verify(root)))
-    except (OSError,ValueError,RuntimeError) as e:raise SystemExit(str(e))
+    os.execvp('cargo',['cargo','run','--quiet','--locked','--offline','--target-dir',str(root/'.build/delivery-tools'),'--manifest-path',str(root/'rust-native/Cargo.toml'),'--bin','ruycast-build','--','compat','build-receipt','--repo',str(root),'--',*sys.argv[1:]])

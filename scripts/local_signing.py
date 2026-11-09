@@ -201,8 +201,14 @@ def main():
 
 
 if __name__ == '__main__':
-    try:
-        main()
-    except (RuntimeError, OSError, ValueError) as error:
-        print(json.dumps({'ok':False,'error':str(error)}))
-        raise SystemExit(1)
+    # Compatibility only. Imported functions above are retained test oracles.
+    import sys
+    repo = Path(__file__).resolve().parents[1]
+    tool = os.environ.get('RUYCAST_INSTALL_TOOL')
+    if tool:
+        os.execv(tool, [tool, 'signing', *sys.argv[1:], '--repo', str(repo)])
+    if not (repo / 'rust-native/src/bin/ruycast-install.rs').is_file():
+        raise SystemExit('Rust installer source is unavailable; no signing attempted.')
+    os.execvp('cargo', ['cargo', 'run', '--locked', '--offline', '--release', '--manifest-path', str(repo / 'rust-native/Cargo.toml'),
+                       '--target-dir', str(repo / '.build/installer-tools'), '--bin', 'ruycast-install',
+                       '--', 'signing', *sys.argv[1:], '--repo', str(repo)])

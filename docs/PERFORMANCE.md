@@ -1,5 +1,29 @@
 # Performance
 
+## Rust rewrite acceptance
+
+The measurements later in this document describe historical Swift-host revisions. They do not establish a Rust speed, memory, size, energy or physical-latency improvement.
+
+Current performance verification requires the complete reviewed F1 runner and authority, a preserved baseline/candidate dataset and independent SHA256 pins. It validates existing data; it never launches the installed app or collects workloads implicitly:
+
+```sh
+bash scripts/check-performance.sh \
+  --runner "$F1_RUNNER" --runner-sha "$REVIEWED_RUNNER_SHA256" \
+  --authority "$F1_AUTHORITY" --authority-sha "$INDEPENDENT_AUTHORITY_SHA256" \
+  --dataset "$F1_DATASET" --out "$NEW_ABSOLUTE_REPORT"
+python3 scripts/build_receipt.py verify-performance
+```
+
+The Make target forwards the same six options through `PERFORMANCE_ARGS`: use `make check-performance PERFORMANCE_ARGS='...'` with those arguments. With no arguments it keeps the same refusal; it does not collect a workload or create authority.
+
+All paths must be absolute and output must be new. Pins come from independent review, not from self-generating authority from a dataset. Missing complete authority fails closed. Validation binds runner, authority, raw dataset, current build/source inventory and the actual new report before/after. Revalidation checks retained report integrity and recomputes the full comparison in an owned temporary stage.
+
+The authority must include all functional scopes, complete pre-entry SDK audits and the same full workloads/instrumentation for frozen 0.8.26 baseline and final Rust candidate. Keep AB/BA ordering, warmups, every raw observation, full ordered functional outputs, diagnostics and 10,000-cycle natural checkpoints. A smaller model probe cannot replace this gate. Preserve the historical 500/5000-command p95 budgets of 5/15 ms, cached process reads of 0.5 ms, clipboard enqueue of 5 ms and 10 MiB retained-growth/checkpoint bounds in the complete validator.
+
+Raw historical Swift-host performance commands are unsafe without a complete SDK guard installed before initialization. Their preserved script is an oracle contract, not an automatic production measurement route. There is currently no claim that a complete accepted Rust F1 authority/dataset has been delivered by the build-tool migration.
+
+## Historical measurements and commands
+
 Ruycast uses a cached Rust search index, materialized command/process results, background clipboard work and bounded icon requests. Local measurements are model/native-fixture measurements; they do not establish physical keyboard-to-display latency or a comparison against Raycast.
 
 ## Host duration-probe validity

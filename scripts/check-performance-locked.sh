@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+exec bash scripts/check-performance.sh "$@"
+
+# Historical performance oracle; execution uses the maintained Rust pipeline above.
 directory="${RUYCAST_CHECK_OUTPUT:-.build/performance}"
 mkdir -p "$directory"
  .build/swift/release/RuycastApp --benchmark-interactions > "$directory/interactions-release.json"

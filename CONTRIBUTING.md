@@ -1,6 +1,6 @@
 # Contributing
 
-Ruycast combines a Rust domain library and CLI with a native SwiftUI/AppKit host. Start with the [architecture](docs/ARCHITECTURE.md) and [product contract](docs/vision.json).
+Ruycast's production host, domain library, CLI and delivery policy are Rust. The native host uses AppKit through Rust bindings. Frozen Swift sources are historical parity oracles, not a production host or fallback. Start with the [architecture](docs/ARCHITECTURE.md) and [product contract](docs/vision.json).
 
 ## Build and check
 
@@ -11,19 +11,34 @@ make check
 bash scripts/check-settings.sh
 ```
 
-Run `bash scripts/check-performance.sh` when changing search, clipboard queues, icon work or lifecycle behavior. Use an isolated `RUYCAST_HOME` profile for experiments. Build output lives in `.build`; runtime profiles and personal data do not belong in Git.
+Use complete F1 evidence when changing search, clipboard queues, icon work or lifecycle behavior. `bash scripts/check-performance.sh` requires an independently reviewed runner/authority and the complete preserved dataset; see [Performance](docs/PERFORMANCE.md). It does not collect data, run the installed app or silently substitute a smaller model benchmark. Use an explicitly isolated `RUYCAST_HOME` profile for experiments. Build output lives in `.build`; runtime profiles and personal data do not belong in Git.
 
-Builds, `check`, Settings and performance checks share one checkout-local artifact lease through the final consumer. Concurrent entrypoints wait rather than cleaning a running check's binaries. Settings checks build the current debug host first. Internal `*-locked.sh` helpers must only run through their public wrappers.
+Builds, validation, packaging and installation share `.build/artifacts.lock` through the final synchronous consumer. Nested Rust tools inherit a descriptor plus checked root/device/inode/owner metadata. Concurrent entrypoints wait; a controller crash does not release a live child's lease. Never unlink the lock file. The old `build-native-locked.sh` name is a compatibility dispatch to the same Rust lease, not a separate build recipe.
 
-Successful pipelines write `.build/receipts/check.json`, `settings.json` or `performance.json` with stage timings and hashes of inputs and consumed binaries/modules. Revalidate with `python3 scripts/build_receipt.py verify-check` (or `verify-settings` / `verify-performance`). Source, test, export-input or artifact edits make a receipt stale; a failed new attempt removes the previous pass. Receipts are local evidence, not signatures or physical desktop acceptance.
+The full `check` entrypoint still fails closed on the original Python-discovery gate. The `settings` inventory has no unmapped gates, but requires the complete current native validation and qualified settings cases. Their `verify-*` entrypoints revalidate the corresponding receipts; an inventory or native-only pass cannot replace full validation. Inspect the IDs with `cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-build -- gate-inventory --repo "$PWD" --pipeline check` (or `settings`). No historical gate is silently skipped.
+
+The native-only route runs 114 ordered leaf steps, four hidden renders and reference/SDK bindings, including the mandatory clipboard-parser, benchmark-contract and temporal-lease cases; its report is `rust-native/target/verification/report.json`. Run it after a verified release build:
+
+```sh
+make build
+cargo run --quiet --locked --offline --target-dir rust-native/target/native-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- check-native --repo "$PWD"
+```
+
+Three old contracts have actual qualified oracles: LauncherCoreChecks, pre-main search and pre-main concurrency. Their source/artifact receipts are under `.build/receipts`. Full F1 verification has a separate receipt and `verify-performance` revalidates the preserved dataset with the reviewed runner. None is a full check, signature or physical desktop acceptance.
+
+Production release builds use explicit host-target output paths and v4 receipts. A release receipt requires matching retained originals/dSYM, unchanged backed sections/UUID and the hashed release-preparation record. Debug receipts have `releasePreparation: null` and cannot authorize packaging or installation. V2/v3 build receipts and historical candidate 67 remain historical evidence. Failed release builds invalidate their previous build receipt.
+
+Python/shell production entrypoints only forward to Rust. A few Python import functions remain unchanged for historical whitebox tests; they are not production configuration, version, locking, packaging or signing authority. The actual product version is the Rust `rust/src/product_version.rs` literal. New implementation and tests belong in Rust. Existing leaf validators and historical test oracles may be maintained only within their declared boundary.
 
 The lease descriptor is inherited by synchronous consumers. If the controller is interrupted, a still-running child keeps the lease until it exits; another build can therefore keep waiting after cancellation. Avoid deleting `.build/artifacts.lock` or invoking the internal helpers directly. Separate checkouts have separate leases and can still contend for CPU during measurements.
 
 ## Scope and evidence
 
+`build-native.sh`/`build_receipt.py build` preserve their debug default; `make build` explicitly requests release. The native Rust buildtool's `build --repo` keeps its existing release default. Both configurations use explicit target paths; only prepared release authority can enter packaging/install.
+
 Keep each change focused on a user-visible outcome. Describe the trigger, resulting behavior and relevant validation in your pull request. Preserve CLI/configuration compatibility, atomic writes, permission boundaries and clear error feedback.
 
-Use named pasteboards, hidden native views and fake process effects in tests. Never send global keys, move the contributor's windows or kill real processes as part of an automated check. Measure release builds and label model/offscreen timing separately from physical display latency.
+Use named pasteboards, hidden native views and complete owned SDK/process fixtures in tests. Never send global keys, move the contributor's windows or kill real processes as part of an automated check. Fixtures must replace every selected SDK effect before initialization; a hidden flag alone is not a safety boundary. The validator removes inherited profile/SDK overrides and supplies a fresh owned fixture parent (or an explicitly supplied absolute `RUYCAST_NATIVE_TEST_FIXTURE_DIR`). Measure release builds and label model/offscreen timing separately from physical display latency.
 
 All validation runs locally; this project does not use GitHub Actions.
 

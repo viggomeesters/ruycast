@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+exec bash scripts/check-settings.sh "$@"
+
+# Historical selector oracle; execution uses the maintained Rust pipeline above.
 directory="${RUYCAST_CHECK_OUTPUT:-.build/native-checks}"
 mkdir -p "$directory"
 .build/swift/debug/RuycastApp --check-edit-commands > "$directory/edit-commands.json"

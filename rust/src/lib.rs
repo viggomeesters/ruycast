@@ -1,4 +1,6 @@
 //! Shared Rustcast domain logic. The Mac host is a native platform adapter.
+pub mod script;
+pub mod product_version;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -44,11 +46,19 @@ pub struct Command {
     pub input_prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyword: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "applicationID")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "applicationID"
+    )]
     pub application_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "snippetOutput")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "snippetOutput"
+    )]
     pub snippet_output: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -92,17 +102,49 @@ pub fn shortcut(s: &str) -> Result<String, String> {
     let key = parts.pop().unwrap_or("");
     let known_key = key.len() == 1
         && (key.as_bytes()[0].is_ascii_alphanumeric() || "[],./-=\\';`".contains(key))
-        || ["space", "tab", "return", "left", "right", "up", "down", "left-control", "left-option", "delete", "backspace", "escape", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12"].contains(&key);
+        || [
+            "space",
+            "tab",
+            "return",
+            "left",
+            "right",
+            "up",
+            "down",
+            "left-control",
+            "left-option",
+            "delete",
+            "backspace",
+            "escape",
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "f5",
+            "f6",
+            "f7",
+            "f8",
+            "f9",
+            "f10",
+            "f11",
+            "f12",
+        ]
+        .contains(&key);
     let mut mods = HashSet::new();
     if !known_key
         || parts.is_empty()
-        || parts
-            .iter()
-            .any(|m| !["ctrl", "alt", "shift", "cmd", "left-cmd", "right-cmd"].contains(m) || !mods.insert(*m))
+        || parts.iter().any(|m| {
+            !["ctrl", "alt", "shift", "cmd", "left-cmd", "right-cmd"].contains(m)
+                || !mods.insert(*m)
+        })
     {
         return Err(format!("Invalid hotkey: {s}. Use e.g. ctrl+alt+space."));
     }
-    if ["cmd", "left-cmd", "right-cmd"].iter().filter(|m| mods.contains(**m)).count() > 1 {
+    if ["cmd", "left-cmd", "right-cmd"]
+        .iter()
+        .filter(|m| mods.contains(**m))
+        .count()
+        > 1
+    {
         return Err("Choose cmd, left-cmd or right-cmd, not a combination.".into());
     }
     parts.sort();
@@ -121,10 +163,21 @@ pub fn validate(value: &Value) -> Result<Config, String> {
             "Clipboard bounds: limit 1–1000, maxTextBytes 1–1000000, retentionDays 1–365.".into(),
         );
     }
-    if c.clipboard.max_asset_bytes.is_some_and(|n|n==0 || n>100_000_000) || c.clipboard.max_total_asset_bytes.is_some_and(|n|n==0 || n>1_000_000_000) {
+    if c.clipboard
+        .max_asset_bytes
+        .is_some_and(|n| n == 0 || n > 100_000_000)
+        || c.clipboard
+            .max_total_asset_bytes
+            .is_some_and(|n| n == 0 || n > 1_000_000_000)
+    {
         return Err("Clipboard image limits must be positive, maxAssetBytes <=100MB and maxTotalAssetBytes <=1GB.".into());
     }
-    if c.theme.as_ref().is_some_and(|theme| !["system","light","dark","graphite"].contains(&theme.as_str())) {return Err("Theme must be system, light, dark or graphite.".into());}
+    if c.theme
+        .as_ref()
+        .is_some_and(|theme| !["system", "light", "dark", "graphite"].contains(&theme.as_str()))
+    {
+        return Err("Theme must be system, light, dark or graphite.".into());
+    }
     let mut keys = HashSet::new();
     let mut names = HashSet::new();
     let mut keywords = HashSet::new();
@@ -214,7 +267,26 @@ pub fn validate(value: &Value) -> Result<Config, String> {
                     "snippets",
                     "quicklinks",
                     "create-snippet",
-                    "create-quicklink", "settings", "open-config", "reload-config", "analytics", "search-files", "search-menu-items", "switch-windows", "search-safari-tabs", "apple-shortcuts", "kill-process", "system-monitor", "lock-screen", "utility-set-text", "utility-paste-text", "utility-text-history", "utility-password", "utility-username", "utility-password-history", "utility-username-history",
+                    "create-quicklink",
+                    "settings",
+                    "open-config",
+                    "reload-config",
+                    "analytics",
+                    "search-files",
+                    "search-menu-items",
+                    "switch-windows",
+                    "search-safari-tabs",
+                    "apple-shortcuts",
+                    "kill-process",
+                    "system-monitor",
+                    "lock-screen",
+                    "utility-set-text",
+                    "utility-paste-text",
+                    "utility-text-history",
+                    "utility-password",
+                    "utility-username",
+                    "utility-password-history",
+                    "utility-username-history",
                 ]
                 .contains(&cmd.target.as_str())
                 {
@@ -237,17 +309,29 @@ struct SearchEntry {
     haystack: String,
     words: Vec<String>,
     initials: String,
-    title_order:usize,
+    title_order: usize,
 }
 impl SearchIndex {
     pub fn new(commands: &[Command]) -> Self {
         // Resolve stable title/catalog order once at the immutable catalog boundary.
-        let mut result=Self {
+        let mut result = Self {
             entries: commands
                 .iter()
-                .map(|c| SearchEntry {title_order:0,
-                    words: c.title.to_lowercase().split(|c:char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_owned).collect(),
-                    initials: c.title.to_lowercase().split(|c:char| !c.is_alphanumeric()).filter_map(|w| w.chars().next()).collect(),
+                .map(|c| SearchEntry {
+                    title_order: 0,
+                    words: c
+                        .title
+                        .to_lowercase()
+                        .split(|c: char| !c.is_alphanumeric())
+                        .filter(|w| !w.is_empty())
+                        .map(str::to_owned)
+                        .collect(),
+                    initials: c
+                        .title
+                        .to_lowercase()
+                        .split(|c: char| !c.is_alphanumeric())
+                        .filter_map(|w| w.chars().next())
+                        .collect(),
                     id: c.id.to_lowercase(),
                     title: c.title.to_lowercase(),
                     aliases: c
@@ -268,21 +352,34 @@ impl SearchIndex {
                 })
                 .collect(),
         };
-        let mut order=(0..result.entries.len()).collect::<Vec<_>>();
-        order.sort_by(|a,b|result.entries[*a].title.cmp(&result.entries[*b].title));
-        for (rank,index) in order.into_iter().enumerate() {result.entries[index].title_order=rank;}
+        let mut order = (0..result.entries.len()).collect::<Vec<_>>();
+        order.sort_by(|a, b| result.entries[*a].title.cmp(&result.entries[*b].title));
+        for (rank, index) in order.into_iter().enumerate() {
+            result.entries[index].title_order = rank;
+        }
         result
     }
     pub fn search(&self, query: &str) -> Vec<usize> {
-        self.search_ranked(query,&[])
+        self.search_ranked(query, &[])
     }
-    fn search_ranked(&self, query:&str, recency:&[f64]) -> Vec<usize> {
+    /// Typed in-process entry for the Rust host. The C ABI remains available
+    /// for the migration reference; invalid snapshots never reach the scorer.
+    pub fn search_with_recency(&self, query: &str, recency: &[f64]) -> Result<Vec<usize>, String> {
+        if !recency.is_empty()
+            && (recency.len() != self.entries.len()
+                || recency.iter().any(|v| !v.is_finite() || *v < 0.0))
+        {
+            return Err("Invalid catalog recency snapshot".into());
+        }
+        Ok(self.search_ranked(query, recency))
+    }
+    fn search_ranked(&self, query: &str, recency: &[f64]) -> Vec<usize> {
         let q = query.trim().to_lowercase();
         if q.is_empty() {
             return (0..self.entries.len()).collect();
         }
         let terms = q.split_whitespace().collect::<Vec<_>>();
-        let fuzzy=q.chars().nth(1).is_some();
+        let fuzzy = q.chars().nth(1).is_some();
         let mut found = self
             .entries
             .iter()
@@ -294,13 +391,19 @@ impl SearchIndex {
                     1
                 } else if e.title.starts_with(&q) {
                     2
-                } else if terms.iter().all(|w| e.words.iter().any(|word|word.starts_with(w))) || (fuzzy && e.initials.starts_with(&q)) {
+                } else if terms
+                    .iter()
+                    .all(|w| e.words.iter().any(|word| word.starts_with(w)))
+                    || (fuzzy && e.initials.starts_with(&q))
+                {
                     3
                 } else if terms.iter().all(|w| e.haystack.contains(w)) {
                     4
                 } else if fuzzy && {
-                    let mut title=e.title.chars();
-                    q.chars().filter(|c| !c.is_whitespace()).all(|needle| title.any(|c|c==needle))
+                    let mut title = e.title.chars();
+                    q.chars()
+                        .filter(|c| !c.is_whitespace())
+                        .all(|needle| title.any(|c| c == needle))
                 } {
                     5
                 } else {
@@ -311,44 +414,67 @@ impl SearchIndex {
             .collect::<Vec<_>>();
         // Exact/prefix/literal matches keep the full established result list.
         // A weak subsequence must not hide a direct title-word typo.
-        if found.iter().all(|(score,_)|*score==5) && (4..=64).contains(&q.chars().take(65).count()) && q.chars().all(char::is_alphanumeric) {
-            let had_weak=!found.is_empty();
+        if found.iter().all(|(score, _)| *score == 5)
+            && (4..=64).contains(&q.chars().take(65).count())
+            && q.chars().all(char::is_alphanumeric)
+        {
+            let had_weak = !found.is_empty();
             found.clear();
-            found.extend(self.entries.iter().enumerate().filter_map(|(i,e)| {
+            found.extend(self.entries.iter().enumerate().filter_map(|(i, e)| {
                 // This length check identifies a complete single-word title
                 // without re-scanning long strings or storing more index data.
-                let whole=e.words.len()==1 && e.words[0].len()==e.title.len();
-                let score=if whole && one_typo(&q,&e.title) {5}
-                    else if !whole && e.words.iter().any(|word|one_typo(&q,word)) {6}
-                    else if had_weak && {
-                        let mut title=e.title.chars();
-                        q.chars().all(|needle|title.any(|c|c==needle))
-                    } {7} else {return None;};
-                Some((score,i))
+                let whole = e.words.len() == 1 && e.words[0].len() == e.title.len();
+                let score = if whole && one_typo(&q, &e.title) {
+                    5
+                } else if !whole && e.words.iter().any(|word| one_typo(&q, word)) {
+                    6
+                } else if had_weak && {
+                    let mut title = e.title.chars();
+                    q.chars().all(|needle| title.any(|c| c == needle))
+                } {
+                    7
+                } else {
+                    return None;
+                };
+                Some((score, i))
             }));
         }
         found.sort_by(|a, b| {
             a.0.cmp(&b.0)
-                .then_with(||recency.get(b.1).unwrap_or(&0.0).total_cmp(recency.get(a.1).unwrap_or(&0.0)))
-                .then_with(||self.entries[a.1].title_order.cmp(&self.entries[b.1].title_order))
+                .then_with(|| {
+                    recency
+                        .get(b.1)
+                        .unwrap_or(&0.0)
+                        .total_cmp(recency.get(a.1).unwrap_or(&0.0))
+                })
+                .then_with(|| {
+                    self.entries[a.1]
+                        .title_order
+                        .cmp(&self.entries[b.1].title_order)
+                })
         });
         found.into_iter().map(|(_, i)| i).collect()
     }
 }
 // One substitution, insertion, deletion or adjacent transposition, in Unicode
 // scalars. Iterator comparisons avoid a dynamic-programming matrix/allocation.
-fn one_typo(a:&str,b:&str)->bool {
-    let mut a=a.chars();let mut b=b.chars();
+fn one_typo(a: &str, b: &str) -> bool {
+    let mut a = a.chars();
+    let mut b = b.chars();
     loop {
-        match (a.next(),b.next()) {
-            (None,None)=>return true,
-            (None,Some(_))=>return b.next().is_none(),
-            (Some(_),None)=>return a.next().is_none(),
-            (Some(x),Some(y)) if x==y=>{},
-            (Some(x),Some(y))=>{
-                if a.clone().eq(b.clone()) || a.clone().eq(std::iter::once(y).chain(b.clone()))
-                    || std::iter::once(x).chain(a.clone()).eq(b.clone()) {return true;}
-                return a.next()==Some(y) && b.next()==Some(x) && a.eq(b);
+        match (a.next(), b.next()) {
+            (None, None) => return true,
+            (None, Some(_)) => return b.next().is_none(),
+            (Some(_), None) => return a.next().is_none(),
+            (Some(x), Some(y)) if x == y => {}
+            (Some(x), Some(y)) => {
+                if a.clone().eq(b.clone())
+                    || a.clone().eq(std::iter::once(y).chain(b.clone()))
+                    || std::iter::once(x).chain(a.clone()).eq(b.clone())
+                {
+                    return true;
+                }
+                return a.next() == Some(y) && b.next() == Some(x) && a.eq(b);
             }
         }
     }
@@ -362,7 +488,9 @@ pub fn search(commands: &[Command], query: &str) -> Vec<Command> {
 }
 /// Version of the statically linked C ABI in ruycast_core.h.
 #[no_mangle]
-pub extern "C" fn rustcast_abi_version() -> u32 { 1 }
+pub extern "C" fn rustcast_abi_version() -> u32 {
+    1
+}
 
 /// # Safety
 /// `catalog` must be a live NUL-terminated UTF-8 JSON array for this call.
@@ -409,35 +537,54 @@ pub unsafe extern "C" fn rustcast_index_search(
 /// Swift Int and Rust usize have the same native word layout on supported macOS.
 #[no_mangle]
 pub unsafe extern "C" fn rustcast_index_search_into(
-    index: *const SearchIndex, query: *const u8, length: usize,
-    output: *mut usize, capacity: usize,
+    index: *const SearchIndex,
+    query: *const u8,
+    length: usize,
+    output: *mut usize,
+    capacity: usize,
 ) -> isize {
-    rustcast_index_search_ranked_into(index,query,length,std::ptr::null(),0,output,capacity)
+    rustcast_index_search_ranked_into(index, query, length, std::ptr::null(), 0, output, capacity)
 }
 /// # Safety
 /// Same requirements as rustcast_index_search_into; recency is either omitted
 /// (count 0) or a readable finite nonnegative f64 weight per catalog entry.
 #[no_mangle]
 pub unsafe extern "C" fn rustcast_index_search_ranked_into(
-    index:*const SearchIndex,query:*const u8,length:usize,
-    recency:*const f64,recency_count:usize,output:*mut usize,capacity:usize,
+    index: *const SearchIndex,
+    query: *const u8,
+    length: usize,
+    recency: *const f64,
+    recency_count: usize,
+    output: *mut usize,
+    capacity: usize,
 ) -> isize {
     std::panic::catch_unwind(|| {
         if index.is_null() || query.is_null() || (capacity > 0 && output.is_null()) {
             return -1;
         }
-        let Ok(q) = std::str::from_utf8(std::slice::from_raw_parts(query, length)) else { return -1; };
-        let weights=if recency_count==0 {&[][..]} else {
-            if recency.is_null() || recency_count!=(*index).entries.len() {return -1;}
-            let weights=std::slice::from_raw_parts(recency,recency_count);
-            if weights.iter().any(|v| !v.is_finite() || *v<0.0) {return -1;}
+        let Ok(q) = std::str::from_utf8(std::slice::from_raw_parts(query, length)) else {
+            return -1;
+        };
+        let weights = if recency_count == 0 {
+            &[][..]
+        } else {
+            if recency.is_null() || recency_count != (*index).entries.len() {
+                return -1;
+            }
+            let weights = std::slice::from_raw_parts(recency, recency_count);
+            if weights.iter().any(|v| !v.is_finite() || *v < 0.0) {
+                return -1;
+            }
             weights
         };
-        let found = (*index).search_ranked(q,weights);
+        let found = (*index).search_ranked(q, weights);
         let count = found.len().min(capacity);
-        if count > 0 { std::ptr::copy_nonoverlapping(found.as_ptr(), output, count); }
+        if count > 0 {
+            std::ptr::copy_nonoverlapping(found.as_ptr(), output, count);
+        }
         count as isize
-    }).unwrap_or(-1)
+    })
+    .unwrap_or(-1)
 }
 /// # Safety
 /// Must receive an unfreed pointer from rustcast_index_new, or null.
@@ -453,7 +600,11 @@ pub struct Clip {
     pub text: String,
     pub date: String,
     pub source: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "contentType")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "contentType"
+    )]
     pub content_type: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "dataFile")]
     pub data_file: Option<String>,
@@ -485,7 +636,13 @@ pub fn history(
             && c.text.len() <= settings.max_text_bytes
             && !settings.excluded_apps.contains(&c.source)
         {
-            kept.retain(|x| x.id != c.id && !(x.text == c.text && x.content_type == c.content_type && x.data_file == c.data_file && x.file_urls == c.file_urls));
+            kept.retain(|x| {
+                x.id != c.id
+                    && !(x.text == c.text
+                        && x.content_type == c.content_type
+                        && x.data_file == c.data_file
+                        && x.file_urls == c.file_urls)
+            });
             kept.insert(0, c)
         }
     }
@@ -588,19 +745,62 @@ mod tests {
     use super::*;
     #[test]
     fn typed_search_respects_capacity_and_rejects_invalid_input() {
-        let commands=validate(&default_config()).unwrap().commands;
-        let index=SearchIndex::new(&commands);
-        let mut output=[usize::MAX;3];
+        let commands = validate(&default_config()).unwrap().commands;
+        let index = SearchIndex::new(&commands);
+        let mut output = [usize::MAX; 3];
         unsafe {
-            assert_eq!(rustcast_index_search_into(&index,b"".as_ptr(),0,output.as_mut_ptr(),2),2);
-            assert_eq!(output,[0,1,usize::MAX]);
-            assert_eq!(rustcast_index_search_into(&index,b"".as_ptr(),0,std::ptr::null_mut(),0),0);
-            assert_eq!(rustcast_index_search_into(&index,b"".as_ptr(),0,std::ptr::null_mut(),1),-1);
-            assert_eq!(rustcast_index_search_into(&index,[255].as_ptr(),1,output.as_mut_ptr(),3),-1);
-            assert_eq!(rustcast_index_search_into(std::ptr::null(),b"x".as_ptr(),1,output.as_mut_ptr(),3),-1);
-            let weights=vec![f64::NAN;commands.len()];
-            assert_eq!(rustcast_index_search_ranked_into(&index,b"x".as_ptr(),1,weights.as_ptr(),weights.len(),output.as_mut_ptr(),3),-1);
-            assert_eq!(rustcast_index_search_ranked_into(&index,b"x".as_ptr(),1,weights.as_ptr(),1,output.as_mut_ptr(),3),-1);
+            assert_eq!(
+                rustcast_index_search_into(&index, b"".as_ptr(), 0, output.as_mut_ptr(), 2),
+                2
+            );
+            assert_eq!(output, [0, 1, usize::MAX]);
+            assert_eq!(
+                rustcast_index_search_into(&index, b"".as_ptr(), 0, std::ptr::null_mut(), 0),
+                0
+            );
+            assert_eq!(
+                rustcast_index_search_into(&index, b"".as_ptr(), 0, std::ptr::null_mut(), 1),
+                -1
+            );
+            assert_eq!(
+                rustcast_index_search_into(&index, [255].as_ptr(), 1, output.as_mut_ptr(), 3),
+                -1
+            );
+            assert_eq!(
+                rustcast_index_search_into(
+                    std::ptr::null(),
+                    b"x".as_ptr(),
+                    1,
+                    output.as_mut_ptr(),
+                    3
+                ),
+                -1
+            );
+            let weights = vec![f64::NAN; commands.len()];
+            assert_eq!(
+                rustcast_index_search_ranked_into(
+                    &index,
+                    b"x".as_ptr(),
+                    1,
+                    weights.as_ptr(),
+                    weights.len(),
+                    output.as_mut_ptr(),
+                    3
+                ),
+                -1
+            );
+            assert_eq!(
+                rustcast_index_search_ranked_into(
+                    &index,
+                    b"x".as_ptr(),
+                    1,
+                    weights.as_ptr(),
+                    1,
+                    output.as_mut_ptr(),
+                    3
+                ),
+                -1
+            );
         }
     }
     #[test]
@@ -620,17 +820,27 @@ mod tests {
     }
     #[test]
     fn command_sides_are_independent() {
-        let mut legacy=default_config();
-        assert_eq!(validate(&legacy).unwrap().separate_command_keys,Some(false));
-        legacy.as_object_mut().unwrap().remove("separateCommandKeys");
-        assert_eq!(validate(&legacy).unwrap().separate_command_keys,None);
-        legacy["separateCommandKeys"]=json!(true);
-        assert_eq!(validate(&legacy).unwrap().separate_command_keys,Some(true));
-        legacy["separateCommandKeys"]=json!("true");
+        let mut legacy = default_config();
+        assert_eq!(
+            validate(&legacy).unwrap().separate_command_keys,
+            Some(false)
+        );
+        legacy
+            .as_object_mut()
+            .unwrap()
+            .remove("separateCommandKeys");
+        assert_eq!(validate(&legacy).unwrap().separate_command_keys, None);
+        legacy["separateCommandKeys"] = json!(true);
+        assert_eq!(validate(&legacy).unwrap().separate_command_keys, Some(true));
+        legacy["separateCommandKeys"] = json!("true");
         assert!(validate(&legacy).is_err());
         assert_eq!(shortcut("RIGHT-CMD+a").unwrap(), "right-cmd+a");
         assert_eq!(shortcut("shift+left-cmd+a").unwrap(), "left-cmd+shift+a");
-        for invalid in ["cmd+right-cmd+a", "left-cmd+right-cmd+a", "right-cmd+right-cmd+a"] {
+        for invalid in [
+            "cmd+right-cmd+a",
+            "left-cmd+right-cmd+a",
+            "right-cmd+right-cmd+a",
+        ] {
             assert!(shortcut(invalid).is_err());
         }
         let mut v = default_config();
@@ -658,34 +868,65 @@ mod tests {
     }
     #[test]
     fn search_intent_fixtures() {
-        let fixture:Value=serde_json::from_str(include_str!("../../Tests/fixtures/search-quality.json")).unwrap();
-        let commands:Vec<Command>=serde_json::from_value(fixture["commands"].clone()).unwrap();
-        let index=SearchIndex::new(&commands);
+        let fixture: Value =
+            serde_json::from_str(include_str!("../../Tests/fixtures/search-quality.json")).unwrap();
+        let commands: Vec<Command> = serde_json::from_value(fixture["commands"].clone()).unwrap();
+        let index = SearchIndex::new(&commands);
         for case in fixture["cases"].as_array().unwrap() {
-            let query=case["query"].as_str().unwrap();
-            let got=index.search(query);
-            assert_eq!(got.first().map(|i|commands[*i].id.as_str()),case["intended"].as_str(),"query {query}");
-            assert_eq!(index.search(query),got,"determinism for {query}");
+            let query = case["query"].as_str().unwrap();
+            let got = index.search(query);
+            assert_eq!(
+                got.first().map(|i| commands[*i].id.as_str()),
+                case["intended"].as_str(),
+                "query {query}"
+            );
+            assert_eq!(index.search(query), got, "determinism for {query}");
         }
     }
     #[test]
     fn single_typo_matches_independent_edit_neighborhood() {
-        fn strings(n:usize)->Vec<String> {
-            let mut all=vec![String::new()];let mut row=vec![String::new()];
-            for _ in 0..n {row=row.iter().flat_map(|s|['a','b','Ω'].map(|c|format!("{s}{c}"))).collect();all.extend(row.clone());}all
-        }
-        let samples=strings(4);
-        for a in &samples {
-            let chars=a.chars().collect::<Vec<_>>();
-            let mut neighbors=std::collections::HashSet::from([a.clone()]);
-            for i in 0..=chars.len() {
-                for c in ['a','b','Ω'] {let mut t=chars.clone();t.insert(i,c);neighbors.insert(t.iter().collect::<String>());}
-                if i==chars.len() {continue;}
-                let mut t=chars.clone();t.remove(i);neighbors.insert(t.iter().collect::<String>());
-                for c in ['a','b','Ω'] {let mut t=chars.clone();t[i]=c;neighbors.insert(t.iter().collect::<String>());}
-                if i+1<chars.len() {let mut t=chars.clone();t.swap(i,i+1);neighbors.insert(t.iter().collect::<String>());}
+        fn strings(n: usize) -> Vec<String> {
+            let mut all = vec![String::new()];
+            let mut row = vec![String::new()];
+            for _ in 0..n {
+                row = row
+                    .iter()
+                    .flat_map(|s| ['a', 'b', 'Ω'].map(|c| format!("{s}{c}")))
+                    .collect();
+                all.extend(row.clone());
             }
-            for b in &samples {assert_eq!(one_typo(a,b),neighbors.contains(b),"{a:?} vs {b:?}");}
+            all
+        }
+        let samples = strings(4);
+        for a in &samples {
+            let chars = a.chars().collect::<Vec<_>>();
+            let mut neighbors = std::collections::HashSet::from([a.clone()]);
+            for i in 0..=chars.len() {
+                for c in ['a', 'b', 'Ω'] {
+                    let mut t = chars.clone();
+                    t.insert(i, c);
+                    neighbors.insert(t.iter().collect::<String>());
+                }
+                if i == chars.len() {
+                    continue;
+                }
+                let mut t = chars.clone();
+                t.remove(i);
+                neighbors.insert(t.iter().collect::<String>());
+                for c in ['a', 'b', 'Ω'] {
+                    let mut t = chars.clone();
+                    t[i] = c;
+                    neighbors.insert(t.iter().collect::<String>());
+                }
+                if i + 1 < chars.len() {
+                    let mut t = chars.clone();
+                    t.swap(i, i + 1);
+                    neighbors.insert(t.iter().collect::<String>());
+                }
+            }
+            for b in &samples {
+                assert_eq!(one_typo(a, b), neighbors.contains(b), "{a:?} vs {b:?}");
+            }
         }
     }
     #[test]
@@ -720,13 +961,18 @@ mod tests {
             limit: 2,
             max_text_bytes: 20,
             retention_days: 1,
-            excluded_apps: vec!["secret".into()], max_asset_bytes:None,max_total_asset_bytes:None,
+            excluded_apps: vec!["secret".into()],
+            max_asset_bytes: None,
+            max_total_asset_bytes: None,
         };
         let c = Clip {
             id: "1".into(),
             text: "hello".into(),
             date: "2026-10-24T10:00:00Z".into(),
-            source: "secret".into(),content_type:None,data_file:None,file_urls:None,
+            source: "secret".into(),
+            content_type: None,
+            data_file: None,
+            file_urls: None,
         };
         assert!(history(&[], Some(c.clone()), &s, "2026-10-24T11:00:00Z")
             .unwrap()
