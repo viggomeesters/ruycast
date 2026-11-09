@@ -59,10 +59,15 @@ pub fn stop() {
     drop(cache);
 }
 define_class!(
- #[unsafe(super=NSView)] #[thread_kind=MainThreadOnly]
+ #[unsafe(super=NSView)] #[thread_kind=MainThreadOnly] #[ivars=bool]
  struct Keycap;
  impl Keycap {
   #[unsafe(method(drawRect:))] fn draw(&self,_:NSRect){
+   if *self.ivars() {
+    NSColor::labelColor().colorWithAlphaComponent(0.08).setFill();
+    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(self.bounds(),4.,4.).fill();
+    return;
+   }
    NSColor::labelColor().colorWithAlphaComponent(0.045).setFill();
    let p=NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(self.bounds(),5.,5.);p.fill();
    NSColor::labelColor().colorWithAlphaComponent(0.15).setStroke();p.setLineWidth(0.7);p.stroke();
@@ -557,6 +562,10 @@ pub fn title(
     field.setFont(Some(&NSFont::systemFontOfSize_weight(13., unsafe {
         NSFontWeightSemibold
     })));
+    if subtitle.is_none() && height == 39. {
+        let text_height = field.intrinsicContentSize().height.ceil();
+        field.setFrame(rect(38., (height - text_height) / 2., width - 42., text_height));
+    }
     field.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
     field.setAutoresizingMask(NSAutoresizingMaskOptions::ViewWidthSizable);
     if row.system && !row.enabled {
@@ -610,18 +619,27 @@ pub fn title(
                 NSFontWeightMedium
             })));
             badge.setTextColor(Some(&NSColor::secondaryLabelColor()));
-            badge.setDrawsBackground(true);
-            badge.setBackgroundColor(Some(&NSColor::labelColor().colorWithAlphaComponent(0.08)));
             badge.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
-            let badge_width = (badge.intrinsicContentSize().width + 10.)
+            badge.setAlignment(NSTextAlignment::Center);
+            let text_size = badge.intrinsicContentSize();
+            // AppKit's text cell needs room for its own side bearings as well
+            // as the visible padding between the label and the badge edge.
+            let badge_width = (text_size.width.ceil() + 18.)
                 .min(120.)
                 .min((width - 100.).max(1.));
-            let title_width =
-                (field.intrinsicContentSize().width + 12.).min((width - 50. - badge_width).max(1.));
-            field.setFrame(rect(38., height - 30., title_width, 22.));
-            badge.setFrame(rect(46. + title_width, 11., badge_width, 18.));
-            badge.setAutoresizingMask(NSAutoresizingMaskOptions::ViewMinXMargin);
-            root.addSubview(&badge);
+            let title_width = (field.intrinsicContentSize().width.ceil() + 8.)
+                .min((width - 50. - badge_width).max(1.));
+            field.setFrameSize(NSSize::new(title_width, field.frame().size.height));
+            let text_height = text_size.height.ceil();
+            let badge_height = text_height + 4.;
+            let container = Keycap::alloc(main).set_ivars(true);
+            let container: Retained<Keycap> = unsafe {
+                msg_send![super(container), initWithFrame: rect(46. + title_width, (height - badge_height) / 2., badge_width, badge_height)]
+            };
+            let inset = 5_f64.min((badge_width - 1.) / 2.);
+            badge.setFrame(rect(inset, 2., badge_width - 2. * inset, text_height));
+            container.addSubview(&badge);
+            root.addSubview(&container);
         }
     }
     root.setAccessibilityRole(Some(unsafe { NSAccessibilityGroupRole }));
@@ -643,7 +661,7 @@ pub fn shortcut(main: MainThreadMarker, value: &str, width: f64) -> Retained<NSV
     let mut x = (width - total).max(0.);
     for key in keys {
         let w = 19. + if key.chars().count() > 1 { 8. } else { 0. };
-        let cap = Keycap::alloc(main).set_ivars(());
+        let cap = Keycap::alloc(main).set_ivars(false);
         let cap: Retained<Keycap> = unsafe { msg_send![super(cap),initWithFrame:rect(x,9.,w,21.)] };
         cap.setAccessibilityHidden(true);
         cap.setAutoresizingMask(NSAutoresizingMaskOptions::ViewMinXMargin);
