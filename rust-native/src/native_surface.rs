@@ -517,7 +517,13 @@ impl Surface {
         self.cancel.setFrame(rect(22., 22., 90., 32.));
         self.command.layout(rect(22., 70., form_width - 44., form_height - 138.));
         self.template.layout(rect(22., 70., form_width - 44., form_height - 138.));
-        self.actions_button.setFrame(rect(width - 148., 12., 124., 26.));
+        self.actions_button.setFrame(if management {
+            rect(width - 148., 12., 124., 26.)
+        } else {
+            rect(width - 148., 17., 124., 22.)
+        });
+        self.actions_button.setFont(Some(&NSFont::systemFontOfSize(if management { 13. } else { 11. })));
+        self.actions_button.setAlignment(if management { NSTextAlignment::Center } else { NSTextAlignment::Right });
         let mut menu = self.menu.frame();
         menu.origin.x = width - menu.size.width - 16.;
         self.menu.setFrame(menu);
