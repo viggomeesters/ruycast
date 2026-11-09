@@ -309,7 +309,7 @@ pub(crate) struct State {
     inline_autosave_allowed: Cell<bool>,
     inline_autosave: RefCell<Option<crate::main_loop::Timer>>,
     rendered_revision: Cell<u64>,
-    rendered_navigation: RefCell<Option<(String, u64, Option<usize>)>>,
+    rendered_navigation: RefCell<Option<(String, u64, u64)>>,
     rendered_bindings: Cell<Option<(u64, u64, u64)>>,
     rendered_title_width: Cell<Option<f64>>,
     #[cfg(feature = "test-tools")]
@@ -1182,7 +1182,6 @@ impl Controller {
             if let Some(monitor)=state.monitor.borrow().as_ref(){monitor.apply(self,surface,state.session.borrow().theme());}
         }
         let revision = state.session.borrow().results_revision();
-        let previous_revision = state.rendered_revision.get();
         let bindings = state.session.borrow().library_binding_stamp();
         if state.rendered_revision.get() != revision || state.rendered_bindings.get() != bindings {
             state.table.reloadData();
@@ -1193,12 +1192,15 @@ impl Controller {
             let session = state.session.borrow();
             let selection = session.selection();
             let mut previous = state.rendered_navigation.borrow_mut();
-            let reveal = previous.as_ref().is_none_or(|(query, show, row)| {
+            let scroll_serial = session.selection_scroll_serial();
+            let reveal = previous.as_ref().is_none_or(|(query, show, last_scroll)| {
                 query != session.query()
                     || *show != session.show_serial()
-                    || (previous_revision == revision && *row != selection)
+                    || *last_scroll != scroll_serial
             });
-            *previous = Some((session.query().to_owned(), session.show_serial(), selection));
+            if reveal {
+                *previous = Some((session.query().to_owned(), session.show_serial(), scroll_serial));
+            }
             (session.row_count(), selection, reveal)
         };
         state.heading.setStringValue(&NSString::from_str(&state.session.borrow().results_heading()));
@@ -1802,8 +1804,12 @@ pub fn check(
             return Err("keyboard selection did not scroll into view".into());
         }
         let clip = state.scroll.contentView();
+        let before_scroll = clip.bounds().origin.y;
         state.table.scrollRowToVisible(60);
         let manual_y = clip.bounds().origin.y;
+        if manual_y <= before_scroll {
+            return Err("manual scroll fixture did not move the viewport".into());
+        }
         controller.reconcile();
         if clip.bounds().origin.y != manual_y {
             return Err("refresh moved the manually scrolled launcher viewport".into());
@@ -1812,6 +1818,13 @@ pub fn check(
         controller.reconcile();
         if clip.bounds().origin.y != manual_y {
             return Err("row reload moved the manually scrolled launcher viewport".into());
+        }
+        state.session.borrow_mut().move_selection(1);
+        state.rendered_revision.set(u64::MAX);
+        controller.reconcile();
+        let visible = state.table.rowsInRect(state.table.visibleRect());
+        if visible.location > 25 || visible.location + visible.length <= 25 {
+            return Err("keyboard selection was lost during a row reload".into());
         }
         state
             .table

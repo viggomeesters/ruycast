@@ -3978,11 +3978,9 @@ fn result_action(
         "choices" => {
             window.results.show_detail(token, false);
         }
-        "up" => {
-            window.results.move_selection(token, -1);
-        }
-        "down" => {
-            window.results.move_selection(token, 1);
+        "up" | "down" => {
+            window.results.move_selection(token, if name == "up" { -1 } else { 1 });
+            window.session.selection_scroll_serial = window.session.selection_scroll_serial.wrapping_add(1);
         }
         "select" => {
             if let Some(id) = id {

@@ -554,6 +554,12 @@ impl Model {
             Self::Live { view, .. } => view.selection,
         }
     }
+    pub fn selection_scroll_serial(&self) -> u64 {
+        match self {
+            Self::Fixture(s) => s.selection_scroll_serial,
+            Self::Live { view, .. } => view.selection_scroll_serial,
+        }
+    }
     pub fn visible(&self) -> bool {
         match self {
             Self::Fixture(s) => s.visible,
