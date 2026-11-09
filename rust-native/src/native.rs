@@ -845,6 +845,12 @@ impl Controller {
         }
         input.setBezeled(false);
         input.setDrawsBackground(false);
+        if !management {
+            input.setFocusRingType(NSFocusRingType::None);
+            if let Some(cell) = input.cell() {
+                cell.setFocusRingType(NSFocusRingType::None);
+            }
+        }
         view.addSubview(&input);
         let heading = label(
             mtm,
@@ -1697,6 +1703,11 @@ pub fn check(
         assert!(!state.panel.isVisible());
         if !state.panel.makeFirstResponder(Some(&state.input)) {
             return Err("native first responder failed".into());
+        }
+        if state.input.focusRingType() != NSFocusRingType::None
+            || state.input.cell().is_none_or(|cell| cell.focusRingType() != NSFocusRingType::None)
+        {
+            return Err("launcher search still draws a focus ring".into());
         }
         state.input.setStringValue(ns_string!("alias42"));
         let note = unsafe {

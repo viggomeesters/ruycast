@@ -452,7 +452,7 @@
     "rust-native/src/management_rest.rs": "a3e29dfb193f4bf416c09e62ceca7ec9336f461b56e71640bd00221208e3d83a",
     "rust-native/src/menu_bar.rs": "dba04988c7b2cd1b927507f7025d4e91380f9243d1207aca2f744952f6533273",
     "rust-native/src/monitor.rs": "a0332045b3c8cb7f2ca8c2acf0a4c76c52acd5efff0b0a2b1d50f7822d25cf91",
-    "rust-native/src/native.rs": "9187ae55c44b63a6f5d4fe3f2834dd3299ad67929b9f985c4ebf385017e2dc4c",
+    "rust-native/src/native.rs": "2ac1a500d3e979e3b7adba74fb3b18c0c412bf92d953aa4f6870fcddba7117dc",
     "rust-native/src/native_callback_roster.rs": "fa53a3f43579bc362afc13b33d6a3960791834de06cbe4cbec426531b7933d82",
     "rust-native/src/native_choice.rs": "ad6529c4f44aa2db316ec0c2cd03d0b65d62308111c9356caef165895e1c36d4",
     "rust-native/src/native_clipboard.rs": "6a3db88c4184426dae72431087af17177caa1f7bb3f2cff1bc2c4d7ed621c62f",
