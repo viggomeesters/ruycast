@@ -703,6 +703,7 @@ impl WindowRuntime {
         view.passive_notice = self.passive_notice.clone();
         view.dismissal = self.dismissal;
         view.show_serial = self.show_serial;
+        view.selection_scroll_serial = self.session.selection_scroll_serial;
         view.actions_open = self.session.actions_open;
         view.menu_token = self.editing.menu_token;
         view.action_selection = self.editing.action_selection;
