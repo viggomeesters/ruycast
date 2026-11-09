@@ -40,6 +40,7 @@ pub struct Session {
     results_revision: u64,
     pub query: String,
     pub selection: Option<usize>,
+    pub selection_scroll_serial: u64,
     pub visible: bool,
     pub actions_open: bool,
     pub activated_id: Option<String>,
@@ -58,6 +59,7 @@ impl Session {
             results_revision: 0,
             query: String::new(),
             selection: None,
+            selection_scroll_serial: 0,
             visible: false,
             actions_open: false,
             activated_id: None,
@@ -215,6 +217,7 @@ impl Session {
             self.selection = None;
             return;
         }
+        self.selection_scroll_serial = self.selection_scroll_serial.wrapping_add(1);
         let next = match self.selection {
             Some(index) => (index as isize + delta).clamp(0, self.row_count() as isize - 1),
             None if delta < 0 => self.row_count() as isize - 1,
