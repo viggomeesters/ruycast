@@ -3,7 +3,11 @@ use super::*;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 const SCHEMA: &str = "ruycast.local-signing.v1";
 pub fn requirement(fingerprint: &str) -> String {
-    format!("identifier \"{NEW_ID}\" and certificate leaf = H\"{fingerprint}\"")
+    requirement_for(NEW_ID, fingerprint)
+}
+
+pub fn requirement_for(identifier: &str, fingerprint: &str) -> String {
+    format!("identifier \"{identifier}\" and certificate leaf = H\"{fingerprint}\"")
 }
 fn root_ok(root: &Path, repo: &Path) -> Result<()> {
     fs::no_links(repo)?;
@@ -332,7 +336,22 @@ pub fn sign(
     home: &Path,
     r: &mut dyn tools::Runner,
 ) -> Result<Value> {
-    let value = load(root, repo)?;
+    sign_bundle(app, root, repo, home, r, NEW_ID)
+}
+
+pub fn sign_bundle(
+    app: &Path,
+    root: &Path,
+    repo: &Path,
+    home: &Path,
+    r: &mut dyn tools::Runner,
+    identifier: &str,
+) -> Result<Value> {
+    let mut value = load(root, repo)?;
+    value["requirement"] = json!(requirement_for(
+        identifier,
+        value["certificate_sha1"].as_str().unwrap()
+    ));
     let keychain = root.join("identity.keychain-db").display().to_string();
     let current = tools::checked(
         r,
@@ -391,7 +410,7 @@ pub fn sign(
                 &keychain,
                 "--timestamp=none",
                 "--identifier",
-                NEW_ID,
+                identifier,
                 "--requirements",
                 &format!("=designated => {}", value["requirement"].as_str().unwrap()),
                 &app.display().to_string(),

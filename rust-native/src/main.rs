@@ -71,7 +71,7 @@ fn main() {
     }
     let result = match args.first().map(String::as_str) {
         None => production_paths().and_then(|paths|native::run(paths,false)),
-        Some("--version") if args.len() == 1 => Ok(serde_json::json!({"ok":true,"result":{"name":"Ruycast","version":rustcast_core::product_version::CURRENT,"implementation":"rust","component":"host"}})),
+        Some("--version") if args.len() == 1 => Ok(serde_json::json!({"ok":true,"result":{"name":"Ruycast","version":rustcast_core::product_version::CURRENT,"implementation":"rust","component":"host","localPreview":cfg!(feature = "local-preview")}})),
         Some("--set-config-directory") if args.len() == 2 => production_paths().and_then(|paths| relocate_config(paths, &args[1])),
         Some("--native") if args.len()==1 => production_paths().and_then(|paths|native::run(paths,false)),
         Some("--native-hidden") if args.len()==1 => explicit_paths().and_then(|paths|native::run(paths,true)),

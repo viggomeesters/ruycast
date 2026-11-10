@@ -21,3 +21,7 @@ check-settings:
 	bash scripts/check-settings.sh
 check-performance:
 	bash scripts/check-performance.sh $(PERFORMANCE_ARGS)
+
+.PHONY: install-preview
+install-preview:
+	CARGO_INCREMENTAL=0 cargo run --locked --release --manifest-path rust-native/Cargo.toml --bin ruycast-install -- install-preview "$(APP)"
