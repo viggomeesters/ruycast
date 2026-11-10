@@ -87,7 +87,7 @@ class KeywordCapture(unittest.TestCase):
             v=self.run_keys(between=[dict(op='hook',at='post:down',action=action)]);self.assertTrue(v['steps'][-1]['consumed'],action);self.assertEqual(len(v['final']['output']),2,action);self.assertFalse(v['final']['output'][-1]['down']);self.assertEqual(v['final']['output'][-1]['units'],[])
     def test_reentrant_disabled_config_never_reauthorizes_setup(self):
         for phase in ['raycast','trusted','runloop','common','tap_create','source','add_source','tap_enable','tap_enabled']:
-            v=self.invoke([dict(op='config',value=config()),dict(op='hook',at=phase,action='disable'),dict(op='refresh'),sdk()]);self.assertNotEqual(v['steps'][-2]['status'],'Noninteractive',phase);self.assertFalse(v['steps'][-1]['tapValid'],phase)
+            v=self.invoke([dict(op='config',value=config()),dict(op='hook',at=phase,action='disable'),dict(op='refresh'),sdk()]);self.assertNotEqual(v['steps'][-2]['status'],'On',phase);self.assertFalse(v['steps'][-1]['tapValid'],phase)
     def test_callback_timeout_revokes_and_refresh_recovers(self):
         v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),event(type=0xffffffff),event('c'),dict(op='refresh'),*keys('abc')]);self.assertFalse(v['steps'][-5]['consumed']);self.assertTrue(v['steps'][-1]['consumed'])
     def test_failed_invalidation_retains_callback_until_recovery(self):

@@ -855,7 +855,7 @@ impl Service {
     pub fn status(&self) -> String {
         if self.callback.failed.get() {
             "Keyword callback failed".into()
-        } else if !self.callback.live.get() && self.status.borrow().as_str() == "Noninteractive" {
+        } else if !self.callback.live.get() && self.status.borrow().as_str() == "On" {
             "Keyword filter recovering".into()
         } else {
             self.status.borrow().clone()
@@ -1008,7 +1008,7 @@ impl Service {
                     return Ok("Configuration pending");
                 }
                 callback.observation_only.set(false);
-                return Ok("Noninteractive");
+                return Ok("On");
             }
             // Predict our own retirement revision before native cleanup;
             // never adopt a revision minted by synchronous reentry.
@@ -1080,7 +1080,7 @@ impl Service {
             }
             callback.observation_only.set(false);
             callback.live.set(true);
-            Ok("Noninteractive")
+            Ok("On")
         })();
         let status = match result {
             Ok(v) => v,

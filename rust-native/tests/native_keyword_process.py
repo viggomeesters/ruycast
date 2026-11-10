@@ -27,10 +27,10 @@ class NativeKeyword(unittest.TestCase):
     def kw(self,host,control='state',**values):return host.probe('keyboard-keyword',control=control,**values)
     def type(self,host,text):return [self.kw(host,'event',text=c)['consumed'] for c in text]
     def configured(self,**values):
-        host=self.host(start=False);c=capture.config();c.update(values);host.replace(c);host.start();host.wait(lambda s:s['keywordGeneration']==s['keyboardGeneration'] and s['snippetExpansion']=='Noninteractive');return host,c
+        host=self.host(start=False);c=capture.config();c.update(values);host.replace(c);host.start();host.wait(lambda s:s['keywordGeneration']==s['keyboardGeneration'] and s['snippetExpansion']=='On');return host,c
     def wait_generation(self,host,old):return host.wait(lambda s:s['keyboardGeneration']>old and s['keywordGeneration']==s['keyboardGeneration'] and not s['configurationUpdating'])
     def configured_rich(self,text='A{cursor}BC',mode='html'):
-        host=self.host(start=False);c=capture.config(text,keyword='x',snippetOutput=mode);host.replace(c);host.start();host.wait(lambda s:s['keywordGeneration']==s['keyboardGeneration'] and s['snippetExpansion']=='Noninteractive');return host,c
+        host=self.host(start=False);c=capture.config(text,keyword='x',snippetOutput=mode);host.replace(c);host.start();host.wait(lambda s:s['keywordGeneration']==s['keyboardGeneration'] and s['snippetExpansion']=='On');return host,c
     def retire(self,host):
         self.assertTrue(host.rpc({'op':'quit'})['ok']);out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());return json.loads((host.base/'keyword-retired.json').read_text())
     def test_rich_native_host_uses_shared_own_write_and_real_cursor_timer(self):
@@ -65,7 +65,7 @@ class NativeKeyword(unittest.TestCase):
     def reset(self,host):self.kw(host,'event',text='');self.kw(host,'clear')
     def test_pending_store_confirmation_keeps_observation_without_old_effects(self):
         host=self.host(start=False);c=capture.config();host.replace(c);host.env['RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER']=str(host.base)
-        host.start();host.wait(lambda s:s['snippetExpansion']=='Noninteractive');self.kw(host,'activation-listen');self.type(host,'ab');before=host.rpc({'op':'status'})['result']['keyboardGeneration']
+        host.start();host.wait(lambda s:s['snippetExpansion']=='On');self.kw(host,'activation-listen');self.type(host,'ab');before=host.rpc({'op':'status'})['result']['keyboardGeneration']
         marker=host.base/'config-adoption-entered';release=host.base/'config-adoption-release';(host.base/'hold-config-adoption').touch();self.assertFalse(marker.exists())
         changed=copy.deepcopy(c);changed['launcherHotkey']='cmd+b';host.replace(changed)
         try:
@@ -106,16 +106,16 @@ class NativeKeyword(unittest.TestCase):
     def test_sleep_session_interleaving_and_resumption(self):
         host,_=self.configured();self.type(host,'ab')
         for name in ['sleep','resign','wake']:host.probe('keyboard-hid',control='notification',name=name)
-        host.wait(lambda s:s['snippetExpansion']=='Paused');self.assertFalse(self.type(host,'c')[-1]);host.probe('keyboard-hid',control='notification',name='active');host.wait(lambda s:s['snippetExpansion']=='Noninteractive');self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
+        host.wait(lambda s:s['snippetExpansion']=='Paused');self.assertFalse(self.type(host,'c')[-1]);host.probe('keyboard-hid',control='notification',name='active');host.wait(lambda s:s['snippetExpansion']=='On');self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
     def test_native_secure_exclusion_and_permission_changes_do_not_expand(self):
         host,c=self.configured()
         for flags in [8,16,4096]:
             self.kw(host,'environment',flags=flags);self.assertFalse(self.type(host,'abc')[-1]);self.assertEqual(self.kw(host)['posts'],0)
         self.kw(host,'environment');c['clipboard']['excludedApps']=['own.keyword.target'];self.reload(host,c);self.assertFalse(self.type(host,'abc')[-1]);self.assertEqual(self.kw(host)['posts'],0)
     def test_timeout_callback_recovers_on_actual_main_wake_and_drops_prefix(self):
-        host,_=self.configured();self.type(host,'ab');self.kw(host,'event',type=0xffffffff);host.wait(lambda s:s['snippetExpansion']=='Noninteractive');self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
+        host,_=self.configured();self.type(host,'ab');self.kw(host,'event',type=0xffffffff);host.wait(lambda s:s['snippetExpansion']=='On');self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
     def test_timer_recovers_failed_keyword_setup_without_new_input(self):
-        host,_=self.configured();(host.base/'keyword-fail-tap_create').touch();self.kw(host,'event',type=0xffffffff);host.wait(lambda s:s['snippetExpansion']!='Noninteractive');(host.base/'keyword-fail-tap_create').unlink();host.wait(lambda s:s['snippetExpansion']=='Noninteractive');self.assertTrue(self.type(host,'abc')[-1])
+        host,_=self.configured();(host.base/'keyword-fail-tap_create').touch();self.kw(host,'event',type=0xffffffff);host.wait(lambda s:s['snippetExpansion']!='On');(host.base/'keyword-fail-tap_create').unlink();host.wait(lambda s:s['snippetExpansion']=='On');self.assertTrue(self.type(host,'abc')[-1])
     def test_quit_during_entered_effect_keeps_profile_until_keyup_and_retirement(self):
         host,_=self.configured();self.type(host,'ab');(host.base/'hold-keyword-post:down').touch()
         with ThreadPoolExecutor(1) as pool:
