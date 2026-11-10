@@ -16,10 +16,25 @@ same GitHub prerelease. From the extracted source, build the beta host with:
 CARGO_INCREMENTAL=0 cargo build --locked --release --manifest-path rust-native/Cargo.toml --features local-preview --bin ruycast-native
 ```
 
-The prerelease supplies source. The host executable belongs in a separately
-named local app bundle with the preview bundle ID and an ad-hoc signature.
-The production installer and bundle identity below are for the future stable
-release. F1 comparisons and Developer ID notarization are pending.
+The prerelease supplies source. Use a bundle built from the verified source.
+Stage the preview app separately from the
+installed app, with the preview bundle ID, the host at
+`Contents/MacOS/RuycastApp`, the CLI at `Contents/Resources/ruycast` and a
+strictly higher numeric `CFBundleVersion`. Update an already enrolled preview with:
+
+```sh
+make install-preview APP="/absolute/path/to/staged-preview.app"
+```
+
+The command uses the existing local Ruycast signing identity from
+`~/.local/share/ruycast/signing`. It verifies the old and new bundles against
+the same preview requirement before stopping the running app. It restarts the
+preview and checks that Accessibility and Input Monitoring rights that were
+enabled before the update are still enabled. It retains the prior signed app
+for rollback. The preview must be running and enrolled with the local
+certificate before this update command can be used. The production installer
+below uses the stable app identity. F1 comparisons and Developer ID
+notarization are pending.
 
 ## Current Rust candidate
 

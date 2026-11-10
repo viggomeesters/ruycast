@@ -455,6 +455,7 @@ rust-native/src/bin/ruycast-install/fixture_process.rs
 rust-native/src/bin/ruycast-install/descendant_fixture.rs
 rust-native/src/bin/ruycast-install/fs.rs
 rust-native/src/bin/ruycast-install/mod.rs
+rust-native/src/bin/ruycast-install/preview.rs
 rust-native/src/bin/ruycast-install/profile.rs
 rust-native/src/bin/ruycast-install/receipt.rs
 rust-native/src/bin/ruycast-install/signing.rs
