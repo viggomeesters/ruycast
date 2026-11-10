@@ -57,7 +57,7 @@ class NativeChoice(unittest.TestCase):
         if barrier:host.env['RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER']=str(host.base)
         config=capture.config(body or 'Hello {field name="name" default="World"}{field name="kind" options="!,?" default="!"}',**extra)
         if theme:config['theme']=theme
-        host.replace(config);host.start();host.settled(lambda s:s['snippetExpansion']=='Noninteractive')
+        host.replace(config);host.start();host.settled(lambda s:s['snippetExpansion']=='On')
         self.kw(host,'text',value='abc')
         return host,config
     def choice(self,host,action='read-request',**values):return self.kw(host,'choice',choiceAction=action,**values)
