@@ -12,7 +12,7 @@ pub(super) const UNSUPPORTED: i32 = -25205;
 extern "C" {
     fn AXUIElementCreateApplication(pid: i32) -> Ptr;
     pub(super) fn AXUIElementGetTypeID() -> usize;
-    fn AXValueCreate(kind: u32, value: *const c_void) -> Ptr;
+    pub(super) fn AXValueCreate(kind: u32, value: *const c_void) -> Ptr;
     pub(super) fn AXValueGetTypeID() -> usize;
     pub(super) fn AXValueGetType(value: Ptr) -> u32;
     pub(super) fn AXValueGetValue(value: Ptr, kind: u32, out: Ptr) -> u8;
