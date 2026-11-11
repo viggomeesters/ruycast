@@ -1,20 +1,26 @@
 """Genuine native UTF16 read/prefill functions, own named-board fault provider."""
-import hashlib,json,os,subprocess,unittest
+import hashlib,json,os,shutil,subprocess,unittest
 from pathlib import Path
 import bridge_process as bridge
 ROOT=Path(__file__).resolve().parents[1]
+bridge.TOOLS=Path(os.environ.get('RUYCAST_TEST_APP_HOST',ROOT/'target/debug/ruycast-native'))
 REFERENCE=ROOT/'target/clipboard-text-reference'
 SHIM=ROOT/'target/clipboard-text-shim.dylib'
 
 class ClipboardText(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        subprocess.run(['cc','-Wall','-Wextra','-Werror','-fobjc-arc','-dynamiclib','-framework','AppKit',str(ROOT/'tests/snippet_board_shim.m'),'-o',str(SHIM)],check=True,capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_BOARD_SDK',target/'release/examples/libsnippet_board_fixture.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example snippet-board-fixture first')
+        shutil.copyfile(artifact,SHIM)
+        assert hashlib.sha256(artifact.read_bytes()).digest()==hashlib.sha256(SHIM.read_bytes()).digest()
         subprocess.run(['swiftc',str(ROOT/'tests/clipboard_text_reference.swift'),'-o',str(REFERENCE)],check=True,capture_output=True)
         if directory:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             output=Path(directory);output.mkdir(parents=True,exist_ok=True)
             digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-            sources=[ROOT/'tests/clipboard_text_reference.swift',ROOT/'tests/snippet_board_shim.m',ROOT.parent/'Sources/RuycastApp/CommandEditor.swift',ROOT.parent/'Sources/RuycastApp/AppState.swift']
+            sources=[ROOT/'tests/clipboard_text_reference.swift',ROOT/'tests/fixtures/snippet_board_fixture.rs',ROOT/'Cargo.toml',ROOT/'Cargo.lock',ROOT.parent/'rust/Cargo.toml',ROOT.parent/'rust-toolchain.toml',ROOT.parent/'Sources/RuycastApp/CommandEditor.swift',ROOT.parent/'Sources/RuycastApp/AppState.swift']
             (output/'clipboard-text-reference-bindings.json').write_text(json.dumps(dict(sources={str(p.relative_to(ROOT.parent)):digest(p) for p in sources},artifacts={str(p.relative_to(ROOT.parent)):digest(p) for p in [REFERENCE,SHIM]}),indent=2))
     def case(self, reader, mode, expected):
         env={k:v for k,v in os.environ.items() if not k.startswith(('RUYCAST_','RUSTCAST_')) and k!='DYLD_INSERT_LIBRARIES'}
