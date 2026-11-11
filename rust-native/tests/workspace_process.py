@@ -6,11 +6,12 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-BIN = ROOT / 'target/debug/workspace-probe'
+BIN = Path(os.environ.get('RUYCAST_WORKSPACE_PROBE', ROOT / 'target/debug/workspace-probe'))
 SHIM = ROOT / 'target/workspace-shim.dylib'
 
 
@@ -21,10 +22,11 @@ def request(kind='app', target='dev.fixture.success', **kwargs):
 class Workspace(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        subprocess.run(['cc', '-Wall', '-Wextra', '-Werror', '-fobjc-arc', '-fblocks',
-                        '-dynamiclib', '-framework', 'AppKit',
-                        str(ROOT / 'tests/workspace_shim.m'), '-o', str(SHIM)], check=True,
-                       capture_output=True)
+        target = Path(os.environ.get('CARGO_TARGET_DIR', ROOT.parent / '.build/full-rust-release/native'))
+        artifact = Path(os.environ.get('RUYCAST_TEST_WORKSPACE_SHIM', target / 'release/examples/libworkspace_fixture.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example workspace-fixture first')
+        shutil.copyfile(artifact, SHIM)
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='workspace-', dir=ROOT / 'target')
