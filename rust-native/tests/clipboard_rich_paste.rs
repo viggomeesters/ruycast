@@ -5,6 +5,8 @@
 use serde_json::{json, Value};
 #[path = "support/child_output.rs"]
 mod child_output;
+#[path = "support/status_rpc.rs"]
+mod status_rpc;
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
@@ -76,15 +78,9 @@ impl Host {
                 .spawn()
                 .unwrap(),
         );
-        let until = Instant::now() + Duration::from_secs(8);
-        while !host.base.join("p/control.sock").exists() {
-            assert!(
-                host.child.as_mut().unwrap().try_wait().unwrap().is_none(),
-                "owned host exited"
-            );
-            assert!(Instant::now() < until, "owned host readiness timeout");
-            std::thread::sleep(Duration::from_millis(10));
-        }
+        status_rpc::wait(&host.base.join("p/control.sock"), Duration::from_secs(8), || {
+            host.child.as_mut().unwrap().try_wait().unwrap().is_none()
+        });
         host.wait(|s| {
             s["nativeUI"]["revision"].as_u64().is_some_and(|r| r > 0)
                 && s["nativeUI"]["revision"] == s["nativeUI"]["appliedRevision"]

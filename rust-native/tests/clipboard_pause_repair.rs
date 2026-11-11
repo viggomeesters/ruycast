@@ -1,6 +1,8 @@
 //! Real headless host with a pre-main abort guard on the general pasteboard.
 //! Disposable profiles only; no AppKit activation, keys, Keychain or user data.
 use serde_json::{json, Value};
+#[path = "support/status_rpc.rs"]
+mod status_rpc;
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
@@ -109,15 +111,9 @@ impl Host {
             command.env("RUYCAST_TEST_FSYNC_DIRECTORY", self.base.join("p"));
         }
         self.child = Some(command.spawn().unwrap());
-        let end = Instant::now() + Duration::from_secs(8);
-        while !self.socket().exists() {
-            assert!(
-                self.child.as_mut().unwrap().try_wait().unwrap().is_none(),
-                "host exited before readiness"
-            );
-            assert!(Instant::now() < end, "host readiness timeout");
-            std::thread::sleep(Duration::from_millis(10));
-        }
+        status_rpc::wait(&self.socket(), Duration::from_secs(8), || {
+            self.child.as_mut().unwrap().try_wait().unwrap().is_none()
+        });
         assert_eq!(self.status()["ok"], true);
     }
     fn status(&self) -> Value {
