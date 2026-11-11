@@ -603,7 +603,7 @@
     "rust-native/tests/keyboard_process.py": "b599dbc5eb3cd1f0bf5590cedb8b28368dae7411b4d91fbd939187475cf83beb",
     "rust-native/tests/keyboard_shim.c": "b055ac1d63309dc60314225ef3ec0b8046ee1938dc6cc9c092333c714684195a",
     "rust-native/tests/keyword_board.rs": "7bd2689cceb650ebbd8e6a1c90084de5759bf73a817af57180a35ff67969e46b",
-    "rust-native/tests/keyword_capture_process.py": "8a5025bce5353d88edaae90e4975c74deef4ee69015ccadb773dcb9b2e2eb089",
+    "rust-native/tests/keyword_capture_process.py": "ddb0e2a0916e5d601a8854804a75f709ebb667a327e90f9a39d3ca179a1c1e90",
     "rust-native/tests/keyword_core.rs": "70528766753e567297cb6e4ce1b7a50eb0323fb81f83616c3dafcb89dd3db79b",
     "rust-native/tests/keyword_fixture.py": "b882795cd723d7ed358d941eb1b68bbd48676aefb89c04f333c03f2d7c52c648",
     "rust-native/tests/keyword_native_process.py": "820453a99f597a7517806720be8e0b4a1b65d68a7b79632f39a958176bbd2165",
