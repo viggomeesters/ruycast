@@ -4,6 +4,8 @@
 mod runtime_host;
 use runtime_host::{default_config, Config, Host, OwnedDir};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::{
     fs,
     io::{BufRead, BufReader, Read, Write},
@@ -15,8 +17,68 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+fn hash(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+fn settings() -> Config {
+    let settings = Config::current();
+    runtime_receipt(&settings);
+    settings
+}
+fn runtime_receipt(settings: &Config) {
+    let Some(directory) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") else {
+        return;
+    };
+    fs::create_dir_all(&directory).unwrap();
+    let root = runtime_host::root();
+    let sources = [
+        "config/default.json",
+        "rust-native/tests/runtime_process.rs",
+        "rust-native/tests/support/runtime_host.rs",
+        "rust-native/tests/support/status_rpc.rs",
+        "rust-native/tests/support/child_output.rs",
+        "rust-native/tests/fixtures/fcntl_sync_shim.rs",
+        "rust-native/tests/fixtures/fcntl_abi.rs",
+        "rust-native/src/main.rs",
+        "rust-native/src/native_services.rs",
+        "rust-native/src/runtime.rs",
+        "rust-native/src/control.rs",
+        "rust-native/src/configuration_jobs.rs",
+        "rust-native/src/profile.rs",
+        "rust-native/Cargo.toml",
+        "rust-native/Cargo.lock",
+        "rust/Cargo.toml",
+        "rust/Cargo.lock",
+        "rust/src/lib.rs",
+        "rust/src/bin/ruycast.rs",
+        "rust-toolchain.toml",
+    ]
+    .into_iter()
+    .map(|p| (p, hash(&fs::read(root.join(p)).unwrap())))
+    .collect::<BTreeMap<_, _>>();
+    let sdk = settings
+        .host
+        .parent()
+        .unwrap()
+        .join("examples/libfcntl_sync_shim.dylib");
+    let mut artifacts = BTreeMap::new();
+    // Immutable content-addressed copies avoid retaining another large host/CLI
+    // binary for every separately bounded case. Publish only complete bytes.
+    for (name, path) in [
+        ("host", &settings.host),
+        ("cli", &settings.cli),
+        ("writer-sdk", &sdk),
+    ] {
+        if name == "writer-sdk" && !path.is_file() {
+            continue;
+        }
+        let (path, digest) = runtime_host::bind_artifact(path, name);
+        artifacts.insert(path, digest);
+    }
+    fs::write(PathBuf::from(directory).join("runtime-reference-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"methods":15,"hostArguments":["--headless-test"],"scope":"Exclusive synthetic profiles, empty own Applications root, actual Rust CLI and optional same-profile Rust writer provider; no native-hidden, desktop input or applied app actions"})).unwrap()).unwrap();
+}
 fn host(start: bool) -> Host {
-    Host::new(Config::current(), start)
+    Host::new(settings(), start)
 }
 fn wait_marker(path: &std::path::Path) {
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -197,7 +259,7 @@ fn postpublication_selector_conflict_reports_saved_outcome_and_preserves_both_co
 fn empty_or_missing_explicit_profile_never_modifies_cwd() {
     let owned = OwnedDir::new();
     fs::set_permissions(&owned.0, fs::Permissions::from_mode(0o755)).unwrap();
-    let settings = Config::current();
+    let settings = settings();
     for name in [None, Some("RUYCAST_HOME"), Some("RUSTCAST_HOME")] {
         let mut command = Command::new(&settings.host);
         command

@@ -308,6 +308,7 @@ rust-native/tests/fixtures/analytics_write_shim.rs
 rust-native/tests/app_picker_process.py
 rust-native/tests/applications_process.py
 rust-native/tests/bridge_process.py
+rust-native/tests/bridge_process.rs
 rust-native/tests/caps_process.py
 rust-native/tests/fixtures/caps_sdk.rs
 rust-native/tests/fixtures/caps_fixture.rs
@@ -500,6 +501,7 @@ rust-native/tests/support/child_output.rs
 rust-native/tests/support/hid_state_goldens.rs
 rust-native/tests/support/status_rpc.rs
 rust-native/tests/support/runtime_host.rs
+rust-native/tests/support/native_bridge.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
 rust-native/tests/utility_reference.json

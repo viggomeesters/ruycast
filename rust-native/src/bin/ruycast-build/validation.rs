@@ -107,7 +107,7 @@ snippet-effects-process|p|rust-native/tests/snippet_effects_process.py
 native-open-process|p|rust-native/tests/native_open_process.py
 template-form-process|p|rust-native/tests/template_form_process.py
 app-picker-process|p|rust-native/tests/app_picker_process.py
-bridge-process|p|rust-native/tests/bridge_process.py
+bridge-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test bridge_process --locked
 system-search-tools-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --bin ruycast-native --bin system-search-probe --locked
 system-search-process|p|rust-native/tests/system_search_process.py
 clipboard-history-process|p|rust-native/tests/clipboard_history_process.py
@@ -1856,6 +1856,10 @@ mod tests {
         assert!(steps[runtime_sdk].arguments.windows(2).any(|pair|pair==["--example","fcntl-sync-shim"]));
         assert!(steps[runtime_test].arguments.windows(2).any(|pair|pair==["--test","runtime_process"]));
         assert!(!steps[runtime_test].arguments.iter().any(|arg|arg.ends_with(".py")));
+        let bridge = steps.iter().find(|step|step.name=="bridge-process").unwrap();
+        assert!(bridge.arguments.windows(2).any(|pair|pair==["--test","bridge_process"]));
+        assert!(normal_host_negative(bridge));
+        assert!(!bridge.arguments.iter().any(|arg|arg.ends_with(".py")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

@@ -430,8 +430,8 @@ const SETTINGS: &[SettingsGate] = &[
         "snippet_process.SnippetOutput", "keyword_rich_process.KeywordRich",
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","inline-input-process","input-process","native-choice-process","native-open-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
-        "bridge_process.NativeBridge.test_show_search_and_local_native_query_share_the_owner",
-        "bridge_process.NativeBridge.test_rapid_arrows_and_click_on_other_row_keep_intended_identity",
+        "bridge_process::show_search_and_local_native_query_share_the_owner",
+        "bridge_process::rapid_arrows_and_click_on_other_row_keep_intended_identity",
         "inline_input_process.InlineInput.test_expand_preserves_actual_field_editor_text_and_token_without_execution",
         "input_process.NativeInput.test_marked_text_blocks_run_and_escape_without_effects",
         "native_open_process.NativeOpen.test_saved_app_hides_exact_panel_before_sdk_and_records_success",
@@ -723,7 +723,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec"),
-            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "39cb2da05f5ec4456001166b373c5b7a17e7f6969c54f460df8a90151f3cc9d0"),
+            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "cba3fcc734084a204b89c585a1e0341e89c2b3508896e0eaf21660dddf1d62c7"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
@@ -761,7 +761,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec"),
-            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "39cb2da05f5ec4456001166b373c5b7a17e7f6969c54f460df8a90151f3cc9d0"),
+            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "cba3fcc734084a204b89c585a1e0341e89c2b3508896e0eaf21660dddf1d62c7"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
@@ -787,7 +787,12 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec"),
-            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "39cb2da05f5ec4456001166b373c5b7a17e7f6969c54f460df8a90151f3cc9d0"),
+            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
+            ("rust-native/tests/bridge_process.rs", include_bytes!("../../../tests/bridge_process.rs"), "d2ca90d18836f08e227e8af68513938373661f84d5a23a48dca93eab4bb3695f"),
+            ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "92a213383bb2893554d97e157c88b28393bf276394fbfdca1eaf0a56d1c763d3"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
             ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "cba3fcc734084a204b89c585a1e0341e89c2b3508896e0eaf21660dddf1d62c7"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
@@ -1515,6 +1520,75 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
+    fn bridge_rust_crosswalk_resolves_cases_and_current_shared_inputs() {
+        let gate = SETTINGS
+            .iter()
+            .find(|gate| gate.id == "--check-interactions")
+            .unwrap();
+        let inputs = settings_sources(gate.id);
+        assert_eq!(inputs.len(), 42);
+        assert_eq!(
+            inputs
+                .iter()
+                .map(|entry| entry.0)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            42
+        );
+        let source = std::str::from_utf8(
+            inputs
+                .iter()
+                .find(|entry| entry.0 == "rust-native/tests/bridge_process.rs")
+                .unwrap()
+                .1,
+        )
+        .unwrap();
+        assert_eq!(
+            gate.native_cases
+                .iter()
+                .filter(|case| case.starts_with("bridge_process::"))
+                .count(),
+            2
+        );
+        assert!(!gate
+            .native_cases
+            .iter()
+            .any(|case| case.starts_with("bridge_process.")));
+        for name in [
+            "show_search_and_local_native_query_share_the_owner",
+            "rapid_arrows_and_click_on_other_row_keep_intended_identity",
+        ] {
+            let case = format!("bridge_process::{name}");
+            assert!(gate.native_cases.contains(&case.as_str()));
+            assert!(source.contains(&format!("fn {name}(")), "{case}");
+        }
+        for path in [
+            "rust-native/tests/bridge_process.rs",
+            "rust-native/tests/support/native_bridge.rs",
+            "rust-native/tests/support/runtime_host.rs",
+            "rust-native/tests/support/status_rpc.rs",
+            "rust-native/tests/support/child_output.rs",
+        ] {
+            let (_, bytes, expected) = inputs.iter().find(|entry| entry.0 == path).unwrap();
+            assert_eq!(format!("{:x}", Sha256::digest(bytes)), *expected, "{path}");
+        }
+        for id in [
+            "--check-feedback",
+            "--check-actions-menu",
+            "--check-interactions",
+        ] {
+            let (_, bytes, expected) = settings_sources(id)
+                .iter()
+                .find(|entry| entry.0 == "rust-native/tests/bridge_process.py")
+                .unwrap();
+            assert_eq!(
+                format!("{:x}", Sha256::digest(bytes)),
+                *expected,
+                "{id}: shared Python fixture remains visible"
+            );
+        }
+    }
+    #[test]
     fn hid_goldens_bind_frozen_corpus_current_sources_and_actual_probe_copy() {
         let fixture = super::super::tests::Fixture::new();
         let root = &fixture.0;
@@ -1929,7 +2003,7 @@ mod tests {
             ("native_edit::", "rust-native/src/native_edit.rs"),
             ("native_snippet_choice_process.", "rust-native/tests/native_snippet_choice_process.py"),
             ("native_keyboard_process.", "rust-native/tests/native_keyboard_process.py"),
-            ("bridge_process.", "rust-native/tests/bridge_process.py"),
+            ("bridge_process::", "rust-native/tests/bridge_process.rs"),
             ("inline_input_process.", "rust-native/tests/inline_input_process.py"),
             ("input_process.", "rust-native/tests/input_process.py"),
             ("native_open_process.", "rust-native/tests/native_open_process.py"),
@@ -1942,7 +2016,7 @@ mod tests {
             ("--check-polish", 10, 33, true),
             ("--check-feedback", 21, 34, true),
             ("--check-actions-menu", 11, 21, true),
-            ("--check-interactions", 16, 37, true),
+            ("--check-interactions", 16, 42, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.native_cases.len(), count);
