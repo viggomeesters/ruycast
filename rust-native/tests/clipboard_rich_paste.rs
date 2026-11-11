@@ -3,6 +3,7 @@
 #![cfg(feature = "test-tools")]
 
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 #[path = "support/child_output.rs"]
 mod child_output;
 #[path = "support/status_rpc.rs"]
@@ -202,29 +203,14 @@ fn file_and_image_paste_complete_owned_ticket_without_recapture() {
         .parent()
         .unwrap()
         .join("rich-paste-effects.dylib");
-    let output = Command::new("cc")
-        .args([
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-fobjc-arc",
-            "-fblocks",
-            "-dynamiclib",
-            "-framework",
-            "AppKit",
-            "-framework",
-            "ApplicationServices",
-        ])
-        .arg(root.join("tests/clipboard_history_shim.m"))
-        .arg("-o")
-        .arg(&shim)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
+        .unwrap_or_else(|| root.parent().unwrap().join(".build/full-rust-release/native"));
+    let source = std::env::var_os("RUYCAST_TEST_HISTORY_SDK").map(PathBuf::from)
+        .unwrap_or_else(|| target.join("release/examples/libclipboard_history_fixture.dylib"));
+    assert!(source.is_absolute() && source.is_file(), "Build the clipboard-history-fixture Rust example first");
+    fs::copy(&source, &shim).unwrap();
+    let sha = |path: &Path| format!("{:x}", Sha256::digest(fs::read(path).unwrap()));
+    assert_eq!(sha(&source), sha(&shim));
     let mut host = Host::start(&shim);
     host.hidden();
     let poll = host
