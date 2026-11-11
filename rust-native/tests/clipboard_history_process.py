@@ -2,14 +2,14 @@
 """Original clipboard routes through actual Rust owner/main named-board fixtures.
 No general board, screen capture, app activation or physical input is permitted.
 """
-import copy,json,os,shutil,subprocess,time,unittest,zlib,struct
+import copy,json,os,shutil,subprocess,time,unittest,zlib,struct,hashlib
 from pathlib import Path
 import runtime_process as rt
 import bridge_process as native
 ROOT=rt.ROOT
-native.TOOLS=ROOT/'target/debug/ruycast-native'
+native.TOOLS=Path(os.environ.get('RUYCAST_TEST_APP_HOST',ROOT/'target/debug/ruycast-native'))
 rt.HOST=native.TOOLS
-rt.CLI=ROOT.parent/'rust/target/debug/ruycast'
+rt.CLI=Path(os.environ.get('RUYCAST_TEST_CLI',ROOT.parent/'rust/target/debug/ruycast'))
 SHIM=ROOT/'target/clipboard-history-effects.dylib'
 OUT=ROOT/'target/clipboard-evidence'
 def png():
@@ -18,8 +18,18 @@ def png():
 class ClipboardHistory(unittest.TestCase):
  @classmethod
  def setUpClass(cls):
-    OUT.mkdir(exist_ok=True)
-    subprocess.run(['cc','-Wall','-Wextra','-Werror','-fobjc-arc','-fblocks','-dynamiclib','-framework','AppKit','-framework','ApplicationServices',str(ROOT/'tests/clipboard_history_shim.m'),'-o',str(SHIM)],check=True,capture_output=True)
+    OUT.mkdir(parents=True,exist_ok=True)
+    target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+    artifact=Path(os.environ.get('RUYCAST_TEST_HISTORY_SDK',target/'release/examples/libclipboard_history_fixture.dylib'))
+    if not artifact.is_absolute() or not artifact.is_file():
+        raise RuntimeError('Build --features test-tools --example clipboard-history-fixture first')
+    shutil.copyfile(artifact,SHIM)
+    if evidence:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
+        out=Path(evidence);out.mkdir(parents=True,exist_ok=True)
+        sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+        sources=[ROOT/'tests/fixtures'/name for name in ['workspace_sdk.rs','snippet_effects_sdk.rs','clipboard_history_sdk.rs','clipboard_history_fixture.rs']]
+        sources.extend([ROOT/'Cargo.toml',ROOT/'Cargo.lock',ROOT.parent/'rust/Cargo.toml',ROOT.parent/'rust-toolchain.toml'])
+        (out/'clipboard-history-bindings.json').write_text(json.dumps(dict(sources={str(p.relative_to(ROOT.parent)):sha(p) for p in sources},artifacts={str(SHIM.relative_to(ROOT.parent)):sha(SHIM)}),indent=2))
  def host(self,*,width=760,theme='light',config=None):
     h=native.Bridge(start=False);self.addCleanup(h.close)
     cfg=copy.deepcopy(rt.DEFAULT);cfg['theme']=theme
