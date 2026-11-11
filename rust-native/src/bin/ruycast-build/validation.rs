@@ -59,7 +59,8 @@ template-process|p|rust-native/tests/template_process.py
 snippet-probe-build|b|snippet-probe tools
 snippet-process|p|rust-native/tests/snippet_process.py
 snippet-html-import|c|run --manifest-path rust-native/Cargo.toml --features test-tools --bin snippet-probe --locked -- --check-html-import
-snippet-board-process|p|rust-native/tests/snippet_board_process.py
+snippet-board-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example snippet-board-fixture --locked
+snippet-board-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_board_process --locked
 snippet-choice-probe-build|b|snippet-choice-probe tools
 snippet-choice-process|p|rust-native/tests/snippet_choice_process.py
 snippet-choice-request-process|p|rust-native/tests/snippet_choice_request_process.py
@@ -1817,7 +1818,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 115);
+        assert_eq!(steps.len(), 116);
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

@@ -999,7 +999,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_process.py", include_bytes!("../../../tests/library_process.py"), "983cfb56c04bdb7c825aa0cc554f9210e4ba678e6238a6487834f3e8e9d83d6a"),
             ("rust-native/tests/settings_keyboard_process.py", include_bytes!("../../../tests/settings_keyboard_process.py"), "b68148b8081c88c38f94b1bae1f026fd0dc06057fe23d1d3225b955b6e148847"),
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
-            ("rust-native/tests/snippet_board_process.py", include_bytes!("../../../tests/snippet_board_process.py"), "36a467afa7de51d1fa70da42a7a6df89517bdef5e5b8dfc9a093d98d760ef885"),
+            ("rust-native/tests/snippet_board_process.rs", include_bytes!("../../../tests/snippet_board_process.rs"), "8f5841d6591e369d7b120534b1bb2f78f87cfafc098efe4066992d7f0fef6d3a"),
             ("rust-native/tests/snippet_process.py", include_bytes!("../../../tests/snippet_process.py"), "9074e24e6bd292a301a0bf385368ad817c5ef348fcf0f7a06bd9342d5491db66"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "922179b5495bd479c70eccece85735bfafaaec0cbd1accc4590ca28a75f98a07"),
             ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "0dfcbb5c3d0d5d15149af8fd128067832235819923bd813fda83e4c894a86333"),
