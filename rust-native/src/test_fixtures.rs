@@ -1,4 +1,4 @@
-//! Bounded builder for the shared owned fcntl test fixture.
+//! Bounded builder for owned Rust syscall fixtures.
 use std::{
     fs,
     io::Read,
@@ -9,11 +9,29 @@ use std::{
 };
 
 pub fn fcntl(log: &Path) -> PathBuf {
-    if let Some(path) = std::env::var_os("RUYCAST_TEST_FCNTL_SHIM") {
+    build(
+        log,
+        "RUYCAST_TEST_FCNTL_SHIM",
+        "fcntl-sync-shim",
+        "libfcntl_sync_shim.dylib",
+    )
+}
+
+pub fn dashboard(log: &Path) -> PathBuf {
+    build(
+        log,
+        "RUYCAST_TEST_DASHBOARD_SHIM",
+        "dashboard-export-shim",
+        "libdashboard_export_shim.dylib",
+    )
+}
+
+fn build(log: &Path, variable: &str, example: &str, library: &str) -> PathBuf {
+    if let Some(path) = std::env::var_os(variable) {
         let path = PathBuf::from(path);
         assert!(
             path.is_absolute() && path.is_file(),
-            "explicit Rust fcntl fixture required"
+            "explicit Rust {example} fixture required"
         );
         return path;
     }
@@ -45,7 +63,7 @@ pub fn fcntl(log: &Path) -> PathBuf {
             "--features",
             "test-tools",
             "--example",
-            "fcntl-sync-shim",
+            example,
             "--manifest-path",
         ])
         .arg(root.join("Cargo.toml"))
@@ -56,7 +74,7 @@ pub fn fcntl(log: &Path) -> PathBuf {
         .stdout(Stdio::from(output.try_clone().unwrap()))
         .stderr(Stdio::from(output))
         .spawn()
-        .expect("build Rust fcntl fixture");
+        .expect("start owned Rust fixture build");
     let deadline = Instant::now() + Duration::from_secs(60);
     let status = loop {
         if let Some(status) = child.try_wait().unwrap() {
@@ -69,7 +87,7 @@ pub fn fcntl(log: &Path) -> PathBuf {
             }
             let _ = child.wait();
             panic!(
-                "Rust fcntl fixture build exceeded 60 seconds; see {}",
+                "Rust {example} fixture build exceeded 60 seconds; see {}",
                 log.display()
             );
         }
@@ -83,9 +101,12 @@ pub fn fcntl(log: &Path) -> PathBuf {
         .unwrap();
     assert!(
         status.success(),
-        "Rust fcntl fixture build failed: {diagnostics}"
+        "Rust {example} fixture build failed: {diagnostics}"
     );
-    let artifact = target.join("release/examples/libfcntl_sync_shim.dylib");
-    assert!(artifact.is_file(), "Rust fcntl fixture artifact missing");
+    let artifact = target.join("release/examples").join(library);
+    assert!(
+        artifact.is_file(),
+        "Rust {example} fixture artifact missing"
+    );
     artifact
 }

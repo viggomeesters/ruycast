@@ -322,7 +322,8 @@ rust-native/tests/clipboard_text_reference.swift
 rust-native/tests/creation_process.py
 rust-native/tests/dashboard_export_process.py
 rust-native/tests/dashboard_export_process.rs
-rust-native/tests/dashboard_export_shim.c
+rust-native/tests/fixtures/dashboard_export_shim.rs
+rust-native/tests/fixtures/fcntl_abi.rs
 rust-native/tests/dashboard_presentation_process.py
 rust-native/tests/editor_process.py
 rust-native/tests/execution_process.py
