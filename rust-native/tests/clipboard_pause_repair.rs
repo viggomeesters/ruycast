@@ -1,6 +1,7 @@
 //! Real headless host with a pre-main abort guard on the general pasteboard.
 //! Disposable profiles only; no AppKit activation, keys, Keychain or user data.
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 #[path = "support/status_rpc.rs"]
 mod status_rpc;
 use std::{
@@ -303,12 +304,15 @@ fn real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume() {
     missing.stop();
     let output = root.join("target/clipboard-pause-repair");
     fs::create_dir_all(&output).unwrap();
-    let native_shim = compile(
-        root,
-        "clipboard_history_shim.m",
-        "pause-repair-native.dylib",
-        true,
-    );
+    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
+        .unwrap_or_else(|| root.parent().unwrap().join(".build/full-rust-release/native"));
+    let source = std::env::var_os("RUYCAST_TEST_HISTORY_SDK").map(PathBuf::from)
+        .unwrap_or_else(|| target.join("release/examples/libclipboard_history_fixture.dylib"));
+    assert!(source.is_absolute() && source.is_file(), "Build the clipboard-history-fixture Rust example first");
+    let native_shim = root.join("target/pause-repair-native.dylib");
+    fs::copy(&source, &native_shim).unwrap();
+    let sha = |path: &Path| format!("{:x}", Sha256::digest(fs::read(path).unwrap()));
+    assert_eq!(sha(&source), sha(&native_shim));
     let mut native = Host::new("native");
     fs::write(native.base.join("p/paused.json"), b"broken").unwrap();
     native.start_with(native_shim.to_str().unwrap(), false, true);
