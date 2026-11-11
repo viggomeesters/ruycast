@@ -630,7 +630,7 @@
     "rust-native/tests/keyword_rust_provider.rs": "d955fed661650ebbe8e712d3229b6b27ef3b04202d9dee998a3242c43a81be7d",
     "rust-native/tests/library_process.py": "983cfb56c04bdb7c825aa0cc554f9210e4ba678e6238a6487834f3e8e9d83d6a",
     "rust-native/tests/manager_process.py": "f1a93ae9f6938ed9f2b448a1fed6efa9dc58faba0187e1994d4fd2dc5595aad7",
-    "rust-native/tests/native_choice_process.py": "9e4e663fb12a67a72009c4f1b784a2caa42e26788c79e2be0b613a29300b2fef",
+    "rust-native/tests/native_choice_process.py": "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3",
     "rust-native/tests/native_dashboard_process.py": "980122480c8392cce92c49e948addc339f882be3718ca84de04c3e10c8710ba0",
     "rust-native/tests/native_hid_process.py": "039592558153c87e306e86289af2b81f149bb98dbe8155ebb6601cdf57176eae",
     "rust-native/tests/native_keyboard_process.py": "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec",
