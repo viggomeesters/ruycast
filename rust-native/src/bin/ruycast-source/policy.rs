@@ -359,6 +359,8 @@ rust-native/tests/keyword_capture_process.py
 rust-native/tests/keyword_fixture.py
 rust-native/tests/keyword_native_process.py
 rust-native/tests/keyword_notification_shim.m
+rust-native/tests/fixtures/keyword_notification.rs
+rust-native/tests/keyword_notification.rs
 rust-native/tests/keyword_process.py
 rust-native/tests/keyword_reference.swift
 rust-native/tests/keyword_rich_process.py
