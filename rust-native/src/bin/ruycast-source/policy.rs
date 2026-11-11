@@ -315,7 +315,6 @@ rust-native/tests/fixtures/caps_missing_set.rs
 rust-native/tests/capture_process.py
 rust-native/tests/cli_open_process.py
 rust-native/tests/clipboard_history_process.py
-rust-native/tests/clipboard_history_shim.m
 rust-native/tests/fixtures/clipboard_history_sdk.rs
 rust-native/tests/fixtures/clipboard_history_fixture.rs
 rust-native/tests/clipboard_history_rust_provider.rs
@@ -400,7 +399,6 @@ rust-native/tests/snippet_choice_process.py
 rust-native/tests/snippet_choice_reference.swift
 rust-native/tests/snippet_choice_request_process.py
 rust-native/tests/snippet_effects_process.py
-rust-native/tests/snippet_effects_shim.m
 rust-native/tests/fixtures/snippet_effects_sdk.rs
 rust-native/tests/fixtures/snippet_effects_fixture.rs
 rust-native/tests/snippet_effects_rust_provider.rs
@@ -419,7 +417,6 @@ rust-native/tests/template_reference.swift
 rust-native/tests/workspace_activation_process.rs
 rust-native/tests/support/keyword_native.rs
 rust-native/tests/workspace_process.py
-rust-native/tests/workspace_shim.m
 rust-native/tests/fixtures/workspace_sdk.rs
 rust-native/tests/fixtures/workspace_fixture.rs
 rust-native/tests/workspace_rust_provider.rs
