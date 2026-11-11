@@ -11,17 +11,17 @@ import unittest
 import runtime_process as rt
 
 ROOT=rt.ROOT.parent
-CLI=ROOT/'.build/rust/release/ruycast'
-PROBE=rt.ROOT/'target/debug/supervision-probe'
+CLI=Path(os.environ.get('RUYCAST_TEST_CLI',ROOT/'.build/rust/release/ruycast'))
+PROBE=Path(os.environ.get('RUYCAST_SUPERVISION_PROBE',rt.ROOT/'target/debug/supervision-probe'))
 
 
 class Supervision(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.temp=tempfile.TemporaryDirectory(prefix='ruycast-supervision-shim-')
-        cls.addClassCleanup(cls.temp.cleanup)
-        cls.shim=Path(cls.temp.name)/'fault.dylib'
-        subprocess.run(['cc','-Wall','-Wextra','-Werror','-dynamiclib',str(rt.ROOT/'tests/supervision_fault_shim.c'),'-o',str(cls.shim)],check=True,capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT/'.build/full-rust-release/native'))
+        cls.shim=Path(os.environ.get('RUYCAST_TEST_SUPERVISION_SHIM',target/'release/examples/libsupervision_fault_shim.dylib'))
+        if not cls.shim.is_absolute() or not cls.shim.is_file():
+            raise RuntimeError('Build --features test-tools --example supervision-fault-shim and set RUYCAST_TEST_SUPERVISION_SHIM first')
 
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix='ruycast-supervision-')
