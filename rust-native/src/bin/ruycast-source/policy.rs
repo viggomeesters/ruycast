@@ -402,6 +402,7 @@ rust-native/tests/native_process.py
 rust-native/tests/native_snippet_choice_process.py
 rust-native/tests/rich_process.py
 rust-native/tests/runtime_process.py
+rust-native/tests/runtime_process.rs
 rust-native/tests/rust_only_policy.py
 rust-native/tests/fixtures/script_fault_shim.rs
 rust-native/tests/script_process.py
@@ -498,6 +499,7 @@ rust-native/tests/startup_process.rs
 rust-native/tests/support/child_output.rs
 rust-native/tests/support/hid_state_goldens.rs
 rust-native/tests/support/status_rpc.rs
+rust-native/tests/support/runtime_host.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
 rust-native/tests/utility_reference.json

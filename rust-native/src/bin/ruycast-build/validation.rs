@@ -90,7 +90,8 @@ cli-open-process|p|rust-native/tests/cli_open_process.py
 supervision-process|p|rust-native/tests/supervision_process.py
 script-process|p|rust-native/tests/script_process.py
 foundation-process|p|rust-native/tests/foundation_process.py
-runtime-process|p|rust-native/tests/runtime_process.py
+runtime-writer-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example fcntl-sync-shim --locked
+runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked
 native-profile-process|p|rust-native/tests/native_process.py
 bridge-tools-build|b|ruycast-native native
 native-dashboard-process|p|rust-native/tests/native_dashboard_process.py
@@ -1820,7 +1821,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 118);
+        assert_eq!(steps.len(), 119);
         let sdk_build = steps.iter().position(|step|step.name=="system-sdk-build").unwrap();
         let sdk_test = steps.iter().position(|step|step.name=="system-search-sdk").unwrap();
         assert!(sdk_build < sdk_test);
@@ -1849,6 +1850,12 @@ mod tests {
         let template = steps.iter().find(|step|step.name=="template-process").unwrap();
         assert!(template.arguments.windows(2).any(|pair|pair==["--test","template_process"]));
         assert!(!template.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
+        let runtime_sdk = steps.iter().position(|step|step.name=="runtime-writer-sdk-build").unwrap();
+        let runtime_test = steps.iter().position(|step|step.name=="runtime-process").unwrap();
+        assert!(runtime_sdk < runtime_test);
+        assert!(steps[runtime_sdk].arguments.windows(2).any(|pair|pair==["--example","fcntl-sync-shim"]));
+        assert!(steps[runtime_test].arguments.windows(2).any(|pair|pair==["--test","runtime_process"]));
+        assert!(!steps[runtime_test].arguments.iter().any(|arg|arg.ends_with(".py")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

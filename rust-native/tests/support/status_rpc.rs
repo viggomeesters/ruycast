@@ -49,7 +49,7 @@ fn poll(stream: &UnixStream, events: i16, deadline: Instant) -> io::Result<()> {
         }
     }
 }
-fn connect(socket: &Path, deadline: Instant) -> io::Result<UnixStream> {
+pub fn connect(socket: &Path, deadline: Instant) -> io::Result<UnixStream> {
     remaining(deadline)?;
     let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
     let name = socket.as_os_str().as_bytes();
@@ -111,8 +111,14 @@ fn connect(socket: &Path, deadline: Instant) -> io::Result<UnixStream> {
     Ok(stream)
 }
 fn probe(socket: &Path, deadline: Instant) -> io::Result<Value> {
+    request(socket, &serde_json::json!({"op":"status"}), deadline)
+}
+/// One absolute deadline spans connect, complete write and complete response.
+pub fn request(socket: &Path, value: &Value, deadline: Instant) -> io::Result<Value> {
     let mut stream = connect(socket, deadline)?;
-    let mut request = b"{\"op\":\"status\"}\n".as_slice();
+    let mut bytes = serde_json::to_vec(value).map_err(io::Error::other)?;
+    bytes.push(b'\n');
+    let mut request = bytes.as_slice();
     while !request.is_empty() {
         remaining(deadline)?;
         match stream.write(request) {
