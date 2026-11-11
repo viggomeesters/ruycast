@@ -26,6 +26,18 @@ crate-type = ["cdylib"]
 required-features = ["test-tools"]
 
 [[example]]
+name = "keyword-fixture"
+path = "tests/fixtures/keyword_fixture.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "keyword-missing-value-type"
+path = "tests/fixtures/keyword_missing_value_type.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "hid-host"
 path = "tests/fixtures/hid_host.rs"
 crate-type = ["cdylib"]

@@ -10,6 +10,7 @@ use std::{
 };
 pub(super) type Ptr = *mut c_void;
 pub(super) type Hook = unsafe extern "C" fn(Ptr);
+pub(super) type TapCallback = unsafe extern "C" fn(Ptr, u32, Ptr, Ptr) -> Ptr;
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
 pub(super) struct Range {
@@ -25,6 +26,16 @@ pub(super) struct Object {
     pub utf8: Vec<u8>,
     pub html: Option<Vec<u8>>,
     pub valid: bool,
+    pub enabled: bool,
+    pub range: Range,
+    pub value_kind: u32,
+    pub down: bool,
+    pub event_flags: u64,
+    pub key: i64,
+    pub tag: i64,
+    pub repeat: i64,
+    pub callback: Option<TapCallback>,
+    pub context: usize,
 }
 pub(super) struct State {
     pub allocated: u32,

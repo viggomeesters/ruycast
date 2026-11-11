@@ -366,6 +366,11 @@ rust-native/tests/keyword_reference.swift
 rust-native/tests/keyword_rich_process.py
 rust-native/tests/keyword_shim.c
 rust-native/tests/fixtures/keyword_core.rs
+rust-native/tests/fixtures/keyword_ax.rs
+rust-native/tests/fixtures/keyword_events.rs
+rust-native/tests/keyword_rust_provider.rs
+rust-native/tests/fixtures/keyword_fixture.rs
+rust-native/tests/fixtures/keyword_missing_value_type.rs
 rust-native/tests/fixtures/keyword_board.rs
 rust-native/tests/keyword_board.rs
 rust-native/tests/keyword_core.rs
