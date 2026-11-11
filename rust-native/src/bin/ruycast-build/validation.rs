@@ -119,6 +119,7 @@ script-advanced-process|c|run --manifest-path rust-native/Cargo.toml --features 
 clipboard-rich-paste|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_rich_paste --locked
 clipboard-preview-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets --locked -- --exact
 clipboard-preview-cancel-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset --locked -- --exact
+system-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example system-fixture --locked
 system-search-sdk|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test system_search_sdk --locked
 remaining-macos-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test remaining_macos_process --locked
 startup-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked
@@ -1818,7 +1819,11 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 116);
+        assert_eq!(steps.len(), 117);
+        let sdk_build = steps.iter().position(|step|step.name=="system-sdk-build").unwrap();
+        let sdk_test = steps.iter().position(|step|step.name=="system-search-sdk").unwrap();
+        assert!(sdk_build < sdk_test);
+        assert!(steps[sdk_build].arguments.windows(2).any(|pair|pair==["--example","system-fixture"]));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

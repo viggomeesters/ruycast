@@ -87,7 +87,7 @@ fn keyboard_fixture_sources() -> BTreeMap<PathBuf, String> {
         ),
         (
             "rust-native/Cargo.toml",
-            "31354ea882f6b01e147a2612c2e0ea37670a813b7fc7f78347f81f2a4d5a8226",
+            "7c711da9c3cdbf820c668dadd51f4ebcf5e2c398cbba1524b48066019cceb055",
         ),
         (
             "rust-native/Cargo.lock",

@@ -9,6 +9,12 @@ test-tools = []
 local-preview = []
 
 [[example]]
+name = "system-fixture"
+path = "tests/fixtures/system_fixture.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "system-nodes-probe"
 path = "tests/fixtures/system_nodes_probe.rs"
 required-features = ["test-tools"]
