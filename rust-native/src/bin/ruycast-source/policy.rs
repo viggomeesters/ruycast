@@ -337,8 +337,8 @@ rust-native/examples/clipboard_history_sdk_probe.rs
 rust-native/tests/clipboard_pause_repair.rs
 rust-native/tests/clipboard_rich_paste.rs
 rust-native/examples/ui_completion.rs
-rust-native/tests/clipboard_text_process.py
-rust-native/tests/clipboard_text_reference.swift
+rust-native/tests/clipboard_text_process.rs
+rust-native/tests/clipboard_text_reference.json
 rust-native/tests/creation_process.py
 rust-native/tests/dashboard_export_process.py
 rust-native/tests/dashboard_export_process.rs
