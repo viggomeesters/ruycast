@@ -35,102 +35,63 @@ pub fn default_config() -> Value {
 fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
-fn receipt(settings: &Config) {
-    let Some(directory) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") else {
-        return;
-    };
-    fs::create_dir_all(&directory).unwrap();
+
+pub fn bind_artifact(path: &Path, label: &str) -> (String, String) {
     let root = root();
-    let sources = [
-        "config/default.json",
-        "rust-native/tests/runtime_process.rs",
-        "rust-native/tests/support/runtime_host.rs",
-        "rust-native/tests/support/status_rpc.rs",
-        "rust-native/tests/support/child_output.rs",
-        "rust-native/tests/fixtures/fcntl_sync_shim.rs",
-        "rust-native/tests/fixtures/fcntl_abi.rs",
-        "rust-native/src/main.rs",
-        "rust-native/src/native_services.rs",
-        "rust-native/src/runtime.rs",
-        "rust-native/src/control.rs",
-        "rust-native/src/configuration_jobs.rs",
-        "rust-native/src/profile.rs",
-        "rust-native/Cargo.toml",
-        "rust-native/Cargo.lock",
-        "rust/Cargo.toml",
-        "rust/Cargo.lock",
-        "rust/src/lib.rs",
-        "rust/src/bin/ruycast.rs",
-        "rust-toolchain.toml",
-    ]
-    .into_iter()
-    .map(|p| (p, hash(&fs::read(root.join(p)).unwrap())))
-    .collect::<BTreeMap<_, _>>();
-    let sdk = settings
-        .host
-        .parent()
-        .unwrap()
-        .join("examples/libfcntl_sync_shim.dylib");
-    let mut artifacts = BTreeMap::new();
-    // Immutable content-addressed copies avoid retaining another large host/CLI
-    // binary for every separately bounded case. Publish only complete bytes.
-    for (name, path) in [
-        ("host", &settings.host),
-        ("cli", &settings.cli),
-        ("writer-sdk", &sdk),
-    ] {
-        if name == "writer-sdk" && !path.is_file() {
-            continue;
-        }
-        let bytes = fs::read(path).unwrap();
-        let digest = hash(&bytes);
-        let destination = if path.starts_with(&root) {
-            path.clone()
-        } else {
-            let parent = root.join("rust-native/target/runtime-proof-artifacts");
-            fs::create_dir_all(&parent).unwrap();
-            let target = parent.join(format!("{name}-{digest}"));
-            if !target.exists() {
-                static NEXT: AtomicU64 = AtomicU64::new(0);
-                let temporary = parent.join(format!(
-                    "copy-{}-{}",
-                    std::process::id(),
-                    NEXT.fetch_add(1, Ordering::Relaxed)
-                ));
-                let mut file = fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&temporary)
-                    .unwrap();
-                struct Pending(PathBuf);
-                impl Drop for Pending {
-                    fn drop(&mut self) {
-                        let _ = fs::remove_file(&self.0);
-                    }
-                }
-                let pending = Pending(temporary.clone());
-                file.write_all(&bytes).unwrap();
-                drop(file);
-                let published = fs::hard_link(&temporary, &target);
-                drop(pending);
-                if let Err(error) = published {
-                    assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+    let bytes = fs::read(path).unwrap();
+    let digest = hash(&bytes);
+    let destination = if path.starts_with(&root) {
+        path.to_owned()
+    } else {
+        let parent = root.join("rust-native/target/runtime-proof-artifacts");
+        fs::create_dir_all(&parent).unwrap();
+        let target = parent.join(format!("{label}-{digest}"));
+        if !target.exists() {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+            let temporary = parent.join(format!(
+                "copy-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)
+                .unwrap();
+            struct Pending(PathBuf);
+            impl Drop for Pending {
+                fn drop(&mut self) {
+                    let _ = fs::remove_file(&self.0);
                 }
             }
-            target
-        };
-        assert_eq!(hash(&fs::read(&destination).unwrap()), digest);
-        artifacts.insert(
-            destination
-                .strip_prefix(&root)
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_owned(),
-            digest,
-        );
-    }
-    fs::write(PathBuf::from(directory).join("runtime-reference-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"methods":15,"hostArguments":["--headless-test"],"scope":"Exclusive synthetic profiles, empty own Applications root, actual Rust CLI and optional same-profile Rust writer provider; no native-hidden, desktop input or applied app actions"})).unwrap()).unwrap();
+            let pending = Pending(temporary.clone());
+            file.write_all(&bytes).unwrap();
+            drop(file);
+            let published = fs::hard_link(&temporary, &target);
+            drop(pending);
+            if let Err(error) = published {
+                assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+            }
+        }
+        target
+    };
+    assert_eq!(hash(&fs::read(&destination).unwrap()), digest);
+    (
+        destination
+            .strip_prefix(&root)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned(),
+        digest,
+    )
+}
+// Each fixture consumer selects only its own guarded entry point.
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
+pub enum Entry {
+    HeadlessTest,
+    HiddenTest,
 }
 #[derive(Clone)]
 pub struct Config {
@@ -151,9 +112,7 @@ impl Config {
                 path.display()
             );
         }
-        let settings = Self { host, cli };
-        receipt(&settings);
-        settings
+        Self { host, cli }
     }
 }
 pub struct OwnedDir(pub PathBuf);
@@ -323,10 +282,17 @@ impl Host {
         self.profile.join("control.sock")
     }
     pub fn start(&mut self) {
+        self.start_entry(Entry::HeadlessTest);
+    }
+    pub fn start_entry(&mut self, entry: Entry) {
+        let (argument, timeout) = match entry {
+            Entry::HeadlessTest => ("--headless-test", Duration::from_secs(6)),
+            Entry::HiddenTest => ("--native-hidden", Duration::from_secs(8)),
+        };
         assert!(self.process.is_none());
         let mut child = self
             .command(&self.settings.host)
-            .arg("--headless-test")
+            .arg(argument)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -340,7 +306,7 @@ impl Host {
         let err = Drain::new(stderr);
         self.drains = Some((out, err));
         let socket = self.socket();
-        status_rpc::wait(&socket, Duration::from_secs(6), || {
+        status_rpc::wait(&socket, timeout, || {
             self.process.as_mut().unwrap().try_wait().unwrap().is_none()
         });
     }
