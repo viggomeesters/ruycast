@@ -1070,17 +1070,27 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/tests/dashboard_export_process.py",
                 include_bytes!("../../../tests/dashboard_export_process.py"),
-                "e82e19aa001c1fc9a3f0320ef1ab91b7f9d23743b158312ffc05207a66bccab2",
+                "4b2ea05620fc454903c56d0ed909180f357d379d5eb1ae87607fda59fd902572",
             ),
             (
                 "rust-native/tests/dashboard_export_process.rs",
                 include_bytes!("../../../tests/dashboard_export_process.rs"),
-                "6743a44943785c7211375bcceb9e71b196ef9cac22dbe15f18d7641ba1ca61aa",
+                "710c9f5b5010acef290e19af2a9f14d3f1cb8851cf4d596f97952dea33644a0b",
             ),
             (
-                "rust-native/tests/dashboard_export_shim.c",
-                include_bytes!("../../../tests/dashboard_export_shim.c"),
-                "1d8fa5de74e2710c8394bb65661cf83101f30666813b00e6d70084dd70299250",
+                "rust-native/tests/fixtures/dashboard_export_shim.rs",
+                include_bytes!("../../../tests/fixtures/dashboard_export_shim.rs"),
+                "843e90a21bd0018028b3343c17f08b5ae491fd650c48da37095120f8d5238a47",
+            ),
+            (
+                "rust-native/tests/fixtures/fcntl_abi.rs",
+                include_bytes!("../../../tests/fixtures/fcntl_abi.rs"),
+                "b2b7194db0bf1adef57aab17e3424a90c67818eadac43ee6b651d3a7b4eb0029",
+            ),
+            (
+                "rust-native/src/test_fixtures.rs",
+                include_bytes!("../../test_fixtures.rs"),
+                "3ee56f1afc0008bda747798f54aa1d3a039603d16451ed24b67f6ea8fb0b06b5",
             ),
             (
                 "Sources/RuycastApp/AnalyticsChecks.swift",
