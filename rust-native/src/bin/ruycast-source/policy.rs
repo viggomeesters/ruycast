@@ -114,7 +114,8 @@ Tests/LauncherCoreTests/PrivateFileChecks.swift
 Tests/LauncherCoreTests/ScriptChoiceChecks.swift
 Tests/LauncherCoreTests/SnippetOutputChecks.swift
 Tests/LauncherCoreTests/TaskDateInputChecks.swift
-Tests/fixtures/private_fsync_shim.c
+Tests/fixtures/private_fsync_shim.rs
+Tests/fixtures/private_fsync_probe.rs
 Tests/fixtures/search-quality.json
 Tests/test_architecture.py
 Tests/test_benchmark_host.py

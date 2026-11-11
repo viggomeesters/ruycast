@@ -1189,6 +1189,10 @@ pub mod reference {
         fn retire_field_input(&self, bridge:&Bridge, epoch:u64,completion_or_reset_confirmed:bool)->Result<()>;
         /// Release this Bridge's exact borrowed box while its original parents
         /// stay independently held. An error must precede the foreign release.
+        ///
+        /// # Safety
+        /// The object and drop function must describe this Bridge's live borrowed
+        /// box; its original parents must remain retained throughout the release.
         unsafe fn release_borrowed_field_box(
             &self,
             _object: NonNull<c_void>,
