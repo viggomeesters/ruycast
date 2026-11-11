@@ -26,6 +26,29 @@ crate-type = ["cdylib"]
 required-features = ["test-tools"]
 
 [[example]]
+name = "hid-host"
+path = "tests/fixtures/hid_host.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "hid-host-missing-post"
+path = "tests/fixtures/hid_host_missing_post.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "hid-host-missing-parameter"
+path = "tests/fixtures/hid_host_missing_parameter.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "hid-host-probe"
+path = "tests/fixtures/hid_host_probe.rs"
+required-features = ["test-tools"]
+
+[[example]]
 name = "hid-missing-post"
 path = "tests/fixtures/hid_missing_post.rs"
 crate-type = ["cdylib"]
