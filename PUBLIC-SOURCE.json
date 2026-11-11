@@ -663,7 +663,7 @@
     "rust-native/tests/template_process.py": "fd5311bc2ec318ff03e295e85b249efb352779ff59568f45f202a0d9620cec64",
     "rust-native/tests/template_reference.swift": "8277b17db1514af8c98b7ec0e07f66c8fe3beb7ef4500a646669e8e0ebb5e214",
     "rust-native/tests/utility_oracle.rs": "de19bf01bf1afb229c32cf8545a2e42bac07d04514cd50670f9589d14af34acc",
-    "rust-native/tests/utility_process.rs": "bf7a11c64984f4135494018af14978dbce1f2b88c50c96d29839e2665435be56",
+    "rust-native/tests/utility_process.rs": "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa",
     "rust-native/tests/workspace_activation_process.rs": "5fd599354fc74d47540ae8dc195822691b2c357481827ff222de94c63db03bbb",
     "rust-native/tests/workspace_process.py": "4bf12c5e888897d6bc06fd3ddf5b4f8754887413f3c5688237e0016c51e27377",
     "rust-native/tests/workspace_rust_provider.rs": "b0a7ceb1fc325a668114128472afad2ce54f4e488a05b9f5a9b506c33ee682c6",
