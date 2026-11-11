@@ -40,10 +40,18 @@ class NativeChoice(unittest.TestCase):
     def setUpClass(cls):
         keyboard.NativeKeyboard.setUpClass.__func__(cls)
         cls.guard=Path(cls.sdk.name)/'choice-guard.dylib'
-        subprocess.run(['clang','-Wall','-Wextra','-Werror','-fobjc-arc','-fblocks','-dynamiclib','-framework','AppKit',str(rt.ROOT/'tests/snippet_choice_guard.m'),'-o',str(cls.guard)],check=True,capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',rt.ROOT.parent/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_CHOICE_SDK',target/'release/examples/libchoice_fixture.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example choice-fixture first')
+        shutil.copyfile(artifact,cls.guard)
+        assert hashlib.sha256(artifact.read_bytes()).digest()==hashlib.sha256(cls.guard.read_bytes()).digest()
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-            out=Path(folder);out.mkdir(parents=True,exist_ok=True);artifact=out/'native-choice-guard.dylib';shutil.copyfile(cls.guard,artifact);sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();source=rt.ROOT/'tests/snippet_choice_guard.m'
-            (out/'native-choice-bindings.json').write_text(json.dumps(dict(sources={str(source.relative_to(rt.ROOT.parent)):sha(source)},artifacts={str(artifact.relative_to(rt.ROOT.parent)):sha(artifact)}),indent=2))
+            out=Path(folder);out.mkdir(parents=True,exist_ok=True);artifact=out/'native-choice-guard.dylib';shutil.copyfile(cls.guard,artifact);sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+            sources=[rt.ROOT/'tests/fixtures'/name for name in ['choice_board_sdk.rs','choice_monitor_sdk.rs','choice_fixture.rs']]
+            sources.extend([rt.ROOT/'Cargo.toml',rt.ROOT/'Cargo.lock',rt.ROOT.parent/'rust/Cargo.toml',rt.ROOT.parent/'rust-toolchain.toml'])
+            artifact_name=artifact.relative_to(rt.ROOT.parent) if artifact.is_relative_to(rt.ROOT.parent) else artifact
+            (out/'native-choice-bindings.json').write_text(json.dumps(dict(sources={str(source.relative_to(rt.ROOT.parent)):sha(source) for source in sources},artifacts={str(artifact_name):sha(artifact)}),indent=2))
 
     @classmethod
     def tearDownClass(cls):keyboard.NativeKeyboard.tearDownClass.__func__(cls)
