@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import random
+import shutil
 import subprocess
 import unittest
 
@@ -14,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parent
 REFERENCE_DIR = ROOT / 'target/snippet-reference'
 REFERENCE = REFERENCE_DIR / 'snippet-reference'
-BIN = ROOT / 'target/debug/snippet-probe'
+BIN = Path(os.environ.get('RUYCAST_SNIPPET_PROBE', ROOT / 'target/debug/snippet-probe'))
 SHIM = REFERENCE_DIR / 'snippet-faults.dylib'
 
 
@@ -47,18 +48,21 @@ class SnippetOutput(unittest.TestCase):
             ['swiftc', '-parse-as-library', '-I', str(REFERENCE_DIR), '-L', str(REFERENCE_DIR),
              '-lLauncherModels', '-lLauncherCore', '-Xlinker', '-rpath', '-Xlinker', str(REFERENCE_DIR),
              *map(str, sources[4:]), '-o', str(REFERENCE)],
-            ['clang', '-dynamiclib', '-fobjc-arc', '-framework', 'AppKit',
-             str(ROOT / 'tests/snippet_faults.m'), '-o', str(SHIM)],
         ]
         for command in commands:
             run = subprocess.run(command, capture_output=True, text=True, timeout=90)
             if run.returncode:
                 raise AssertionError(run.stderr)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',REPO/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_SNIPPET_FAULTS',target/'release/examples/libsnippet_faults.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example snippet-faults and set RUYCAST_TEST_SNIPPET_FAULTS first')
+        shutil.copyfile(artifact,SHIM)
         if evidence := os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             p = Path(evidence) / 'snippet-reference-bindings.json'
             p.parent.mkdir(parents=True, exist_ok=True)
             sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
-            p.write_text(json.dumps(dict(sources={str(p.relative_to(REPO)): sha(p) for p in sources + [ROOT / 'tests/snippet_faults.m']},
+            p.write_text(json.dumps(dict(sources={str(p.relative_to(REPO)): sha(p) for p in sources + [ROOT / 'tests/fixtures/snippet_faults.rs']},
                                         artifacts={str(p.relative_to(REPO)): sha(p) for p in artifacts}), indent=2))
 
     @classmethod

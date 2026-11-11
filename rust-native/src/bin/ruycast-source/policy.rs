@@ -374,7 +374,7 @@ rust-native/tests/snippet_choice_reference.swift
 rust-native/tests/snippet_choice_request_process.py
 rust-native/tests/snippet_effects_process.py
 rust-native/tests/snippet_effects_shim.m
-rust-native/tests/snippet_faults.m
+rust-native/tests/fixtures/snippet_faults.rs
 rust-native/tests/snippet_process.py
 rust-native/tests/snippet_reference.swift
 rust-native/tests/fixtures/supervision_fault_shim.rs
