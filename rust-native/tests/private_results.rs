@@ -611,7 +611,9 @@ fn script_result_atomic_replace_reports_the_complete_owned_reload_response() {
     )
     .unwrap();
     fs::create_dir(home.join("Applications")).unwrap();
-    let mut command = json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":"/usr/bin/python3","arguments":["-c","print(\"fixture result\")"],"timeout":3});
+    let fixture = env!("CARGO_BIN_EXE_private-results-fixture");
+    let marker = home.join("script.fixture.marker");
+    let mut command = json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":fixture,"arguments":["fake","write",marker,"fixture result\n"],"timeout":3});
     config["commands"]
         .as_array_mut()
         .unwrap()
@@ -619,8 +621,7 @@ fn script_result_atomic_replace_reports_the_complete_owned_reload_response() {
     let candidate = file.with_extension("candidate");
     fs::write(&candidate, python_config_bytes(&config)).unwrap();
     fs::rename(&candidate, &file).unwrap();
-    let binary =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("target/headless-tools/debug/ruycast-native");
+    let binary = Path::new(env!("CARGO_BIN_EXE_ruycast-native"));
     let mut launch = Command::new(&binary);
     launch.arg("--headless-test");
     // Same finite sanitization as the unchanged Python Host, without replacing
@@ -689,10 +690,7 @@ fn script_result_atomic_replace_reports_the_complete_owned_reload_response() {
         std::thread::sleep(Duration::from_millis(20));
     };
     let payload = r#"{"ok": true, "choices": {"title": "Project Koppelen", "placeholder": "Zoek project…", "items": [{"id": "one", "title": "Café Project", "subtitle": "EX / PLAN", "value": "PRIVATE literal $(value) Ω", "extra": "unchanged"}]}, "detail": "PRIVATE report Ω", "extra": {"data": "PRIVATE extra"}}"#;
-    command["arguments"] = json!([
-        "-c",
-        format!("import sys;print('{payload}');raise SystemExit(0)")
-    ]);
+    command["arguments"] = json!(["fake", "write", marker, format!("{payload}\n")]);
     let mut replacement: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
     replacement["commands"]
         .as_array_mut()
