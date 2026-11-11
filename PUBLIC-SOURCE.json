@@ -552,7 +552,7 @@
     "rust-native/tests/clipboard_history_rust_provider.rs": "f98cd86a1215754abb85a0ae47c6d330c44b48934d492fc670215b2e59400c1b",
     "rust-native/tests/clipboard_history_shim.m": "38b5bcae83ec5bbc1a47a6d45a086ebf77040a72c1ca37ca12553caa81f1cdbb",
     "rust-native/tests/clipboard_pause_repair.rs": "004b5d0a1d3be12f8f8b7bc71b50a1afddc87516e9d0b3b06db96138816ea026",
-    "rust-native/tests/clipboard_rich_paste.rs": "57da58a651b534a0bdaee1970d945f162445c1fa039b7a8ffff20c5f7b9a74fc",
+    "rust-native/tests/clipboard_rich_paste.rs": "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8",
     "rust-native/tests/clipboard_text_process.py": "d0e0674069d725a2311b674a2a994ec44cda532db57f4688f4f366295ad3267f",
     "rust-native/tests/clipboard_text_reference.swift": "7e842b4d814f6b3b57edb88af43b034e8c9c13ac56ac98311162a130e22201ed",
     "rust-native/tests/creation_process.py": "e191f893b1cefbf6cba51ef5cc1041cb73b29c7ea1243ec4a4aa0d8b94fd1f4e",
