@@ -20,6 +20,12 @@ path = "../Tests/fixtures/private_fsync_probe.rs"
 required-features = ["test-tools"]
 
 [[example]]
+name = "snippet-faults"
+path = "tests/fixtures/snippet_faults.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "supervision-fault-shim"
 path = "tests/fixtures/supervision_fault_shim.rs"
 crate-type = ["cdylib"]
