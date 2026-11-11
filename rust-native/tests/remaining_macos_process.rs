@@ -2,6 +2,7 @@
 //! native lock/kill/global key, personal index or user window is exercised.
 #![cfg(feature = "test-tools")]
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 #[path = "support/child_output.rs"]
 mod child_output;
 use std::{
@@ -885,30 +886,23 @@ fn native_file_open_uses_owned_workspace_and_cli_menu_run_requires_original_iden
 fn direct_native_sdk_geometry_and_workspace_effects_have_complete_owned_substitutes() {
     let host = Host::new(false, "light");
     let system = native().join("target/remaining-system-sdk.dylib");
-    let output = Command::new("cc")
-        .args([
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-fobjc-arc",
-            "-fblocks",
-            "-dynamiclib",
-            "-framework",
-            "AppKit",
-            "-framework",
-            "ApplicationServices",
-            "-framework",
-            "Carbon",
-        ])
-        .arg(native().join("tests/system_search_sdk_shim.m"))
-        .arg("-o")
-        .arg(&system)
-        .output()
-        .unwrap();
+    let executable = Path::new(env!("CARGO_BIN_EXE_macos-effects-probe"));
+    let artifact = std::env::var_os("RUYCAST_TEST_SYSTEM_SDK")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            executable
+                .parent()
+                .unwrap()
+                .join("examples/libsystem_fixture.dylib")
+        });
     assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        artifact.is_absolute() && artifact.is_file(),
+        "Build the same-profile system-fixture Rust example first"
+    );
+    fs::copy(&artifact, &system).unwrap();
+    assert_eq!(
+        Sha256::digest(fs::read(&artifact).unwrap()),
+        Sha256::digest(fs::read(&system).unwrap())
     );
     let probe = env!("CARGO_BIN_EXE_macos-effects-probe");
     for (mode, libraries) in [
