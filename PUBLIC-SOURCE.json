@@ -551,7 +551,7 @@
     "rust-native/tests/clipboard_history_process.py": "72798c56f799ebc73893de1e53345ead4d2bc82125e1a76be47bd0b529752066",
     "rust-native/tests/clipboard_history_rust_provider.rs": "f98cd86a1215754abb85a0ae47c6d330c44b48934d492fc670215b2e59400c1b",
     "rust-native/tests/clipboard_history_shim.m": "38b5bcae83ec5bbc1a47a6d45a086ebf77040a72c1ca37ca12553caa81f1cdbb",
-    "rust-native/tests/clipboard_pause_repair.rs": "4bc5a1b159d4bb6e51f1d46d7a4a360d078dd9658343606c50f6201018f616d2",
+    "rust-native/tests/clipboard_pause_repair.rs": "004b5d0a1d3be12f8f8b7bc71b50a1afddc87516e9d0b3b06db96138816ea026",
     "rust-native/tests/clipboard_rich_paste.rs": "57da58a651b534a0bdaee1970d945f162445c1fa039b7a8ffff20c5f7b9a74fc",
     "rust-native/tests/clipboard_text_process.py": "d0e0674069d725a2311b674a2a994ec44cda532db57f4688f4f366295ad3267f",
     "rust-native/tests/clipboard_text_reference.swift": "7e842b4d814f6b3b57edb88af43b034e8c9c13ac56ac98311162a130e22201ed",
