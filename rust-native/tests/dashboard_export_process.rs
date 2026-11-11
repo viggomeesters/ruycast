@@ -17,25 +17,9 @@ use std::{
     time::{Duration, Instant},
 };
 static NEXT: AtomicU64 = AtomicU64::new(0);
-fn shim() -> &'static Path {
+fn shim(log: &Path) -> &'static Path {
     static SHIM: OnceLock<PathBuf> = OnceLock::new();
-    SHIM.get_or_init(|| {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let path = root.join("target/dashboard-export-shim.dylib");
-        let output = Command::new("/usr/bin/clang")
-            .args(["-Wall", "-Wextra", "-Werror", "-dynamiclib"])
-            .arg(root.join("tests/dashboard_export_shim.c"))
-            .arg("-o")
-            .arg(&path)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        path
-    })
+    SHIM.get_or_init(|| ruycast_native::test_fixtures::dashboard(log))
 }
 fn private_file(path: &Path) -> File {
     OpenOptions::new()
@@ -51,7 +35,6 @@ struct Host {
 }
 impl Host {
     fn start() -> Self {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let parent = PathBuf::from(
             std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
                 .expect("owned fixture parent required"),
@@ -82,7 +65,7 @@ impl Host {
             include_bytes!("../../config/default.json"),
         )
         .unwrap();
-        let binary = root.join("target/native-tools/debug/ruycast-native");
+        let binary = Path::new(env!("CARGO_BIN_EXE_ruycast-native"));
         let child = Command::new(&binary)
             .arg("--native-hidden")
             .env_clear()
@@ -93,7 +76,7 @@ impl Host {
                 "RUYCAST_NATIVE_TEST_APP_ROOTS",
                 serde_json::to_string(&[base.join("Applications")]).unwrap(),
             )
-            .env("DYLD_INSERT_LIBRARIES", shim())
+            .env("DYLD_INSERT_LIBRARIES", shim(&base.join("fixture-build.log")))
             .env("RUYCAST_DASHBOARD_FIXTURE_HOME", &base)
             .stdin(Stdio::null())
             .stdout(private_file(&base.join("stdout")))

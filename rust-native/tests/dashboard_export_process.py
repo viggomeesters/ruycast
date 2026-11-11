@@ -6,7 +6,10 @@ import runtime_process as rt
 class Exports(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.shim=rt.ROOT/'target/dashboard-export-shim.dylib';subprocess.run(['clang','-Wall','-Wextra','-Werror','-dynamiclib',str(rt.ROOT/'tests/dashboard_export_shim.c'),'-o',str(cls.shim)],check=True,capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',rt.ROOT.parent/'.build/full-rust-release/native'))
+        cls.shim=Path(os.environ.get('RUYCAST_TEST_DASHBOARD_SHIM',target/'release/examples/libdashboard_export_shim.dylib'))
+        if not cls.shim.is_absolute() or not cls.shim.is_file():
+            raise RuntimeError('Build --features test-tools --example dashboard-export-shim and set RUYCAST_TEST_DASHBOARD_SHIM first')
     def host(self):
         h=SettingsHost(start=False);self.addCleanup(h.close);h.env.update(DYLD_INSERT_LIBRARIES=str(self.shim),RUYCAST_DASHBOARD_FIXTURE_HOME=str(h.base));h.start();h.settled();h.rpc(dict(op='show',mode='analytics'));h.settled(lambda s:s['managementUI']['tab']=='dashboard');folder=h.base/'export';folder.mkdir(mode=0o755);folder.chmod(0o755);self.addCleanup(lambda:(h.base/'export-file-sync-release').touch() if h.base.exists() else None);self.addCleanup(lambda:(h.base/'export-rename-release').touch() if h.base.exists() else None);return h,folder/'diagnostics.json'
     def wait(self,h,predicate):
