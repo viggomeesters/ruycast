@@ -1,5 +1,6 @@
 //! Negative combined host SDK: genuinely no HID post symbol.
 const HOST: bool = true;
+const KEYBOARD_READY_GATE: Option<fn() -> bool> = None;
 const HID_HOST: Option<hid_sdk::Host> = Some(hid_sdk::Host {
     ready: keyboard_sdk::ruycast_keyboard_fixture_ready,
     emit: keyboard_sdk::ruycast_keyboard_fixture_emit_binding,

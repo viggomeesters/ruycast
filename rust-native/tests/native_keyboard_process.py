@@ -13,18 +13,25 @@ import unittest
 import bridge_process as bridge
 import actions_process as actions
 import runtime_process as rt
-import keyword_fixture
+
+if native_host := os.environ.get('RUYCAST_TEST_APP_HOST'):
+    bridge.TOOLS=Path(native_host)
+    rt.HOST=bridge.TOOLS
 
 class NativeKeyboard(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.sdk = tempfile.TemporaryDirectory(prefix='native-keyboard-sdk-',dir=rt.ROOT/'target')
+        parent=Path(os.environ.get('RUYCAST_NATIVE_TEST_FIXTURE_DIR',rt.ROOT/'target'));parent.mkdir(parents=True,exist_ok=True)
+        cls.sdk = tempfile.TemporaryDirectory(prefix='native-keyboard-sdk-',dir=parent)
         cls.shim=Path(cls.sdk.name)/'keyboard.dylib'
-        notification=keyword_fixture.notification_object(Path(cls.sdk.name))
-        subprocess.run(['clang','-dynamiclib','-Wall','-Wextra','-Werror','-fobjc-arc','-fblocks','-framework','AppKit','-DRUYCAST_HID_HOST_FIXTURE',notification,str(rt.ROOT/'tests/keyword_shim.c'),str(rt.ROOT/'tests/keyboard_shim.c'),str(rt.ROOT/'tests/hid_shim.c'),str(rt.ROOT/'tests/workspace_shim.m'),'-o',str(cls.shim)],check=True,capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',rt.ROOT.parent/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_KEYBOARD_HOST_SHIM',target/'release/examples/libkeyboard_host.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example keyboard-host first')
+        shutil.copyfile(artifact,cls.shim)
         if out:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             dest=Path(out)/'host-sdks';dest.mkdir(parents=True,exist_ok=True);artifact=dest/(cls.__name__+'.dylib');shutil.copy2(cls.shim,artifact)
-            sources={str(rt.ROOT/'tests'/name):hashlib.sha256((rt.ROOT/'tests'/name).read_bytes()).hexdigest() for name in ['keyword_shim.c','keyword_notification_shim.m','keyword_fixture.py','keyboard_shim.c','hid_shim.c','workspace_shim.m']}
+            sources={str(rt.ROOT.parent/name):hashlib.sha256((rt.ROOT.parent/name).read_bytes()).hexdigest() for name in ['rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust-toolchain.toml','rust-native/tests/fixtures/keyboard_host_loader.json',*[f'rust-native/tests/fixtures/{name}.rs' for name in ['keyboard_host','caps_sdk','hid_sdk','keyboard_sdk','keyword_core','keyword_notification','keyword_board','keyword_ax','keyword_events','workspace_sdk']]]}
             (dest/(cls.__name__+'.json')).write_text(json.dumps(dict(sources=sources,artifact=str(artifact),sha256=hashlib.sha256(artifact.read_bytes()).hexdigest()),indent=2))
     @classmethod
     def tearDownClass(cls):cls.sdk.cleanup()

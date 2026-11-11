@@ -162,6 +162,11 @@ unsafe fn reenter(id: u32, phase: &CStr) {
 /// The fixture environment must remain stable while the SDK is in use.
 #[no_mangle]
 pub(super) unsafe extern "C" fn ruycast_keyboard_fixture_ready() -> u64 {
+    if let Some(gate) = super::KEYBOARD_READY_GATE {
+        if !gate() {
+            return 0;
+        }
+    }
     if libc::getenv(c"RUYCAST_KEYBOARD_FIXTURE_HOME".as_ptr()).is_null() {
         return 0;
     }
@@ -448,6 +453,7 @@ unsafe extern "C" fn ruycast_keyboard_fixture_emit_id(id: u32) -> i32 {
     record(c"emit-id", id.into(), result.into(), 0);
     result
 }
+#[export_name = "ruycast_keyboard_fixture_cleanup"]
 unsafe extern "C" fn cleanup() {
     for slot in &mut STATE.lock().unwrap().keys {
         *slot = None;
