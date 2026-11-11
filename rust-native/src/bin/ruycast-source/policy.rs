@@ -414,6 +414,9 @@ rust-native/tests/template_reference.swift
 rust-native/tests/workspace_activation_process.py
 rust-native/tests/workspace_process.py
 rust-native/tests/workspace_shim.m
+rust-native/tests/fixtures/workspace_sdk.rs
+rust-native/tests/fixtures/workspace_fixture.rs
+rust-native/tests/workspace_rust_provider.rs
 rust/Cargo.lock
 rust/Cargo.toml
 rust/src/bin/ruycast.rs
