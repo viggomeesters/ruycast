@@ -41,30 +41,15 @@ fn build_fixtures() -> &'static (PathBuf, PathBuf) {
             String::from_utf8_lossy(&result.stderr)
         );
         let effects = out.join("utility-effects.dylib");
-        let result = Command::new("cc")
-            .args([
-                "-Wall",
-                "-Wextra",
-                "-Werror",
-                "-fobjc-arc",
-                "-fblocks",
-                "-dynamiclib",
-                "-framework",
-                "AppKit",
-                "-framework",
-                "ApplicationServices",
-            ])
-            .arg(root().join("tests/clipboard_history_shim.m"))
-            .arg("-o")
-            .arg(&effects)
-            .output()
-            .unwrap();
-        fs::write(out.join("effects-build.log"), &result.stderr).unwrap();
-        assert!(
-            result.status.success(),
-            "{}",
-            String::from_utf8_lossy(&result.stderr)
-        );
+        let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
+            .unwrap_or_else(|| root().parent().unwrap().join(".build/full-rust-release/native"));
+        let source = std::env::var_os("RUYCAST_TEST_HISTORY_SDK").map(PathBuf::from)
+            .unwrap_or_else(|| target.join("release/examples/libclipboard_history_fixture.dylib"));
+        assert!(source.is_absolute() && source.is_file(), "Build the clipboard-history-fixture Rust example first");
+        fs::copy(&source, &effects).unwrap();
+        let sha = |path: &Path| format!("{:x}", Sha256::digest(fs::read(path).unwrap()));
+        assert_eq!(sha(&source), sha(&effects));
+        fs::write(out.join("effects-artifact.json"), serde_json::to_vec_pretty(&json!({"source":source,"artifact":effects,"sha256":sha(&effects),"compilerInvoked":false})).unwrap()).unwrap();
         (security, effects)
     })
 }
@@ -186,6 +171,10 @@ impl Host {
             "src/native_paste.rs",
             "tests/utility_process.rs",
             "tests/fixtures/utility_security_fixture.rs",
+            "tests/fixtures/workspace_sdk.rs",
+            "tests/fixtures/snippet_effects_sdk.rs",
+            "tests/fixtures/clipboard_history_sdk.rs",
+            "tests/fixtures/clipboard_history_fixture.rs",
             "Cargo.toml",
             "Cargo.lock",
         ] {
