@@ -329,6 +329,7 @@ rust-native/tests/choice_monitor_rust_provider.rs
 rust-native/tests/fixtures/system_nodes.rs
 rust-native/tests/fixtures/system_effects.rs
 rust-native/tests/fixtures/system_apps.rs
+rust-native/tests/fixtures/system_events.rs
 rust-native/tests/fixtures/system_nodes_probe.rs
 rust-native/tests/system_nodes_rust_provider.rs
 rust-native/examples/clipboard_history_sdk_probe.rs
