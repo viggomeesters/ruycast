@@ -26,6 +26,12 @@ crate-type = ["cdylib"]
 required-features = ["test-tools"]
 
 [[example]]
+name = "keyboard-host"
+path = "tests/fixtures/keyboard_host.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "workspace-fixture"
 path = "tests/fixtures/workspace_fixture.rs"
 crate-type = ["cdylib"]

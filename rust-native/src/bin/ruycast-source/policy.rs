@@ -353,6 +353,9 @@ rust-native/tests/input_process.py
 rust-native/tests/keyboard_process.py
 rust-native/tests/keyboard_shim.c
 rust-native/tests/fixtures/keyboard_sdk.rs
+rust-native/tests/fixtures/keyboard_host.rs
+rust-native/tests/fixtures/keyboard_host_loader.json
+rust-native/tests/keyboard_host_provider.rs
 rust-native/tests/fixtures/keyboard_fixture.rs
 rust-native/tests/fixtures/keyboard_missing_parameter.rs
 rust-native/tests/keyword_capture_process.py

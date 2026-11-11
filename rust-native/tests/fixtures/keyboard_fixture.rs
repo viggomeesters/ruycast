@@ -1,4 +1,5 @@
 //! Complete owned Carbon fixture.
+const KEYBOARD_READY_GATE: Option<fn() -> bool> = None;
 mod keyboard_sdk;
 #[no_mangle]
 unsafe extern "C" fn ruycast_keyboard_fixture_parameter(
