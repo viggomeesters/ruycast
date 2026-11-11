@@ -2,6 +2,7 @@
 
 ## 0.9.0 — Rust candidate (unreleased)
 
+- Keep Caps Lock off after a successful Hyper start, including delayed latch changes, pauses and shutdown.
 - Move the native app, command-line interface, configuration and local storage to Rust, preserving the existing launcher, editors and macOS integration routes.
 - Build and package the app through Rust tooling. Historical Swift sources remain test references.
 - Complete performance, endurance, public-source and installation acceptance before publishing this candidate. The working 0.8.26/build66 installation remains in place.

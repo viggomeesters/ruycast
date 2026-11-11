@@ -39,7 +39,7 @@ class HidSdk(unittest.TestCase):
                             str(ROOT / 'tests/hid_shim.c'), '-o', str(DIRECTORY / (name + '.dylib'))],
                            check=True, capture_output=True)
 
-    def run_case(self, operations, original=True, env=0):
+    def run_case(self, operations, original=True, env=0, final_caps=False):
         environment = dict(os.environ)
         environment['DYLD_INSERT_LIBRARIES'] = str(DIRECTORY / 'complete.dylib')
         process = subprocess.run([str(PROBE)], input=json.dumps(dict(operations=operations, original=original, env=env)),
@@ -47,7 +47,7 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(process.returncode, 0, process.stderr)
         data = json.loads(process.stdout)
         self.assertEqual(data['cleanup']['allocated'], 0, process.stderr)
-        self.assertEqual(data['cleanup']['caps'], int(original), process.stderr)
+        self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
     def test_hyper_physical_down_up_flags_and_balanced_stop(self):
@@ -57,7 +57,7 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(rows[2]['state']['lastFlags'], HYPER)
         self.assertEqual(rows[3]['result'], dict(consumed=False, flags=(1 << 63) | 0x10 | HYPER))
         self.assertEqual(rows[4]['state']['lastFlags'], 0)
-        self.assertEqual(rows[5]['state']['caps'], 1)
+        self.assertEqual(rows[5]['state']['caps'], 0)
 
     def test_caps_on_two_devices_and_removal_releases_only_last(self):
         rows, _ = self.run_case([plan(), op('refresh'), raw(57, True, device=0), raw(57, True, device=1),
@@ -70,7 +70,7 @@ class HidSdk(unittest.TestCase):
         rows, _ = self.run_case([plan(False, sided={'right-cmd+a': 'item'}), op('refresh'),
                                  op('accept', value=False), event(flags=CMD | 16), event(11, flags=CMD | 16),
                                  op('accept', value=True), event(flags=CMD | 16), event(flags=CMD | 16, repeat=True),
-                                 event(11, flags=CMD | 16), event(11, flags=CMD | 16), event(flags=CMD | 8)])
+                                 event(11, flags=CMD | 16), event(11, flags=CMD | 16), event(flags=CMD | 8)], final_caps=True)
         self.assertFalse(rows[3]['result']['consumed'])
         self.assertFalse(rows[4]['result']['consumed'])
         for index in [6, 7, 8]: self.assertTrue(rows[index]['result']['consumed'])
@@ -90,9 +90,9 @@ class HidSdk(unittest.TestCase):
     def test_scroll_and_mouse_cancel_modifier_taps_with_native_types(self):
         for kind in [1, 3, 10, 22, 25]:
             rows, _ = self.run_case([plan(False, modifiers={'224': 'tap'}), op('refresh'), raw(224, True),
-                                     event(kind), raw(224, False, .2)])
+                                     event(kind), raw(224, False, .2)], final_caps=True)
             self.assertEqual(rows[-1]['actions'], [], kind)
-        rows, _ = self.run_case([plan(False, modifiers={'224': 'tap'}), op('refresh'), raw(224, True), raw(224, False, .5)])
+        rows, _ = self.run_case([plan(False, modifiers={'224': 'tap'}), op('refresh'), raw(224, True), raw(224, False, .5)], final_caps=True)
         self.assertEqual(rows[-1]['actions'], [dict(generation=1, canonical='ctrl+left-control', action='tap')])
 
     def test_identical_plan_generation_preserves_held_physical_and_hardware(self):
@@ -128,7 +128,7 @@ class HidSdk(unittest.TestCase):
     def test_setup_reentry_stop_at_each_native_boundary_never_reports_on(self):
         for stage in ['tap_create', 'source', 'add_source', 'manager_create', 'device_dictionary', 'device_matching',
                       'input_dictionary', 'input_matching', 'register_input', 'register_remove', 'schedule', 'manager_open', 'tap_enable', 'tap_enabled']:
-            rows, _ = self.run_case([plan(), op('hook', name=stage, mode='stop'), op('refresh')])
+            rows, _ = self.run_case([plan(), op('hook', name=stage, mode='stop'), op('refresh')], final_caps=True)
             self.assertNotEqual(rows[-1]['status'], 'On', stage)
             self.assertEqual(rows[-1]['state']['allocated'], 0, stage)
             self.assertEqual(rows[-1]['state']['caps'], 1, stage)
@@ -138,7 +138,7 @@ class HidSdk(unittest.TestCase):
             rows, _ = self.run_case([plan(), op('refresh'), op('hook', name=stage, mode='stop'), raw(57, True), op('refresh'), op('stop')])
             self.assertFalse(rows[-1]['state']['lastDown'], stage)
             self.assertEqual(rows[-1]['state']['lastFlags'], 0, stage)
-            self.assertEqual(rows[-1]['state']['caps'], 1, stage)
+            self.assertEqual(rows[-1]['state']['caps'], 0, stage)
 
     def test_event_flags_restore_after_setter_reentry_stop(self):
         original = (1 << 63) | CMD | 16
@@ -156,13 +156,13 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(rows[8]['status'], 'On')
 
     def test_off_sleep_and_environment_precedence_short_circuit_discovery(self):
-        rows, trace = self.run_case([plan(False), op('refresh')], env=15)
+        rows, trace = self.run_case([plan(False), op('refresh')], env=15, final_caps=True)
         self.assertEqual(rows[-1]['status'], 'Off')
         self.assertNotIn('hid-fixture:raycast', trace)
         for env, expected in [(15, 'Quit Raycast'), (7, 'Paused during secure'), (6, 'Allow Accessibility'), (4, 'Allow Input Monitoring')]:
-            rows, _ = self.run_case([plan(), op('refresh')], env=env)
+            rows, _ = self.run_case([plan(), op('refresh')], env=env, final_caps=True)
             self.assertIn(expected, rows[-1]['status'])
-        rows, trace = self.run_case([plan(), op('sleep', value=True), op('refresh')])
+        rows, trace = self.run_case([plan(), op('sleep', value=True), op('refresh')], final_caps=True)
         self.assertEqual(rows[-1]['status'], 'Paused')
         self.assertNotIn('hid-fixture:raycast', trace)
 
@@ -183,7 +183,7 @@ class HidSdk(unittest.TestCase):
 
     def test_exact_canonical_route_is_preserved_when_two_bindings_share_an_id(self):
         rows, _ = self.run_case([plan(False, sided={'right-cmd+a': 'same', 'left-cmd+a': 'same'}), op('refresh'),
-                                 event(flags=CMD | 16), event(11, flags=CMD | 16), event(flags=CMD | 8)])
+                                 event(flags=CMD | 16), event(11, flags=CMD | 16), event(flags=CMD | 8)], final_caps=True)
         self.assertEqual([a['canonical'] for a in rows[-1]['actions']], ['right-cmd+a', 'left-cmd+a'])
 
     def test_gate_reentry_with_running_true_cannot_post_or_return_stale_hyper(self):
@@ -201,7 +201,7 @@ class HidSdk(unittest.TestCase):
             for modifiers in ['', 'ctrl+', 'alt+', 'shift+', 'ctrl+alt+', 'ctrl+shift+', 'alt+shift+', 'ctrl+alt+shift+']:
                 for key in 'abcdefghijklmnopqrstuvwxyz':
                     bindings[modifiers + side + '+' + key] = 'item.' + key
-        rows, _ = self.run_case([plan(False, sided=bindings), op('refresh'), op('allocation-events', count=1000)])
+        rows, _ = self.run_case([plan(False, sided=bindings), op('refresh'), op('allocation-events', count=1000)], final_caps=True)
         self.assertEqual(rows[-1]['result'], dict(rustAllocations=0, callbacks=3000))
 
     def test_missing_or_absent_sdk_table_never_falls_back(self):
@@ -218,7 +218,7 @@ class HidSdk(unittest.TestCase):
     def test_caps_restore_failure_retains_authority_and_recovers_after_features_off(self):
         rows, _ = self.run_case([plan(), op('caps-failures', value=sum(1 << n for n in range(8, 30))),
                                  op('failure', name='tap_create'), op('refresh'), op('drop'), op('new'), plan(False),
-                                 op('refresh'), op('caps-failures', value=0), op('failure', name=''), op('recover'), op('refresh')])
+                                 op('refresh'), op('caps-failures', value=0), op('failure', name=''), op('recover'), op('refresh')], final_caps=True)
         self.assertIn('cleanup interrupted', rows[3]['status'])
         self.assertEqual(rows[3]['state']['caps'], 3)
         self.assertNotEqual(rows[7]['status'], 'On')
