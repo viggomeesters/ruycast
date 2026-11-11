@@ -318,6 +318,10 @@ rust-native/tests/clipboard_history_process.py
 rust-native/tests/fixtures/clipboard_history_sdk.rs
 rust-native/tests/fixtures/clipboard_history_fixture.rs
 rust-native/tests/clipboard_history_rust_provider.rs
+rust-native/tests/fixtures/choice_board_sdk.rs
+rust-native/tests/fixtures/choice_board_fixture.rs
+rust-native/tests/fixtures/choice_board_probe.rs
+rust-native/tests/choice_board_rust_provider.rs
 rust-native/examples/clipboard_history_sdk_probe.rs
 rust-native/tests/clipboard_pause_repair.rs
 rust-native/tests/clipboard_rich_paste.rs

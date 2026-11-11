@@ -9,6 +9,17 @@ test-tools = []
 local-preview = []
 
 [[example]]
+name = "choice-board-fixture"
+path = "tests/fixtures/choice_board_fixture.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "choice-board-probe"
+path = "tests/fixtures/choice_board_probe.rs"
+required-features = ["test-tools"]
+
+[[example]]
 name = "snippet-board-fixture"
 path = "tests/fixtures/snippet_board_fixture.rs"
 crate-type = ["cdylib"]
