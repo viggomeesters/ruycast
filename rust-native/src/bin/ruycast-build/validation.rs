@@ -78,7 +78,7 @@ keyword-rich-process|p|rust-native/tests/keyword_rich_process.py
 keyboard-probe-build|b|keyboard-probe tools
 keyboard-process|p|rust-native/tests/keyboard_process.py
 hid-state-probe-build|b|hid-state-probe tools
-hid-state-process|p|rust-native/tests/hid_state_process.py
+hid-state-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test hid_state_process --locked
 caps-probe-build|b|caps-probe tools
 caps-process|p|rust-native/tests/caps_process.py
 hid-probe-build|b|hid-probe tools
@@ -1239,7 +1239,7 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
     for (field, _) in REFERENCES {
         if *field == "hidStateReference" {
             let raw = regular_bytes(&root.join(DIRECTORY).join("native-profile/hid-state-reference-bindings.json"))?;
-            if value[*field] != oracles::qualify_hid_reference(root, &value["pureCoreOracle"], &raw)? {
+            if value[*field] != oracles::qualify_hid_reference(root, &value["binaries"], &raw)? {
                 return Err("HID reference qualification changed.".into());
             }
         }
@@ -1374,7 +1374,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     for (field, filename) in REFERENCES {
         let raw = regular_bytes(&directory.join("native-profile").join(filename))?;
         let binding: serde_json::Value = if *field == "hidStateReference" {
-            oracles::qualify_hid_reference(root, &pure_core_oracle, &raw)?
+            oracles::qualify_hid_reference(root, &value["binaries"], &raw)?
         } else {
             serde_json::from_slice(&raw).map_err(error)?
         };
@@ -1829,6 +1829,9 @@ mod tests {
         assert!(board_build < clipboard_text);
         assert!(steps[clipboard_text].arguments.windows(2).any(|pair|pair==["--test","clipboard_text_process"]));
         assert!(!steps[clipboard_text].arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
+        let hid_state = steps.iter().find(|step|step.name=="hid-state-process").unwrap();
+        assert!(hid_state.arguments.windows(2).any(|pair|pair==["--test","hid_state_process"]));
+        assert!(!hid_state.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

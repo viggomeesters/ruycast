@@ -1,6 +1,8 @@
 //! Explicit historical gate inventory. Only source-qualified, data-only
 //! oracles execute here; unqualified old-host branches must never run raw.
 use super::*;
+#[path = "../../../tests/support/hid_state_goldens.rs"]
+mod hid_state_goldens;
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -301,39 +303,66 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
     )?;
     verify_core(root, lease)
 }
-pub(super) fn qualify_hid_reference(root: &Path, core: &serde_json::Value, raw: &[u8]) -> Result<serde_json::Value> {
-    let receipt: CoreReceipt = serde_json::from_value(core.clone()).map_err(error)?;
-    qualify_hid_modulemap(root, &receipt.swift_compatibility, &receipt.artifacts, raw)
-}
-fn qualify_hid_modulemap(root: &Path, compatibility: &SwiftCompatibility, artifacts: &BTreeMap<String, String>, raw: &[u8]) -> Result<serde_json::Value> {
-    const LEGACY: &str = ".build/swift/debug/CRuycastCore.build/module.modulemap";
-    verify_swift_compatibility(root, compatibility, artifacts)?;
+pub(super) fn qualify_hid_reference(
+    root: &Path,
+    binaries: &serde_json::Value,
+    raw: &[u8],
+) -> Result<serde_json::Value> {
+    const ALIAS: &str = "rust-native/target/debug/hid-state-probe";
+    hid_state_goldens::parse(&regular_bytes(&root.join(hid_state_goldens::PATH))?)?;
     let mut value: serde_json::Value = serde_json::from_slice(raw).map_err(error)?;
-    if value.get("swiftModulemapQualification").is_some() {
-        return Err("Unexpected existing HID modulemap qualification.".into());
-    }
-    let bindings = value["artifacts"].as_object_mut().ok_or("Missing HID artifact bindings.")?;
-    let expected = artifacts.get(&compatibility.modulemap).ok_or("Missing Core modulemap artifact.")?;
-    if bindings.get(LEGACY).and_then(serde_json::Value::as_str) != Some(expected.as_str())
-        || (compatibility.modulemap != LEGACY && bindings.contains_key(&compatibility.modulemap))
+    if value["schema"] != "ruycast.hid-state-golden-binding.v1"
+        || value["goldenSHA256"] != hid_state_goldens::SHA256
+        || value["positiveCases"] != 4623
+        || value["observedSnapshots"] != 10940
+        || value["firstOperationRefusals"] != 4
+        || value.get("hidGoldenQualification").is_some()
     {
-        return Err("HID modulemap does not match its actual Core producer.".into());
+        return Err("Incomplete or already-qualified HID golden receipt.".into());
     }
-    let physical = root.join(&compatibility.modulemap);
-    if fs::canonicalize(root.join(LEGACY)).map_err(error)? != physical
-        || digest(&physical)? != *expected
+    let sources = value["sources"]
+        .as_object()
+        .ok_or("Missing HID source bindings.")?;
+    if sources.len() != hid_state_goldens::SOURCES.len() {
+        return Err("HID source roster changed.".into());
+    }
+    for name in hid_state_goldens::SOURCES {
+        if sources.get(*name).and_then(serde_json::Value::as_str)
+            != Some(digest(&root.join(name))?.as_str())
+        {
+            return Err("HID golden/producer source changed.".into());
+        }
+    }
+    let expected = binaries
+        .get(ALIAS)
+        .and_then(serde_json::Value::as_str)
+        .ok_or("Missing actual HID probe producer.")?;
+    let probe = value["probe"]
+        .as_str()
+        .ok_or("Missing live HID probe binding.")?;
+    if Path::new(probe).is_absolute()
+        || Path::new(probe)
+            .components()
+            .any(|p| !matches!(p, std::path::Component::Normal(_)))
     {
-        return Err("HID modulemap alias no longer names its physical Core artifact.".into());
+        return Err("HID probe escaped repository.".into());
     }
-    bindings.remove(LEGACY);
-    bindings.insert(compatibility.modulemap.clone(), serde_json::json!(expected));
-    value["swiftModulemapQualification"] = serde_json::json!({
-        "originalArtifact":LEGACY,
-        "swiftCompatibility":compatibility,
-        "sha256":expected,
-        "rawBindingSHA256":format!("{:x}",Sha256::digest(raw)),
+    let artifacts = value["artifacts"]
+        .as_object()
+        .ok_or("Missing HID probe artifact.")?;
+    if artifacts.len() != 1
+        || artifacts.get(probe).and_then(serde_json::Value::as_str) != Some(expected)
+        || digest(&root.join(ALIAS))? != expected
+        || digest(&root.join(probe))? != expected
+    {
+        return Err("HID probe copy differs from its actual producer.".into());
+    }
+    value["hidGoldenQualification"] = serde_json::json!({
+        "goldenSHA256":hid_state_goldens::SHA256,
+        "probeProducer":ALIAS,
+        "probeSHA256":expected,
+        "rawBindingSHA256":format!("{:x}",Sha256::digest(raw))
     });
-    verify_swift_compatibility(root, compatibility, artifacts)?;
     Ok(value)
 }
 pub(super) fn verify_core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
@@ -1483,6 +1512,80 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
+    fn hid_goldens_bind_frozen_corpus_current_sources_and_actual_probe_copy() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        for name in hid_state_goldens::SOURCES {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(
+                &path,
+                if *name == hid_state_goldens::PATH {
+                    include_bytes!("../../../tests/hid_state_reference.json").as_slice()
+                } else {
+                    b"owned fixture source"
+                },
+            )
+            .unwrap();
+        }
+        let alias = "rust-native/target/debug/hid-state-probe";
+        let probe = "rust-native/target/owned-hid-probe";
+        for name in [alias, probe] {
+            fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();
+            fs::write(root.join(name), b"owned producer and identical probe copy").unwrap();
+        }
+        let binaries = serde_json::json!({alias:digest(&root.join(alias)).unwrap()});
+        let sources = hid_state_goldens::SOURCES
+            .iter()
+            .map(|name| (*name, digest(&root.join(name)).unwrap()))
+            .collect::<BTreeMap<_, _>>();
+        let original = serde_json::json!({"schema":"ruycast.hid-state-golden-binding.v1","sources":sources,"artifacts":{probe:digest(&root.join(probe)).unwrap()},"probe":probe,"goldenSHA256":hid_state_goldens::SHA256,"positiveCases":4623,"observedSnapshots":10940,"firstOperationRefusals":4});
+        let raw = serde_json::to_vec(&original).unwrap();
+        let qualified = qualify_hid_reference(root, &binaries, &raw).unwrap();
+        assert_eq!(
+            qualified["hidGoldenQualification"]["rawBindingSHA256"],
+            format!("{:x}", Sha256::digest(&raw))
+        );
+        assert!(
+            qualify_hid_reference(root, &binaries, &serde_json::to_vec(&qualified).unwrap()).is_err()
+        );
+        for field in [
+            "goldenSHA256",
+            "positiveCases",
+            "observedSnapshots",
+            "firstOperationRefusals",
+            "probe",
+        ] {
+            let mut changed = original.clone();
+            changed[field] = serde_json::json!("changed");
+            assert!(
+                qualify_hid_reference(root, &binaries, &serde_json::to_vec(&changed).unwrap()).is_err()
+            );
+        }
+        let mut omitted = original.clone();
+        omitted["sources"]
+            .as_object_mut()
+            .unwrap()
+            .remove("rust-native/tests/support/hid_state_goldens.rs");
+        assert!(
+            qualify_hid_reference(root, &binaries, &serde_json::to_vec(&omitted).unwrap()).is_err()
+        );
+        fs::write(root.join(probe), b"different probe").unwrap();
+        let mut rebound = original.clone();
+        rebound["artifacts"][probe] = serde_json::json!(digest(&root.join(probe)).unwrap());
+        assert!(
+            qualify_hid_reference(root, &binaries, &serde_json::to_vec(&rebound).unwrap()).is_err()
+        );
+        fs::write(root.join(probe), b"owned producer and identical probe copy").unwrap();
+        fs::write(root.join(hid_state_goldens::PATH), b"changed golden corpus").unwrap();
+        rebound = original;
+        rebound["sources"][hid_state_goldens::PATH] =
+            serde_json::json!(digest(&root.join(hid_state_goldens::PATH)).unwrap());
+        assert!(
+            qualify_hid_reference(root, &binaries, &serde_json::to_vec(&rebound).unwrap()).is_err()
+        );
+    }
+    #[test]
     fn swift_compatibility_fresh_and_plain_debug_directories_support_legacy_import() {
         use std::os::unix::fs::symlink;
         for existing_debug in [false, true] {
@@ -1499,15 +1602,11 @@ mod tests {
             assert!(binding.alias_target.is_none());
             assert_eq!(binding.modulemap, ".build/swift/debug/CRuycastCore.build/module.modulemap");
             data_copy(root, &source, &root.join(&binding.modulemap)).unwrap();
-            // This is the actual -I/artifact path of hid_state_process.py.
+            // Legacy import compatibility remains for the other Swift/Core oracles.
             let legacy = debug.join("CRuycastCore.build/module.modulemap");
             assert_eq!(regular_bytes(&legacy).unwrap(), b"fresh legacy modulemap");
             let artifacts = BTreeMap::from([(binding.modulemap.clone(), digest(&legacy).unwrap())]);
             verify_swift_compatibility(root, &binding, &artifacts).unwrap();
-            let raw = serde_json::to_vec(&serde_json::json!({"sources":{},"artifacts":artifacts,"scope":"owned data only"})).unwrap();
-            let qualified = qualify_hid_modulemap(root, &binding, &artifacts, &raw).unwrap();
-            assert_eq!(qualified["artifacts"], serde_json::to_value(&artifacts).unwrap());
-            assert_eq!(qualified["swiftModulemapQualification"]["rawBindingSHA256"], format!("{:x}",Sha256::digest(&raw)));
             fs::rename(&debug, root.join(".build/swift/retained-debug")).unwrap();
             symlink("arm64-apple-macosx/debug", &debug).unwrap();
             assert!(verify_swift_compatibility(root, &binding, &artifacts).is_err());
@@ -1534,25 +1633,9 @@ mod tests {
         // Read the exact serialized field used in CoreReceipt verification.
         let captured: SwiftCompatibility = serde_json::from_slice(&serde_json::to_vec(&binding).unwrap()).unwrap();
         verify_swift_compatibility(root, &captured, &artifacts).unwrap();
-        let legacy = ".build/swift/debug/CRuycastCore.build/module.modulemap";
-        let original = serde_json::json!({"sources":{"owned-source":"untouched"},"artifacts":{legacy:digest(&physical).unwrap()},"scope":"owned data only"});
-        let raw = serde_json::to_vec(&original).unwrap();
-        let qualified = qualify_hid_modulemap(root, &captured, &artifacts, &raw).unwrap();
-        assert_eq!(qualified["sources"], original["sources"]);
-        assert_eq!(qualified["scope"], original["scope"]);
-        assert!(qualified["artifacts"].get(legacy).is_none());
-        assert_eq!(qualified["artifacts"], serde_json::to_value(&artifacts).unwrap());
-        let mut collision = original.clone();
-        collision["artifacts"][&binding.modulemap] = serde_json::json!(digest(&physical).unwrap());
-        assert!(qualify_hid_modulemap(root, &captured, &artifacts, &serde_json::to_vec(&collision).unwrap()).is_err());
-        assert!(qualify_hid_modulemap(root, &captured, &artifacts, &serde_json::to_vec(&qualified).unwrap()).is_err());
-        let mut changed = original.clone();
-        changed["artifacts"][legacy] = serde_json::json!("changed modulemap");
-        assert!(qualify_hid_modulemap(root, &captured, &artifacts, &serde_json::to_vec(&changed).unwrap()).is_err());
         fs::remove_file(&alias).unwrap();
         symlink("x86_64-apple-macosx/debug", &alias).unwrap();
         assert!(verify_swift_compatibility(root, &captured, &artifacts).is_err());
-        assert!(qualify_hid_modulemap(root, &captured, &artifacts, &raw).is_err());
         assert_eq!(fs::read(&physical).unwrap(), b"owned modulemap");
     }
     #[test]
