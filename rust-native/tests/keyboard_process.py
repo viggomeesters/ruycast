@@ -8,12 +8,13 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
 
 ROOT=Path(__file__).resolve().parents[1]
-PROBE=ROOT/'target/debug/keyboard-probe'
+PROBE=Path(os.environ.get('RUYCAST_KEYBOARD_PROBE',ROOT/'target/debug/keyboard-probe'))
 SHIM=ROOT/'target/keyboard-shim.dylib'
 PARTIAL=ROOT/'target/keyboard-partial.dylib'
 DEFAULT=json.loads((ROOT.parent/'config/default.json').read_text())
@@ -26,12 +27,15 @@ def action(name,**fields):return dict(action=name,**fields)
 class Keyboard(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        for path,extra in [(SHIM,[]),(PARTIAL,['-DOMIT_PARAMETER'])]:
-            run=subprocess.run(['cc','-Wall','-Wextra','-Werror','-dynamiclib','-framework','Carbon',*extra,str(ROOT/'tests/keyboard_shim.c'),'-o',str(path)],capture_output=True,text=True)
-            if run.returncode:raise AssertionError(run.stderr)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        for path,variable,library in [(SHIM,'RUYCAST_TEST_KEYBOARD_SHIM','libkeyboard_fixture.dylib'),(PARTIAL,'RUYCAST_TEST_KEYBOARD_PARTIAL','libkeyboard_missing_parameter.dylib')]:
+            artifact=Path(os.environ.get(variable,target/'release/examples'/library))
+            if not artifact.is_absolute() or not artifact.is_file():
+                raise RuntimeError('Build --features test-tools --example keyboard-fixture --example keyboard-missing-parameter first')
+            shutil.copyfile(artifact,path)
         if evidence:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             p=Path(evidence);p.mkdir(parents=True,exist_ok=True);sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-            sources=[ROOT/'tests/keyboard_shim.c',ROOT.parent/'Sources/LauncherCore/RustBridge.swift',ROOT.parent/'Sources/RuycastApp/Hotkeys.swift']
+            sources=[ROOT/'tests/fixtures/keyboard_sdk.rs',ROOT/'tests/fixtures/keyboard_fixture.rs',ROOT/'tests/fixtures/keyboard_missing_parameter.rs',ROOT.parent/'Sources/LauncherCore/RustBridge.swift',ROOT.parent/'Sources/RuycastApp/Hotkeys.swift']
             (p/'keyboard-reference-bindings.json').write_text(json.dumps(dict(sources={str(s.relative_to(ROOT.parent)):sha(s) for s in sources},artifacts={str(a.relative_to(ROOT.parent)):sha(a) for a in [SHIM,PARTIAL]}),indent=2))
     def run_probe(self,operations,flags=(),shim=True):
         with tempfile.TemporaryDirectory(prefix='keyboard-',dir=ROOT/'target') as temp:
