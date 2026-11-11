@@ -96,7 +96,7 @@ native-dashboard-process|p|rust-native/tests/native_dashboard_process.py
 dashboard-export-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test dashboard_export_process --locked
 settings-preferences-process|p|rust-native/tests/settings_preferences_process.py
 settings-keyboard-process|p|rust-native/tests/settings_keyboard_process.py
-clipboard-text-process|p|rust-native/tests/clipboard_text_process.py
+clipboard-text-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_text_process --locked
 native-keyboard-process|p|rust-native/tests/native_keyboard_process.py
 native-hid-process|p|rust-native/tests/native_hid_process.py
 native-keyword-process|p|rust-native/tests/native_keyword_process.py
@@ -1824,6 +1824,11 @@ mod tests {
         let sdk_test = steps.iter().position(|step|step.name=="system-search-sdk").unwrap();
         assert!(sdk_build < sdk_test);
         assert!(steps[sdk_build].arguments.windows(2).any(|pair|pair==["--example","system-fixture"]));
+        let clipboard_text = steps.iter().position(|step|step.name=="clipboard-text-process").unwrap();
+        let board_build = steps.iter().position(|step|step.name=="snippet-board-sdk-build").unwrap();
+        assert!(board_build < clipboard_text);
+        assert!(steps[clipboard_text].arguments.windows(2).any(|pair|pair==["--test","clipboard_text_process"]));
+        assert!(!steps[clipboard_text].arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

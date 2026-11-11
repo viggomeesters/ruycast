@@ -1,0 +1,195 @@
+{
+  "cases": {
+    "prefill:0": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 7,
+        "sha256": "5a21b5430046e9bd2181a831b2eb4c4942f6219fbd688ecc74d5952c6d9fe7bf"
+      }
+    },
+    "prefill:1": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 3,
+        "sha256": "83d544ccc223c057d2bf80d3f2a32982c32c3c0db8e2674820da5064783fb097"
+      }
+    },
+    "prefill:10": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 3,
+        "sha256": "83d544ccc223c057d2bf80d3f2a32982c32c3c0db8e2674820da5064783fb097"
+      }
+    },
+    "prefill:11": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 11,
+        "sha256": "65adcd24429b03b655935442f89371745c6cea4d9a37e565f1799c72cdf0b14a"
+      }
+    },
+    "prefill:12": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 4099,
+        "sha256": "f28f2ea0bbc91fbd468dded9a2a06f8b8c72025f4fee01cfd9b971db18b94b7d"
+      }
+    },
+    "prefill:13": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 4099,
+        "sha256": "ce5a6e01d800f0244c7ad5b44f1d55fbfd7a8bfaa209235eb9016cf690fd4e32"
+      }
+    },
+    "prefill:14": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 1000001,
+        "sha256": "85e4daf430380f612580d11ebf1ba489a0341266af0f6f5ed620852545a4655e"
+      }
+    },
+    "prefill:15": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": null
+    },
+    "prefill:16": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": null
+    },
+    "prefill:17": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": null
+    },
+    "read:0": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 7,
+        "sha256": "5a21b5430046e9bd2181a831b2eb4c4942f6219fbd688ecc74d5952c6d9fe7bf"
+      }
+    },
+    "read:1": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 3,
+        "sha256": "83d544ccc223c057d2bf80d3f2a32982c32c3c0db8e2674820da5064783fb097"
+      }
+    },
+    "read:10": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 3,
+        "sha256": "83d544ccc223c057d2bf80d3f2a32982c32c3c0db8e2674820da5064783fb097"
+      }
+    },
+    "read:11": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 13,
+        "sha256": "d891cdd34071fecce7f34a90b6791247a2dafea8f6ef738e658a77a312787ad4"
+      }
+    },
+    "read:12": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 4099,
+        "sha256": "f28f2ea0bbc91fbd468dded9a2a06f8b8c72025f4fee01cfd9b971db18b94b7d"
+      }
+    },
+    "read:13": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 4099,
+        "sha256": "ce5a6e01d800f0244c7ad5b44f1d55fbfd7a8bfaa209235eb9016cf690fd4e32"
+      }
+    },
+    "read:14": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 1000005,
+        "sha256": "045f25776653f94883af0841b4996d63e8180a360de99474f589de8166fc4168"
+      }
+    },
+    "read:15": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 5,
+        "sha256": "e2f8eb423466a252c827a9de1c0a028cb4a8ad6c451b71ff901b20a77c514e84"
+      }
+    },
+    "read:16": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": {
+        "byteLength": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "read:17": {
+      "generalBoardAbortGuard": true,
+      "ok": true,
+      "restored": true,
+      "value": null
+    }
+  },
+  "provenance": {
+    "artifacts": {
+      "nativeCandidateSHA256": "7f4ab2f113f3b755c480be78d595c0a8ab11831125e38940cf023c48642d769c",
+      "rustBoardSHA256": "ab0576308a1fc430b672c7c729e573f3787d26f1f3ec54a04e31e2965e4c6568",
+      "swiftReferenceSHA256": "134d1c151b16ed227378cf2c4412c50ed4e3995d9fdc46bcf24b99dea8571c9c"
+    },
+    "platform": "macOS 26.6.2 build25G83 arm64",
+    "scope": "Twenty captured Swift named-board read/prefill outputs only; not general or current-platform parity. Values hash parsed Swift JSON string UTF8 bytes, without normalization; null and empty are distinct.",
+    "sourceCommit": "1951f6bce7b9cab0c7cb10a7dfa579dba4875dce",
+    "sources": {
+      "Sources/RuycastApp/AppState.swift": "ffba512c44134bf74005bd6cc409c1c92d09b4a13ee9709ca60a7b6e895abd14",
+      "Sources/RuycastApp/CommandEditor.swift": "bedf706738b8c928bccca334e02921483120ec51958d6bb2ea97b270ebd5bf80",
+      "rust-native/Cargo.lock": "3ea0eb855d24f0b7b143746b49fa4dd1f311116e46c6561c7b5984e2383094e5",
+      "rust-native/Cargo.toml": "adc7afde131edc529fa38e65c37250970c93ba1860e73d8225816b02534c2e8b",
+      "rust-native/tests/clipboard_text_process.py": "7317bfcb4cc830080739402c19ed28cc8fea81eb13714b3a3e979382eef9e572",
+      "rust-native/tests/clipboard_text_reference.swift": "7e842b4d814f6b3b57edb88af43b034e8c9c13ac56ac98311162a130e22201ed",
+      "rust-native/tests/fixtures/snippet_board_fixture.rs": "317f5d6f053b7ea5de2d42a5bdf8eddc5dd632226433317c84d45b80bc4bf022",
+      "rust-toolchain.toml": "d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82",
+      "rust/Cargo.toml": "35f9cfa76ee0df1d4c8596264d5daf64c5683395330cc5db35be1a6e70138949"
+    },
+    "swiftToolchain": "Apple Swift 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2), swift-driver 1.127.14.1, arm64-apple-macosx26.0"
+  },
+  "schema": "ruycast.clipboard-text-swift-goldens.v1"
+}
