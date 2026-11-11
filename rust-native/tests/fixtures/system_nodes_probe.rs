@@ -1,4 +1,5 @@
 //! Component proof only. No provider constructor, interpose, discovery or readiness.
+mod system_effects;
 mod system_nodes;
 use objc2::{rc::autoreleasepool, runtime::AnyObject};
 use objc2_foundation::{NSPoint, NSSize, NSString};
@@ -27,6 +28,39 @@ unsafe fn text(value: &CF) -> String {
 unsafe fn boolean(value: &CF) -> bool {
     assert_eq!(CFGetTypeID(value.0), CFBooleanGetTypeID());
     CFBooleanGetValue(value.0) != 0
+}
+unsafe fn frame(state: &State) -> (f64, f64, f64, f64) {
+    let position = attr(state, 2, "AXPosition");
+    let dimensions = attr(state, 2, "AXSize");
+    let mut point = NSPoint::new(0., 0.);
+    let mut size = NSSize::new(0., 0.);
+    assert_ne!(
+        AXValueGetValue(position.0, 1, (&mut point as *mut NSPoint).cast()),
+        0
+    );
+    assert_ne!(
+        AXValueGetValue(dimensions.0, 2, (&mut size as *mut NSSize).cast()),
+        0
+    );
+    (point.x, point.y, size.width, size.height)
+}
+unsafe fn write_frame(state: &State, expected_error: i32) {
+    let point = NSPoint::new(84., 93.);
+    let size = NSSize::new(500., 400.);
+    let point = CF(AXValueCreate(1, (&point as *const NSPoint).cast()));
+    let size = CF(AXValueCreate(2, (&size as *const NSSize).cast()));
+    for (name, value) in [("AXPosition", &point), ("AXSize", &size)] {
+        let key = key(name);
+        assert_eq!(
+            system_effects::set(
+                state,
+                state.node(2),
+                (&*key as *const NSString as *mut NSString).cast(),
+                value.0
+            ),
+            expected_error
+        );
+    }
 }
 fn main() {
     autoreleasepool(|_| unsafe {
@@ -160,6 +194,64 @@ fn main() {
                     );
                     assert!(out.is_null());
                 }
+                assert_eq!(state.data.lock().unwrap().effects, 0);
+            }
+            "write-normal" => {
+                write_frame(&state, 0);
+                assert_eq!(frame(&state), (84., 93., 500., 400.));
+                assert_eq!(state.data.lock().unwrap().effects, 2);
+                let key = key("AXMinimized");
+                let value = objc2_foundation::NSNumber::numberWithBool(false);
+                assert_eq!(
+                    system_effects::set(
+                        &state,
+                        state.node(3),
+                        (&*key as *const NSString as *mut NSString).cast(),
+                        (&*value as *const _ as *mut objc2_foundation::NSNumber).cast()
+                    ),
+                    0
+                );
+                assert!(!boolean(&attr(&state, 3, "AXMinimized")));
+                assert_eq!(state.data.lock().unwrap().mode, "restored");
+                for (index, name) in [(2, "AXRaise"), (7, "AXPress")] {
+                    let key = NSString::from_str(name);
+                    assert_eq!(
+                        system_effects::action(
+                            &state,
+                            state.node(index),
+                            (&*key as *const NSString as *mut NSString).cast()
+                        ),
+                        0
+                    );
+                }
+                assert_eq!(state.data.lock().unwrap().effects, 5);
+            }
+            "write-faults" => {
+                for (mode, error, width) in [
+                    ("frame-constrained", 0, 100.),
+                    (
+                        "frame-cannot-complete",
+                        system_effects::CANNOT_COMPLETE,
+                        500.,
+                    ),
+                ] {
+                    state.set_mode(mode);
+                    write_frame(&state, error);
+                    assert_eq!(frame(&state), (84., 93., width, 400.));
+                    assert_eq!(state.data.lock().unwrap().effects, 2);
+                }
+                state.set_mode("frame-denied");
+                let key = key("AXPosition");
+                let mut out = std::ptr::NonNull::<u8>::dangling().as_ptr().cast();
+                assert_eq!(
+                    state.attr(
+                        state.node(2),
+                        (&*key as *const NSString as *mut NSString).cast(),
+                        &mut out
+                    ),
+                    UNSUPPORTED
+                );
+                assert!(out.is_null());
                 assert_eq!(state.data.lock().unwrap().effects, 0);
             }
             _ => panic!("Unknown owned node probe"),
