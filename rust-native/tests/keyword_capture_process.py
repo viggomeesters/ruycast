@@ -2,9 +2,8 @@
 import copy,json,os,subprocess,unittest
 import shutil
 from pathlib import Path
-import keyword_native_process as target
 import runtime_process as rt
-ROOT=target.ROOT;BIN=Path(os.environ.get('RUYCAST_KEYWORD_CAPTURE_PROBE',ROOT/'target/debug/keyword-capture-probe'));SDK=ROOT/'target/keyword-capture-fixture'
+ROOT=Path(__file__).resolve().parents[1];BIN=Path(os.environ.get('RUYCAST_KEYWORD_CAPTURE_PROBE',ROOT/'target/debug/keyword-capture-probe'));SDK=ROOT/'target/keyword-capture-fixture'
 def config(text='HELLO',keyword='abc',**extra):
     c=copy.deepcopy(rt.DEFAULT);c['commands']=[dict(id='own.snippet',title='Own snippet',kind='snippet',target=text,keyword=keyword,**extra)];c['snippetExpansionEnabled']=True;return c
 def sdk(control='state',**kw):return dict(op='sdk',control=control,**kw)
