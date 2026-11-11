@@ -419,8 +419,8 @@ rust-native/tests/fixtures/snippet_effects_fixture.rs
 rust-native/tests/snippet_effects_rust_provider.rs
 rust-native/examples/snippet_effects_probe.rs
 rust-native/tests/fixtures/snippet_faults.rs
-rust-native/tests/snippet_process.py
-rust-native/tests/snippet_reference.swift
+rust-native/tests/snippet_process.rs
+rust-native/tests/snippet_reference.json
 rust-native/tests/fixtures/supervision_fault_shim.rs
 rust-native/tests/supervision_process.py
 rust-native/tests/system_search_process.py

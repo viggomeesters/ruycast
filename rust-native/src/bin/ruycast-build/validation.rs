@@ -57,7 +57,8 @@ workspace-process|p|rust-native/tests/workspace_process.py
 template-probe-build|b|template-probe tools
 template-process|p|rust-native/tests/template_process.py
 snippet-probe-build|b|snippet-probe tools
-snippet-process|p|rust-native/tests/snippet_process.py
+snippet-faults-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example snippet-faults --locked
+snippet-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_process --locked
 snippet-html-import|c|run --manifest-path rust-native/Cargo.toml --features test-tools --bin snippet-probe --locked -- --check-html-import
 snippet-board-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example snippet-board-fixture --locked
 snippet-board-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_board_process --locked
@@ -1819,7 +1820,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 117);
+        assert_eq!(steps.len(), 118);
         let sdk_build = steps.iter().position(|step|step.name=="system-sdk-build").unwrap();
         let sdk_test = steps.iter().position(|step|step.name=="system-search-sdk").unwrap();
         assert!(sdk_build < sdk_test);
@@ -1838,6 +1839,13 @@ mod tests {
         let choice = steps.iter().find(|step|step.name=="snippet-choice-process").unwrap();
         assert!(choice.arguments.windows(2).any(|pair|pair==["--test","snippet_choice_process"]));
         assert!(!choice.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
+        let snippet = steps.iter().find(|step|step.name=="snippet-process").unwrap();
+        assert!(snippet.arguments.windows(2).any(|pair|pair==["--test","snippet_process"]));
+        assert!(!snippet.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
+        let snippet_sdk = steps.iter().position(|step|step.name=="snippet-faults-sdk-build").unwrap();
+        let snippet_test = steps.iter().position(|step|step.name=="snippet-process").unwrap();
+        assert!(snippet_sdk < snippet_test);
+        assert!(steps[snippet_sdk].arguments.windows(2).any(|pair|pair==["--example","snippet-faults"]));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
