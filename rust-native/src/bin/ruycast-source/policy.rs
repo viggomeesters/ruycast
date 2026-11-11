@@ -366,6 +366,8 @@ rust-native/tests/keyword_reference.swift
 rust-native/tests/keyword_rich_process.py
 rust-native/tests/keyword_shim.c
 rust-native/tests/fixtures/keyword_core.rs
+rust-native/tests/fixtures/keyword_board.rs
+rust-native/tests/keyword_board.rs
 rust-native/tests/keyword_core.rs
 rust-native/tests/library_process.py
 rust-native/tests/manager_process.py
