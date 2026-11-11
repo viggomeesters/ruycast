@@ -309,7 +309,6 @@ rust-native/tests/app_picker_process.py
 rust-native/tests/applications_process.py
 rust-native/tests/bridge_process.py
 rust-native/tests/caps_process.py
-rust-native/tests/caps_shim.c
 rust-native/tests/fixtures/caps_sdk.rs
 rust-native/tests/fixtures/caps_fixture.rs
 rust-native/tests/fixtures/caps_missing_set.rs
@@ -334,7 +333,6 @@ rust-native/tests/fixtures/fcntl_sync_shim.rs
 rust-native/tests/fixtures/fcntl_sync_probe.rs
 rust-native/tests/foundation_process.py
 rust-native/tests/hid_process.py
-rust-native/tests/hid_shim.c
 rust-native/tests/fixtures/hid_sdk.rs
 rust-native/tests/fixtures/hid_host.rs
 rust-native/tests/fixtures/hid_host_missing_post.rs
@@ -351,7 +349,6 @@ rust-native/tests/inline_process.py
 rust-native/tests/input_actions_process.py
 rust-native/tests/input_process.py
 rust-native/tests/keyboard_process.py
-rust-native/tests/keyboard_shim.c
 rust-native/tests/fixtures/keyboard_sdk.rs
 rust-native/tests/fixtures/keyboard_host.rs
 rust-native/tests/fixtures/keyboard_host_loader.json
@@ -360,13 +357,11 @@ rust-native/tests/fixtures/keyboard_fixture.rs
 rust-native/tests/fixtures/keyboard_missing_parameter.rs
 rust-native/tests/keyword_capture_process.py
 rust-native/tests/keyword_native_process.rs
-rust-native/tests/keyword_notification_shim.m
 rust-native/tests/fixtures/keyword_notification.rs
 rust-native/tests/keyword_notification.rs
 rust-native/tests/keyword_process.py
 rust-native/tests/keyword_reference.swift
 rust-native/tests/keyword_rich_process.py
-rust-native/tests/keyword_shim.c
 rust-native/tests/fixtures/keyword_core.rs
 rust-native/tests/fixtures/keyword_ax.rs
 rust-native/tests/fixtures/keyword_events.rs

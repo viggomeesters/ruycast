@@ -12,7 +12,29 @@ fn check_host_sdk_paths<'a>(paths: impl Iterator<Item = &'a String>) -> Result<(
     }
     Ok(())
 }
-const SYSTEM_UI_SOURCES: &[&str] = &["keyword_shim.c", "keyword_notification_shim.m", "keyboard_shim.c", "hid_shim.c", "caps_shim.c", "workspace_shim.m", "native_keyboard_process.py", "system_search_sdk.rs"];
+// Exact source roster emitted by the actual NativeKeyboard producer.
+const KEYBOARD_SDK_SOURCES: &[&str] = &[
+    "rust-native/Cargo.toml",
+    "rust-native/Cargo.lock",
+    "rust/Cargo.toml",
+    "rust-toolchain.toml",
+    "rust-native/tests/fixtures/keyboard_host.rs",
+    "rust-native/tests/fixtures/caps_sdk.rs",
+    "rust-native/tests/fixtures/hid_sdk.rs",
+    "rust-native/tests/fixtures/keyboard_sdk.rs",
+    "rust-native/tests/fixtures/keyword_core.rs",
+    "rust-native/tests/fixtures/keyword_notification.rs",
+    "rust-native/tests/fixtures/keyword_board.rs",
+    "rust-native/tests/fixtures/keyword_ax.rs",
+    "rust-native/tests/fixtures/keyword_events.rs",
+    "rust-native/tests/fixtures/workspace_sdk.rs",
+    "rust-native/tests/fixtures/keyboard_host_loader.json",
+];
+const SYSTEM_UI_SOURCES: &[&str] = &[
+    "rust-native/tests/native_keyboard_process.py",
+    "rust-native/tests/system_search_sdk.rs",
+    "rust-native/tests/support/owned_keyboard.rs",
+];
 // Ordered transcription of the former check.py matrix. `p` invokes an existing
 // validator; `b` builds an explicit probe; `c` preserves a full Cargo command.
 const MATRIX: &str = r#"
@@ -775,8 +797,8 @@ fn system_ui_environment(root: &Path, entry: &Step, fixture: &Path, command: &mu
         .env("RUYCAST_NATIVE_EVIDENCE_DIR", &evidence)
         .env("RUYCAST_SYSTEM_UI_EVIDENCE", system);
     let mut sources = BTreeMap::new();
-    for name in SYSTEM_UI_SOURCES {
-        let path = root.join("rust-native/tests").join(name);
+    for name in KEYBOARD_SDK_SOURCES.iter().chain(SYSTEM_UI_SOURCES) {
+        let path = root.join(name);
         sources.insert(path.strip_prefix(root).map_err(error)?.to_string_lossy().into_owned(), digest(&path)?);
     }
     let mut artifacts = BTreeMap::new();
@@ -799,8 +821,8 @@ fn check_system_ui_inputs(root: &Path, target: &str, inputs: &serde_json::Value)
         generated.insert(path.strip_prefix(root).map_err(error)?.to_string_lossy().into_owned(), digest(&path)?);
     }
     let mut sources = BTreeMap::new();
-    for name in SYSTEM_UI_SOURCES {
-        let path = root.join("rust-native/tests").join(name);
+    for name in KEYBOARD_SDK_SOURCES.iter().chain(SYSTEM_UI_SOURCES) {
+        let path = root.join(name);
         sources.insert(path.strip_prefix(root).map_err(error)?.to_string_lossy().into_owned(), digest(&path)?);
     }
     if inputs["sources"] != serde_json::to_value(sources).map_err(error)? || inputs["artifacts"] != serde_json::to_value(generated).map_err(error)? {
@@ -1011,14 +1033,8 @@ fn keyboard_fixture(root: &Path) -> Result<(PathBuf, String)> {
         serde_json::from_slice(&regular_bytes(&directory.join("NativeKeyboard.json"))?)
             .map_err(error)?;
     let mut sources = BTreeMap::new();
-    for name in [
-        "keyword_shim.c",
-        "keyword_notification_shim.m",
-        "keyboard_shim.c",
-        "hid_shim.c",
-        "workspace_shim.m",
-    ] {
-        let path = root.join("rust-native/tests").join(name);
+    for name in KEYBOARD_SDK_SOURCES {
+        let path = root.join(name);
         owned_path(root, &path)?;
         let sha = digest(&path)?;
         sources.insert(path, sha);
@@ -1492,8 +1508,8 @@ mod tests {
         let sdk_dir=root.join(DIRECTORY).join("native-profile/host-sdks");
         fs::create_dir_all(&sdk_dir).unwrap();
         let mut keyboard_sources=BTreeMap::new();
-        for name in ["keyword_shim.c","keyword_notification_shim.m","keyboard_shim.c","hid_shim.c","workspace_shim.m"] {
-            let path=root.join("rust-native/tests").join(name);
+        for name in KEYBOARD_SDK_SOURCES {
+            let path=root.join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();fs::write(&path,b"owned nonexecutable keyboard source").unwrap();
             keyboard_sources.insert(path.clone(),digest(&path).unwrap());
         }
@@ -1563,14 +1579,16 @@ mod tests {
         let sdk_dir = root.join(DIRECTORY).join("native-profile/host-sdks");
         fs::create_dir_all(&sdk_dir).unwrap();
         let mut sources = BTreeMap::new();
-        for name in ["keyword_shim.c", "keyword_notification_shim.m", "keyboard_shim.c", "hid_shim.c", "workspace_shim.m"] {
-            let path = root.join("rust-native/tests").join(name);
+        for name in KEYBOARD_SDK_SOURCES {
+            let path = root.join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, b"owned nonexecutable input").unwrap();
             sources.insert(path.clone(), digest(&path).unwrap());
         }
-        for name in ["caps_shim.c", "native_keyboard_process.py", "system_search_sdk.rs"] {
-            fs::write(root.join("rust-native/tests").join(name), b"owned nonexecutable input").unwrap();
+        for name in SYSTEM_UI_SOURCES {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, b"owned nonexecutable input").unwrap();
         }
         let sdk = sdk_dir.join("NativeKeyboard.dylib");
         fs::write(&sdk, b"owned nonexecutable artifact; NOT qualified SDK code").unwrap();
@@ -1689,14 +1707,8 @@ mod tests {
         let directory = fixture.0.join(DIRECTORY).join("native-profile/host-sdks");
         fs::create_dir_all(&directory).unwrap();
         let mut sources = BTreeMap::new();
-        for name in [
-            "keyword_shim.c",
-            "keyword_notification_shim.m",
-            "keyboard_shim.c",
-            "hid_shim.c",
-            "workspace_shim.m",
-        ] {
-            let path = fixture.0.join("rust-native/tests").join(name);
+        for name in KEYBOARD_SDK_SOURCES {
+            let path = fixture.0.join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, b"owned nonexecutable fixture input").unwrap();
             sources.insert(path.clone(), digest(&path).unwrap());
@@ -1722,7 +1734,7 @@ mod tests {
         fs::write(&artifact, b"late artifact mutation").unwrap();
         assert!(keyboard_fixture(&fixture.0).is_err());
         fs::write(&artifact, b"owned nonexecutable fixture artifact").unwrap();
-        let input = fixture.0.join("rust-native/tests/keyboard_shim.c");
+        let input = fixture.0.join("rust-native/tests/fixtures/keyboard_sdk.rs");
         fs::write(&input, b"late source mutation").unwrap();
         assert!(keyboard_fixture(&fixture.0).is_err());
         fs::write(&input, b"owned nonexecutable fixture input").unwrap();
