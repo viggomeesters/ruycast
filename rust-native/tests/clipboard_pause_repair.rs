@@ -165,42 +165,17 @@ impl Drop for Host {
         }
     }
 }
-fn compile(root: &Path, source: &str, output: &str, frameworks: bool) -> PathBuf {
-    let output = root.join("target").join(output);
-    let mut command = Command::new("cc");
-    command.args(["-Wall", "-Wextra", "-Werror", "-dynamiclib"]);
-    if frameworks {
-        command.args([
-            "-fobjc-arc",
-            "-fblocks",
-            "-framework",
-            "AppKit",
-            "-framework",
-            "ApplicationServices",
-        ]);
-    }
-    let result = command
-        .arg(root.join("tests").join(source))
-        .arg("-o")
-        .arg(&output)
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    output
-}
 #[test]
 fn real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let guard = compile(
-        root,
-        "snippet_board_shim.m",
-        "pause-repair-board-guard.dylib",
-        true,
-    );
+    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
+        .unwrap_or_else(|| root.parent().unwrap().join(".build/full-rust-release/native"));
+    let source = std::env::var_os("RUYCAST_TEST_BOARD_SDK").map(PathBuf::from)
+        .unwrap_or_else(|| target.join("release/examples/libsnippet_board_fixture.dylib"));
+    assert!(source.is_absolute() && source.is_file(), "Build the snippet-board-fixture Rust example first");
+    let guard = root.join("target/pause-repair-board-guard.dylib");
+    fs::copy(&source, &guard).unwrap();
+    assert_eq!(Sha256::digest(fs::read(&source).unwrap()), Sha256::digest(fs::read(&guard).unwrap()));
     let fixture = Host::new("shim-build");
     let fault = ruycast_native::test_fixtures::fcntl(&fixture.base.join("fixture-build.log"));
     let guard = guard.to_str().unwrap();
