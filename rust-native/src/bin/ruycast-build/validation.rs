@@ -695,9 +695,14 @@ fn system_ui_socket_budget(fixture: &Path) -> Result<()> {
 const EXAMPLE_UI_SOURCES: &[&str] = &[
     "rust-native/examples/ui_completion.rs",
     "rust-native/src/bin/private_results_fixture.rs",
-    "rust-native/tests/clipboard_history_shim.m",
-    "rust-native/tests/snippet_effects_shim.m",
-    "rust-native/tests/workspace_shim.m",
+    "rust-native/tests/fixtures/workspace_sdk.rs",
+    "rust-native/tests/fixtures/snippet_effects_sdk.rs",
+    "rust-native/tests/fixtures/clipboard_history_sdk.rs",
+    "rust-native/tests/fixtures/clipboard_history_fixture.rs",
+    "rust-native/Cargo.toml",
+    "rust-native/Cargo.lock",
+    "rust/Cargo.toml",
+    "rust-toolchain.toml",
 ];
 fn example_ui_socket_budget(fixture: &Path) -> Result<()> {
     use std::os::unix::ffi::OsStrExt;
