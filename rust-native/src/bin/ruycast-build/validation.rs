@@ -62,7 +62,7 @@ snippet-html-import|c|run --manifest-path rust-native/Cargo.toml --features test
 snippet-board-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example snippet-board-fixture --locked
 snippet-board-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_board_process --locked
 snippet-choice-probe-build|b|snippet-choice-probe tools
-snippet-choice-process|p|rust-native/tests/snippet_choice_process.py
+snippet-choice-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_choice_process --locked
 snippet-choice-request-process|p|rust-native/tests/snippet_choice_request_process.py
 native-snippet-choice-probe-build|b|native-snippet-choice-probe tools
 native-snippet-choice-process|p|rust-native/tests/native_snippet_choice_process.py
@@ -1835,6 +1835,9 @@ mod tests {
         let keyword = steps.iter().find(|step|step.name=="keyword-process").unwrap();
         assert!(keyword.arguments.windows(2).any(|pair|pair==["--test","keyword_process"]));
         assert!(!keyword.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
+        let choice = steps.iter().find(|step|step.name=="snippet-choice-process").unwrap();
+        assert!(choice.arguments.windows(2).any(|pair|pair==["--test","snippet_choice_process"]));
+        assert!(!choice.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
