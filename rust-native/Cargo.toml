@@ -20,6 +20,12 @@ path = "../Tests/fixtures/private_fsync_probe.rs"
 required-features = ["test-tools"]
 
 [[example]]
+name = "analytics-write-shim"
+path = "tests/fixtures/analytics_write_shim.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "fcntl-sync-shim"
 path = "tests/fixtures/fcntl_sync_shim.rs"
 crate-type = ["cdylib"]
