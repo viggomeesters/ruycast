@@ -22,6 +22,8 @@ pub(super) struct Object {
     pub identity: u64,
     pub pid: i32,
     pub units: Vec<u16>,
+    pub utf8: Vec<u8>,
+    pub html: Option<Vec<u8>>,
     pub valid: bool,
 }
 pub(super) struct State {
