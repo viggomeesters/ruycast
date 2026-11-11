@@ -9,6 +9,12 @@ test-tools = []
 local-preview = []
 
 [[example]]
+name = "clipboard-history-fixture"
+path = "tests/fixtures/clipboard_history_fixture.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "snippet-effects-fixture"
 path = "tests/fixtures/snippet_effects_fixture.rs"
 crate-type = ["cdylib"]
