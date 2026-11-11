@@ -67,7 +67,7 @@ snippet-choice-request-process|p|rust-native/tests/snippet_choice_request_proces
 native-snippet-choice-probe-build|b|native-snippet-choice-probe tools
 native-snippet-choice-process|p|rust-native/tests/native_snippet_choice_process.py
 keyword-probe-build|b|keyword-probe tools
-keyword-process|p|rust-native/tests/keyword_process.py
+keyword-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_process --locked
 keyword-native-probe-build|b|keyword-native-probe tools
 keyword-native-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyword-fixture --example keyword-missing-value-type --locked
 keyword-native-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_native_process --locked
@@ -1832,6 +1832,9 @@ mod tests {
         let hid_state = steps.iter().find(|step|step.name=="hid-state-process").unwrap();
         assert!(hid_state.arguments.windows(2).any(|pair|pair==["--test","hid_state_process"]));
         assert!(!hid_state.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
+        let keyword = steps.iter().find(|step|step.name=="keyword-process").unwrap();
+        assert!(keyword.arguments.windows(2).any(|pair|pair==["--test","keyword_process"]));
+        assert!(!keyword.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
