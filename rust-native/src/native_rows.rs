@@ -384,7 +384,7 @@ pub fn check_cache(main: MainThreadMarker) -> Result<(), String> {
         ("ctrl+alt+delete", "⌃ ⌥ ⌫"),
         ("right-cmd+a", "R⌘ A"),
     ] {
-        let caps = shortcut(main, value, 160.);
+        let caps = shortcut(main, value, 160., false);
         require(
             texts(&caps) == [expected],
             "Native keycap readback lost its logical group",
@@ -395,7 +395,7 @@ pub fn check_cache(main: MainThreadMarker) -> Result<(), String> {
             "Hidden keycaps leaked into readback",
         )?;
     }
-    let caps = shortcut(main, "left-cmd+a", 160.);
+    let caps = shortcut(main, "left-cmd+a", 160., false);
     require(
         caps.accessibilityLabel()
             .is_some_and(|label| label.to_string() == "Left Command + a"),

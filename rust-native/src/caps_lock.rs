@@ -191,9 +191,36 @@ impl<I: Io> Control<I> {
         self.finish(lease, health);
         Err(error)
     }
+    /// Commit only after the complete Hyper service has started. Until then,
+    /// acquisition failures restore the initial latch. Once Hyper owns Caps,
+    /// retirement must not switch it back on from that stale startup snapshot.
+    pub fn commit_off(&self) -> Result<(), Error> {
+        let mut lease = self.enter()?;
+        if self.health.get() != Health::Active {
+            self.finish(lease, self.health.get());
+            return Err(Error::Inactive);
+        }
+        if self.retire_requested.get() {
+            return self.fail(lease, Error::Cancelled);
+        }
+        lease
+            .as_mut()
+            .expect("active control owns a connection")
+            .original = Some(false);
+        self.finish(lease, Health::Active);
+        Ok(())
+    }
     /// Clear after a physical Caps transition. A failure retires immediately;
     /// a failed restore remains recoverable by the subsequent refresh/stop.
     pub fn clear(&self) -> Result<(), Error> {
+        self.clear_latch(false)
+    }
+    /// The system can update the latch after the physical/event callbacks.
+    /// Check it during the existing refresh without repeatedly writing when off.
+    pub fn reconcile(&self) -> Result<(), Error> {
+        self.clear_latch(true)
+    }
+    fn clear_latch(&self, check_first: bool) -> Result<(), Error> {
         let lease = self.enter()?;
         if self.health.get() != Health::Active {
             let error = match self.health.get() {
@@ -204,6 +231,19 @@ impl<I: Io> Control<I> {
             return Err(error);
         }
         let handle = lease.expect("active control owns a connection").handle;
+        if check_first {
+            let enabled = match self.invoke("get", || self.io.get(handle), Error::Read) {
+                Ok(value) => value,
+                Err(error) => return self.fail(lease, error),
+            };
+            if self.retire_requested.get() {
+                return self.fail(lease, Error::Cancelled);
+            }
+            if !enabled {
+                self.finish(lease, Health::Active);
+                return Ok(());
+            }
+        }
         if let Err(error) = self.invoke("clear", || self.io.set(handle, false), Error::Clear) {
             return self.fail(lease, error);
         }
@@ -340,6 +380,91 @@ mod tests {
             );
             assert_eq!(control.health(), Health::Inactive);
         }
+    }
+    #[test]
+    fn committed_hyper_never_restores_a_stale_caps_on_snapshot() {
+        let (io, control) = owner(true);
+        control.activate().unwrap();
+        control.commit_off().unwrap();
+        control.activate().unwrap();
+        io.value.set(true);
+        control.reconcile().unwrap();
+        control.retire().unwrap();
+        assert!(!io.value.get());
+        assert!(!io.live.get());
+        assert!(!io.trace().iter().any(|call| call == "set:true"));
+        assert_eq!(control.commit_off(), Err(Error::Inactive));
+    }
+    #[test]
+    fn committed_read_failure_restores_off_and_closes() {
+        let (io, control) = owner(true);
+        control.activate().unwrap();
+        control.commit_off().unwrap();
+        io.fail(&[4]);
+        assert_eq!(control.reconcile(), Err(Error::Read(-4)));
+        assert!(!io.value.get());
+        assert!(!io.live.get());
+    }
+    #[test]
+    fn commit_during_reentrant_retirement_is_rejected() {
+        let (io, control) = owner(true);
+        let weak = Rc::downgrade(&control);
+        *io.hook.borrow_mut() = Some(Rc::new(move |operation| {
+            if operation == "get" {
+                let control = weak.upgrade().unwrap();
+                assert_eq!(control.retire(), Err(Error::Busy));
+                assert_eq!(control.commit_off(), Err(Error::Busy));
+            }
+        }));
+        assert_eq!(control.activate(), Err(Error::Cancelled));
+        assert_eq!(control.commit_off(), Err(Error::Inactive));
+        assert!(io.value.get());
+        assert!(!io.live.get());
+    }
+    #[test]
+    fn reconcile_repairs_a_late_system_toggle_without_repeated_writes() {
+        let (io, control) = owner(false);
+        control.activate().unwrap();
+        control.clear().unwrap();
+        // Model an OS latch update arriving after both input callbacks.
+        io.value.set(true);
+        control.reconcile().unwrap();
+        assert!(!io.value.get());
+        assert_eq!(control.health(), Health::Active);
+        assert_eq!(
+            io.trace(),
+            ["open", "get", "set:false", "set:false", "get", "set:false"]
+        );
+        control.reconcile().unwrap();
+        assert_eq!(io.trace().last().unwrap(), "get");
+        assert_eq!(io.trace().len(), 7);
+        control.retire().unwrap();
+        assert!(!io.value.get());
+    }
+    #[test]
+    fn reconcile_read_failure_retires_and_restores_the_original() {
+        let (io, control) = owner(true);
+        control.activate().unwrap();
+        io.fail(&[4]);
+        assert_eq!(control.reconcile(), Err(Error::Read(-4)));
+        assert!(io.value.get());
+        assert!(!io.live.get());
+        assert_eq!(control.health(), Health::Failed(Error::Read(-4)));
+    }
+    #[test]
+    fn retirement_during_reconcile_never_reports_active() {
+        let (io, control) = owner(true);
+        control.activate().unwrap();
+        let weak = Rc::downgrade(&control);
+        *io.hook.borrow_mut() = Some(Rc::new(move |operation| {
+            if operation == "get" {
+                assert_eq!(weak.upgrade().unwrap().retire(), Err(Error::Busy));
+            }
+        }));
+        assert_eq!(control.reconcile(), Err(Error::Cancelled));
+        assert_eq!(control.health(), Health::Inactive);
+        assert!(io.value.get());
+        assert!(!io.live.get());
     }
     #[test]
     fn unknown_original_is_never_guessed_or_mutated() {

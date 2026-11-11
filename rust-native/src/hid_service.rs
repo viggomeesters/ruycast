@@ -790,6 +790,15 @@ impl Service {
                 && !resources.tap.is_null()
                 && unsafe { (api.tap_enabled)(resources.tap) }
             {
+                if plan.hyper {
+                    callback
+                        .caps
+                        .reconcile()
+                        .map_err(|_| "Caps Lock control unavailable".to_string())?;
+                    if !callback.live.get() || callback.interrupted.get() {
+                        return Err("Keyboard refresh interrupted; retrying".into());
+                    }
+                }
                 return Ok("On".into());
             }
             if !Self::retire(callback, &mut resources) {
@@ -863,6 +872,12 @@ impl Service {
                     return Err("Keyboard filter could not be enabled".into());
                 }
                 ready!();
+            }
+            if plan.hyper {
+                callback
+                    .caps
+                    .commit_off()
+                    .map_err(|_| "Caps Lock control unavailable".to_string())?;
             }
             callback.live.set(true);
             Ok("On".into())

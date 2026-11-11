@@ -117,7 +117,7 @@ class NativeHid(unittest.TestCase):
                 status=host.rpc({'op':'status'})['result']
                 self.assertEqual(status['hidStatus'],'Paused',name)
                 state=self.hid(host)['state']
-                self.assertFalse(state['manager'],name);self.assertEqual(state['caps'],1,name)
+                self.assertFalse(state['manager'],name);self.assertEqual(state['caps'],0,name)
                 self.assertFalse(marker.exists())
             self.hid(host,'notification',name=release_second);host.wait(lambda s:s['hidStatus']=='On')
             self.hid(host,'input',usage=224,down=False,time=1.2)
@@ -191,7 +191,7 @@ class NativeHid(unittest.TestCase):
         out,err=host.process.communicate(timeout=5);code=host.process.returncode;host.process=None;self.assertNotEqual(code,0)
         self.assertIn('owned source callback failure',err.decode())
         proof=json.loads((host.base/'keyboard-retired.json').read_text());self.assertEqual(proof['pid'],expected_pid)
-        witness=proof['state'];self.assertEqual(witness['allocated'],0);self.assertEqual(witness['caps'],1)
+        witness=proof['state'];self.assertEqual(witness['allocated'],0);self.assertEqual(witness['caps'],0)
 
     def test_forwarded_hid_is_revoked_across_health_recovery_while_carbon_is_preserved(self):
         for blocked in [2,4,8]:
@@ -242,7 +242,7 @@ class NativeHid(unittest.TestCase):
         (host.base/'hid-fail-tap_create').unlink()
         host.wait(lambda s:s['hidStatus']=='On')
     def test_quit_retains_profile_and_main_recovery_after_worker_stop(self):
-        for fault in ['hid-fail-manager_close','hid-fail-invalidate','caps-fail-restore']:
+        for fault in ['hid-fail-manager_close','hid-fail-invalidate','caps-fail-set:false']:
             host,_,_=self.configured();self.hid(host,'input',usage=57,down=True,time=0)
             path=host.base/fault;path.touch()
             try:
@@ -254,6 +254,6 @@ class NativeHid(unittest.TestCase):
             expected_pid=host.process.pid
             out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode())
             proof=json.loads((host.base/'keyboard-retired.json').read_text());self.assertEqual(proof['pid'],expected_pid)
-            witness=proof['state'];self.assertEqual(witness['allocated'],0);self.assertEqual(witness['caps'],1)
+            witness=proof['state'];self.assertEqual(witness['allocated'],0);self.assertEqual(witness['caps'],0)
 
 if __name__=='__main__':unittest.main(verbosity=2)
