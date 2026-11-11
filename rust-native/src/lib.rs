@@ -105,3 +105,5 @@ pub mod task_date;
 pub mod native_f1;
 #[cfg(feature = "test-tools")]
 pub mod native_callback_roster;
+#[cfg(any(test, feature = "test-tools"))]
+pub mod test_fixtures;

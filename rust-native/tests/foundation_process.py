@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PROBE = ROOT / 'target/debug/foundation-probe'
+PROBE = Path(os.environ.get('RUYCAST_FOUNDATION_PROBE', ROOT / 'target/debug/foundation-probe'))
 
 
 class FoundationProcesses(unittest.TestCase):
@@ -18,9 +18,10 @@ class FoundationProcesses(unittest.TestCase):
             raise RuntimeError('Build with --features test-tools --bin foundation-probe first')
         cls.library = tempfile.TemporaryDirectory(prefix='foundation-shim-', dir=ROOT / 'target')
         cls.shim = Path(cls.library.name) / 'fsync.dylib'
-        subprocess.run(['clang', '-dynamiclib', '-Wall', '-Wextra',
-                        str(ROOT / 'tests/fcntl_sync_shim.c'), '-o', str(cls.shim)],
-                       check=True, capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        cls.shim=Path(os.environ.get('RUYCAST_TEST_FCNTL_SHIM',target/'release/examples/libfcntl_sync_shim.dylib'))
+        if not cls.shim.is_absolute() or not cls.shim.is_file():
+            raise RuntimeError('Build --features test-tools --example fcntl-sync-shim and set RUYCAST_TEST_FCNTL_SHIM first')
 
     @classmethod
     def tearDownClass(cls):

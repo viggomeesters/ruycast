@@ -476,9 +476,7 @@ mod tests {
         let temp = Temp::new();
         std::fs::set_permissions(&temp.0, std::fs::Permissions::from_mode(0o700)).unwrap();
         std::fs::write(temp.0.join(".ruycast-test-fixture"), b"own-disposable-fixture-v1").unwrap();
-        let shim = temp.0.join("sync.dylib");
-        let compile = Command::new("/usr/bin/cc").args(["-Wall","-Wextra","-Werror","-dynamiclib"]).arg(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fcntl_sync_shim.c")).arg("-o").arg(&shim).output().unwrap();
-        assert!(compile.status.success(), "{}", String::from_utf8_lossy(&compile.stderr));
+        let shim = crate::test_fixtures::fcntl(&temp.0.join("fixture-build.log"));
         let log = temp.0.join("child.log");
         let file = std::fs::File::create(&log).unwrap();
         let mut child = Command::new(std::env::current_exe().unwrap()).env_clear().args(["--exact",NAME,"--nocapture","--test-threads=1"])
