@@ -355,71 +355,7 @@ impl Host{
 }
 impl Drop for Host{fn drop(&mut self){if !self.stopped{let _=rpc(&self.socket,&json!({"op":"quit"}));let end=Instant::now()+Duration::from_secs(3);while self.child.try_wait().ok().flatten().is_none(){if Instant::now()>=end{let _=self.child.kill();break}std::thread::sleep(Duration::from_millis(5));}let _=self.child.wait();}let _=fs::remove_dir_all(&self.base);}}
 
-struct OwnedKeyboardFixture { directory: PathBuf, artifact: PathBuf, expected_sha:String, sourcepins:BTreeMap<PathBuf,String>, owner:u32 }
-impl OwnedKeyboardFixture {
-    fn verify(&self) {
-        use std::os::unix::fs::MetadataExt;
-        let directory=fs::symlink_metadata(&self.directory).unwrap();assert!(directory.is_dir()&&!directory.file_type().is_symlink()&&directory.uid()==self.owner);
-        let artifact=fs::symlink_metadata(&self.artifact).unwrap();assert!(artifact.is_file()&&!artifact.file_type().is_symlink()&&artifact.uid()==self.owner);
-        assert!(!self.expected_sha.is_empty());assert_eq!(fixture_sha(&self.artifact),self.expected_sha,"owned keyboard artifact changed after qualification");
-        assert_eq!(keyboard_fixture_sources(),self.sourcepins,"owned keyboard sources changed after qualification");
-    }
-}
-impl Drop for OwnedKeyboardFixture { fn drop(&mut self) { let _=fs::remove_dir_all(&self.directory); } }
-fn fixture_sha(path:&Path)->String {format!("{:x}",Sha256::digest(fs::read(path).unwrap()))}
-fn assert_keyboard_source_hash(name:&str,actual:&str,expected:&str) {assert_eq!(actual,expected,"qualified fixture source changed: {name}");}
-fn keyboard_fixture_sources()->BTreeMap<PathBuf,String> {
-    let expected=[("keyword_shim.c","a0780df66949e0b463844588fadb6154c0d0e10d590be397dc831676b6d8535a"),("keyword_notification_shim.m","b77069994cd2625db6d581a26b91a98a2ea8a99ec50bd64dfe582c8d639df169"),("keyword_fixture.py","b882795cd723d7ed358d941eb1b68bbd48676aefb89c04f333c03f2d7c52c648"),("keyboard_shim.c","b055ac1d63309dc60314225ef3ec0b8046ee1938dc6cc9c092333c714684195a"),("hid_shim.c","43d192ab550f3f7909b84cf342b34154e035af752c138fa9304640862ffa4a28"),("workspace_shim.m","bac4ceb55746f08def68bb90c7b03473b30fb2059a1ced3e0092f3496903be31"),("caps_shim.c","03b4695a6592302b8946ab07a9b4ba7d628529a48ba428592a703401e1ef6140"),("native_keyboard_process.py","7f3ef198cdfb28e270cc8c9925975a74b26976e588f8fac7c10007acc3392469")];
-    expected.into_iter().map(|(name,expected)|{let path=root().join("tests").join(name);let metadata=fs::symlink_metadata(&path).unwrap();assert!(metadata.is_file()&&!metadata.file_type().is_symlink());let actual=fixture_sha(&path);assert_keyboard_source_hash(name,&actual,expected);(path,actual)}).collect()
-}
-fn fixture_tool(directory:&Path,name:&str,program:&str,args:&[String])->String {
-    use std::os::unix::fs::OpenOptionsExt;
-    let stdout=fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.join(format!("{name}.stdout"))).unwrap();
-    let stderr=fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.join(format!("{name}.stderr"))).unwrap();
-    fs::write(directory.join(format!("{name}.argv.json")),serde_json::to_vec_pretty(&json!({"program":program,"arguments":args,"env":{"HOME":directory,"TMPDIR":directory,"PATH":"/usr/bin:/bin:/usr/sbin:/sbin"}})).unwrap()).unwrap();
-    let mut child=Command::new(program).args(args).env_clear().env("HOME",directory).env("TMPDIR",directory).env("PATH","/usr/bin:/bin:/usr/sbin:/sbin").stdin(Stdio::null()).stdout(stdout).stderr(stderr).spawn().unwrap();
-    let deadline=Instant::now()+Duration::from_secs(30);
-    let status=loop {if let Some(status)=child.try_wait().unwrap(){break status;}
-        if Instant::now()>=deadline{let _=child.kill();let _=child.wait();panic!("owned fixture tool timed out: {name}");}std::thread::sleep(Duration::from_millis(5));};
-    let error=fs::read_to_string(directory.join(format!("{name}.stderr"))).unwrap();assert!(status.success(),"owned fixture tool {name} failed: {error}");
-    let bytes=fs::read(directory.join(format!("{name}.stdout"))).unwrap();assert!(bytes.len()<2*1024*1024,"fixture tool output exceeded bound");String::from_utf8(bytes).unwrap()
-}
-fn check_keyboard_loader(commands:&str,dependencies:&str,artifact:&Path) {
-    for forbidden in ["LC_RPATH","LC_DYLD_ENVIRONMENT","LC_ROUTINES","__interpose","__mod_init_func","__objc_nlclslist","__objc_nlcatlist"] {assert!(!commands.contains(forbidden),"unexpected keyboard loader entry: {forbidden}");}
-    let initializers=commands.split("Section").filter(|part|part.lines().any(|line|line.trim()=="sectname __init_offsets")).collect::<Vec<_>>();
-    assert_eq!(initializers.len(),1,"known keyboard initializer section required");assert!(initializers[0].lines().any(|line|line.trim()=="size 0x0000000000000008"),"keyboard initializer roster changed");
-    let expected=[artifact.to_str().unwrap(),"/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit","/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation","/usr/lib/libobjc.A.dylib","/usr/lib/libSystem.B.dylib","/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation"];
-    let actual=dependencies.lines().skip(1).map(|line|line.trim().split(" (").next().unwrap()).collect::<Vec<_>>();assert_eq!(actual.len(),expected.len());assert_eq!(actual.into_iter().collect::<BTreeSet<_>>(),expected.into_iter().collect(),"keyboard dependency roster changed");
-    let id=commands.split("cmd LC_ID_DYLIB").nth(1).expect("keyboard install identity required");assert!(id.lines().any(|line|line.trim().starts_with(&format!("name {} (offset ",artifact.display()))),"keyboard install identity must bind this owned output");
-}
-fn check_keyboard_initializers(offsets:&str,symbols:&str) {
-    let addresses=offsets.lines().skip(2).flat_map(|line|line.split_whitespace().skip(1)).map(|value|u64::from_str_radix(value,16).unwrap()).collect::<Vec<_>>();
-    assert_eq!(addresses.len(),2,"keyboard initializer count changed");
-    let names=addresses.into_iter().map(|address|symbols.lines().find_map(|line|{let fields=line.split_whitespace().collect::<Vec<_>>();(fields.first().and_then(|value|u64::from_str_radix(value,16).ok())==Some(address)).then(||*fields.last().unwrap())}).expect("initializer code symbol required")).collect::<BTreeSet<_>>();
-    assert_eq!(names,BTreeSet::from(["___GLOBAL_init_65535","_install"]),"keyboard initializer code roster changed");
-}
-fn build_owned_keyboard_fixture()->OwnedKeyboardFixture {
-    use std::os::unix::fs::{DirBuilderExt,MetadataExt,PermissionsExt};
-    static NEXT:std::sync::atomic::AtomicU64=std::sync::atomic::AtomicU64::new(0);
-    let sources=keyboard_fixture_sources();
-    let parent=PathBuf::from(std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("short owned fixture parent required"));assert!(parent.is_absolute());
-    let parent_metadata=fs::symlink_metadata(&parent).unwrap();assert!(parent_metadata.is_dir()&&!parent_metadata.file_type().is_symlink()&&parent_metadata.permissions().mode()&0o077==0);
-    let marker=parent.join(".ruycast-ui-fixture-parent");let metadata=fs::symlink_metadata(&marker).unwrap();assert!(metadata.is_file()&&!metadata.file_type().is_symlink());assert_eq!(fs::read(marker).unwrap(),b"owned-ui-fixture-parent-v1");
-    let evidence=PathBuf::from(std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR").expect("owned fixture evidence directory required"));assert!(evidence.is_absolute());let metadata=fs::symlink_metadata(&evidence).unwrap();assert!(metadata.is_dir()&&!metadata.file_type().is_symlink()&&metadata.uid()==parent_metadata.uid());
-    let name=format!("keyboard-{}-{}",std::process::id(),NEXT.fetch_add(1,std::sync::atomic::Ordering::Relaxed));let directory=parent.join(&name);fs::DirBuilder::new().mode(0o700).create(&directory).unwrap();let mut owned=OwnedKeyboardFixture{artifact:directory.join("keyboard.dylib"),directory,expected_sha:String::new(),sourcepins:sources.clone(),owner:parent_metadata.uid()};
-    assert_eq!(fs::symlink_metadata(&owned.directory).unwrap().uid(),parent_metadata.uid());
-    let compiler=fixture_tool(&owned.directory,"compiler","/usr/bin/clang",&["--version".into()]);let sdk=fixture_tool(&owned.directory,"sdk","/usr/bin/xcrun",&["--show-sdk-path".into()]);let sdk_version=fixture_tool(&owned.directory,"sdk-version","/usr/bin/xcrun",&["--show-sdk-version".into()]);
-    let object=owned.directory.join("keyword-notification.o");let text=|p:&Path|p.to_str().unwrap().to_owned();
-    fixture_tool(&owned.directory,"notification","/usr/bin/clang",&["-Wall","-Wextra","-Werror","-Wno-objc-missing-super-calls","-fno-objc-arc","-c"].into_iter().map(str::to_owned).chain([text(&root().join("tests/keyword_notification_shim.m")),"-o".into(),text(&object)]).collect::<Vec<_>>());
-    fixture_tool(&owned.directory,"link","/usr/bin/clang",&["-dynamiclib","-Wall","-Wextra","-Werror","-fobjc-arc","-fblocks","-framework","AppKit","-DRUYCAST_HID_HOST_FIXTURE"].into_iter().map(str::to_owned).chain([text(&object)]).chain(["keyword_shim.c","keyboard_shim.c","hid_shim.c","workspace_shim.m"].map(|name|text(&root().join("tests").join(name)))).chain(["-o".into(),text(&owned.artifact)]).collect::<Vec<_>>());
-    assert_eq!(sources,keyboard_fixture_sources(),"fixture sources changed during compiler execution");let metadata=fs::symlink_metadata(&owned.artifact).unwrap();assert!(metadata.is_file()&&!metadata.file_type().is_symlink()&&metadata.uid()==parent_metadata.uid());let sha=fixture_sha(&owned.artifact);owned.expected_sha=sha.clone();
-    let commands=fixture_tool(&owned.directory,"loadcommands","/usr/bin/otool",&["-l".into(),text(&owned.artifact)]);let dependencies=fixture_tool(&owned.directory,"dependencies","/usr/bin/otool",&["-L".into(),text(&owned.artifact)]);check_keyboard_loader(&commands,&dependencies,&owned.artifact);
-    let initializers=fixture_tool(&owned.directory,"initializers","/usr/bin/otool",&["-s".into(),"__TEXT".into(),"__init_offsets".into(),text(&owned.artifact)]);let symbols=fixture_tool(&owned.directory,"symbols","/usr/bin/nm",&["-nm".into(),text(&owned.artifact)]);check_keyboard_initializers(&initializers,&symbols);
-    assert_eq!(sha,fixture_sha(&owned.artifact));assert_eq!(sources,keyboard_fixture_sources());
-    fs::write(owned.directory.join("receipt.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"compiler":compiler,"compilerSHA256":fixture_sha(Path::new("/usr/bin/clang")),"sdk":sdk.trim(),"sdkVersion":sdk_version.trim(),"artifact":owned.artifact,"sha256":sha,"loaded":false,"qualification":"source-built-owned-keyboard"})).unwrap()).unwrap();
-    let output=evidence.join(name);fs::DirBuilder::new().mode(0o700).create(&output).unwrap();for entry in fs::read_dir(&owned.directory).unwrap(){let path=entry.unwrap().path();let copy=output.join(path.file_name().unwrap());fs::copy(&path,&copy).unwrap();fs::set_permissions(copy,fs::Permissions::from_mode(0o600)).unwrap();}assert_eq!(sha,fixture_sha(&output.join("keyboard.dylib")));
-    owned.verify();owned
-}
+include!("support/owned_keyboard.rs");
 fn qualified_system_ui_image()->(PathBuf,PathBuf,OwnedKeyboardFixture){
     let binary=PathBuf::from(env!("CARGO_BIN_EXE_ruycast-native"));assert_eq!(fixture_sha(&binary),std::env::var("RUYCAST_BROWSER_NATIVE_SHA").expect("independently qualified current native image hash required"));
     let fixture=build_owned_keyboard_fixture();(binary,fixture.artifact.clone(),fixture)
@@ -439,13 +375,28 @@ fn owned_keyboard_fixture_rechecks_changed_bytes_symlinks_and_sources_without_lo
 }
 #[test]
 fn owned_keyboard_fixture_loader_rejects_unknown_effects_without_loading_sdk() {
-    assert!(std::panic::catch_unwind(||assert_keyboard_source_hash("caps_shim.c","modified","03b4695a6592302b8946ab07a9b4ba7d628529a48ba428592a703401e1ef6140")).is_err());
-    let artifact=Path::new("/owned/keyboard.dylib");let commands="cmd LC_ID_DYLIB\n name /owned/keyboard.dylib (offset 24)\nSection\n sectname __init_offsets\n size 0x0000000000000008\n";let dependencies="/owned/keyboard.dylib:\n /owned/keyboard.dylib (x)\n /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (x)\n /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation (x)\n /usr/lib/libobjc.A.dylib (x)\n /usr/lib/libSystem.B.dylib (x)\n /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (x)\n";
-    check_keyboard_loader(commands,dependencies,artifact);
-    check_keyboard_initializers("image:\nContents\n0000000000000010 00000020 00000030\n","0000000000000020 (__TEXT,__text) non-external ___GLOBAL_init_65535\n0000000000000030 (__TEXT,__text) non-external _install");
-    assert!(std::panic::catch_unwind(||check_keyboard_initializers("image:\nContents\n0000000000000010 00000020 00000030\n","0000000000000020 (__TEXT,__text) non-external _unknown\n0000000000000030 (__TEXT,__text) non-external _install")).is_err());
-    for extra in ["LC_RPATH","LC_DYLD_ENVIRONMENT","LC_ROUTINES","__interpose","__mod_init_func"] {assert!(std::panic::catch_unwind(||check_keyboard_loader(&format!("{commands}{extra}"),dependencies,artifact)).is_err());}
-    assert!(std::panic::catch_unwind(||check_keyboard_loader(commands,&format!("{dependencies} /unknown/library (x)\n"),artifact)).is_err());
+    assert!(std::panic::catch_unwind(||assert_keyboard_source_hash("caps_sdk.rs","modified","qualified")).is_err());
+    let artifact=Path::new("/owned/keyboard.dylib");
+    let policy=keyboard_loader_policy();
+    let commands=format!("cmd LC_ID_DYLIB\n name {} (offset 24)\nSection\n sectname __mod_init_func\n segname __DATA_CONST\n size 0x0000000000000008\n flags 0x00000009\nSection\n sectname __mod_term_func\n segname __DATA_CONST\n size 0x0000000000000008\n flags 0x0000000a\n",artifact.display());
+    let mut dependencies=format!("{}:\n {} (x)\n",artifact.display(),artifact.display());
+    for path in policy["dependencies"].as_array().unwrap(){dependencies.push_str(&format!(" {} (x)\n",path.as_str().unwrap()));}
+    check_keyboard_loader(&commands,&dependencies,artifact);
+    for (kind,symbol) in [("initializers","_ruycast_keyboard_host_fixture_install"),("finalizers","_ruycast_keyboard_fixture_cleanup")] {
+        let offsets="image:\nContents\n0000000000000010 00000020 00000000\n";
+        let symbols=format!("0000000000000020 (__TEXT,__text) external {symbol}");
+        check_keyboard_pointers(offsets,&symbols,kind);
+        assert!(std::panic::catch_unwind(||check_keyboard_pointers(offsets,"0000000000000020 (__TEXT,__text) external _unknown",kind)).is_err());
+        assert!(std::panic::catch_unwind(||check_keyboard_pointers("image:\nContents\n0000000000000010 00000020 00000000 00000030 00000000\n",&symbols,kind)).is_err());
+    }
+    for extra in ["LC_RPATH","LC_DYLD_ENVIRONMENT","LC_ROUTINES","__interpose","__init_offsets"] {
+        assert!(std::panic::catch_unwind(||check_keyboard_loader(&format!("{commands}{extra}"),&dependencies,artifact)).is_err());
+    }
+    for (name,flags) in [("__unknown_init","0x00000009"),("__unknown_term","0x0000000a"),("__unknown_tls","0x00000015"),("__unknown_offsets","0x00000016")] {
+        assert!(std::panic::catch_unwind(||check_keyboard_loader(&format!("{commands}Section\n sectname {name}\n segname __DATA\n size 0x0000000000000008\n flags {flags}\n"),&dependencies,artifact)).is_err());
+    }
+    assert!(std::panic::catch_unwind(||check_keyboard_loader(&commands,&format!("{dependencies} /unknown/library (x)\n"),artifact)).is_err());
+    assert!(std::panic::catch_unwind(||check_keyboard_loader(&commands.replace("name /owned/keyboard.dylib","name /unknown/identity"),&dependencies,artifact)).is_err());
 }
 #[test]
 fn browser_original_native_return_and_forty_eight_hidden_variants_are_owned() {

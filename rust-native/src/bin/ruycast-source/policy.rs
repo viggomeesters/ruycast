@@ -482,6 +482,7 @@ rust-native/tests/remaining_macos_process.rs
 rust-native/tests/startup_config_repair.rs
 rust-native/tests/startup_process.rs
 rust-native/tests/support/child_output.rs
+rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
 rust-native/tests/utility_process.rs
 rust-native/src/artifact_lease.rs
