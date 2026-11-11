@@ -9,17 +9,17 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-PROBE = ROOT / 'rust-native/target/debug/script-probe'
+PROBE = Path(os.environ.get('RUYCAST_SCRIPT_PROBE', ROOT / 'rust-native/target/debug/script-probe'))
 CLI = ROOT / '.build/rust/release/ruycast'
 
 
 class Scripts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.shim_dir = tempfile.TemporaryDirectory(prefix='ruycast-script-shim-')
-        cls.addClassCleanup(cls.shim_dir.cleanup)
-        cls.shim = Path(cls.shim_dir.name) / 'fault.dylib'
-        subprocess.run(['cc', '-Wall', '-Wextra', '-Werror', '-dynamiclib', str(ROOT / 'rust-native/tests/script_fault_shim.c'), '-o', str(cls.shim)], check=True, capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT/'.build/full-rust-release/native'))
+        cls.shim=Path(os.environ.get('RUYCAST_TEST_SCRIPT_FAULT_SHIM',target/'release/examples/libscript_fault_shim.dylib'))
+        if not cls.shim.is_absolute() or not cls.shim.is_file():
+            raise RuntimeError('Build --features test-tools --example script-fault-shim and set RUYCAST_TEST_SCRIPT_FAULT_SHIM first')
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='ruycast-script-')
