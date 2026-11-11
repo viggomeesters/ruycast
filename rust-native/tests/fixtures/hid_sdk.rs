@@ -7,6 +7,10 @@ type Ptr = *mut c_void;
 type HidCallback = unsafe extern "C" fn(Ptr, i32, Ptr, Ptr);
 type TapCallback = unsafe extern "C" fn(Ptr, u32, Ptr, Ptr) -> Ptr;
 type Hook = unsafe extern "C" fn(Ptr);
+pub(super) struct Host {
+    pub ready: unsafe extern "C" fn() -> u64,
+    pub emit: unsafe extern "C" fn(u32, u32) -> i32,
+}
 #[derive(Default)]
 struct Obj {
     kind: u32,
@@ -40,6 +44,7 @@ struct State {
     hook_context: usize,
     now: f64,
     quiet: bool,
+    initialized: bool,
     buffer: [libc::c_char; 500],
 }
 static STATE: Mutex<State> = Mutex::new(State {
@@ -58,6 +63,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     hook_context: 0,
     now: 0.0,
     quiet: false,
+    initialized: false,
     buffer: [0; 500],
 });
 static DEVICES: [i32; 16] = [0; 16];
@@ -91,6 +97,51 @@ unsafe fn hidcall(name: &CStr) -> bool {
     if let Some((hook, context)) = hook {
         hook(context as Ptr);
     }
+    if super::HID_HOST.is_some() {
+        let home = libc::getenv(c"RUYCAST_KEYBOARD_FIXTURE_HOME".as_ptr());
+        if !home.is_null() {
+            let mut path = [0 as libc::c_char; 4096];
+            libc::snprintf(
+                path.as_mut_ptr(),
+                path.len(),
+                c"%s/hid-hold-%s".as_ptr(),
+                home,
+                name.as_ptr(),
+            );
+            if libc::access(path.as_ptr(), libc::F_OK) == 0 {
+                let mut entered = [0 as libc::c_char; 4096];
+                libc::snprintf(
+                    entered.as_mut_ptr(),
+                    entered.len(),
+                    c"%s/hid-entered-%s".as_ptr(),
+                    home,
+                    name.as_ptr(),
+                );
+                let file = libc::fopen(entered.as_ptr(), c"w".as_ptr());
+                assert!(!file.is_null());
+                libc::fputs(c"entered".as_ptr(), file);
+                libc::fclose(file);
+                // No SDK lock or object borrow across the external hold.
+                for _ in 0..5000 {
+                    if libc::access(path.as_ptr(), libc::F_OK) != 0 {
+                        break;
+                    }
+                    libc::usleep(1000);
+                }
+                assert_ne!(libc::access(path.as_ptr(), libc::F_OK), 0);
+            }
+            libc::snprintf(
+                path.as_mut_ptr(),
+                path.len(),
+                c"%s/hid-fail-%s".as_ptr(),
+                home,
+                name.as_ptr(),
+            );
+            if libc::access(path.as_ptr(), libc::F_OK) == 0 {
+                return true;
+            }
+        }
+    }
     libc::strcmp(STATE.lock().unwrap().failure.as_ptr(), name.as_ptr()) == 0
 }
 fn object(kind: u32) -> Ptr {
@@ -111,6 +162,23 @@ macro_rules! sdk {
 }
 #[no_mangle]
 extern "C" fn ruycast_hid_fixture_ready() -> u64 {
+    if let Some(host) = &super::HID_HOST {
+        if unsafe { (host.ready)() } == 0 {
+            return 0;
+        }
+        let initialize = {
+            let mut state = STATE.lock().unwrap();
+            let initialize = !state.initialized;
+            state.initialized = true;
+            if initialize {
+                state.quiet = true;
+            }
+            initialize
+        };
+        if initialize {
+            super::caps_sdk::initialize_host();
+        }
+    }
     0x5255484944303031
 }
 #[no_mangle]
@@ -383,6 +451,17 @@ unsafe extern "C" fn ruycast_hid_fixture_event(
         result = (*tap).tap.unwrap()(tap.cast(), kind, pointer, (*tap).context as Ptr);
     }
     STATE.lock().unwrap().last_event_flags = value.flags;
+    if let Some(host) = &super::HID_HOST {
+        if !result.is_null() && kind == 10 && !repeated {
+            let mut modifiers = 0;
+            for (event_bit, carbon_bit) in [(20, 8), (18, 12), (19, 11), (17, 9)] {
+                if value.flags & (1 << event_bit) != 0 {
+                    modifiers |= 1 << carbon_bit;
+                }
+            }
+            (host.emit)(key.into(), modifiers);
+        }
+    }
     u64::from(result.is_null())
 }
 #[no_mangle]

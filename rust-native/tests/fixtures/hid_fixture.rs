@@ -1,5 +1,6 @@
 //! Complete standalone HID provider, sharing the exact Rust Caps state.
 const HOST: bool = false;
+const HID_HOST: Option<hid_sdk::Host> = None;
 mod caps_sdk;
 mod hid_sdk;
 #[no_mangle]

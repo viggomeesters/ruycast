@@ -25,6 +25,15 @@ static STATE: Mutex<State> = Mutex::new(State {
     context: 0,
 });
 
+// Called only after the combined host's keyboard marker was verified.
+#[allow(
+    dead_code,
+    reason = "Standalone Caps artifacts never initialize the host latch"
+)]
+pub(super) fn initialize_host() {
+    STATE.lock().unwrap().latch = true;
+}
+
 fn call(name: &CStr) -> i32 {
     if !super::HOST {
         let mut line = [0 as libc::c_char; 64];
