@@ -4,7 +4,7 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 ![Ruycast's native launcher and Settings](assets/hero.png)
 
-**Rust native rewrite candidate · macOS 14+**
+**Rust native beta · macOS 14+**
 
 ## Your everyday shortcuts
 
@@ -20,11 +20,13 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 ## Install
 
-The production host, CLI, build receipts and packaging are Rust. This rewrite candidate still needs complete functional and F1 delivery acceptance; it is not a new signed or notarized release. Historical Swift sources are retained as test oracles.
+The app host, CLI, build receipts and packaging are implemented in Rust. Current source betas are available on the [Releases page](https://github.com/viggomeesters/ruycast/releases). A notarized app download remains deferred.
+
+The repository is not yet entirely Rust: it still contains historical Swift sources, Python tools and tests, and C/Objective-C test fixtures. [The repository migration](https://github.com/viggomeesters/ruycast/issues/157) replaces or retires that code in small steps while preserving its required behavior.
 
 Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Python 3.10+ is needed only for compatibility entrypoints and unchanged test validators; Swift is needed for explicit historical parity oracles, not the production build. Dependencies must already be cached for the offline build:
 
-Run these commands from the reviewed Rust candidate checkout or source snapshot.
+Run these existing compatibility entrypoints from the reviewed checkout or source snapshot. They still use shell and Python to reach the Rust build tools:
 
 ```sh
 bash scripts/build-native.sh -c release
@@ -74,15 +76,15 @@ bash scripts/check-settings.sh
 python3 scripts/build_receipt.py verify-check
 ```
 
-Validation runs locally. The complete native matrix retains its existing leaf validators and explicitly binds test compatibility copies. Performance verification requires the independently reviewed complete F1 runner, pinned authority and preserved dataset; `check-performance.sh` fails closed without them. Historical Swift-host checks must not run without their complete pre-entry SDK guard.
+These are compatibility entrypoints, not a completed Rust-only test suite. The native matrix still uses Python validators, and the full `check` entrypoint refuses its unmapped Python-discovery gate. The `settings` pipeline also requires its bound native validation artifacts.
 
-The full `check` entrypoint still refuses its unmapped original Python-discovery gate. The `settings` inventory has no unmapped gates, but requires the complete current native validation and its qualified settings cases. An inventory or native-only pass does not establish the full check, F1 or delivery acceptance.
+The previous full Swift-comparison and F1 measurement campaign was discontinued on 10 November 2026. Current work uses focused checks for each change and separate short launcher-time and memory measurements. Historical comparison code remains pending retirement; its presence does not make the discontinued campaign a release requirement.
 
 [Contributing](CONTRIBUTING.md) · [Performance](docs/PERFORMANCE.md) · [Product contract](docs/vision.json)
 
 ## Releases
 
-[The historical 0.8.25 source release](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.25) predates this rewrite. A local Rust build receipt or unsigned candidate does not declare the rewrite release-ready. See the [release status](docs/RELEASING.md).
+The [current releases](https://github.com/viggomeesters/ruycast/releases) include the 0.9.0 Rust source betas. They are distinct from the older 0.8.x releases and do not include a notarized app download. Final rewrite acceptance remains tracked in [issue #86](https://github.com/viggomeesters/ruycast/issues/86); the remaining repository-wide language migration is tracked separately in [issue #157](https://github.com/viggomeesters/ruycast/issues/157).
 
 [Changelog](CHANGELOG.md)
 
