@@ -606,7 +606,7 @@
     "rust-native/tests/keyword_capture_process.py": "8a5025bce5353d88edaae90e4975c74deef4ee69015ccadb773dcb9b2e2eb089",
     "rust-native/tests/keyword_core.rs": "70528766753e567297cb6e4ce1b7a50eb0323fb81f83616c3dafcb89dd3db79b",
     "rust-native/tests/keyword_fixture.py": "b882795cd723d7ed358d941eb1b68bbd48676aefb89c04f333c03f2d7c52c648",
-    "rust-native/tests/keyword_native_process.py": "edb6e9b9cd40d249973a36258a92da88b0cab35a0e260d74e37d137d38980e61",
+    "rust-native/tests/keyword_native_process.py": "820453a99f597a7517806720be8e0b4a1b65d68a7b79632f39a958176bbd2165",
     "rust-native/tests/keyword_notification.rs": "1589dc7d81f1ad5be4bf3eacd8d7fcf808b1bd833cb0927b7b4a4fa97e959886",
     "rust-native/tests/keyword_notification_shim.m": "b77069994cd2625db6d581a26b91a98a2ea8a99ec50bd64dfe582c8d639df169",
     "rust-native/tests/keyword_process.py": "18ba8f4d4328bf30ba2b05cafa1c53dd92f750c2eb3df3fd21cf061217f1a097",
