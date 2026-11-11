@@ -8,6 +8,17 @@ publish = false
 test-tools = []
 local-preview = []
 
+[[example]]
+name = "private-fsync-shim"
+path = "../Tests/fixtures/private_fsync_shim.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "private-fsync-probe"
+path = "../Tests/fixtures/private_fsync_probe.rs"
+required-features = ["test-tools"]
+
 [[bin]]
 name = "private-results-fixture"
 path = "src/bin/private_results_fixture.rs"

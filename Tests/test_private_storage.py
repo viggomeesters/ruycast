@@ -135,7 +135,9 @@ class PrivateStorageTests(unittest.TestCase):
             original=(ROOT/'config/default.json').read_bytes();(profile/'config.json').write_bytes(original)
             destination=base/'portable';destination.mkdir(mode=0o755)
             shim=base/'failure.dylib';marker=base/'injected.marker'
-            subprocess.run(['/usr/bin/clang','-dynamiclib','-Wall','-Wextra','-Werror',str(ROOT/'Tests/fixtures/private_fsync_shim.c'),'-o',str(shim)],capture_output=True,check=True,timeout=30)
+            build_target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT/'.build/full-rust-release/native'))
+            subprocess.run(['cargo','build','--manifest-path',str(ROOT/'rust-native/Cargo.toml'),'--locked','--offline','--release','--features','test-tools','--example','private-fsync-shim','--target-dir',str(build_target)],capture_output=True,check=True,timeout=60)
+            shim=build_target/'release/examples/libprivate_fsync_shim.dylib'
             env=dict(os.environ,RUYCAST_HOME=str(profile),DYLD_INSERT_LIBRARIES=str(shim),RUYCAST_TEST_FSYNC_DIRECTORY=str(destination),RUYCAST_TEST_FSYNC_MARKER=str(marker))
             env.pop('RUYCAST_CONFIG_DIR',None);env.pop('RUSTCAST_HOME',None);env.pop('RUYCAST_TEST_FSYNC_MUTATE',None)
             if mutation:env['RUYCAST_TEST_FSYNC_MUTATE']=mutation
