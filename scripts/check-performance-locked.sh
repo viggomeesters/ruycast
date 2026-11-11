@@ -7,8 +7,8 @@ exec bash scripts/check-performance.sh "$@"
 directory="${RUYCAST_CHECK_OUTPUT:-.build/performance}"
 mkdir -p "$directory"
  .build/swift/release/RuycastApp --benchmark-interactions > "$directory/interactions-release.json"
-clang -O2 -Wall -Wextra scripts/perf-probe.c -o .build/perf-probe
-.build/perf-probe --self-check > "$directory/counter-units.json"
+cargo build --manifest-path rust-native/Cargo.toml --features test-tools --release --locked --bin perf-probe
+rust-native/target/release/perf-probe --self-check > "$directory/counter-units.json"
 .build/swift/release/RuycastApp --check-performance-pipeline > "$directory/pipeline-release.json"
 .build/swift/release/RuycastApp --benchmark-performance > "$directory/benchmark-release.json"
 .build/swift/release/RuycastApp --benchmark-lifecycle 100 > "$directory/lifecycle-release.json"

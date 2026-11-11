@@ -8,6 +8,11 @@ publish = false
 test-tools = []
 local-preview = []
 
+[[bin]]
+name = "perf-probe"
+path = "../scripts/perf-probe.rs"
+required-features = ["test-tools"]
+
 [[example]]
 name = "system-fixture"
 path = "tests/fixtures/system_fixture.rs"
