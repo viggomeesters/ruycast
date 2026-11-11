@@ -188,27 +188,47 @@ fn direct_sdk_transport_is_fully_owned() {
     )
     .unwrap();
     let shim = out.join("owned-sdk.dylib");
-    let build = Command::new("clang")
-        .args([
-            "-dynamiclib",
-            "-fobjc-arc",
-            "-framework",
-            "AppKit",
-            "-framework",
-            "ApplicationServices",
-            "-framework",
-            "Carbon",
-        ])
-        .arg(root.join("tests/system_search_sdk_shim.m"))
-        .arg("-o")
-        .arg(&shim)
-        .output()
-        .unwrap();
+    let executable = Path::new(env!("CARGO_BIN_EXE_system-search-probe"));
+    let artifact = std::env::var_os("RUYCAST_TEST_SYSTEM_SDK")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            executable
+                .parent()
+                .unwrap()
+                .join("examples/libsystem_fixture.dylib")
+        });
     assert!(
-        build.status.success(),
-        "{}",
-        String::from_utf8_lossy(&build.stderr)
+        artifact.is_absolute() && artifact.is_file(),
+        "Build the same-profile system-fixture Rust example first"
     );
+    fs::copy(&artifact, &shim).unwrap();
+    assert_eq!(
+        Sha256::digest(fs::read(&artifact).unwrap()),
+        Sha256::digest(fs::read(&shim).unwrap())
+    );
+    let sources = [
+        "rust-native/tests/fixtures/system_nodes.rs",
+        "rust-native/tests/fixtures/system_effects.rs",
+        "rust-native/tests/fixtures/system_apps.rs",
+        "rust-native/tests/fixtures/system_events.rs",
+        "rust-native/tests/fixtures/system_fixture.rs",
+        "rust-native/Cargo.toml",
+        "rust-native/Cargo.lock",
+        "rust/Cargo.toml",
+        "rust-toolchain.toml",
+    ]
+    .into_iter()
+    .map(|name| {
+        (
+            name,
+            format!(
+                "{:x}",
+                Sha256::digest(fs::read(root.parent().unwrap().join(name)).unwrap())
+            ),
+        )
+    })
+    .collect::<BTreeMap<_, _>>();
+    fs::write(out.join("rust-sdk-bindings.json"), serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":{shim.strip_prefix(root.parent().unwrap()).unwrap().to_str().unwrap():format!("{:x}",Sha256::digest(fs::read(&shim).unwrap()))}})).unwrap()).unwrap();
     let probe = Command::new(env!("CARGO_BIN_EXE_system-search-probe"))
         .env("DYLD_INSERT_LIBRARIES", &shim)
         .env("RUYCAST_SYSTEM_SDK_FIXTURE_HOME", &fixture)
@@ -229,6 +249,9 @@ fn direct_sdk_transport_is_fully_owned() {
         serde_json::to_vec_pretty(&result).unwrap(),
     )
     .unwrap();
+}
+#[test]
+fn direct_sdk_transport_refuses_without_owned_provider() {
     let denied = Command::new(env!("CARGO_BIN_EXE_system-search-probe"))
         .env_remove("DYLD_INSERT_LIBRARIES")
         .env_remove("RUYCAST_SYSTEM_SDK_FIXTURE_HOME")
