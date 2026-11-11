@@ -2,13 +2,14 @@
 """Caps ownership through the typed C SDK table, with no actual IOKit calls."""
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = ROOT / 'target/caps-fixture'
-PROBE = ROOT / 'target/debug/caps-probe'
+PROBE = Path(os.environ.get('RUYCAST_CAPS_PROBE', ROOT / 'target/debug/caps-probe'))
 
 
 def mask(*indexes):
@@ -19,9 +20,12 @@ class CapsSdk(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         DIRECTORY.mkdir(parents=True, exist_ok=True)
-        for name, flags in [('complete', []), ('missing', ['-DOMIT_SET'])]:
-            subprocess.run(['clang', '-std=c11', '-Wall', '-Wextra', '-Werror', '-dynamiclib',
-                            *flags, str(ROOT / 'tests/caps_shim.c'), '-o', str(DIRECTORY / (name + '.dylib'))], check=True, capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        for name, variable, library in [('complete','RUYCAST_TEST_CAPS_SHIM','libcaps_fixture.dylib'),('missing','RUYCAST_TEST_CAPS_MISSING','libcaps_missing_set.dylib')]:
+            artifact=Path(os.environ.get(variable,target/'release/examples'/library))
+            if not artifact.is_absolute() or not artifact.is_file():
+                raise RuntimeError('Build --features test-tools --example caps-fixture --example caps-missing-set first')
+            shutil.copyfile(artifact,DIRECTORY/(name+'.dylib'))
 
     def run_case(self, operations, original=True, failures=0, library='complete', nested_at=None):
         env = dict(os.environ)

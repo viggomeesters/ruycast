@@ -20,6 +20,18 @@ path = "../Tests/fixtures/private_fsync_probe.rs"
 required-features = ["test-tools"]
 
 [[example]]
+name = "caps-fixture"
+path = "tests/fixtures/caps_fixture.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "caps-missing-set"
+path = "tests/fixtures/caps_missing_set.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "snippet-faults"
 path = "tests/fixtures/snippet_faults.rs"
 crate-type = ["cdylib"]

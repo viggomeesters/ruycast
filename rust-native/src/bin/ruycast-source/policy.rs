@@ -310,6 +310,9 @@ rust-native/tests/applications_process.py
 rust-native/tests/bridge_process.py
 rust-native/tests/caps_process.py
 rust-native/tests/caps_shim.c
+rust-native/tests/fixtures/caps_sdk.rs
+rust-native/tests/fixtures/caps_fixture.rs
+rust-native/tests/fixtures/caps_missing_set.rs
 rust-native/tests/capture_process.py
 rust-native/tests/cli_open_process.py
 rust-native/tests/clipboard_history_process.py
