@@ -500,6 +500,7 @@ rust-native/tests/support/hid_state_goldens.rs
 rust-native/tests/support/status_rpc.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
+rust-native/tests/utility_reference.json
 rust-native/tests/utility_process.rs
 rust-native/src/artifact_lease.rs
 rust-native/src/artifact_lease_tests.rs
