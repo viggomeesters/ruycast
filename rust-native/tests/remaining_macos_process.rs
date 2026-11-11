@@ -27,27 +27,18 @@ fn shim() -> &'static Path {
             assert!(path.is_absolute() && path.is_file());
             return path;
         }
-        let path = native().join("target/remaining-workspace-shim.dylib");
-        let output = Command::new("cc")
-            .args([
-                "-Wall",
-                "-Wextra",
-                "-Werror",
-                "-fobjc-arc",
-                "-fblocks",
-                "-dynamiclib",
-                "-framework",
-                "AppKit",
-            ])
-            .arg(native().join("tests/workspace_shim.m"))
-            .arg("-o")
-            .arg(&path)
-            .output()
-            .unwrap();
+        let target = std::env::var_os("CARGO_TARGET_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                native()
+                    .parent()
+                    .unwrap()
+                    .join(".build/full-rust-release/native")
+            });
+        let path = target.join("release/examples/libworkspace_fixture.dylib");
         assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
+            path.is_absolute() && path.is_file(),
+            "Build --features test-tools --example workspace-fixture first"
         );
         path
     })

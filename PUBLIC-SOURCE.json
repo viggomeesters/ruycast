@@ -627,7 +627,7 @@
     "rust-native/tests/native_process.py": "fe472646f63c186666a8dd37cf7021a590644b13598d11af92ae9940d4bbe0f8",
     "rust-native/tests/native_snippet_choice_process.py": "c8feacfb89dd8433048bc5e879ac99fdbe64e59149b8b9c5292369b8f527af3f",
     "rust-native/tests/private_results.rs": "b6ebce860a21a4b82bac987c9d4987c3960d05277d25ddbaecbc8fd1e2b344d1",
-    "rust-native/tests/remaining_macos_process.rs": "21299e38e7b22f7a32008d43cbaa701a0358fb71703bca90829709d0802c1cf3",
+    "rust-native/tests/remaining_macos_process.rs": "45cafbb8cfa454799e42134bbabfccb5d7b6812b0a408fa23c3752e2013c62b4",
     "rust-native/tests/rich_process.py": "5d818b5c13311792506e1619e6e9be52adec1a4f9561a5d5d2760e0a853f8a8a",
     "rust-native/tests/runtime_process.py": "d0be7b8e8eda1cf5a7fd5c98b630ea202f5085a7ed6a215a7d15288b26d6d2ce",
     "rust-native/tests/rust_only_policy.py": "0a785ee09e05eaeb09a980c2f0b08f0f0423d513f832d638fe85eea7446ea64b",
