@@ -1,6 +1,7 @@
 //! Component proof only. No provider constructor, interpose, discovery or readiness.
 mod system_apps;
 mod system_effects;
+mod system_events;
 mod system_nodes;
 use objc2::{rc::autoreleasepool, runtime::AnyObject};
 use objc2_foundation::{NSPoint, NSSize, NSString};
@@ -62,6 +63,80 @@ unsafe fn write_frame(state: &State, expected_error: i32) {
             expected_error
         );
     }
+}
+fn event_object(
+    want: &[u8; 4],
+    from: &objc2_foundation::NSAppleEventDescriptor,
+    form: &[u8; 4],
+    selected: &objc2_foundation::NSAppleEventDescriptor,
+) -> objc2::rc::Retained<objc2_foundation::NSAppleEventDescriptor> {
+    use objc2_foundation::NSAppleEventDescriptor as D;
+    use system_events::code;
+    let record = D::recordDescriptor();
+    record.setDescriptor_forKeyword(&D::descriptorWithTypeCode(code(want)), code(b"want"));
+    record.setDescriptor_forKeyword(from, code(b"from"));
+    record.setDescriptor_forKeyword(&D::descriptorWithEnumCode(code(form)), code(b"form"));
+    record.setDescriptor_forKeyword(selected, code(b"seld"));
+    record.coerceToDescriptorType(code(b"obj ")).unwrap()
+}
+fn event_property(
+    name: &[u8; 4],
+    current: bool,
+) -> objc2::rc::Retained<objc2_foundation::NSAppleEventDescriptor> {
+    use objc2_foundation::NSAppleEventDescriptor as D;
+    use system_events::code;
+    let window = event_object(
+        b"cwin",
+        &D::nullDescriptor(),
+        b"ID  ",
+        &D::descriptorWithInt32(51),
+    );
+    let from = if current {
+        event_object(
+            b"prop",
+            &window,
+            b"prop",
+            &D::descriptorWithTypeCode(code(b"cTab")),
+        )
+    } else {
+        window
+    };
+    event_object(
+        b"prop",
+        &from,
+        b"prop",
+        &D::descriptorWithTypeCode(code(name)),
+    )
+}
+fn local_event(
+    state: &State,
+    id: &[u8; 4],
+    key: &[u8; 4],
+    current: bool,
+    value: Option<&objc2_foundation::NSAppleEventDescriptor>,
+) -> objc2::rc::Retained<objc2_foundation::NSAppleEventDescriptor> {
+    use objc2_foundation::{NSAppleEventDescriptor as D, NSAppleEventSendOptions};
+    use system_events::code;
+    let event = D::appleEventWithEventClass_eventID_targetDescriptor_returnID_transactionID(
+        code(b"core"),
+        code(id),
+        Some(&D::descriptorWithProcessIdentifier(730001)),
+        -1,
+        0,
+    );
+    event.setParamDescriptor_forKeyword(&event_property(key, current), code(b"----"));
+    if let Some(value) = value {
+        event.setParamDescriptor_forKeyword(value, code(b"data"));
+    }
+    let reply = system_events::event(
+        state,
+        &event,
+        NSAppleEventSendOptions(3 | 16 | 4096 | 0x20000),
+        1.,
+    );
+    assert_eq!(reply.eventClass(), code(b"aevt"));
+    assert_eq!(reply.eventID(), code(b"ansr"));
+    reply
 }
 fn main() {
     autoreleasepool(|_| unsafe {
@@ -382,6 +457,111 @@ fn main() {
                 assert_eq!(state.data.lock().unwrap().effects, 1);
                 assert_eq!(text(&attr(&state, 2, "AXTitle")), "Changed");
                 assert_eq!(state.data.lock().unwrap().mode, "renamed");
+            }
+            "events-normal" => {
+                use objc2_foundation::NSAppleEventDescriptor as D;
+                use system_events::code;
+                let ids = local_event(&state, b"getd", b"ID  ", false, None)
+                    .paramDescriptorForKeyword(code(b"----"))
+                    .unwrap();
+                assert_eq!(ids.descriptorType(), code(b"list"));
+                assert_eq!(ids.numberOfItems(), 1);
+                assert_eq!(ids.descriptorAtIndex(1).unwrap().int32Value(), 51);
+                for (key, expected) in [
+                    (b"pnam", "Owned Native Tab"),
+                    (b"pURL", "https://example.invalid/native"),
+                ] {
+                    let list = local_event(&state, b"getd", key, false, None)
+                        .paramDescriptorForKeyword(code(b"----"))
+                        .unwrap();
+                    assert_eq!(list.descriptorType(), code(b"list"));
+                    assert_eq!(list.numberOfItems(), 1);
+                    assert_eq!(
+                        list.descriptorAtIndex(1)
+                            .unwrap()
+                            .stringValue()
+                            .unwrap()
+                            .to_string(),
+                        expected
+                    );
+                }
+                let value = event_object(
+                    b"bTab",
+                    &D::nullDescriptor(),
+                    b"indx",
+                    &D::descriptorWithInt32(2),
+                );
+                local_event(&state, b"setd", b"cTab", false, Some(&value));
+                let selected = local_event(&state, b"getd", b"pidx", true, None)
+                    .paramDescriptorForKeyword(code(b"----"))
+                    .unwrap();
+                assert_eq!(selected.descriptorType(), code(b"long"));
+                assert_eq!(selected.int32Value(), 2);
+                for (key, expected) in [
+                    (b"pnam", "Owned Native Tab"),
+                    (b"pURL", "https://example.invalid/native"),
+                ] {
+                    let scalar = local_event(&state, b"getd", key, true, None)
+                        .paramDescriptorForKeyword(code(b"----"))
+                        .unwrap();
+                    assert_ne!(scalar.descriptorType(), code(b"list"));
+                    assert_eq!(scalar.stringValue().unwrap().to_string(), expected);
+                }
+                local_event(
+                    &state,
+                    b"setd",
+                    b"pidx",
+                    false,
+                    Some(&D::descriptorWithInt32(1)),
+                );
+                let data = state.data.lock().unwrap();
+                assert_eq!((data.selected, data.effects, data.consents), (2, 2, 0));
+            }
+            "events-mutation" => {
+                use objc2_foundation::NSAppleEventDescriptor as D;
+                use system_events::code;
+                state.set_mode("mutate-selection");
+                let value = event_object(
+                    b"bTab",
+                    &D::nullDescriptor(),
+                    b"indx",
+                    &D::descriptorWithInt32(3),
+                );
+                local_event(&state, b"setd", b"cTab", false, Some(&value));
+                let title = local_event(&state, b"getd", b"pnam", true, None)
+                    .paramDescriptorForKeyword(code(b"----"))
+                    .unwrap();
+                assert_eq!(title.stringValue().unwrap().to_string(), "Changed");
+                let selected = local_event(&state, b"getd", b"pidx", true, None)
+                    .paramDescriptorForKeyword(code(b"----"))
+                    .unwrap();
+                assert_eq!(selected.int32Value(), 3);
+                let data = state.data.lock().unwrap();
+                assert_eq!(data.mode, "tab-changed");
+                assert_eq!(data.effects, 1);
+            }
+            "events-denial-consent" => {
+                use objc2_foundation::NSAppleEventDescriptor as D;
+                use system_events::code;
+                state.set_mode("automation-denied");
+                let reply = local_event(&state, b"getd", b"ID  ", false, None);
+                let error = reply.paramDescriptorForKeyword(code(b"errn")).unwrap();
+                assert_eq!(error.int32Value(), -1743);
+                assert!(reply.paramDescriptorForKeyword(code(b"----")).is_none());
+                assert_eq!(state.data.lock().unwrap().consents, 0);
+                let target = D::descriptorWithProcessIdentifier(730001);
+                assert_eq!(
+                    system_events::consent(
+                        &state,
+                        target.aeDesc().cast(),
+                        code(b"****"),
+                        code(b"****"),
+                        1
+                    ),
+                    0
+                );
+                let data = state.data.lock().unwrap();
+                assert_eq!((data.consents, data.effects, data.selected), (1, 0, 1));
             }
             _ => panic!("Unknown owned node probe"),
         }

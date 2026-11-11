@@ -55,3 +55,15 @@ fn synthetic_app_metadata_process_identity_and_retained_state_keep_original_cont
 fn restarted_identity_and_activation_mutation_share_mode_without_native_fallback() {
     run("app-modes", 1);
 }
+#[test]
+fn local_tab_descriptors_keep_list_scalar_selection_and_front_window_semantics() {
+    run("events-normal", 2);
+}
+#[test]
+fn selection_mutation_changes_same_mode_and_title_without_native_send() {
+    run("events-mutation", 1);
+}
+#[test]
+fn automation_denial_and_explicit_consent_counter_never_request_real_permission() {
+    run("events-denial-consent", 0);
+}
