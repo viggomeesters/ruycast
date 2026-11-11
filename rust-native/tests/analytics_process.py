@@ -1,7 +1,7 @@
 """Actual AnalyticsStore Swift model/JSON codec versus Rust; disposable files only.
 The Swift save stub is a disposable-file oracle, not private-storage evidence.
 """
-import copy,hashlib,json,os,subprocess,tempfile,time,unittest
+import copy,hashlib,json,os,shutil,subprocess,tempfile,time,unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import runtime_process as rt
@@ -155,8 +155,12 @@ class Analytics(unittest.TestCase):
 class AnalyticsRuntime(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        target=Path(os.environ.get('CARGO_TARGET_DIR',rt.ROOT.parent/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_ANALYTICS_SHIM',target/'release/examples/libanalytics_write_shim.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example analytics-write-shim and set RUYCAST_TEST_ANALYTICS_SHIM first')
         DIR.mkdir(parents=True,exist_ok=True);cls.shim=DIR/'analytics-write-shim.dylib'
-        subprocess.run(['clang','-Wall','-Wextra','-Werror','-dynamiclib',str(rt.ROOT/'tests/analytics_write_shim.c'),'-o',str(cls.shim)],check=True,capture_output=True)
+        shutil.copyfile(artifact,cls.shim)
     def host(self):
         h=rt.Host(start=False);self.addCleanup(h.close);h.env['DYLD_INSERT_LIBRARIES']=str(self.shim);h.env['RUYCAST_ANALYTICS_FIXTURE_HOME']=str(h.base);h.start();return h
     def entered(self,h):
@@ -210,6 +214,6 @@ class AnalyticsRuntime(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-            p=Path(folder)/'analytics-reference-bindings.json';d=json.loads(p.read_text());sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();source=rt.ROOT/'tests/analytics_write_shim.c';d['sources'][str(source.relative_to(rt.ROOT.parent))]=sha(source);d['artifacts'][str(cls.shim.relative_to(rt.ROOT.parent))]=sha(cls.shim);p.write_text(json.dumps(d,indent=2))
+            p=Path(folder)/'analytics-reference-bindings.json';d=json.loads(p.read_text());sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();source=rt.ROOT/'tests/fixtures/analytics_write_shim.rs';d['sources'][str(source.relative_to(rt.ROOT.parent))]=sha(source);d['artifacts'][str(cls.shim.relative_to(rt.ROOT.parent))]=sha(cls.shim);p.write_text(json.dumps(d,indent=2))
 
 if __name__=='__main__':unittest.main(verbosity=2)

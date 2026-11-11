@@ -304,7 +304,7 @@ rust-native/src/workspace_activation.rs
 rust-native/swift-reference-lock.json
 rust-native/tests/actions_process.py
 rust-native/tests/analytics_process.py
-rust-native/tests/analytics_write_shim.c
+rust-native/tests/fixtures/analytics_write_shim.rs
 rust-native/tests/app_picker_process.py
 rust-native/tests/applications_process.py
 rust-native/tests/bridge_process.py
