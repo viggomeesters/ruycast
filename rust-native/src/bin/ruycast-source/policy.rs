@@ -402,7 +402,6 @@ rust-native/tests/settings_keyboard_process.py
 rust-native/tests/settings_preferences_process.py
 rust-native/tests/snippet_board_process.rs
 rust-native/tests/fixtures/snippet_board_fixture.rs
-rust-native/tests/snippet_choice_guard.m
 rust-native/tests/snippet_choice_process.py
 rust-native/tests/snippet_choice_reference.swift
 rust-native/tests/snippet_choice_request_process.py
