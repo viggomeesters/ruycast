@@ -1,4 +1,5 @@
 //! Component proof only. No provider constructor, interpose, discovery or readiness.
+mod system_apps;
 mod system_effects;
 mod system_nodes;
 use objc2::{rc::autoreleasepool, runtime::AnyObject};
@@ -64,7 +65,7 @@ unsafe fn write_frame(state: &State, expected_error: i32) {
 }
 fn main() {
     autoreleasepool(|_| unsafe {
-        let state = State::new();
+        let state = std::sync::Arc::new(State::new());
         let mode = std::env::args().nth(1).unwrap();
         assert!(
             libc::dlsym(libc::RTLD_DEFAULT, c"ruycast_system_fixture_ready".as_ptr()).is_null()
@@ -253,6 +254,134 @@ fn main() {
                 );
                 assert!(out.is_null());
                 assert_eq!(state.data.lock().unwrap().effects, 0);
+            }
+            "app-normal" => {
+                let apps = system_apps::Apps::new(state.clone());
+                let shared = apps.shared();
+                assert!(std::ptr::eq(&*shared, &*apps.shared()));
+                let running = apps.running();
+                assert_eq!(running.count(), 1);
+                let bundle = apps.by_bundle(&NSString::from_str("com.apple.Safari"));
+                assert_eq!(bundle.count(), 1);
+                let front = apps.front();
+                let by_pid = apps.by_pid(730001);
+                assert!(std::ptr::eq(&*front, &*by_pid));
+                assert!(std::ptr::eq(&*front, &*running.objectAtIndex(0)));
+                assert!(std::ptr::eq(&*front, &*bundle.objectAtIndex(0)));
+                let pid: i32 = objc2::msg_send![&*front, processIdentifier];
+                let terminated: objc2::runtime::Bool = objc2::msg_send![&*front, isTerminated];
+                let name: objc2::rc::Retained<NSString> = objc2::msg_send![&*front, localizedName];
+                let bundle_id: objc2::rc::Retained<NSString> =
+                    objc2::msg_send![&*front, bundleIdentifier];
+                let url: objc2::rc::Retained<objc2_foundation::NSURL> =
+                    objc2::msg_send![&*front, bundleURL];
+                let policy: objc2_app_kit::NSApplicationActivationPolicy =
+                    objc2::msg_send![&*front, activationPolicy];
+                assert_eq!(pid, 730001);
+                assert!(!terminated.as_bool());
+                assert_eq!(name.to_string(), "Owned Native App");
+                assert_eq!(bundle_id.to_string(), "com.apple.Safari");
+                assert_eq!(url.path().unwrap().to_string(), "/Applications/Safari.app");
+                assert_eq!(
+                    policy,
+                    objc2_app_kit::NSApplicationActivationPolicy::Regular
+                );
+                assert_eq!(std::mem::size_of::<libc::proc_bsdinfo>(), 136);
+                let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+                assert_eq!(
+                    system_apps::proc(
+                        &state,
+                        730001,
+                        libc::PROC_PIDTBSDINFO,
+                        0,
+                        info.as_mut_ptr().cast(),
+                        136
+                    ),
+                    136
+                );
+                let info = info.assume_init();
+                assert_eq!(
+                    (
+                        info.pbi_pid,
+                        info.pbi_uid,
+                        info.pbi_start_tvsec,
+                        info.pbi_start_tvusec
+                    ),
+                    (730001, libc::getuid(), 11, 22)
+                );
+                assert_eq!(state.data.lock().unwrap().reads, 3);
+                assert_eq!(state.data.lock().unwrap().effects, 0);
+                // A retained app owns its state independently of the factory.
+                let own = std::sync::Arc::new(State::new());
+                let weak = std::sync::Arc::downgrade(&own);
+                let factory = system_apps::Apps::new(own.clone());
+                let retained = factory.by_pid(730001);
+                drop(factory);
+                drop(own);
+                assert!(weak.upgrade().is_some());
+                drop(retained);
+                assert!(weak.upgrade().is_none());
+            }
+            "app-modes" => {
+                let apps = system_apps::Apps::new(state.clone());
+                let mut old = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+                assert_eq!(
+                    system_apps::proc(
+                        &state,
+                        730001,
+                        libc::PROC_PIDTBSDINFO,
+                        0,
+                        old.as_mut_ptr().cast(),
+                        136
+                    ),
+                    136
+                );
+                let old = old.assume_init();
+                state.set_mode("restarted");
+                let mut changed = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+                assert_eq!(
+                    system_apps::proc(
+                        &state,
+                        730001,
+                        libc::PROC_PIDTBSDINFO,
+                        0,
+                        changed.as_mut_ptr().cast(),
+                        136
+                    ),
+                    136
+                );
+                let changed = changed.assume_init();
+                assert_eq!(
+                    (changed.pbi_start_tvsec, changed.pbi_start_tvusec),
+                    (12, 22)
+                );
+                assert_ne!(old.pbi_start_tvsec, changed.pbi_start_tvsec);
+                let mut untouched = [0x5au8; 136];
+                for (pid, flavor, arg, size) in [
+                    (730002, libc::PROC_PIDTBSDINFO, 0, 136),
+                    (730001, 0, 0, 136),
+                    (730001, libc::PROC_PIDTBSDINFO, 1, 136),
+                    (730001, libc::PROC_PIDTBSDINFO, 0, 135),
+                ] {
+                    assert_eq!(
+                        system_apps::proc(
+                            &state,
+                            pid,
+                            flavor,
+                            arg,
+                            untouched.as_mut_ptr().cast(),
+                            size
+                        ),
+                        0
+                    );
+                    assert!(untouched.iter().all(|byte| *byte == 0x5a));
+                }
+                state.set_mode("mutate-activate");
+                let activated: objc2::runtime::Bool = objc2::msg_send![&*apps.app, activateWithOptions:objc2_app_kit::NSApplicationActivationOptions::empty()];
+                assert!(activated.as_bool());
+                assert_eq!(state.data.lock().unwrap().effects, 1);
+                assert_eq!(text(&attr(&state, 2, "AXTitle")), "Changed");
+                assert_eq!(state.data.lock().unwrap().mode, "renamed");
             }
             _ => panic!("Unknown owned node probe"),
         }

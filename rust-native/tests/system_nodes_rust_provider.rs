@@ -47,3 +47,11 @@ fn synthetic_frame_restore_raise_and_press_preserve_exact_readback_and_counts() 
 fn constrained_and_cannot_complete_keep_mutation_then_denied_read_has_no_effect() {
     run("write-faults", 0);
 }
+#[test]
+fn synthetic_app_metadata_process_identity_and_retained_state_keep_original_contract() {
+    run("app-normal", 0);
+}
+#[test]
+fn restarted_identity_and_activation_mutation_share_mode_without_native_fallback() {
+    run("app-modes", 1);
+}
