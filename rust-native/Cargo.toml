@@ -9,6 +9,12 @@ test-tools = []
 local-preview = []
 
 [[example]]
+name = "snippet-effects-fixture"
+path = "tests/fixtures/snippet_effects_fixture.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "private-fsync-shim"
 path = "../Tests/fixtures/private_fsync_shim.rs"
 crate-type = ["cdylib"]
