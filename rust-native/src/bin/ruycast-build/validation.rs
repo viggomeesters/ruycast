@@ -12,7 +12,7 @@ fn check_host_sdk_paths<'a>(paths: impl Iterator<Item = &'a String>) -> Result<(
     }
     Ok(())
 }
-const SYSTEM_UI_SOURCES: &[&str] = &["keyword_shim.c", "keyword_notification_shim.m", "keyword_fixture.py", "keyboard_shim.c", "hid_shim.c", "caps_shim.c", "workspace_shim.m", "native_keyboard_process.py", "system_search_sdk.rs"];
+const SYSTEM_UI_SOURCES: &[&str] = &["keyword_shim.c", "keyword_notification_shim.m", "keyboard_shim.c", "hid_shim.c", "caps_shim.c", "workspace_shim.m", "native_keyboard_process.py", "system_search_sdk.rs"];
 // Ordered transcription of the former check.py matrix. `p` invokes an existing
 // validator; `b` builds an explicit probe; `c` preserves a full Cargo command.
 const MATRIX: &str = r#"
@@ -47,7 +47,7 @@ keyword-probe-build|b|keyword-probe tools
 keyword-process|p|rust-native/tests/keyword_process.py
 keyword-native-probe-build|b|keyword-native-probe tools
 keyword-native-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyword-fixture --example keyword-missing-value-type --locked
-keyword-native-process|p|rust-native/tests/keyword_native_process.py
+keyword-native-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_native_process --locked
 workspace-activation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test workspace_activation_process --locked
 keyword-capture-probe-build|b|keyword-capture-probe tools
 keyword-capture-process|p|rust-native/tests/keyword_capture_process.py
@@ -1014,7 +1014,6 @@ fn keyboard_fixture(root: &Path) -> Result<(PathBuf, String)> {
     for name in [
         "keyword_shim.c",
         "keyword_notification_shim.m",
-        "keyword_fixture.py",
         "keyboard_shim.c",
         "hid_shim.c",
         "workspace_shim.m",
@@ -1493,7 +1492,7 @@ mod tests {
         let sdk_dir=root.join(DIRECTORY).join("native-profile/host-sdks");
         fs::create_dir_all(&sdk_dir).unwrap();
         let mut keyboard_sources=BTreeMap::new();
-        for name in ["keyword_shim.c","keyword_notification_shim.m","keyword_fixture.py","keyboard_shim.c","hid_shim.c","workspace_shim.m"] {
+        for name in ["keyword_shim.c","keyword_notification_shim.m","keyboard_shim.c","hid_shim.c","workspace_shim.m"] {
             let path=root.join("rust-native/tests").join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();fs::write(&path,b"owned nonexecutable keyboard source").unwrap();
             keyboard_sources.insert(path.clone(),digest(&path).unwrap());
@@ -1564,7 +1563,7 @@ mod tests {
         let sdk_dir = root.join(DIRECTORY).join("native-profile/host-sdks");
         fs::create_dir_all(&sdk_dir).unwrap();
         let mut sources = BTreeMap::new();
-        for name in ["keyword_shim.c", "keyword_notification_shim.m", "keyword_fixture.py", "keyboard_shim.c", "hid_shim.c", "workspace_shim.m"] {
+        for name in ["keyword_shim.c", "keyword_notification_shim.m", "keyboard_shim.c", "hid_shim.c", "workspace_shim.m"] {
             let path = root.join("rust-native/tests").join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, b"owned nonexecutable input").unwrap();
@@ -1693,7 +1692,6 @@ mod tests {
         for name in [
             "keyword_shim.c",
             "keyword_notification_shim.m",
-            "keyword_fixture.py",
             "keyboard_shim.c",
             "hid_shim.c",
             "workspace_shim.m",
