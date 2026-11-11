@@ -49,10 +49,10 @@ The deterministic gate checks model search at500/5000 commands, process result r
 To sample a running host without interacting with it:
 
 ```sh
-clang -O2 -Wall -Wextra scripts/perf-probe.c -o .build/perf-probe
-.build/perf-probe --self-check
+cargo build --manifest-path rust-native/Cargo.toml --features test-tools --release --locked --bin perf-probe
+rust-native/target/release/perf-probe --self-check
 python3 scripts/sample-performance.py --pid PID --seconds 600 \
-  --probe .build/perf-probe --out .build/performance/host.json --label local-host
+  --probe rust-native/target/release/perf-probe --out .build/performance/host.json --label local-host
 ```
 
 Use `scripts/benchmark-host.py` for an isolated headless profile with500 commands and 200 text fixtures. It measures30 process starts,1000 real CLI calls per operation, and active/idle intervals. Arguments `--active-seconds 1800 --idle-seconds 3600` select a90-minute stress run; the shorter600/600-second run is the recorded initial soak. Headless readiness excludes hotkeys, app discovery and visible presentation.
@@ -130,7 +130,7 @@ Reproduce the bounded native gate with `bash scripts/check-performance.sh`. Long
 ```sh
 .build/swift/release/RuycastApp --benchmark-monitor 1800 60
 python3 scripts/benchmark-host.py --host .build/swift/release/RuycastApp \
-  --cli .build/rust/release/ruycast --probe .build/perf-probe \
+  --cli .build/rust/release/ruycast --probe rust-native/target/release/perf-probe \
   --out .build/performance/host-90min.json --active-seconds 1800 --idle-seconds 3600
 ```
 

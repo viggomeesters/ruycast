@@ -458,7 +458,7 @@ scripts/install.sh
 scripts/install_support.py
 scripts/local_signing.py
 scripts/package-app.py
-scripts/perf-probe.c
+scripts/perf-probe.rs
 scripts/prepare-public.py
 scripts/prepare_release.py
 scripts/product_version.py
