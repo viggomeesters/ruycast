@@ -11,7 +11,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-HOST = ROOT / 'target/headless-tools/debug/ruycast-native'
+HOST = Path(os.environ.get('RUYCAST_TEST_APP_HOST', ROOT / 'target/headless-tools/debug/ruycast-native'))
 CLI = ROOT.parent / '.build/rust/release/ruycast'
 DEFAULT = json.loads((ROOT.parent / 'config/default.json').read_text())
 
@@ -129,7 +129,10 @@ class RuntimeProcesses(unittest.TestCase):
     def setUpClass(cls):
         cls.writer_fixture = tempfile.TemporaryDirectory(prefix='config-writer-sdk-', dir=Path(os.environ.get('RUYCAST_NATIVE_TEST_FIXTURE_DIR', ROOT / 'target')))
         cls.writer_shim = Path(cls.writer_fixture.name) / 'sync.dylib'
-        subprocess.run(['clang', '-dynamiclib', '-Wall', '-Wextra', str(ROOT / 'tests/fcntl_sync_shim.c'), '-o', str(cls.writer_shim)], check=True, capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        cls.writer_shim=Path(os.environ.get('RUYCAST_TEST_FCNTL_SHIM',target/'release/examples/libfcntl_sync_shim.dylib'))
+        if not cls.writer_shim.is_absolute() or not cls.writer_shim.is_file():
+            raise RuntimeError('Build --features test-tools --example fcntl-sync-shim and set RUYCAST_TEST_FCNTL_SHIM first')
 
     @classmethod
     def tearDownClass(cls):

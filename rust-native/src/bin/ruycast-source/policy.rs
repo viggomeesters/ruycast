@@ -298,6 +298,7 @@ rust-native/src/system_search/tests.rs
 rust-native/src/template_form.rs
 rust-native/src/task_date.rs
 rust-native/src/templates.rs
+rust-native/src/test_fixtures.rs
 rust-native/src/workspace.rs
 rust-native/src/workspace_activation.rs
 rust-native/swift-reference-lock.json
@@ -325,7 +326,8 @@ rust-native/tests/dashboard_export_shim.c
 rust-native/tests/dashboard_presentation_process.py
 rust-native/tests/editor_process.py
 rust-native/tests/execution_process.py
-rust-native/tests/fcntl_sync_shim.c
+rust-native/tests/fixtures/fcntl_sync_shim.rs
+rust-native/tests/fixtures/fcntl_sync_probe.rs
 rust-native/tests/foundation_process.py
 rust-native/tests/hid_process.py
 rust-native/tests/hid_shim.c

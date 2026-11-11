@@ -1188,19 +1188,7 @@ fn clipboard_pipeline_admitted_maintenance_waits_for_held_capture() {
     )
     .unwrap();
     std::fs::write(base.join("entered"), b"unarmed").unwrap();
-    let dylib = base.join("sync.dylib");
-    let compile = std::process::Command::new("/usr/bin/cc")
-        .args(["-Wall", "-Wextra", "-Werror", "-dynamiclib"])
-        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fcntl_sync_shim.c"))
-        .arg("-o")
-        .arg(&dylib)
-        .output()
-        .unwrap();
-    assert!(
-        compile.status.success(),
-        "{}",
-        String::from_utf8_lossy(&compile.stderr)
-    );
+    let dylib = crate::test_fixtures::fcntl(&base.join("fixture-build.log"));
     let log = base.join("child.log");
     let output = std::fs::File::create(&log).unwrap();
     let mut child = std::process::Command::new(std::env::current_exe().unwrap())

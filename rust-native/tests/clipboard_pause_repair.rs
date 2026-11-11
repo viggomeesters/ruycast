@@ -204,7 +204,8 @@ fn real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume() {
         "pause-repair-board-guard.dylib",
         true,
     );
-    let fault = compile(root, "fcntl_sync_shim.c", "pause-repair-sync.dylib", false);
+    let fixture = Host::new("shim-build");
+    let fault = ruycast_native::test_fixtures::fcntl(&fixture.base.join("fixture-build.log"));
     let guard = guard.to_str().unwrap();
     let fault_shims = format!("{guard}:{}", fault.display());
     let mut outcomes = Vec::new();

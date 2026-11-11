@@ -1,5 +1,6 @@
 """Pinned configuration actions suspend one private Input draft."""
 import json
+import os
 import time
 import struct
 import zlib
@@ -57,7 +58,10 @@ class InputActions(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temp=tempfile.TemporaryDirectory(prefix='input-actions-shim-',dir=bridge.rt.ROOT/'target');cls.shim=Path(cls.temp.name)/'sync.dylib'
-        subprocess.run(['clang','-dynamiclib','-Wall','-Wextra',str(bridge.rt.ROOT/'tests/fcntl_sync_shim.c'),'-o',str(cls.shim)],check=True,capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',bridge.rt.ROOT.parent/'.build/full-rust-release/native'))
+        cls.shim=Path(os.environ.get('RUYCAST_TEST_FCNTL_SHIM',target/'release/examples/libfcntl_sync_shim.dylib'))
+        if not cls.shim.is_absolute() or not cls.shim.is_file():
+            raise RuntimeError('Build --features test-tools --example fcntl-sync-shim and set RUYCAST_TEST_FCNTL_SHIM first')
     @classmethod
     def tearDownClass(cls):cls.temp.cleanup()
     def test_menu_cancel_while_owner_busy_preserves_actual_new_typing(self):

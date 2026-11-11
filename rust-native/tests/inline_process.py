@@ -1,5 +1,6 @@
 """Native Settings bindings use stable editors and a single worker-owned draft."""
 import copy
+import os
 import json
 import unittest
 import tempfile
@@ -15,7 +16,11 @@ class Inline(unittest.TestCase):
         return actions.ActionsProcesses.key(self,host,code,flags,'\r' if code in [36,76] and not chars else chars,repeated)
     @classmethod
     def setUpClass(cls):
-        cls.temp=tempfile.TemporaryDirectory(prefix='inline-shim-',dir=library.bridge.rt.ROOT/'target');cls.shim=Path(cls.temp.name)/'delay.dylib';subprocess.run(['clang','-dynamiclib','-Wall','-Wextra',str(library.bridge.rt.ROOT/'tests/fcntl_sync_shim.c'),'-o',str(cls.shim)],check=True,capture_output=True)
+        cls.temp=tempfile.TemporaryDirectory(prefix='inline-shim-',dir=library.bridge.rt.ROOT/'target')
+        target=Path(os.environ.get('CARGO_TARGET_DIR',library.bridge.rt.ROOT.parent/'.build/full-rust-release/native'))
+        cls.shim=Path(os.environ.get('RUYCAST_TEST_FCNTL_SHIM',target/'release/examples/libfcntl_sync_shim.dylib'))
+        if not cls.shim.is_absolute() or not cls.shim.is_file():
+            raise RuntimeError('Build --features test-tools --example fcntl-sync-shim and set RUYCAST_TEST_FCNTL_SHIM first')
     @classmethod
     def tearDownClass(cls):cls.temp.cleanup()
     def slow_host(self,held=False):
