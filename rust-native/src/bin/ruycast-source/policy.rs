@@ -335,6 +335,10 @@ rust-native/tests/fixtures/fcntl_sync_probe.rs
 rust-native/tests/foundation_process.py
 rust-native/tests/hid_process.py
 rust-native/tests/hid_shim.c
+rust-native/tests/fixtures/hid_sdk.rs
+rust-native/tests/fixtures/hid_fixture.rs
+rust-native/tests/fixtures/hid_missing_post.rs
+rust-native/tests/hid_rust_provider.rs
 rust-native/tests/hid_state_process.py
 rust-native/tests/hid_state_reference.swift
 rust-native/tests/inline_input_process.py

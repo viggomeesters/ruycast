@@ -20,6 +20,18 @@ path = "../Tests/fixtures/private_fsync_probe.rs"
 required-features = ["test-tools"]
 
 [[example]]
+name = "hid-fixture"
+path = "tests/fixtures/hid_fixture.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
+name = "hid-missing-post"
+path = "tests/fixtures/hid_missing_post.rs"
+crate-type = ["cdylib"]
+required-features = ["test-tools"]
+
+[[example]]
 name = "keyboard-fixture"
 path = "tests/fixtures/keyboard_fixture.rs"
 crate-type = ["cdylib"]
