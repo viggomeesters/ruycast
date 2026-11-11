@@ -111,7 +111,19 @@ fn discover_from(executable: &Path) -> Result<PathBuf, String> {
         if ancestor.join("rust/Cargo.toml").is_file()
             && ancestor.join("rust-native/Cargo.toml").is_file()
         {
-            return trusted(ancestor.join(".build/rust/release/ruycast"));
+            let paired = parent.join("ruycast");
+            let runner = match fs::symlink_metadata(&paired) {
+                Ok(_) => paired,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    ancestor.join(".build/rust/release/ruycast")
+                }
+                Err(_) => {
+                    return Err(
+                        "The script runner is unavailable. Check the app installation.".into(),
+                    )
+                }
+            };
+            return trusted(runner);
         }
     }
     Err("The script runner is missing. Check the app installation.".into())
@@ -235,7 +247,11 @@ fn line(
                     io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted
                 ) =>
             {
-                let wait_deadline = if helper.input.is_some() { deadline } else { None };
+                let wait_deadline = if helper.input.is_some() {
+                    deadline
+                } else {
+                    None
+                };
                 rustcast_core::script::wait_pipe_readiness(
                     &mut [libc::pollfd {
                         fd: helper.output.as_ref().ok_or(UNKNOWN)?.as_raw_fd(),
@@ -514,6 +530,22 @@ mod tests {
             discover_from(&root.join("rust-native/target/debug/host")).unwrap(),
             runner
         );
+        let shared_host = root.join(".build/shared/release/ruycast-native");
+        let paired = shared_host.parent().unwrap().join("ruycast");
+        fs::create_dir_all(paired.parent().unwrap()).unwrap();
+        fs::write(&paired, b"paired fixture").unwrap();
+        fs::set_permissions(&paired, fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(discover_from(&shared_host).unwrap(), paired);
+        fs::set_permissions(&paired, fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(discover_from(&shared_host).is_err()); // no unsafe-pair fallback
+        fs::remove_file(&paired).unwrap();
+        std::os::unix::fs::symlink(&runner, &paired).unwrap();
+        assert!(discover_from(&shared_host).is_err());
+        fs::remove_file(&paired).unwrap();
+        std::os::unix::fs::symlink(root.join("missing-runner"), &paired).unwrap();
+        assert!(discover_from(&shared_host).is_err());
+        fs::remove_file(&paired).unwrap();
+        assert_eq!(discover_from(&shared_host).unwrap(), runner);
         assert!(discover_from(Path::new("/not-a-checkout/host")).is_err());
         assert!(discover_from(&root.join("Fixture.app/Contents/MacOS/host")).is_err()); // no checkout fallback
         fs::set_permissions(&runner, fs::Permissions::from_mode(0o777)).unwrap();
