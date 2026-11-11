@@ -424,7 +424,6 @@ rust-native/tests/fixtures/supervision_fault_shim.rs
 rust-native/tests/supervision_process.py
 rust-native/tests/system_search_process.py
 rust-native/tests/system_search_sdk.rs
-rust-native/tests/system_search_sdk_shim.m
 rust-native/tests/template_form_process.py
 rust-native/tests/template_process.py
 rust-native/tests/template_reference.swift
