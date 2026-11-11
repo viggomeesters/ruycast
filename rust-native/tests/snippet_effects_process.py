@@ -17,6 +17,10 @@ import runtime_process as rt
 
 ROOT=rt.ROOT
 SHIM=ROOT/'target/snippet-effects-shim.dylib'
+if host:=os.environ.get('RUYCAST_TEST_APP_HOST'):
+    native.TOOLS=Path(host);rt.HOST=Path(host)
+if cli:=os.environ.get('RUYCAST_TEST_CLI'):
+    rt.CLI=Path(cli)
 
 
 def command(target='A{cursor}😀end', **extra):
@@ -26,14 +30,17 @@ def command(target='A{cursor}😀end', **extra):
 class SnippetEffects(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        run=subprocess.run(['cc','-Wall','-Wextra','-Werror','-fobjc-arc','-fblocks','-dynamiclib',
-                            '-framework','AppKit','-framework','ApplicationServices',
-                            str(ROOT/'tests/snippet_effects_shim.m'),'-o',str(SHIM)],capture_output=True)
-        if run.returncode:raise AssertionError(run.stderr.decode())
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_SNIPPET_EFFECTS_SDK',target/'release/examples/libsnippet_effects_fixture.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example snippet-effects-fixture first')
+        SHIM.parent.mkdir(parents=True,exist_ok=True)
+        shutil.copyfile(artifact,SHIM)
         if evidence:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             out=Path(evidence);out.mkdir(parents=True,exist_ok=True)
             sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-            sources=[ROOT/'tests/snippet_effects_shim.m',ROOT/'tests/workspace_shim.m']
+            sources=[ROOT/'tests/fixtures'/name for name in ['workspace_sdk.rs','snippet_effects_sdk.rs','snippet_effects_fixture.rs']]
+            sources.extend([ROOT/'Cargo.toml',ROOT/'Cargo.lock',ROOT.parent/'rust/Cargo.toml',ROOT.parent/'rust-toolchain.toml'])
             (out/'snippet-effects-bindings.json').write_text(json.dumps(dict(
                 sources={str(p.relative_to(ROOT.parent)):sha(p) for p in sources},
                 artifacts={str(SHIM.relative_to(ROOT.parent)):sha(SHIM)}),indent=2))

@@ -641,7 +641,7 @@
     "rust-native/tests/snippet_choice_process.py": "8d5de83a2ed62dc9e83ee93701d0c739c16928f6d99d732887777a994cff503d",
     "rust-native/tests/snippet_choice_reference.swift": "efc3af9eaa9ebb11f03a9f868454b65f64d492bd7e5960d34f6bd66c02dc0058",
     "rust-native/tests/snippet_choice_request_process.py": "5c9a0539c9e4edf41af0f69e037226b4e130c4bff11a3372f186b6085a4ecfce",
-    "rust-native/tests/snippet_effects_process.py": "3b4cd25f1bdfc15f5d08a52a18efc7abb436ecb9d9aec201462d2cce74c56424",
+    "rust-native/tests/snippet_effects_process.py": "72c68c81518497ec2560b680fa139d873e2008e2d57f3ddc0ba2ece87e78f7b9",
     "rust-native/tests/snippet_effects_rust_provider.rs": "1ec22b6f8003f64e066da8a454e7c047cd374f5e62f307a1dc6335a5387ccf07",
     "rust-native/tests/snippet_effects_shim.m": "215dbbac7b6d6c9a3a4b707b0d4c8e08c31697398b292da9adbd24308380cb67",
     "rust-native/tests/snippet_process.py": "76aa587851032357166285e91aa0bc165ed41e5bfb4e460aa604a0903bb514bb",
