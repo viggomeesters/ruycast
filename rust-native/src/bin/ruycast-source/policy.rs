@@ -360,8 +360,8 @@ rust-native/tests/hid_host_provider.rs
 rust-native/tests/fixtures/hid_fixture.rs
 rust-native/tests/fixtures/hid_missing_post.rs
 rust-native/tests/hid_rust_provider.rs
-rust-native/tests/hid_state_process.py
-rust-native/tests/hid_state_reference.swift
+rust-native/tests/hid_state_process.rs
+rust-native/tests/hid_state_reference.json
 rust-native/tests/inline_input_process.py
 rust-native/tests/inline_process.py
 rust-native/tests/input_actions_process.py
@@ -495,6 +495,7 @@ rust-native/tests/remaining_macos_process.rs
 rust-native/tests/startup_config_repair.rs
 rust-native/tests/startup_process.rs
 rust-native/tests/support/child_output.rs
+rust-native/tests/support/hid_state_goldens.rs
 rust-native/tests/support/status_rpc.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
