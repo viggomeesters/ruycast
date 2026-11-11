@@ -55,7 +55,7 @@ supervision-probe-build|b|supervision-probe tools
 workspace-probe-build|b|workspace-probe tools
 workspace-process|p|rust-native/tests/workspace_process.py
 template-probe-build|b|template-probe tools
-template-process|p|rust-native/tests/template_process.py
+template-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test template_process --locked
 snippet-probe-build|b|snippet-probe tools
 snippet-faults-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example snippet-faults --locked
 snippet-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_process --locked
@@ -1846,6 +1846,9 @@ mod tests {
         let snippet_test = steps.iter().position(|step|step.name=="snippet-process").unwrap();
         assert!(snippet_sdk < snippet_test);
         assert!(steps[snippet_sdk].arguments.windows(2).any(|pair|pair==["--example","snippet-faults"]));
+        let template = steps.iter().find(|step|step.name=="template-process").unwrap();
+        assert!(template.arguments.windows(2).any(|pair|pair==["--test","template_process"]));
+        assert!(!template.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

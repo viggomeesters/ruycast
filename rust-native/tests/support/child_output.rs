@@ -1,6 +1,10 @@
 //! Bounded output capture for already-spawned direct CLI children in owned tests.
 use std::{process::{Child, Output}, time::{Duration, Instant}};
-pub fn wait(mut child: Child, timeout: Duration) -> Output {
+pub fn wait(child: Child, timeout: Duration) -> Output {
+    wait_with_limit(child, timeout, 1024 * 1024)
+}
+/// An explicit bound for genuine large-output fixtures; ordinary callers keep 1 MiB.
+pub fn wait_with_limit(mut child: Child, timeout: Duration, maximum_bytes: usize) -> Output {
     use std::io::{Error, ErrorKind, Read};
     use std::os::fd::AsRawFd;
     let until = Instant::now() + timeout;
@@ -25,8 +29,8 @@ pub fn wait(mut child: Child, timeout: Duration) -> Output {
                     match pipe.read(&mut buffer) {
                         Ok(0) => { eof[index] = true; break; }
                         Ok(count) => {
-                            if bytes[index].len() + count > 1024 * 1024 {
-                                return Err(Error::other("Owned CLI output exceeds 1 MiB per stream"));
+                            if bytes[index].len() + count > maximum_bytes {
+                                return Err(Error::other("Owned CLI output exceeds its explicit per-stream limit"));
                             }
                             bytes[index].extend_from_slice(&buffer[..count]);
                         }

@@ -426,8 +426,8 @@ rust-native/tests/supervision_process.py
 rust-native/tests/system_search_process.py
 rust-native/tests/system_search_sdk.rs
 rust-native/tests/template_form_process.py
-rust-native/tests/template_process.py
-rust-native/tests/template_reference.swift
+rust-native/tests/template_process.rs
+rust-native/tests/template_reference.json
 rust-native/tests/workspace_activation_process.rs
 rust-native/tests/support/keyword_native.rs
 rust-native/tests/workspace_process.py
