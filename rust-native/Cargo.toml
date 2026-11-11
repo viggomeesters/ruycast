@@ -9,6 +9,11 @@ test-tools = []
 local-preview = []
 
 [[example]]
+name = "system-nodes-probe"
+path = "tests/fixtures/system_nodes_probe.rs"
+required-features = ["test-tools"]
+
+[[example]]
 name = "choice-monitor-probe"
 path = "tests/fixtures/choice_monitor_probe.rs"
 required-features = ["test-tools"]
