@@ -3,12 +3,21 @@ import hashlib,json,os,shutil,subprocess,tempfile,unittest
 from pathlib import Path
 import keyword_process as keyword
 ROOT=keyword.ROOT;BIN=ROOT/'target/debug/native-snippet-choice-probe';SHIM=ROOT/'target/native-snippet-choice-guard.dylib'
+BIN=Path(os.environ.get('RUYCAST_NATIVE_SNIPPET_CHOICE_PROBE',BIN))
 class NativeSnippetChoice(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        subprocess.run(['cc','-Wall','-Wextra','-Werror','-fobjc-arc','-fblocks','-dynamiclib','-framework','AppKit',str(ROOT/'tests/snippet_choice_guard.m'),'-o',str(SHIM)],check=True,capture_output=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_CHOICE_SDK',target/'release/examples/libchoice_fixture.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example choice-fixture first')
+        shutil.copyfile(artifact,SHIM)
+        assert hashlib.sha256(artifact.read_bytes()).digest()==hashlib.sha256(SHIM.read_bytes()).digest()
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-            out=Path(folder);out.mkdir(parents=True,exist_ok=True);source=ROOT/'tests/snippet_choice_guard.m';sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();(out/'native-snippet-choice-bindings.json').write_text(json.dumps(dict(sources={str(source.relative_to(ROOT.parent)):sha(source)},artifacts={str(SHIM.relative_to(ROOT.parent)):sha(SHIM)}),indent=2))
+            out=Path(folder);out.mkdir(parents=True,exist_ok=True);sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+            sources=[ROOT/'tests/fixtures'/name for name in ['choice_board_sdk.rs','choice_monitor_sdk.rs','choice_fixture.rs']]
+            sources.extend([ROOT/'Cargo.toml',ROOT/'Cargo.lock',ROOT.parent/'rust/Cargo.toml',ROOT.parent/'rust-toolchain.toml'])
+            (out/'native-snippet-choice-bindings.json').write_text(json.dumps(dict(sources={str(source.relative_to(ROOT.parent)):sha(source) for source in sources},artifacts={str(SHIM.relative_to(ROOT.parent)):sha(SHIM)}),indent=2))
     def invoke(self,text='{field name="name" default="Own"}',steps=(),*,theme='dark',name=None,lib=True,**extra):
         own=tempfile.TemporaryDirectory(prefix='own-snippet-choice-',dir=ROOT/'target');self.addCleanup(own.cleanup);base=Path(own.name);(base/'.ruycast-choice-fixture').write_bytes(b'own-choice-v1')
         env={k:v for k,v in os.environ.items() if not k.startswith(('RUYCAST_','RUSTCAST_')) and k!='DYLD_INSERT_LIBRARIES'}
