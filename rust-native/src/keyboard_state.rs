@@ -301,6 +301,7 @@ impl CommandFilter {
             .then(|| {
                 self.bindings
                     .iter()
+                    .rev()
                     .filter(|b| b.key == key && b.side == flags & b.side_mask && b.flags == modifiers)
                     .max_by_key(|binding| binding.side_mask.count_ones())
             })
@@ -360,6 +361,41 @@ mod tests {
         }
     }
 
+    #[test]
+    fn first_equal_binding_wins_while_more_specific_sides_keep_priority() {
+        let mut filter = CommandFilter::default();
+        filter.set_bindings(vec![
+            Binding::parse("right-cmd+k", "first".into()).unwrap(),
+            Binding::parse("right-cmd+k", "second".into()).unwrap(),
+        ]);
+        assert_eq!(
+            filter
+                .preview(Event::Down, 40, COMMAND | RIGHT_COMMAND, false)
+                .action
+                .as_deref(),
+            Some("first")
+        );
+        filter.set_bindings(vec![
+            Binding::parse("fn+alt+k", "generic first".into()).unwrap(),
+            Binding::parse("fn+right-alt+k", "specific first".into()).unwrap(),
+            Binding::parse("fn+right-alt+k", "specific second".into()).unwrap(),
+            Binding::parse("fn+alt+k", "generic last".into()).unwrap(),
+        ]);
+        assert_eq!(
+            filter
+                .preview(Event::Down, 40, FUNCTION | OPTION | RIGHT_OPTION, false)
+                .action
+                .as_deref(),
+            Some("specific first")
+        );
+        assert_eq!(
+            filter
+                .preview(Event::Down, 40, FUNCTION | OPTION | LEFT_OPTION, false)
+                .action
+                .as_deref(),
+            Some("generic first")
+        );
+    }
     #[test]
     fn right_option_and_fn_chords_keep_their_modifier_boundaries() {
         let mut filter = CommandFilter::default();
