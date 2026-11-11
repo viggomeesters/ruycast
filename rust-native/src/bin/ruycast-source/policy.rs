@@ -414,7 +414,8 @@ rust-native/tests/system_search_sdk_shim.m
 rust-native/tests/template_form_process.py
 rust-native/tests/template_process.py
 rust-native/tests/template_reference.swift
-rust-native/tests/workspace_activation_process.py
+rust-native/tests/workspace_activation_process.rs
+rust-native/tests/support/keyword_native.rs
 rust-native/tests/workspace_process.py
 rust-native/tests/workspace_shim.m
 rust-native/tests/fixtures/workspace_sdk.rs

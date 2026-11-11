@@ -46,8 +46,9 @@ native-snippet-choice-process|p|rust-native/tests/native_snippet_choice_process.
 keyword-probe-build|b|keyword-probe tools
 keyword-process|p|rust-native/tests/keyword_process.py
 keyword-native-probe-build|b|keyword-native-probe tools
+keyword-native-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyword-fixture --example keyword-missing-value-type --locked
 keyword-native-process|p|rust-native/tests/keyword_native_process.py
-workspace-activation-process|p|rust-native/tests/workspace_activation_process.py
+workspace-activation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test workspace_activation_process --locked
 keyword-capture-probe-build|b|keyword-capture-probe tools
 keyword-capture-process|p|rust-native/tests/keyword_capture_process.py
 keyword-rich-process|p|rust-native/tests/keyword_rich_process.py
@@ -1801,7 +1802,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 114);
+        assert_eq!(steps.len(), 115);
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
