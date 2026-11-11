@@ -1,10 +1,10 @@
 """Complete owned native keyword filter/effects; no real apps/input/clipboard."""
 import copy,json,os,subprocess,unittest
-import keyword_fixture
+import shutil
 from pathlib import Path
 import keyword_native_process as target
 import runtime_process as rt
-ROOT=target.ROOT;BIN=ROOT/'target/debug/keyword-capture-probe';SDK=ROOT/'target/keyword-capture-fixture'
+ROOT=target.ROOT;BIN=Path(os.environ.get('RUYCAST_KEYWORD_CAPTURE_PROBE',ROOT/'target/debug/keyword-capture-probe'));SDK=ROOT/'target/keyword-capture-fixture'
 def config(text='HELLO',keyword='abc',**extra):
     c=copy.deepcopy(rt.DEFAULT);c['commands']=[dict(id='own.snippet',title='Own snippet',kind='snippet',target=text,keyword=keyword,**extra)];c['snippetExpansionEnabled']=True;return c
 def sdk(control='state',**kw):return dict(op='sdk',control=control,**kw)
@@ -14,10 +14,12 @@ class KeywordCapture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         SDK.mkdir(parents=True,exist_ok=True)
-        notification=keyword_fixture.notification_object(SDK)
-        for name,extra in [('complete',[]),('missing',['-DOMIT_KEYWORD_VALUE_TYPE'])]:
-            p=subprocess.run(['clang','-dynamiclib','-Wall','-Wextra','-Werror','-framework','ApplicationServices','-framework','Carbon','-framework','AppKit',notification,*extra,str(ROOT/'tests/keyword_shim.c'),'-o',str(SDK/(name+'.dylib'))],capture_output=True,text=True)
-            if p.returncode:raise AssertionError(p.stderr)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT.parent/'.build/full-rust-release/native'))
+        for name,variable,library in [('complete','RUYCAST_TEST_KEYWORD_SHIM','libkeyword_fixture.dylib'),('missing','RUYCAST_TEST_KEYWORD_PARTIAL','libkeyword_missing_value_type.dylib')]:
+            artifact=Path(os.environ.get(variable,target/'release/examples'/library))
+            if not artifact.is_absolute() or not artifact.is_file():
+                raise RuntimeError('Build --features test-tools --example keyword-fixture --example keyword-missing-value-type first')
+            shutil.copyfile(artifact,SDK/(name+'.dylib'))
     def invoke(self,ops,lib='complete',ok=True):
         env={k:v for k,v in os.environ.items() if not k.startswith(('RUYCAST_','RUSTCAST_')) and k!='DYLD_INSERT_LIBRARIES'}
         if lib:env['DYLD_INSERT_LIBRARIES']=str(SDK/(lib+'.dylib'))
