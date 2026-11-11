@@ -2,6 +2,7 @@
 
 ## 0.9.0 — Rust candidate (unreleased)
 
+- Find the paired script helper when building the host and CLI in one shared developer target, with the existing trust checks.
 - Keep Caps Lock off after a successful Hyper start, including delayed latch changes, pauses and shutdown.
 - Move the native app, command-line interface, configuration and local storage to Rust, preserving the existing launcher, editors and macOS integration routes.
 - Build and package the app through Rust tooling. Historical Swift sources remain test references.
