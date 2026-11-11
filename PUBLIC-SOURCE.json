@@ -578,7 +578,7 @@
     "rust-native/tests/fixtures/supervision_fault_shim.rs": "24c7ad30cf0ed2ce18a9a090d31986795e0a806c56bc10366886910dfa9b3415",
     "rust-native/tests/fixtures/utility_security_fixture.rs": "b3975f3e42a0a1a859c149ef4dd77d7aee36caefe0906f857445d4787a291a1f",
     "rust-native/tests/foundation_process.py": "b890f3ccc8a1c0e7ba38f93096abb41974457268839fa54e7bf74c0a3ca176f9",
-    "rust-native/tests/hid_process.py": "1f26fbd09269b16a54991aba6b2e91939a59b649ec84418c1d66ab272e36ecdb",
+    "rust-native/tests/hid_process.py": "f1578254d187f93eebc0930cf08fcca63930e2ce48a4d3a5ce6f4de5d0fda2e2",
     "rust-native/tests/hid_rust_provider.rs": "15f8945547a041bd2fbb2a25b382276eafb4b8f4d2012d3296e7e73e9a481b83",
     "rust-native/tests/hid_shim.c": "43d192ab550f3f7909b84cf342b34154e035af752c138fa9304640862ffa4a28",
     "rust-native/tests/hid_state_process.py": "504b5fceeeeb0d7959c954657b9301b1ecd7eebed501f3fab3c60c4626aef89b",

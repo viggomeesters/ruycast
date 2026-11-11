@@ -4,11 +4,12 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = ROOT / 'target/hid-fixture'
-PROBE = ROOT / 'target/debug/hid-probe'
+PROBE = Path(os.environ.get('RUYCAST_HID_PROBE', ROOT / 'target/debug/hid-probe'))
 HYPER = sum(1 << bit for bit in [17, 18, 19, 20])
 CMD = 1 << 20
 CTRL = 1 << 18
@@ -34,10 +35,13 @@ class HidSdk(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         DIRECTORY.mkdir(parents=True, exist_ok=True)
-        for name, flags in [('complete', []), ('missing', ['-DOMIT_HID_POST'])]:
-            subprocess.run(['clang', '-std=c11', '-Wall', '-Wextra', '-Werror', '-dynamiclib', *flags,
-                            str(ROOT / 'tests/hid_shim.c'), '-o', str(DIRECTORY / (name + '.dylib'))],
-                           check=True, capture_output=True)
+        target = Path(os.environ.get('CARGO_TARGET_DIR', ROOT.parent / '.build/full-rust-release/native'))
+        for name, variable, library in [('complete', 'RUYCAST_TEST_HID_SHIM', 'libhid_fixture.dylib'),
+                                        ('missing', 'RUYCAST_TEST_HID_PARTIAL', 'libhid_missing_post.dylib')]:
+            artifact = Path(os.environ.get(variable, target / 'release/examples' / library))
+            if not artifact.is_absolute() or not artifact.is_file():
+                raise RuntimeError('Build --features test-tools --example hid-fixture --example hid-missing-post first')
+            shutil.copyfile(artifact, DIRECTORY / (name + '.dylib'))
 
     def run_case(self, operations, original=True, env=0, final_caps=False):
         environment = dict(os.environ)
