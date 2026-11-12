@@ -17,7 +17,9 @@ Builds, validation, packaging and installation share `.build/artifacts.lock` thr
 
 The full `check` entrypoint still fails closed on the original Python-discovery gate. The `settings` inventory has no unmapped gates, but requires the complete current native validation and qualified settings cases. Their `verify-*` entrypoints revalidate the corresponding receipts; an inventory or native-only pass cannot replace full validation. Inspect the IDs with `cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-build -- gate-inventory --repo "$PWD" --pipeline check` (or `settings`). No historical gate is silently skipped.
 
-The native-only route runs 114 ordered leaf steps, four hidden renders and reference/SDK bindings, including the mandatory clipboard-parser, benchmark-contract and temporal-lease cases; its report is `rust-native/target/verification/report.json`. Run it after a verified release build:
+For a focused change, run the affected Rust test targets with bounded child-process timeouts. Reuse evidence only while its relevant sources, dependencies, toolchain and artifacts are unchanged. Related migration tasks may share one reviewed PR and source export; rerun broader integration checks when shared behavior changes and at integration boundaries.
+
+The complete native route runs the ordered leaf matrix, four hidden renders and reference/SDK bindings, including the mandatory clipboard-parser, benchmark-contract and temporal-lease cases. Use `ruycast-build validation-plan --repo "$PWD"` for the current matrix; its report is `rust-native/target/verification/report.json`. Run it after a verified release build:
 
 ```sh
 make build

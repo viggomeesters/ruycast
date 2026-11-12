@@ -22,7 +22,7 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 The app host, CLI, build receipts and packaging are implemented in Rust. Current source betas are available on the [Releases page](https://github.com/viggomeesters/ruycast/releases). A notarized app download remains deferred.
 
-The repository is not yet entirely Rust: it still contains historical Swift sources, Python tools and tests, and C/Objective-C test fixtures. [The repository migration](https://github.com/viggomeesters/ruycast/issues/157) replaces or retires that code in small steps while preserving its required behavior.
+The repository is not yet entirely Rust: historical Swift sources, Python tools and tests, shell entrypoints and C reference programs remain. Native SDK test providers are now Rust. [The repository migration](https://github.com/viggomeesters/ruycast/issues/157) replaces or retires the remaining executable sources and switches their callers to Rust, preserving required behavior without excluding files from language statistics.
 
 Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Python 3.10+ is needed only for compatibility entrypoints and unchanged test validators; Swift is needed for explicit historical parity oracles, not the production build. Dependencies must already be cached for the offline build:
 
