@@ -427,7 +427,18 @@ const SETTINGS: &[SettingsGate] = &[
         "startup_process::settings_reenable_conflict_then_alias_preservation_and_retention_fourteen_reload",
         "settings_preferences_process.Preferences", "settings_keyboard_process.GeneralKeyboard",
         "library_process.Library", "actions_process.ActionsProcesses", "native_keyboard_process.NativeKeyboard",
-        "snippet_process.SnippetOutput", "keyword_rich_process.KeywordRich",
+        "snippet_process::plain_unknown_modes_and_complete_literal_text",
+        "snippet_process::teams_paragraphs_html_breaks_and_safe_escaping",
+        "snippet_process::links_balanced_parentheses_escape_labels_and_invalid_syntax",
+        "snippet_process::url_validation_and_link_source_preserve_actual_bridge_behavior",
+        "snippet_process::utf16_cursor_mapping_at_every_position_and_grapheme_boundary",
+        "snippet_process::native_named_board_contains_one_complete_plain_or_rich_item",
+        "snippet_process::grapheme_suffix_count_across_scripts_controls_and_joiners",
+        "snippet_process::real_sdk_item_failure_keeps_previous_board_but_write_failure_is_partial",
+        "snippet_process::large_source_is_complete_without_an_application_quota",
+        "snippet_process::generated_unicode_and_markup_corpus",
+        "snippet_process::invalid_long_url_does_not_repeat_legacy_exponential_match",
+        "keyword_rich_process.KeywordRich",
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","inline-input-process","input-process","native-choice-process","native-open-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
         "bridge_process::show_search_and_local_native_query_share_the_owner",
@@ -1518,6 +1529,26 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn settings_snippet_crosswalk_names_the_eleven_compiled_rust_tests() {
+        let gate = super::SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
+        assert!(gate.required_native_steps.contains(&"snippet-process"));
+        assert!(!gate.native_cases.iter().any(|case| case.starts_with("snippet_process.")));
+        let source = include_str!("../../../tests/snippet_process.rs");
+        let names = gate.native_cases.iter().filter_map(|case| case.strip_prefix("snippet_process::"))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(names.len(), 11);
+        let generated = source.lines().filter_map(|line| line.trim().strip_prefix("method!(")
+            .and_then(|line| line.strip_suffix(");"))).collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(generated.len(), 10);
+        assert!(generated.is_subset(&names));
+        // These ten names expand to actual #[test] functions, not just labels.
+        let compact = source.split_whitespace().collect::<String>();
+        assert!(compact.contains("macro_rules!method{($name:ident)=>{#[test]fn$name(){compare(stringify!($name));}};"));
+        let direct = names.difference(&generated).copied().collect::<Vec<_>>();
+        assert_eq!(direct, ["invalid_long_url_does_not_repeat_legacy_exponential_match"]);
+        assert!(compact.contains(&format!("#[test]fn{}()", direct[0])));
+    }
     use super::*;
     #[test]
     fn bridge_rust_crosswalk_resolves_cases_and_current_shared_inputs() {

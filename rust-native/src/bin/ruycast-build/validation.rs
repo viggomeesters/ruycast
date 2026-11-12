@@ -81,7 +81,8 @@ keyboard-process|p|rust-native/tests/keyboard_process.py
 hid-state-probe-build|b|hid-state-probe tools
 hid-state-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test hid_state_process --locked
 caps-probe-build|b|caps-probe tools
-caps-process|p|rust-native/tests/caps_process.py
+caps-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example caps-fixture --example caps-missing-set --locked
+caps-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test caps_process --locked
 hid-probe-build|b|hid-probe tools
 hid-process|p|rust-native/tests/hid_process.py
 manager-probe-build|b|manager-probe tools
@@ -1821,7 +1822,15 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 119);
+        assert_eq!(steps.len(), 120);
+        let caps_sdk = steps.iter().position(|step|step.name=="caps-sdk-build").unwrap();
+        let caps_test = steps.iter().position(|step|step.name=="caps-process").unwrap();
+        assert!(caps_sdk < caps_test);
+        for example in ["caps-fixture", "caps-missing-set"] {
+            assert!(steps[caps_sdk].arguments.windows(2).any(|pair|pair==["--example",example]));
+        }
+        assert!(steps[caps_test].arguments.windows(2).any(|pair|pair==["--test","caps_process"]));
+        assert!(!steps[caps_test].arguments.iter().any(|arg|arg.ends_with(".py")));
         let sdk_build = steps.iter().position(|step|step.name=="system-sdk-build").unwrap();
         let sdk_test = steps.iter().position(|step|step.name=="system-search-sdk").unwrap();
         assert!(sdk_build < sdk_test);
