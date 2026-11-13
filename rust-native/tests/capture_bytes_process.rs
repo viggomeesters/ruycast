@@ -130,3 +130,26 @@ fn stderr_overflow_and_invalid_utf8_are_independent_of_valid_stdout() {
         json!({"truncated":true,"eof":true,"validUtf8":false})
     );
 }
+#[test]
+fn valid_json_prefix_with_discarded_tail_and_spoof_fields_is_still_incomplete() {
+    let h = OwnedDir::new();
+    let v = probe(&h.0, json!(["capture-fixture", "spoof-prefix"]));
+    let prefix: Value =
+        serde_json::from_str(v["response"]["result"]["stdout"].as_str().unwrap()).unwrap();
+    assert_eq!(prefix["ok"], true);
+    assert_eq!(prefix["capture"]["stdout"]["truncated"], false);
+    assert_eq!(
+        v["capture"]["stdout"],
+        json!({"truncated":true,"eof":true,"validUtf8":true})
+    );
+}
+#[test]
+fn lossy_json_cannot_claim_its_original_bytes_are_valid() {
+    let h = OwnedDir::new();
+    let v = probe(&h.0, json!(["capture-fixture", "spoof-invalid"]));
+    let native: Value =
+        serde_json::from_str(v["response"]["result"]["stdout"].as_str().unwrap()).unwrap();
+    assert_eq!(native["detail"], "�");
+    assert_eq!(native["capture"]["validUtf8"], true);
+    assert_eq!(v["capture"]["stdout"]["validUtf8"], false);
+}

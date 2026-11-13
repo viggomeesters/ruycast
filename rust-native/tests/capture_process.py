@@ -36,14 +36,6 @@ class CaptureProcesses(unittest.TestCase):
                 self.assertEqual(result['capture'][stream],dict(truncated=False,validUtf8=True,eof=held not in ['both',stream]))
             self.assertTrue(json.loads(result['response']['result']['stdout'])['capture']['stdout']['eof'])
             release_holder(ready,gate,done)
-    def test_valid_json_prefix_with_discarded_tail_and_spoof_fields_is_still_incomplete(self):
-        code=valid_prefix_code()
-        result=self.probe(self.command(code));prefix=json.loads(result['response']['result']['stdout'])
-        self.assertTrue(prefix['ok']);self.assertFalse(prefix['capture']['stdout']['truncated'])
-        self.assertEqual(result['capture']['stdout'],dict(truncated=True,eof=True,validUtf8=True))
-    def test_lossy_json_cannot_claim_its_original_bytes_are_valid(self):
-        result=self.probe(self.command('import os;os.write(1,b\'{"ok":true,"detail":"\\xff","capture":{"validUtf8":true}}\')'))
-        native=json.loads(result['response']['result']['stdout']);self.assertEqual(native['detail'],'\ufffd');self.assertTrue(native['capture']['validUtf8']);self.assertFalse(result['capture']['stdout']['validUtf8'])
     def test_spawn_error_has_explicit_unknown_capture_and_legacy_response_is_unchanged(self):
         command=self.command();command['target']=str(self.base/'missing-executable');result=self.probe(command)
         self.assertIsNone(result['capture']);self.assertFalse(result['response']['ok'])
