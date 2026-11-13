@@ -383,6 +383,69 @@ fn template_form(h: &Bridge) {
     template_fields(h, |v| !v["fields"].is_null());
 }
 #[test]
+fn marked_input_defers_choice_and_unrelated_reload_preserves_open_list() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a}/{b options=\"One,Two\"}",
+    ));
+    template_form(&h);
+    h.probe("template-mark", json!({"index":0,"text":"に"}));
+    h.probe("template-choice", json!({"command":"open","index":1}));
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["marked"], true);
+    assert_eq!(v["choice"]["open"], false);
+    h.probe("template-unmark", json!({}));
+    h.probe("template-choice", json!({"command":"open","index":1}));
+    let before = template_fields(&h, |_| true);
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    cfg["theme"] = json!("light");
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    h.settled(|_| true);
+    let after = template_fields(&h, |_| true);
+    assert_eq!(after["choice"]["open"], true);
+    assert_eq!(
+        after["choice"]["generation"],
+        before["choice"]["generation"]
+    );
+    assert_eq!(after["values"], before["values"]);
+    assert_eq!(after["fieldsAXHidden"], true);
+    assert!(after["fieldControlsEnabled"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|v| v == false));
+    template_key(&h, 53, "");
+    assert_eq!(template_fields(&h, |_| true)["fieldsAXHidden"], false);
+}
+#[test]
+fn marked_text_and_unrelated_reload_preserve_live_native_editor() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a name=\"Text\"}/{b name=\"Other\" default=\"fixed\"}",
+    ));
+    template_form(&h);
+    h.probe("template-mark", json!({"index":0,"text":"日本語"}));
+    let before = h.probe("template-read", json!({}));
+    assert_eq!(before["marked"], true);
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    cfg["theme"] = json!("light");
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    h.settled(|_| true);
+    let after = h.probe("template-read", json!({}));
+    assert_eq!(after["marked"], true);
+    assert_eq!(after["token"], before["token"]);
+    probe(&h, "save-editor");
+    h.settled(|_| true);
+    assert!(opens(&h).is_empty());
+    h.probe("template-unmark", json!({}));
+    h.probe("template-type", json!({"index":0,"text":"日本語"}));
+    probe(&h, "save-editor");
+    done(&h);
+    assert!(unquote(opens(&h)[0]["url"].as_str().unwrap()).contains("日本語"));
+}
+#[test]
 fn empty_choice_never_silently_commits_first_option() {
     let h = host(command(
         "url",
