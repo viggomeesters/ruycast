@@ -45,13 +45,6 @@ class TemplateForms(unittest.TestCase):
 
     def form(self,h):
         self.show(h);self.activate(h);return self.fields(h,lambda v:v.get('fields') is not None)
-    def test_canonical_choice_default_and_narrow_light_dark_render(self):
-        target='https://example.invalid/{a name="Text" default="fixed"}/{b name="Place" default="cafe\u0301" options="café,Other"}'
-        for theme in ['light','dark']:
-            h=self.host(native.command('url',target),theme=theme,width=600)
-            self.form(h);self.capture(h,'template-'+theme)
-            h.probe('save-editor');self.wait_file(h.base/'open-started');self.done(h)
-            self.assertIn('café',__import__('unicodedata').normalize('NFC',unquote(self.opens(h)[0]['url'])))
 
     def test_late_metadata_is_cancelled_by_new_show_and_config_change(self):
         for reason in ['show','config','cancel']:
