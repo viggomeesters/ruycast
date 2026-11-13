@@ -142,7 +142,7 @@ applications-process|p|rust-native/tests/applications_process.py
 actions-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test actions_process --locked
 editor-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test editor_process --locked
 creation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test creation_process --locked
-library-process|p|rust-native/tests/library_process.py
+library-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_lifecycle_process --locked
 library-checkbox-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_checkbox_process --locked
 library-drafts-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_drafts_process --locked
 library-navigation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_navigation_process --locked
@@ -1949,7 +1949,7 @@ mod tests {
         assert!(!editor.arguments.iter().any(|arg|arg.ends_with(".py")));
         let library_checkbox = steps.iter().find(|step|step.name=="library-checkbox-process").unwrap();
         assert!(library_checkbox.arguments.windows(2).any(|pair|pair==["--test","library_checkbox_process"]));
-        assert!(steps.iter().any(|step|step.name=="library-process" && step.arguments.iter().any(|arg|arg.ends_with("library_process.py"))));
+        assert!(steps.iter().any(|step|step.name=="library-process" && step.arguments.windows(2).any(|pair|pair==["--test","library_lifecycle_process"])));
         let library_drafts = steps.iter().find(|step|step.name=="library-drafts-process").unwrap();
         assert!(library_drafts.arguments.windows(2).any(|pair|pair==["--test","library_drafts_process"]));
         let library_navigation = steps.iter().find(|step|step.name=="library-navigation-process").unwrap();
