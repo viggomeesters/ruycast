@@ -139,6 +139,72 @@ impl Drop for Release {
         let _ = fs::write(&self.0, "release");
     }
 }
+struct ReleaseCallbacks<'a> {
+    host: &'a Bridge,
+    active: bool,
+}
+impl Drop for ReleaseCallbacks<'_> {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.host.probe("workspace-release-callbacks", json!({}));
+            }));
+        }
+    }
+}
+#[test]
+fn gui_workspace_ignores_script_timeout_and_finishes_only_on_sdk_result() {
+    for (kind, target) in [
+        ("url", "ruycast-fixture://hold-sync"),
+        ("app", "dev.fixture.hold"),
+    ] {
+        let mut cmd = command(kind, target);
+        cmd["timeout"] = json!(0.1);
+        let h = host(cmd);
+        let gate = Release(h.base.join("workspace-release"));
+        let mut callbacks = if kind == "app" {
+            Some(ReleaseCallbacks {
+                host: &h,
+                active: true,
+            })
+        } else {
+            None
+        };
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        let marker = h.base.join("open-started");
+        let end = Instant::now() + Duration::from_secs(4);
+        while !marker.exists() {
+            assert!(
+                Instant::now() < end,
+                "own fixture did not enter open-started"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        std::thread::sleep(Duration::from_millis(1200));
+        let status = h.rpc(&json!({"op":"status"}))["result"].clone();
+        assert_eq!(status["openRequestsRunning"], 1);
+        assert_eq!(status["scriptsRunning"], 0);
+        assert_eq!(status["nativeUI"]["visible"], false);
+        assert!(h.cli(&["usage"])["result"].get("fixture.open").is_none());
+        assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+        if kind == "app" {
+            h.probe("workspace-release-callbacks", json!({}));
+            callbacks.as_mut().unwrap().active = false;
+        } else {
+            fs::write(&gate.0, "release").unwrap();
+        }
+        h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+        assert_eq!(h.cli(&["usage"])["result"]["fixture.open"], 1);
+        assert_eq!(
+            rows(&h.base.join("workspace-trace.jsonl"))
+                .iter()
+                .filter(|r| r["phase"].as_str().unwrap().starts_with("open-"))
+                .count(),
+            1
+        );
+    }
+}
 #[test]
 fn new_show_and_query_revoke_blocked_old_lookup() {
     for action_name in ["show", "query"] {

@@ -57,15 +57,6 @@ class NativeOpen(unittest.TestCase):
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
 
-    def test_gui_workspace_ignores_script_timeout_and_finishes_only_on_sdk_result(self):
-        for kind,target in [('url','ruycast-fixture://hold-sync'),('app','dev.fixture.hold')]:
-            h=self.host(command(kind,target,timeout=.1));self.show(h);self.activate(h);self.wait_file(h.base/'open-started')
-            # Cross the actual old minimum1s GUI timer while the fake SDK is held.
-            time.sleep(1.2);status=h.rpc(dict(op='status'))['result'];self.assertEqual(status['openRequestsRunning'],1);self.assertEqual(status['scriptsRunning'],0);self.assertFalse(status['nativeUI']['visible'])
-            self.assertNotIn('fixture.open',h.cli('usage')['result']);self.assertEqual(len(self.hides(h)),1)
-            if kind=='app':h.probe('workspace-release-callbacks')
-            else:(h.base/'workspace-release').write_text('release')
-            self.done(h);self.assertEqual(h.cli('usage')['result']['fixture.open'],1);self.assertEqual(len(self.opens(h)),1)
     def test_gui_without_wall_timer_still_cancels_on_new_show(self):
         h=self.host(command('url','ruycast-fixture://hold-sync',timeout=.1));self.show(h);self.activate(h);self.wait_file(h.base/'open-started');time.sleep(1.2)
         self.assertEqual(h.rpc(dict(op='status'))['result']['openRequestsRunning'],1);self.show(h);self.done(h)
