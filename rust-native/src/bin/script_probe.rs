@@ -20,6 +20,13 @@ struct Input {
 
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args
+        .first()
+        .is_some_and(|arg| arg == "__run-script-supervised")
+    {
+        old_supervisor_fixture();
+        return;
+    }
     if args.first().is_some_and(|arg| arg == "script-tree") {
         run_tree(&args);
         return;
@@ -95,6 +102,7 @@ fn capture_fixture(args: &[String]) {
             std::io::stdout().write_all("€".as_bytes()).unwrap();
         }
         Some("invalid") => std::io::stdout().write_all(&[255]).unwrap(),
+        Some("exit7") => std::process::exit(7),
         Some("spoof-prefix") => {
             let mut value = json!({"ok":true,"detail":"","capture":{"stdout":{"truncated":false,"eof":true,"validUtf8":true}}});
             let empty_len = serde_json::to_vec(&value).unwrap().len();
@@ -114,6 +122,24 @@ fn capture_fixture(args: &[String]) {
             std::io::stderr().write_all(&vec![255; 65537]).unwrap();
         }
         _ => panic!("invalid owned capture fixture"),
+    }
+}
+
+fn old_supervisor_fixture() {
+    use std::io::{BufRead, Write};
+    let version =
+        std::env::var("RUYCAST_TEST_OLD_SUPERVISOR_VERSION").expect("owned old supervisor version");
+    assert!(version == "1" || version == "2");
+    let marker = std::env::var_os("RUYCAST_TEST_OLD_SUPERVISOR_MARKER").expect("owned marker");
+    println!(
+        "{}",
+        json!({"scriptSupervisor":version.parse::<u32>().unwrap(),"ready":true})
+    );
+    std::io::stdout().flush().unwrap();
+    let mut line = String::new();
+    std::io::stdin().lock().read_line(&mut line).unwrap();
+    if !line.is_empty() {
+        std::fs::write(marker, line).unwrap();
     }
 }
 
