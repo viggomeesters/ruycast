@@ -30,6 +30,33 @@ fn bundle(root: &Path, name: &str, id: Option<&str>, display: Option<&str>, labe
 fn ready(h: &Host) -> Value {
     h.wait(|s| s["appDiscoveryPending"] == false)
 }
+#[test]
+fn shutdown_cancels_waiting_discovery_without_release() {
+    let mut host = Host::new(Config::current(), false);
+    host.env
+        .insert("RUYCAST_NATIVE_TEST_APP_BARRIER".into(), "1".into());
+    host.start();
+    let marker = host.base.join("app-discovery-ready");
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !marker.exists() {
+        assert!(Instant::now() < deadline, "discovery barrier missing");
+        thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        host.rpc(&json!({"op":"status"}))["result"]["appDiscoveryPending"],
+        true
+    );
+    assert_eq!(host.rpc(&json!({"op":"quit"}))["ok"], true);
+    let output = host.wait_exit(Duration::from_secs(3), false);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!host.socket().exists());
+}
 fn search(h: &Host, query: &str) -> Vec<Value> {
     h.rpc(&json!({"op":"search","query":query,"limit":0}))["result"]
         .as_array()
