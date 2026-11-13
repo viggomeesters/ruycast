@@ -77,15 +77,6 @@ class TemplateForms(unittest.TestCase):
 
     def form(self,h):
         self.show(h);self.activate(h);return self.fields(h,lambda v:v.get('fields') is not None)
-    def test_old_callbacks_cannot_save_or_cancel_an_alias_editor(self):
-        h=self.host(native.command('url','https://example.invalid/{a}/{b}'));self.form(h)
-        h.probe('template-type',index=0,text='old secret');h.probe('template-retain',index=0);h.probe('cancel-editor');h.settled()
-        self.show(h);h.probe('key-event',code=40,chars='k',flags=1<<20);h.settled()
-        labels=h.probe('read')['actionLabels'];index=next(i for i,v in enumerate(labels) if v.startswith('Set Alias'))
-        h.probe('action-button',index=index);h.settled();h.probe('alias-input',text='UNSAVED-ALIAS');before=h.config.read_bytes()
-        h.probe('template-stale');h.settled()
-        view=h.probe('read');self.assertTrue(view['formVisible']);self.assertEqual(view['aliasValue'],'UNSAVED-ALIAS')
-        self.assertEqual(h.config.read_bytes(),before);self.assertEqual(self.opens(h),[])
     def test_canonical_choice_default_and_narrow_light_dark_render(self):
         target='https://example.invalid/{a name="Text" default="fixed"}/{b name="Place" default="cafe\u0301" options="café,Other"}'
         for theme in ['light','dark']:
@@ -103,13 +94,6 @@ class TemplateForms(unittest.TestCase):
         h.probe('save-editor');self.wait_file(h.base/'open-started');self.done(h)
         target=unquote(self.opens(h)[0]['url']);self.assertIn('PRIVATE-first',target);self.assertNotIn('PRIVATE-second',target)
         raw=json.dumps(h.rpc(dict(op='logs')));self.assertNotIn('PRIVATE-first',raw);self.assertNotIn('PRIVATE-second',raw)
-    def test_config_replacement_rejects_run_without_losing_main_draft(self):
-        h=self.host(native.command('url','https://example.invalid/{a name="Text"}/{b name="Other"}'))
-        self.form(h);h.probe('template-type',index=0,text='keep draft');h.probe('template-type',index=1,text='second')
-        config=json.loads(h.config.read_text());config['commands'][-1]['target']='https://example.invalid/changed/{a}/{b}'
-        h.replace(config);h.cli('reload');h.settled();h.probe('save-editor');h.settled()
-        self.assertEqual(self.fields(h)['values'],['keep draft','second']);self.assertTrue(self.fields(h)['enabled'])
-        self.assertEqual(self.opens(h),[]);self.assertIn('Command changed','\n'.join(h.probe('read')['screenText']))
     def test_many_fields_are_virtualized_and_last_value_remains_reachable(self):
         target='https://example.invalid/'+'/'.join('{f%d default="x"}'%i for i in range(5000))
         h=self.host(native.command('url',target));self.form(h)

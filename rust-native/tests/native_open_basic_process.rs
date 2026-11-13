@@ -383,6 +383,70 @@ fn template_form(h: &Bridge) {
     template_fields(h, |v| !v["fields"].is_null());
 }
 #[test]
+fn old_callbacks_cannot_save_or_cancel_an_alias_editor() {
+    let h = host(command("url", "https://example.invalid/{a}/{b}"));
+    template_form(&h);
+    h.probe("template-type", json!({"index":0,"text":"old secret"}));
+    h.probe("template-retain", json!({"index":0}));
+    probe(&h, "cancel-editor");
+    h.settled(|_| true);
+    show(&h, "nativeopen");
+    key(&h, 40, CMD, "k", false);
+    h.settled(|_| true);
+    let labels = probe(&h, "read")["actionLabels"]
+        .as_array()
+        .unwrap()
+        .clone();
+    let index = labels
+        .iter()
+        .position(|v| v.as_str().unwrap().starts_with("Set Alias"))
+        .unwrap();
+    h.probe("action-button", json!({"index":index}));
+    h.settled(|_| true);
+    h.probe("alias-input", json!({"text":"UNSAVED-ALIAS"}));
+    let before = fs::read(&h.config).unwrap();
+    h.probe("template-stale", json!({}));
+    h.settled(|_| true);
+    let view = probe(&h, "read");
+    assert_eq!(view["formVisible"], true);
+    assert_eq!(view["aliasValue"], "UNSAVED-ALIAS");
+    assert_eq!(fs::read(&h.config).unwrap(), before);
+    assert!(opens(&h).is_empty());
+}
+#[test]
+fn config_replacement_rejects_run_without_losing_main_draft() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a name=\"Text\"}/{b name=\"Other\"}",
+    ));
+    template_form(&h);
+    h.probe("template-type", json!({"index":0,"text":"keep draft"}));
+    h.probe("template-type", json!({"index":1,"text":"second"}));
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+        json!("https://example.invalid/changed/{a}/{b}");
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    h.settled(|_| true);
+    probe(&h, "save-editor");
+    h.settled(|_| true);
+    assert_eq!(
+        template_fields(&h, |_| true)["values"],
+        json!(["keep draft", "second"])
+    );
+    assert_eq!(template_fields(&h, |_| true)["enabled"], true);
+    assert!(opens(&h).is_empty());
+    let view = probe(&h, "read");
+    let text = view["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("Command changed"));
+}
+#[test]
 fn old_option_table_cannot_commit_after_same_form_reopen_or_cancel() {
     let h = host(command(
         "url",

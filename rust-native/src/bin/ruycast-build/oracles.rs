@@ -850,7 +850,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
 
         "--check-interactions" => &[
-            ("rust-native/tests/native_open_basic_process.rs", include_bytes!("../../../tests/native_open_basic_process.rs"), "122ce6ec25f9228f51e5e6efaa30a57e2b59caf1f117fbfc2b4d847fb34568fd"),
+            ("rust-native/tests/native_open_basic_process.rs", include_bytes!("../../../tests/native_open_basic_process.rs"), "72f3a05a956d47142ae9ed53400bceff051301f1e8cb6519f0097c5a42b8417c"),
             ("rust-native/tests/fixtures/workspace_fixture.rs", include_bytes!("../../../tests/fixtures/workspace_fixture.rs"), "893eaba2a1a537958085554a78d7cd69131003c0c705d0a6c5952b16a9f5cb06"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
