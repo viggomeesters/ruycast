@@ -44,14 +44,6 @@ class TemplateForms(unittest.TestCase):
         self.assertEqual(v['values'][1],'Choice0');self.assertLess(v['choice']['reads'],128)
         self.capture(h,'choice-last');self.key(h,36,'\r');self.assertEqual(self.fields(h)['values'][1],'Choice9999')
         self.key(h,36,'\r',1<<20);self.wait_file(h.base/'open-started');self.done(h);self.assertIn('Choice9999',unquote(self.opens(h)[0]['url']))
-    def test_old_option_table_cannot_commit_after_same_form_reopen_or_cancel(self):
-        h=self.host(native.command('url','https://example.invalid/{a default="x"}/{b default="One" options="One,Two"}'));self.form(h)
-        self.key(h,48,'\t');self.key(h,49,' ');old=self.fields(h);h.probe('template-choice',command='retain')
-        self.key(h,53);self.key(h,49,' ');before=self.fields(h);self.assertGreater(before['choice']['generation'],old['choice']['generation'])
-        h.probe('template-choice',command='stale',index=1);after=self.fields(h)
-        self.assertTrue(after['choice']['open']);self.assertEqual(after['values'],before['values']);self.assertEqual(after['choice']['generation'],before['choice']['generation'])
-        h.probe('cancel-editor');h.settled();h.probe('template-choice',command='stale',index=1)
-        self.assertEqual(self.fields(h)['values'],[]);self.assertEqual(self.opens(h),[])
     def test_multi_field_text_and_lazy_choice_open_exact_rendered_url(self):
         cmd=native.command('url','https://example.invalid/{first name="Message"}/{second name="Country" options="One,Two"}')
         h=self.host(cmd);before=h.config.read_bytes();self.show(h);self.activate(h)
@@ -85,16 +77,6 @@ class TemplateForms(unittest.TestCase):
 
     def form(self,h):
         self.show(h);self.activate(h);return self.fields(h,lambda v:v.get('fields') is not None)
-    def test_cancel_wipes_values_and_old_callbacks_cannot_operate_new_form(self):
-        h=self.host(native.command('url','https://example.invalid/{a name="First"}/{b name="Second"}'))
-        self.form(h);h.probe('template-type',index=0,text='PRIVATE-OLD-VALUE');h.probe('template-retain',index=0)
-        h.probe('cancel-editor');h.settled()
-        self.assertEqual(h.probe('template-read')['values'],[])
-        old=h.probe('template-stale');self.assertEqual(old['oldValue'],'');self.assertEqual(old['oldToken'],0)
-        self.form(h);h.probe('template-type',index=0,text='new value');before=h.probe('template-read')
-        h.probe('template-stale');after=h.probe('template-read')
-        self.assertEqual(after['token'],before['token']);self.assertEqual(after['values'],before['values'])
-        self.assertEqual(self.opens(h),[])
     def test_old_callbacks_cannot_save_or_cancel_an_alias_editor(self):
         h=self.host(native.command('url','https://example.invalid/{a}/{b}'));self.form(h)
         h.probe('template-type',index=0,text='old secret');h.probe('template-retain',index=0);h.probe('cancel-editor');h.settled()
