@@ -150,7 +150,7 @@ A process-group guard is established immediately after spawn. The leader remains
 
 Cleanup covers the owned process group, not descendants that deliberately leave it. Polling/output work and TERM grace are bounded; the final OS wait is not a hard real-time guarantee. No independent SIGCHLD handler may reap these children. This synchronous primitive belongs on a bounded execution worker. The ordinary-script admission, completion, cancellation, input substitution and initial metadata/usage integration now use the executor below; complete result handlers and richer diagnostics/analytics remain pending. Ordinary saved scripts now reach it through the development host’s bounded asynchronous execution authority described below. This does not constitute complete native execution parity.
 
-`tests/script_process.py` uses actual disposable children and a mandatory-trace macOS interposer to test literal CLI/core response parity, independent streams, flood cancellation/timeouts, inherited pipes, TERM-resistant process groups, panic/error cleanup, repeated failed starts, descriptor/read/wait faults and fail-closed live EPERM/inventory failures. Traces require final reap after group signals and prohibit later signals to the reaped identity. The probe's waitpid(-1) is an assertion in its isolated process; production never uses it to collect unknown children.
+`tests/script_basic_process.rs` and `tests/script_fault_process.rs` use actual disposable children and a mandatory-trace macOS interposer to test literal CLI/core response parity, independent streams, flood cancellation/timeouts, inherited pipes, TERM-resistant process groups, panic/error cleanup, repeated failed starts, descriptor/read/wait faults and fail-closed live EPERM/inventory failures. Traces require final reap after group signals and prohibit later signals to the reaped identity. The probe's waitpid(-1) is an assertion in its isolated process; production never uses it to collect unknown children.
 
 
 ## Bounded host execution
@@ -214,7 +214,7 @@ Only execution fields deliberately changed in the own published Edit receipt bec
 
 ## Script result contract and choice ownership
 
-`tests/script_basic_process.rs` covers literal script arguments, home expansion, prelaunch cancellation, invalid requests, exit signals and bounded streams through the real probe and CLI. `tests/script_fault_process.rs` covers injected descriptor, read, wait, signal and process-inventory failures and actual process reaping. The remaining `tests/script_process.py` cases cover process groups and stream behavior.
+`tests/script_basic_process.rs` covers literal script arguments, home expansion, prelaunch cancellation, invalid requests, exit signals and bounded streams through the real probe and CLI. `tests/script_fault_process.rs` covers injected descriptor, read, wait, signal and process-inventory failures and actual process reaping. The Rust suites also cover process groups and inherited pipes.
 
 `tests/script_result_basic_process.rs` exercises CLI result interpretation with a Rust provider fixture and `tests/script_result_native_process.rs` covers native failure drafts; `tests/script_result_process.py` retains fixture helpers for Capture until its caller migrates.
 

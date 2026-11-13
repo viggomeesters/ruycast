@@ -91,8 +91,7 @@ manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 cli-open-process|p|rust-native/tests/cli_open_process.py
 supervision-process|p|rust-native/tests/supervision_process.py
 script-fault-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example script-fault-shim --locked
-script-process|p|rust-native/tests/script_process.py
-script-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked
+script-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked
 script-fault-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_fault_process --locked
 runtime-writer-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example fcntl-sync-shim --locked
 foundation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test foundation_process --locked
@@ -439,13 +438,6 @@ fn sanitized(command: &mut Command, root: &Path, lease: &BuildLock, fixture: &Pa
         );
     lease.apply_to_child(command)
 }
-fn script_fault_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
-    artifact_paths(target)?;
-    let shim = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libscript_fault_shim.dylib");
-    regular_file(&shim)?;
-    command.env("RUYCAST_TEST_SCRIPT_FAULT_SHIM", shim);
-    Ok(())
-}
 fn step(
     root: &Path,
     lease: &BuildLock,
@@ -459,9 +451,6 @@ fn step(
     let mut command = Command::new(&entry.arguments[0]);
     command.args(&entry.arguments[1..]).current_dir(root);
     sanitized(&mut command, root, lease, fixture)?;
-    if entry.name == "script-process" {
-        script_fault_environment(root, &receipt.target, &mut command)?;
-    }
     if entry.name == "startup-process" {
         let (artifact, sha) = keyboard_fixture(root)?;
         command
@@ -1470,19 +1459,6 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn script_fault_python_uses_newly_built_target_shim() {
-        let fixture=super::super::tests::Fixture::new();
-        let root=&fixture.0;
-        let target="aarch64-apple-darwin";
-        let path=root.join("rust-native/target/validation-build").join(target).join("debug/examples/libscript_fault_shim.dylib");
-        let mut command=std::process::Command::new("python3");
-        assert!(super::script_fault_environment(root,target,&mut command).is_err());
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path,b"owned fixture").unwrap();
-        super::script_fault_environment(root,target,&mut command).unwrap();
-        assert!(command.get_envs().any(|(key,value)| key=="RUYCAST_TEST_SCRIPT_FAULT_SHIM" && value==Some(path.as_os_str())));
-    }
     use super::*;
     #[test]
     fn keyboard_receipt_sources_match_both_consumers_and_reject_drift() {
@@ -1899,7 +1875,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 133);
+        assert_eq!(steps.len(), 132);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1997,7 +1973,7 @@ mod tests {
         assert!(script_result_basic.arguments.windows(2).any(|pair|pair==["--test","script_result_basic_process"]));
         let script_result_native = steps.iter().find(|step|step.name=="script-result-native-process").unwrap();
         assert!(script_result_native.arguments.windows(2).any(|pair|pair==["--test","script_result_native_process"]));
-        let script_basic = steps.iter().find(|step|step.name=="script-basic-process").unwrap();
+        let script_basic = steps.iter().find(|step|step.name=="script-process").unwrap();
         assert!(script_basic.arguments.windows(2).any(|pair|pair==["--test","script_basic_process"]));
         let script_fault_sdk = steps.iter().position(|step|step.name=="script-fault-sdk-build").unwrap();
         let script_fault = steps.iter().position(|step|step.name=="script-fault-process").unwrap();
