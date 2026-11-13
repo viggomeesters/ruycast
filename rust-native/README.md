@@ -205,6 +205,8 @@ Only execution fields deliberately changed in the own published Edit receipt bec
 
 `tests/settings_keyboard_process.rs` covers the two General Settings recorder scenarios on the same owned SDK. It emits the separate `GeneralKeyboard` source/artifact binding; the native keyboard suite continues to emit `NativeKeyboard`.
 
+`tests/settings_preferences_process.rs` covers the four General, Advanced and menu bar preference scenarios with hidden Settings probes, owned profiles, fake folder dialogs and their nine existing captures.
+
 `tests/input_actions_process.py` covers native editor return, actual saves/recording, field ownership, conflicts, relocation/removal, disabled input, queued cancellation, genuine directory-sync faults and the Settings peer. This remains development parity for ordinary saved scripts; provider-specific capture/date/Shortcuts/private handlers, remaining twelve-block migration acceptance, production packaging and release/install/readback remain pending.
 
 
