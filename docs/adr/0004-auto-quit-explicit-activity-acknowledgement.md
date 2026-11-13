@@ -47,7 +47,8 @@ private API, helper-kill route, force-kill or save confirmation is introduced.
 
 Owned native acceptance includes both the production Native/Runtime route and
 an actual monotonic one-minute wait, not only simulated deadlines: clean normal
-quit after 60.87 seconds. Enabled without acknowledgement made no request;
+quit after 60.87 seconds initially and 60.23 seconds on the final
+safety candidate (22 focused tests passed). Enabled without acknowledgement made no request;
 adding acknowledgement began a new full interval. Cancellation and deferred
 termination remained alive and received no repeated request. The earlier owned
 bridge also rejects a nonzero exit after a quit receipt. These native tests are

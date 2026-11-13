@@ -1113,6 +1113,9 @@ impl CommandFields {
                         .filter(|minutes| *minutes > 0)
                         .ok_or("Auto Quit minutes must be a positive whole number (1–4294967295).")?;
                     value["_autoQuit"]["minutes"] = json!(minutes);
+                    if self.auto_quit.state() == NSControlStateValueOn && self.auto_quit_risk.state() != NSControlStateValueOn {
+                        return Err("Auto Quit requires separate activity consent.".into());
+                    }
                     value["_autoQuit"]["enabled"] = json!(self.auto_quit.state() == NSControlStateValueOn);
                     if self.auto_quit_risk.state() == NSControlStateValueOn {
                         value["_autoQuit"]["allowUnverifiedActivity"] = json!(true);

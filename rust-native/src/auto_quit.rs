@@ -1,4 +1,4 @@
-//! Pure Auto Quit clock policy. No OS observations or application effects.
+//! Auto Quit clock policy with separate native observation/effect adapters.
 //!
 //! Each observation is a complete current snapshot. A background interval starts
 //! on its first observation; foreground, unknown/missing state, sleep/wake,

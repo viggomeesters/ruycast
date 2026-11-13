@@ -22,7 +22,7 @@ fn product_library_requires_separate_unverified_activity_acknowledgement() {
         },
         activity: Activity::Background,
     };
-    let preferences = BTreeMap::from([(
+    let mut preferences = BTreeMap::from([(
         application.application.clone(),
         AutoQuitSettings {
             allow_unverified_activity: false,
@@ -30,7 +30,7 @@ fn product_library_requires_separate_unverified_activity_acknowledgement() {
             minutes: 1,
         },
     )]);
-    let safety = Snapshot {
+    let mut safety = Snapshot {
         application: application.clone(),
         sampled_at: Duration::from_secs(60),
         running: Signal::Inactive,
@@ -51,9 +51,9 @@ fn product_library_requires_separate_unverified_activity_acknowledgement() {
     let assessment = tracker.observe_guarded(
         &guard,
         Duration::from_secs(60),
-        &[application],
+        std::slice::from_ref(&application),
         &preferences,
-        &[safety],
+        std::slice::from_ref(&safety),
     );
     assert_eq!(assessment.len(), 1);
     // Intentionally exhaustive: product admission needs explicit consent; the
@@ -63,5 +63,59 @@ fn product_library_requires_separate_unverified_activity_acknowledgement() {
         Decision::AllowedUnverified => {
             panic!("enabled alone must never acknowledge unverified activity")
         }
+    }
+
+    preferences
+        .values_mut()
+        .next()
+        .unwrap()
+        .allow_unverified_activity = true;
+    assert!(tracker
+        .observe(
+            Duration::from_secs(60),
+            std::slice::from_ref(&application),
+            &preferences
+        )
+        .is_empty());
+    let due = tracker
+        .observe(
+            Duration::from_secs(120),
+            std::slice::from_ref(&application),
+            &preferences,
+        )
+        .pop()
+        .unwrap();
+    safety.sampled_at = Duration::from_secs(120);
+    safety.running = Signal::Unknown;
+    safety.input = Signal::Unknown;
+    safety.output = Signal::Unknown;
+    safety.recording = Signal::Unknown;
+    safety.helpers = Helpers::Unknown;
+    assert_eq!(
+        guard.assess(
+            &tracker,
+            &due,
+            Duration::from_secs(120),
+            &preferences,
+            Some(&safety)
+        ),
+        Decision::AllowedUnverified
+    );
+    for (signal, reason) in [
+        (Signal::Active, Blocked::ActiveAudio),
+        (Signal::Failed, Blocked::FailedSafety),
+        (Signal::Unavailable, Blocked::UnavailableSafety),
+    ] {
+        safety.running = signal;
+        assert_eq!(
+            guard.assess(
+                &tracker,
+                &due,
+                Duration::from_secs(120),
+                &preferences,
+                Some(&safety)
+            ),
+            Decision::Blocked(reason)
+        );
     }
 }

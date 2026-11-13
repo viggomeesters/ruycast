@@ -120,6 +120,8 @@ fn audio(process: Identity) -> (Signal, Signal, Signal) {
     };
     read().unwrap_or((Signal::Failed, Signal::Failed, Signal::Failed))
 }
+#[cfg(test)]
+type AfterConfigRead = Box<dyn FnMut(&mut Native)>;
 pub struct Native {
     paths: ProfilePaths,
     started: Instant,
@@ -130,7 +132,7 @@ pub struct Native {
     #[cfg(test)]
     before_effect: Option<Box<dyn FnMut()>>,
     #[cfg(test)]
-    after_config_read: Option<Box<dyn FnMut(&mut Self)>>,
+    after_config_read: Option<AfterConfigRead>,
     #[cfg(test)]
     foreground_override: Option<i32>,
 }
