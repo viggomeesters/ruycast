@@ -70,6 +70,7 @@ struct Draft {
     discovered_service: bool,
     view: EditorView,
     base: Command,
+    auto_quit_base: Value,
     file: PathBuf,
     input_reference_now: f64,
 }
@@ -98,6 +99,7 @@ impl Clone for Draft {
             discovered_service: self.discovered_service,
             view: self.view.clone(),
             base: self.base.clone(),
+            auto_quit_base: self.auto_quit_base.clone(),
             file: self.file.clone(),
             input_reference_now: self.input_reference_now,
         }
@@ -204,12 +206,17 @@ impl Editing {
                 command: if mode == Mode::Input {
                     json!({"input":"", "inputPrompt":command.input_prompt.as_deref().filter(|p|!p.trim().is_empty()).unwrap_or("Input")})
                 } else if mode == Mode::Edit {
-                    serde_json::to_value(command).expect("Command serialization")
+                    let mut value = serde_json::to_value(command).expect("Command serialization");
+                    if command.kind == "app" {
+                        value["_autoQuit"] = auto_quit_preference(store, &command.target);
+                    }
+                    value
                 } else {
                     Value::Null
                 },
             },
             base: command.clone(),
+            auto_quit_base: auto_quit_preference(store, &command.target),
             file: store.file.clone(),
             input_reference_now: now,
         });
@@ -742,6 +749,26 @@ impl Editing {
                     commands.remove(index);
                 }
             }
+            if draft.view.mode == Mode::Edit && draft.base.kind == "app" {
+                let edited = &draft.view.command["_autoQuit"];
+                if !edited.is_null() && edited != &draft.auto_quit_base {
+                    if draft.view.command["target"] != draft.base.target {
+                        return Err("Application changed. Save and reopen it before editing Auto Quit.".into());
+                    }
+                    let current = auto_quit_preference(store, &draft.base.target);
+                    if current != draft.auto_quit_base && &current != edited {
+                        return Err("Auto Quit changed elsewhere. Reopen the application before editing.".into());
+                    }
+                    if value.get("autoQuit").is_none() {
+                        value["autoQuit"] = json!({});
+                    }
+                    let key = store.current().auto_quit.keys()
+                        .find(|key| key.eq_ignore_ascii_case(&draft.base.target))
+                        .cloned()
+                        .unwrap_or_else(|| draft.base.target.clone());
+                    value["autoQuit"][key] = edited.clone();
+                }
+            }
             store.save(&value)
         })();
         match result {
@@ -766,7 +793,7 @@ impl Editing {
                             serde_json::to_value(&input.base).map_err(|e| e.to_string())?;
                         let base = serde_json::to_value(&draft.base).map_err(|e| e.to_string())?;
                         let edited: Command = if draft.view.mode == Mode::Edit {
-                            serde_json::from_value(draft.view.command.clone())
+                            serde_json::from_value(command_document(&draft.view.command))
                                 .map_err(|e| e.to_string())?
                         } else {
                             draft.base.clone()
@@ -832,10 +859,26 @@ pub fn binding_identity(a: &Command, b: &Command) -> bool {
         && a.application_id == b.application_id
         && a.enabled == b.enabled
 }
+fn auto_quit_preference(store: &ConfigStore, application: &str) -> Value {
+    store.current().auto_quit.iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(application))
+        .map(|(_, preference)| serde_json::to_value(preference).expect("preference serialization"))
+        .unwrap_or_else(|| json!({"enabled":false,"minutes":30}))
+}
+/// `_autoQuit` travels only with the editor draft. It is never command data.
+fn command_document(edited: &Value) -> Value {
+    let mut document = edited.clone();
+    if document["kind"] == "app" {
+        if let Some(object) = document.as_object_mut() {
+            object.remove("_autoQuit");
+        }
+    }
+    document
+}
 /// Merge only fields changed in this editor. Optional-field presence in current
 /// JSON is preserved when its typed value was not edited. IDs remain immutable.
 fn merge_command(current: &mut Value, base: &Value, edited: &Value) -> Result<(), String> {
-    let mut parsed: Command = serde_json::from_value(edited.clone()).map_err(|e| e.to_string())?;
+    let mut parsed: Command = serde_json::from_value(command_document(edited)).map_err(|e| e.to_string())?;
     if edited["id"] != base["id"] || edited["kind"] != base["kind"] {
         return Err("Command identity changed. Reopen it before editing.".into());
     }
@@ -1087,6 +1130,52 @@ mod tests {
         fn drop(&mut self) {
             fs::remove_dir_all(&self.0).unwrap();
         }
+    }
+    #[test]
+    fn auto_quit_editor_merges_only_its_application_and_refuses_conflicts() {
+        let temp = Temp::new();
+        let mut store = temp.store();
+        let command = store.current().commands[0].clone();
+        assert_eq!(command.kind, "app");
+        let mut editing = Editing::default();
+        editing.open(&store, &command, Mode::Edit);
+        let token = editing.token().unwrap();
+        let mut edited = editing.view().unwrap().command;
+        edited["_autoQuit"] = json!({"enabled":true,"minutes":17});
+        edited["title"] = json!("Own application");
+        editing.update_command(token, edited);
+        let mut external: Value = serde_json::from_slice(store.snapshot()).unwrap();
+        external["clipboard"]["limit"] = json!(87);
+        external["autoQuit"] = json!({"test.synthetic.Other":{"enabled":true,"minutes":44}});
+        store.save(&external).unwrap();
+        editing.save(&mut store, token, None, None).unwrap();
+        assert_eq!(store.current().auto_quit[&command.target].minutes, 17);
+        assert_eq!(store.current().auto_quit["test.synthetic.Other"].minutes, 44);
+        assert_eq!(store.current().clipboard.limit, 87);
+        assert_eq!(store.current().commands[0].title, "Own application");
+        assert!(!String::from_utf8_lossy(store.snapshot()).contains("_autoQuit"));
+        let command = store.current().commands[0].clone();
+        editing.open(&store, &command, Mode::Edit);
+        let token = editing.token().unwrap();
+        let mut edited = editing.view().unwrap().command;
+        edited["_autoQuit"]["minutes"] = json!(20);
+        editing.update_command(token, edited);
+        let mut external: Value = serde_json::from_slice(store.snapshot()).unwrap();
+        external["autoQuit"][&command.target]["minutes"] = json!(25);
+        store.save(&external).unwrap();
+        let saved = store.snapshot().to_vec();
+        assert!(editing.save(&mut store, token, None, None).unwrap_err().contains("Auto Quit changed elsewhere"));
+        assert_eq!(store.snapshot(), saved);
+        assert_eq!(editing.view().unwrap().command["_autoQuit"]["minutes"], 20);
+        editing.cancel(token);
+        editing.open(&store, &command, Mode::Edit);
+        let token = editing.token().unwrap();
+        let mut edited = editing.view().unwrap().command;
+        edited["target"] = json!("test.synthetic.Replacement");
+        edited["_autoQuit"]["minutes"] = json!(30);
+        editing.update_command(token, edited);
+        assert!(editing.save(&mut store, token, None, None).unwrap_err().contains("Application changed"));
+        assert_eq!(store.snapshot(), saved);
     }
     #[test]
     fn suspended_input_uses_fresh_tokens_and_rejects_stale_child_callbacks() {

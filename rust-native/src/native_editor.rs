@@ -11,6 +11,7 @@ use std::cell::{Cell, RefCell};
 #[derive(Clone, Copy)]
 enum Focus {
     Application,
+    AutoQuit,
     Field(usize),
     Text,
     Argument(usize),
@@ -182,6 +183,7 @@ pub struct CommandFields {
     text_scroll: Retained<NSScrollView>,
     pub output: Retained<NSPopUpButton>,
     pub enabled: Retained<NSButton>,
+    pub auto_quit: Retained<NSButton>,
     pub arguments: RefCell<Vec<Retained<CommandText>>>,
     pub add_argument: Retained<NSButton>,
     pub remove_arguments: RefCell<Vec<Retained<NSButton>>>,
@@ -521,6 +523,10 @@ impl CommandFields {
         enabled.setButtonType(NSButtonType::Switch);
         enabled.setTitle(ns_string!("Enabled"));
         enabled.setAccessibilityLabel(Some(ns_string!("Enabled")));
+        let auto_quit = NSButton::new(main);
+        auto_quit.setButtonType(NSButtonType::Switch);
+        auto_quit.setTitle(ns_string!("Auto Quit"));
+        auto_quit.setAccessibilityLabel(Some(ns_string!("Auto Quit")));
         let add_argument = NSButton::new(main);
         add_argument.setTitle(ns_string!("Add Argument"));
         add_argument.setAccessibilityLabel(Some(ns_string!("Add Argument")));
@@ -551,6 +557,7 @@ impl CommandFields {
             text_scroll,
             output,
             enabled,
+            auto_quit,
             arguments: RefCell::new(vec![]),
             add_argument,
             remove_arguments: RefCell::new(vec![]),
@@ -570,6 +577,10 @@ impl CommandFields {
         };
         if self.application.borrow().as_ref().is_some_and(|b| same(b)) {
             self.focus.set(Some(Focus::Application));
+            return;
+        }
+        if same(&self.auto_quit) {
+            self.focus.set(Some(Focus::AutoQuit));
             return;
         }
         for (i, f) in self.fields.borrow().iter().enumerate() {
@@ -592,6 +603,9 @@ impl CommandFields {
     pub fn restore_focus(&self, panel: &NSWindow) {
         match self.focus.get() {
             Some(Focus::Application) => self.focus_app(),
+            Some(Focus::AutoQuit) => {
+                panel.makeFirstResponder(Some(&self.auto_quit));
+            }
             Some(Focus::Field(i)) => {
                 if let Some(f) = self.fields.borrow().get(i) {
                     panel.makeFirstResponder(Some(&f.input));
@@ -857,6 +871,33 @@ impl CommandFields {
                 &mut y,
             );
         }
+        if kind == "app" {
+            self.auto_quit.setFrame(rect(0., y, self.width.get(), 28.));
+            self.auto_quit.setState(if command["_autoQuit"]["enabled"] == true {
+                NSControlStateValueOn
+            } else {
+                NSControlStateValueOff
+            });
+            self.document.addSubview(&self.auto_quit);
+            y += 36.;
+            self.document.addSubview(&label(
+                main,
+                "Timer not connected yet.",
+                y,
+                self.width.get(),
+            ));
+            y += 28.;
+            self.field(
+                main,
+                "autoQuitMinutes",
+                "Quit after (minutes)",
+                &command["_autoQuit"]["minutes"]
+                    .as_u64()
+                    .unwrap_or(30)
+                    .to_string(),
+                &mut y,
+            );
+        }
         self.field(
             main,
             "aliases",
@@ -1051,6 +1092,14 @@ impl CommandFields {
         for field in self.fields.borrow().iter() {
             let text = field.input.stringValue().to_string();
             match field.key {
+                "autoQuitMinutes" => {
+                    let minutes = text.trim().parse::<u32>()
+                        .ok()
+                        .filter(|minutes| *minutes > 0)
+                        .ok_or("Auto Quit minutes must be a positive whole number (1–4294967295).")?;
+                    value["_autoQuit"]["minutes"] = json!(minutes);
+                    value["_autoQuit"]["enabled"] = json!(self.auto_quit.state() == NSControlStateValueOn);
+                }
                 "aliases" => {
                     let original = value["aliases"]
                         .as_array()
@@ -1152,6 +1201,7 @@ impl CommandFields {
         self.text.setEditable(owner_enabled);
         self.output.setEnabled(enabled);
         self.enabled.setEnabled(enabled);
+        self.auto_quit.setEnabled(enabled);
         self.add_argument.setEnabled(enabled);
         if let Some(button) = self.advanced.borrow().as_ref() {
             button.setEnabled(enabled);
@@ -1212,7 +1262,7 @@ impl CommandFields {
             .borrow()
             .iter()
             .map(|b| &**b)
-            .chain([&*self.enabled, &*self.add_argument])
+            .chain([&*self.enabled, &*self.auto_quit, &*self.add_argument])
         {
             if unsafe { button.superview() }.is_some() && !button.isHidden() {
                 if let Some(name) = (button as &NSView).accessibilityLabel() {
