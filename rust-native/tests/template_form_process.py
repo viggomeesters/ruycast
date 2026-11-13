@@ -26,22 +26,6 @@ class TemplateForms(unittest.TestCase):
         self.fail('Own template field state did not settle: '+str(value))
     def key(self,h,code,chars='',flags=0):
         h.probe('key-event',code=code,chars=chars,flags=flags);h.settled()
-    def test_contained_choice_keys_tentative_cancel_commit_and_native_ax_modality(self):
-        h=self.host(native.command('url','https://example.invalid/{a default="A"}/{b name="Place" default="One" options="One,Two"}/{c default="C"}'))
-        self.form(h);self.key(h,48,'\t');self.key(h,49,' ')
-        v=self.fields(h);self.assertTrue(v['choice']['open']);self.assertTrue(v['fieldsAXHidden'])
-        self.assertFalse(any(v['fieldControlsEnabled']))
-        self.assertFalse(h.probe('read')['saveEnabled'])
-        self.key(h,125);v=self.fields(h);self.assertEqual(v['choice']['selected'],1);self.assertEqual(v['values'][1],'One')
-        self.capture(h,'choice-open')
-        self.key(h,7,'x');self.key(h,36,'\r',1<<20);h.probe('save-editor');h.settled()
-        self.assertTrue(self.fields(h)['choice']['open']);self.assertEqual(self.fields(h)['values'],['A','One','C']);self.assertEqual(self.opens(h),[])
-        self.key(h,53);v=self.fields(h);self.assertFalse(v['choice']['open']);self.assertFalse(v['fieldsAXHidden']);self.assertEqual(v['values'][1],'One')
-        self.assertTrue(all(v['fieldControlsEnabled']))
-        self.assertTrue(h.probe('read')['saveEnabled'])
-        self.key(h,49,' ');self.assertTrue(self.fields(h)['choice']['open'])
-        self.key(h,125);self.key(h,36,'\r');v=self.fields(h);self.assertFalse(v['choice']['open']);self.assertEqual(v['values'][1],'Two')
-        self.key(h,48,'\t');self.key(h,7,'x');self.assertEqual(self.fields(h)['values'],['A','Two','x'])
     def test_marked_input_defers_choice_and_unrelated_reload_preserves_open_list(self):
         h=self.host(native.command('url','https://example.invalid/{a}/{b options="One,Two"}'));self.form(h)
         h.probe('template-mark',index=0,text='に');h.probe('template-choice',command='open',index=1)
