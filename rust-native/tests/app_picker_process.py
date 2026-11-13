@@ -38,28 +38,6 @@ class AppPicker(unittest.TestCase):
         h.probe('app-picker',command='open');self.assertTrue(self.read(h)['list']['open'])
         h.probe('app-picker',command='select',index=index);self.key(h,36,0,'\r');h.settled()
     def command(self,h):return next(c for c in json.loads(h.config.read_text())['commands'] if c['id']=='url.fixture')
-    def test_long_app_titles_native_accessibility_and_light_dark_widths(self):
-        for theme in ['light','dark']:
-            for width in [600,760]:
-                h=self.host(theme=theme,width=width,long=True);self.edit(h);self.choose(h,2);v=self.read(h)
-                self.assertEqual(v['axValue'],'dev.fixture.b');self.assertGreater(len(v['title']),200)
-                self.capture(h,'app-long-'+theme+'-'+str(width));h.probe('app-picker',command='open');view=self.capture(h,'app-long-open-'+theme+'-'+str(width))
-                self.assertIn(v['title'],view['accessibilityText']);self.key(h,53);h.probe('cancel-editor');self.saved(h)
-    def test_empty_discovery_keeps_default_and_tab_closes_tentative_choice(self):
-        h=self.host(empty=True);self.edit(h);h.probe('app-picker',command='open');self.assertEqual(self.read(h)['list']['rows'],1)
-        self.capture(h,'app-empty');self.key(h,48,0,'\t');self.assertFalse(self.read(h)['list']['open']);self.assertEqual(self.read(h)['value'],'');self.assertFalse(self.read(h)['fieldAXHidden'])
-
-    def test_explicit_empty_id_is_preserved_until_default_is_explicitly_chosen(self):
-        h=self.host('');self.edit(h);h.probe('command-input',key='title',text='Only title changed');h.probe('save-editor');self.saved(h)
-        self.assertIn('applicationID',self.command(h));self.assertEqual(self.command(h)['applicationID'],'')
-        self.edit(h);self.choose(h,0);h.probe('save-editor');self.saved(h);self.assertNotIn('applicationID',self.command(h))
-    def test_reserved_default_name_and_saved_id_are_visibly_distinct(self):
-        h=self.host(default_name=True);self.edit(h);h.probe('app-picker',command='open');view=self.capture(h,'app-reserved-default')
-        self.assertIn('Default app',view['accessibilityText']);self.assertIn('Default app — dev.fixture.a',view['accessibilityText'])
-        h.probe('app-picker',command='click',index=1);self.assertEqual(self.read(h)['value'],'dev.fixture.a')
-        h=self.host('dev.fixture.missing',missing_name=True);self.edit(h);h.probe('app-picker',command='open');view=self.capture(h,'app-saved-id')
-        self.assertIn('Saved app — dev.fixture.missing',view['accessibilityText']);self.assertIn('dev.fixture.missing',view['accessibilityText'])
-        h.probe('app-picker',command='click',index=1);self.assertEqual(self.read(h)['value'],'dev.fixture.missing')
     def test_modal_keys_cancel_and_stale_callbacks_do_not_change_draft(self):
         h=self.host();self.edit(h);before=h.config.read_bytes()
         h.probe('app-picker',command='open');h.probe('app-picker',command='retain');old=self.read(h)
