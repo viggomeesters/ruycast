@@ -276,6 +276,63 @@ fn rows(path: &std::path::Path) -> Vec<Value> {
         .map(|s| serde_json::from_str(s).unwrap())
         .collect()
 }
+fn template_fields(h: &Bridge, predicate: impl Fn(&Value) -> bool) -> Value {
+    let end = Instant::now() + Duration::from_secs(5);
+    loop {
+        h.settled(|_| true);
+        let value = h.probe("template-read", json!({}));
+        if predicate(&value) {
+            return value;
+        }
+        assert!(
+            Instant::now() < end,
+            "template fields did not settle: {value}"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+fn template_key(h: &Bridge, code: u32, chars: &str) {
+    key(h, code, 0, chars, false);
+    h.settled(|_| true);
+}
+fn template_form(h: &Bridge) {
+    show(h, "nativeopen");
+    key(h, 36, 0, "\r", false);
+    template_fields(h, |v| !v["fields"].is_null());
+}
+#[test]
+fn empty_choice_never_silently_commits_first_option() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a}/{b name=\"Place\" options=\"One,Two\"}",
+    ));
+    template_form(&h);
+    template_key(&h, 48, "\t");
+    template_key(&h, 49, " ");
+    assert_eq!(template_fields(&h, |_| true)["choice"]["selected"], -1);
+    template_key(&h, 36, "\r");
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["open"], true);
+    assert_eq!(v["values"][1], "");
+    template_key(&h, 125, "");
+    assert_eq!(template_fields(&h, |_| true)["values"][1], "");
+    template_key(&h, 36, "\r");
+    assert_eq!(template_fields(&h, |_| true)["values"][1], "One");
+}
+#[test]
+fn native_list_type_selection_remains_tentative_until_return() {
+    let h = host(command("url", "https://example.invalid/{a default=\"A\"}/{b default=\"Alpha\" options=\"Alpha,Beta,Gamma\"}"));
+    template_form(&h);
+    template_key(&h, 48, "\t");
+    template_key(&h, 49, " ");
+    template_key(&h, 11, "b");
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["open"], true);
+    assert_eq!(v["choice"]["selected"], 1);
+    assert_eq!(v["values"][1], "Alpha");
+    template_key(&h, 36, "\r");
+    assert_eq!(template_fields(&h, |_| true)["values"][1], "Beta");
+}
 fn capture(h: &Bridge, name: &str) -> Value {
     let view = h.probe("screenshot", json!({}));
     if let Some(out) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
