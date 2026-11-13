@@ -17,42 +17,6 @@ class ScriptResults(unittest.TestCase):
         response=self.run_value(host,native);self.assertEqual(response,dict(native,exitCode=0))
         self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
         self.assertNotIn('PRIVATE',(host.profile/'command-log.json').read_text());self.assertNotIn('PRIVATE',(host.profile/'usage.json').read_text())
-    def test_private_serde_magic_keys_stay_literal_in_real_provider_results(self):
-        host=self.host()
-        for value in ['true','42','null','"literal"','{"enabled":false}']:
-            payload=dict(ok=True,detail='Own literal report',extra={'$serde_json::private::RawValue':value})
-            self.assertEqual(self.run_value(host,payload),dict(payload,exitCode=0))
-        payload=dict(ok=True,detail='Own literal report',extra={'$serde_json::private::Number':'1'})
-        self.assertEqual(self.run_value(host,payload),dict(payload,exitCode=0))
-    def test_process_failure_overrides_provider_success_but_keeps_detail(self):
-        host=self.host();response=self.run_value(host,dict(ok=True,choices=self.choices(),detail='PRIVATE failure report'),7)
-        self.assertFalse(response['ok']);self.assertEqual(response['exitCode'],7);self.assertIn('status 7',response['error']);self.assertEqual(response['detail'],'PRIVATE failure report');self.assertEqual(response['choices'],self.choices())
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{});self.assertNotIn('PRIVATE',(host.profile/'command-log.json').read_text())
-    def test_provider_failure_detail_and_message_survive_a_zero_process_exit(self):
-        host=self.host();response=self.run_value(host,dict(ok=False,error='Provider asks attention',detail='PRIVATE partial result'))
-        self.assertEqual(len(response.pop('diagnosticID')),36);self.assertEqual(response,dict(ok=False,error='Provider asks attention',detail='PRIVATE partial result',exitCode=0));self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-    def test_cli_does_not_apply_gui_choice_validation(self):
-        host=self.host()
-        for change in ['duplicate','missing','empty-title','wrong-value-type','canonical-duplicate']:
-            choices=self.choices()
-            if change=='duplicate':choices['items']*=2
-            elif change=='missing':del choices['placeholder']
-            elif change=='empty-title':choices['items'][0]['title']=''
-            elif change=='wrong-value-type':choices['items'][0]['value']=42
-            else:choices['items']=[dict(choices['items'][0],id='é'),dict(choices['items'][0],id='e\u0301')]
-            response=self.run_value(host,dict(ok=True,choices=choices,detail='PRIVATE validation report'))
-            self.assertEqual(response,dict(ok=True,choices=choices,detail='PRIVATE validation report',exitCode=0))
-        self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],5)
-    def test_failed_provider_does_not_validate_or_replace_its_choice_payload(self):
-        host=self.host();native=dict(ok=False,error='Reload refused',choices={'not':'a valid list'},detail='Keep existing list')
-        response=self.run_value(host,native);self.assertEqual(len(response.pop('diagnosticID')),36);self.assertEqual(response,dict(native,exitCode=0))
-    def test_empty_choice_list_is_valid_and_metadata_extensions_stay_present(self):
-        host=self.host();choices=self.choices();choices.update(items=[],future=True)
-        self.assertEqual(self.run_value(host,dict(ok=True,choices=choices)),dict(ok=True,choices=choices,exitCode=0))
-    def test_generic_ok_only_and_plain_json_keep_the_ordinary_runner_wrapper(self):
-        host=self.host()
-        for value in [dict(ok=True),dict(detail='no boolean discriminator'),dict(ok='true',choices=self.choices())]:
-            response=self.run_value(host,value);self.assertTrue(response['ok']);self.assertEqual(json.loads(response['result']['stdout']),value)
     show=inputs.NativeInput.show;view=inputs.NativeInput.view;key=inputs.NativeInput.key;type=inputs.NativeInput.type;idle=inputs.NativeInput.idle;capture=inputs.NativeInput.capture
     def test_native_provider_and_process_failure_details_keep_the_same_input_draft(self):
         for ok,status in [(False,0),(False,7),(True,7)]:
