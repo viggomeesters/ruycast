@@ -141,6 +141,7 @@ clipboard-pause-original|c|test --manifest-path rust-native/Cargo.toml --feature
 task-date-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --task-date-only
 utility-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test utility_process --locked
 applications-process|p|rust-native/tests/applications_process.py
+applications-discovery-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test applications_discovery_process --locked
 actions-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test actions_process --locked
 editor-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test editor_process --locked
 creation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test creation_process --locked
@@ -1877,7 +1878,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 135);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1990,6 +1991,8 @@ mod tests {
         assert!(capture_native.arguments.windows(2).any(|pair|pair==["--test","capture_native_process"]));
         let app_picker_identity = steps.iter().find(|step|step.name=="app-picker-process").unwrap();
         assert!(app_picker_identity.arguments.windows(2).any(|pair|pair==["--test","app_picker_identity_process"]));
+        let applications_discovery = steps.iter().find(|step|step.name=="applications-discovery-process").unwrap();
+        assert!(applications_discovery.arguments.windows(2).any(|pair|pair==["--test","applications_discovery_process"]));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
