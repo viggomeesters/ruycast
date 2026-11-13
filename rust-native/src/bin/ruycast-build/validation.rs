@@ -97,7 +97,7 @@ native-profile-process|p|rust-native/tests/native_process.py
 bridge-tools-build|b|ruycast-native native
 native-dashboard-process|p|rust-native/tests/native_dashboard_process.py
 dashboard-export-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test dashboard_export_process --locked
-settings-preferences-process|p|rust-native/tests/settings_preferences_process.py
+settings-preferences-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test settings_preferences_process --locked
 native-keyboard-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyboard-host --locked
 settings-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test settings_keyboard_process --locked
 clipboard-text-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_text_process --locked
@@ -1872,6 +1872,9 @@ mod tests {
         assert!(keyboard_sdk < settings_keyboard);
         assert!(steps[settings_keyboard].arguments.windows(2).any(|pair|pair==["--test","settings_keyboard_process"]));
         assert!(!steps[settings_keyboard].arguments.iter().any(|arg|arg.ends_with(".py")));
+        let settings_preferences = steps.iter().find(|step|step.name=="settings-preferences-process").unwrap();
+        assert!(settings_preferences.arguments.windows(2).any(|pair|pair==["--test","settings_preferences_process"]));
+        assert!(!settings_preferences.arguments.iter().any(|arg|arg.ends_with(".py")));
         assert!(steps[keyboard_sdk].arguments.windows(2).any(|pair|pair==["--example","keyboard-host"]));
         assert!(steps[keyboard_test].arguments.windows(2).any(|pair|pair==["--test","native_keyboard_process"]));
         assert!(!steps[keyboard_test].arguments.iter().any(|arg|arg.ends_with(".py")));
