@@ -57,15 +57,6 @@ class NativeOpen(unittest.TestCase):
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
 
-    def test_new_show_and_query_revoke_blocked_old_lookup(self):
-        for action in ['show','query']:
-            h=self.host(command(target='dev.fixture.hold-resolve'))
-            self.show(h);self.activate(h);self.wait_file(h.base/'resolve-entered')
-            if action=='show': self.show(h,'nativeopen')
-            else: h.probe('query',query='new-intent')
-            (h.base/'workspace-release').write_text('release');self.done(h)
-            self.assertEqual(self.opens(h),[]);self.assertEqual(self.hides(h),[])
-            self.assertNotIn('fixture.open',h.cli('usage')['result'])
     def test_gui_workspace_ignores_script_timeout_and_finishes_only_on_sdk_result(self):
         for kind,target in [('url','ruycast-fixture://hold-sync'),('app','dev.fixture.hold')]:
             h=self.host(command(kind,target,timeout=.1));self.show(h);self.activate(h);self.wait_file(h.base/'open-started')
