@@ -150,6 +150,7 @@ inline-process|p|rust-native/tests/inline_process.py
 inline-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_basic_process --locked
 inline-composition-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_composition_process --locked
 inline-transition-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_transition_process --locked
+inline-focus-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_focus_process --locked
 inline-input-process|p|rust-native/tests/inline_input_process.py
 input-actions-process|p|rust-native/tests/input_actions_process.py
 input-process|p|rust-native/tests/input_process.py
@@ -1871,7 +1872,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 128);
+        assert_eq!(steps.len(), 129);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1963,6 +1964,8 @@ mod tests {
         assert!(inline_composition.arguments.windows(2).any(|pair|pair==["--test","inline_composition_process"]));
         let inline_transition = steps.iter().find(|step|step.name=="inline-transition-process").unwrap();
         assert!(inline_transition.arguments.windows(2).any(|pair|pair==["--test","inline_transition_process"]));
+        let inline_focus = steps.iter().find(|step|step.name=="inline-focus-process").unwrap();
+        assert!(inline_focus.arguments.windows(2).any(|pair|pair==["--test","inline_focus_process"]));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
