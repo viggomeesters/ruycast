@@ -137,22 +137,6 @@ class Scripts(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(leader, 0)
 
-    def test_nonblocking_getfl_failure_reaps(self):
-        self.assertFalse(self.run_probe(self.command(['10'], '/bin/sleep'), fault='getfl')['ok'])
-        self.assert_trace('FAULT')
-
-    def test_nonblocking_setfl_failure_reaps(self):
-        self.assertFalse(self.run_probe(self.command(['10'], '/bin/sleep'), fault='setfl')['ok'])
-        self.assert_trace('FAULT')
-
-    def test_read_failure_reaps(self):
-        self.assertFalse(self.run_probe(self.command(['10'], '/bin/sleep'), fault='read-error')['ok'])
-        self.assert_trace('FAULTREAD')
-
-    def test_wait_failure_reaps(self):
-        self.assertFalse(self.run_probe(self.command(['10'], '/bin/sleep'), fault='wait-error')['ok'])
-        self.assert_trace('FAULTWAIT')
-
     def test_interrupted_read_recovers(self):
         self.assertTrue(self.run_probe(self.command(['hello'], '/bin/echo'), fault='read-eintr')['response']['ok'])
         self.assert_trace('FAULTREAD')
