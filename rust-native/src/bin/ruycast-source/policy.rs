@@ -307,6 +307,7 @@ rust-native/tests/actions_process.rs
 rust-native/tests/analytics_process.py
 rust-native/tests/fixtures/analytics_write_shim.rs
 rust-native/tests/app_picker_process.py
+rust-native/tests/app_picker_identity_process.rs
 rust-native/tests/applications_process.py
 rust-native/tests/bridge_process.py
 rust-native/tests/bridge_process.rs
