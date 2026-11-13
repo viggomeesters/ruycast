@@ -46,16 +46,5 @@ class TemplateForms(unittest.TestCase):
     def form(self,h):
         self.show(h);self.activate(h);return self.fields(h,lambda v:v.get('fields') is not None)
 
-    def test_metadata_deadline_wakes_owner_and_early_return_uses_bound_values(self):
-        h=self.host(native.command('url','https://example.invalid/{query}'),barrier=True)
-        self.show(h,'nativeopen early&value');self.wait_file(h.base/'template-fields-entered')
-        h.probe('key-event',code=36,chars='\r',flags=0)
-        (h.base/'template-fields-release').write_text('release');self.wait_file(h.base/'open-started');self.done(h)
-        self.assertIn('early%26value',self.opens(h)[0]['url'])
-        h=self.host(native.command('url','https://example.invalid/{a}/{b}'),barrier=True)
-        self.show(h);self.activate(h);self.wait_file(h.base/'template-fields-entered')
-        h.wait(lambda s:not s['nativeUI'].get('templatePreparing'),timeout=7);h.settled()
-        self.assertIn('preparation timed out','\n'.join(h.probe('read')['screenText']));self.assertEqual(self.opens(h),[])
-        (h.base/'template-fields-release').write_text('release')
 
 if __name__=='__main__':unittest.main(verbosity=2)

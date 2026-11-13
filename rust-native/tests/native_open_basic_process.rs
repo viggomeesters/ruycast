@@ -390,6 +390,73 @@ fn template_form(h: &Bridge) {
     key(h, 36, 0, "\r", false);
     template_fields(h, |v| !v["fields"].is_null());
 }
+fn wait_template_entered(h: &Bridge) {
+    let marker = h.base.join("template-fields-entered");
+    let end = Instant::now() + Duration::from_secs(4);
+    while !marker.exists() {
+        assert!(
+            Instant::now() < end,
+            "own fixture did not enter template fields"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+#[test]
+fn metadata_deadline_wakes_owner_and_early_return_uses_bound_values() {
+    {
+        let h = host_with_width(
+            command("url", "https://example.invalid/{query}"),
+            false,
+            false,
+            None,
+            (None, true),
+            760,
+            None,
+        );
+        let gate = Release(h.base.join("template-fields-release"));
+        assert_eq!(
+            h.rpc(&json!({"op":"show","query":"nativeopen early&value"}))["ok"],
+            true
+        );
+        h.settled(|s| s["nativeUI"]["visible"] == true);
+        wait_template_entered(&h);
+        key(&h, 36, 0, "\r", false);
+        fs::write(&gate.0, "release").unwrap();
+        done(&h);
+        assert!(opens(&h)[0]["url"]
+            .as_str()
+            .unwrap()
+            .contains("early%26value"));
+    }
+    {
+        let h = host_with_width(
+            command("url", "https://example.invalid/{a}/{b}"),
+            false,
+            false,
+            None,
+            (None, true),
+            760,
+            None,
+        );
+        let gate = Release(h.base.join("template-fields-release"));
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        wait_template_entered(&h);
+        h.wait(|s| s["nativeUI"]["templatePreparing"] != true);
+        h.settled(|_| true);
+        let view = probe(&h, "read");
+        let text = view["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("preparation timed out"));
+        assert!(opens(&h).is_empty());
+        fs::write(&gate.0, "release").unwrap();
+    }
+}
 #[test]
 fn late_metadata_is_cancelled_by_new_show_and_config_change() {
     for reason in ["show", "config", "cancel"] {
