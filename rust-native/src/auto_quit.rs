@@ -90,11 +90,10 @@ impl Tracker {
             self.intervals.clear();
         }
         self.previous = Some(now);
-        let mut identities = HashSet::new();
-        if applications
-            .iter()
-            .any(|app| !identities.insert(app.process))
-        {
+        let mut pids = HashSet::new();
+        // One snapshot cannot safely describe two lifetimes for the same PID.
+        // Reject the whole snapshot before retaining any overdue old interval.
+        if applications.iter().any(|app| !pids.insert(app.process.pid)) {
             self.intervals.clear();
             return vec![];
         }
@@ -370,6 +369,42 @@ mod tests {
             tracker.observe(clock(60), &[application], &settings).len(),
             1
         );
+    }
+    #[test]
+    fn conflicting_lifetimes_for_one_pid_retire_overdue_candidates_in_either_order() {
+        for reverse in [false, true] {
+            let old = app();
+            let mut replacement = old.clone();
+            replacement.process.seconds += 1;
+            replacement.activity = Activity::Foreground;
+            let settings = settings(1);
+            let mut tracker = Tracker::default();
+            tracker.observe(clock(0), &[old.clone()], &settings);
+            let due = tracker
+                .observe(clock(60), &[old.clone()], &settings)
+                .pop()
+                .unwrap();
+            let mut snapshot = vec![old, replacement.clone()];
+            if reverse {
+                snapshot.reverse();
+            }
+            assert!(tracker.observe(clock(61), &snapshot, &settings).is_empty());
+            assert!(!tracker.is_current(&due));
+            replacement.activity = Activity::Background;
+            assert!(tracker
+                .observe(clock(62), &[replacement.clone()], &settings)
+                .is_empty());
+            assert!(tracker
+                .observe(clock(121), &[replacement.clone()], &settings)
+                .is_empty());
+            let current = tracker
+                .observe(clock(122), &[replacement.clone()], &settings)
+                .pop()
+                .unwrap();
+            assert_eq!(current.process, replacement.process);
+            assert!(tracker.is_current(&current));
+            assert!(!tracker.is_current(&due));
+        }
     }
     #[test]
     fn bundle_matching_is_case_insensitive_and_deadline_overflow_fails_closed() {
