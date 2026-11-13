@@ -33,8 +33,30 @@ preview and checks that Accessibility and Input Monitoring rights that were
 enabled before the update are still enabled. It retains the prior signed app
 for rollback. The preview must be running and enrolled with the local
 certificate before this update command can be used. The production installer
-below uses the stable app identity. F1 comparisons and Developer ID
-notarization are pending.
+below uses the stable app identity.
+
+If the original keychain cannot be unlocked, first preserve it and check for a
+usable backup. To explicitly replace only the preview signing identity, run:
+
+```sh
+CARGO_INCREMENTAL=0 cargo run --locked --release --manifest-path rust-native/Cargo.toml --bin ruycast-install -- install-preview-reenroll "/absolute/path/to/staged-preview.app"
+```
+
+This verifies the existing preview against the original pinned certificate,
+creates or reuses a separate persistent signer under
+`~/.local/share/ruycast-preview/signing`, and retains the prior signed bundle for
+rollback. It preserves the original keychain, stable app and preview profile.
+Accessibility and Input Monitoring may need to be granted manually in macOS
+System Settings because the preview's signing identity changes. The command
+reports the actual permission and health state without claiming grants were retained.
+The replacement host must provide the `storageAndKeyboardHealthy` status field;
+independent storage or keyboard errors still cause rollback.
+Future ordinary `make install-preview` updates reuse the separate preview signer
+and again require existing permissions to remain enabled. If signing recovery
+fails before replacement, the original preview stays installed; rerun the
+explicit recovery command to reuse the prepared dedicated signer.
+
+F1 comparisons and Developer ID notarization are pending.
 
 ## Current Rust candidate
 

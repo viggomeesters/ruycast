@@ -111,13 +111,19 @@ fn install_pipeline(
 pub fn cli() -> Result<()> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().is_some_and(|arg| arg == "install-preview") {
-        return preview::install(&args[1..]);
+        return preview::install(&args[1..], false);
+    }
+    if args
+        .first()
+        .is_some_and(|arg| arg == "install-preview-reenroll")
+    {
+        return preview::install(&args[1..], true);
     }
     if args.first().is_some_and(|v| v == "signing") {
         return signing_cli(args[1..].to_vec());
     }
     if args.is_empty() || args == ["--help"] || args == ["-h"] {
-        println!("ruycast-install install [--build] [--repo ABSOLUTE] [--archive FILE --sha256 TRUSTED_SHA]\nruycast-install prepare|signing-status [--repo ABSOLUTE] [--signing-root ABSOLUTE]\nruycast-install verify-download --archive ABSOLUTE --sha256 TRUSTED_SHA\nruycast-install install-preview ABSOLUTE_APP");
+        println!("ruycast-install install [--build] [--repo ABSOLUTE] [--archive FILE --sha256 TRUSTED_SHA]\nruycast-install prepare|signing-status [--repo ABSOLUTE] [--signing-root ABSOLUTE]\nruycast-install verify-download --archive ABSOLUTE --sha256 TRUSTED_SHA\nruycast-install install-preview ABSOLUTE_APP\nruycast-install install-preview-reenroll ABSOLUTE_APP");
         return Ok(());
     }
     let op = args.remove(0);

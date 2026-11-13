@@ -5687,6 +5687,7 @@ fn dispatch(
                     "hotkeyWarnings":if state.configuration.needs_effects() {state.configuration.last_error.iter().collect::<Vec<_>>()}else{vec![]},"keyboardActivationPending":state.configuration.needs_effects(),"keyboard":if state.keyboard.is_some(){"Carbon"}else{"Off"},"hyper":hooks.hyper,"modifierTaps":hooks.modifier_taps,"snippetExpansion":state.keyboard.as_ref().map(|k|k.keyword_status()).unwrap_or_else(||"Off".into()),"snippetExpansionComplete":false,
                     "theme":config.theme.as_deref().unwrap_or("system"),"menuBarVisible":config.menu_bar_visible.unwrap_or(true),
                     "separateCommandKeys":config.separate_command_keys.unwrap_or(true),"clipboardCaptureActive":!headless && config.clipboard.enabled && state.clipboard.as_ref().is_some_and(|s|!s.paused)}});
+                response["result"]["storageAndKeyboardHealthy"] = json!(state.healthy(true, None));
                 response["result"]["clipboardEnabled"]=json!(config.clipboard.enabled);
                 #[cfg(feature = "test-tools")]
                 { response["result"]["lastNamedRefusal"] = json!(window.last_named_refusal.as_ref()); }

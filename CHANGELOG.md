@@ -2,6 +2,8 @@
 
 ## 0.9.0 — Rust candidate (unreleased)
 
+- Recover Rust Preview updates with a separate persistent signing identity while preserving the original keychain, stable app, profile and signed rollback; report renewed macOS privacy grants explicitly.
+
 - Connect Auto Quit background timers to native app observation and normal termination, with a separate per-app acknowledgement of incomplete recording/helper detection.
 - Block observed active audio, failed reads and stale/foreground processes; reset timers on foreground use, sleep/wake and session changes, and preserve save prompts without repeated requests.
 
