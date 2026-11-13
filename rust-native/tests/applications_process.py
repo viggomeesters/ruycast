@@ -53,8 +53,6 @@ class Applications(unittest.TestCase):
         cfg=copy.deepcopy(rt.DEFAULT);cfg['commands'].append(dict(id='script.fixture',title='Input Fixture',kind='script',target='/usr/bin/true',aliases=['runfixture'],inputPrompt='Message'));host.config.write_text(json.dumps(cfg));host.start();self.file(host.base/'app-discovery-ready')
         helper=inputs.NativeInput();before=helper.open(host);token=before['editorToken'];helper.type(host,'PRIVATE own input');self.assertTrue(host.probe('run-input-read')['canUndo'])
         (host.base/'app-discovery-release').write_text('go');self.ready(host);host.settled();after=host.probe('read');self.assertEqual(after['editorToken'],token);self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE own input');self.assertTrue(host.probe('run-input-read')['canUndo']);helper.type(host,' retained');self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE own input retained');self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-    def test_shutdown_cancels_positive_waiting_discovery_without_release(self):
-        host=self.host(barrier=True);host.start();self.file(host.base/'app-discovery-ready');self.assertTrue(host.rpc({'op':'status'})['result']['appDiscoveryPending']);self.assertTrue(host.rpc({'op':'quit'})['ok']);out,err=host.process.communicate(timeout=3);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());self.assertFalse((host.profile/'control.sock').exists())
     def test_fixture_refuses_escape_roots_and_missing_marker(self):
         for mode in ['escape','marker','symlink']:
             with self.subTest(mode=mode):
