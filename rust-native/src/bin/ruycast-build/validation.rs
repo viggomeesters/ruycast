@@ -98,9 +98,9 @@ bridge-tools-build|b|ruycast-native native
 native-dashboard-process|p|rust-native/tests/native_dashboard_process.py
 dashboard-export-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test dashboard_export_process --locked
 settings-preferences-process|p|rust-native/tests/settings_preferences_process.py
-settings-keyboard-process|p|rust-native/tests/settings_keyboard_process.py
-clipboard-text-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_text_process --locked
 native-keyboard-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyboard-host --locked
+settings-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test settings_keyboard_process --locked
+clipboard-text-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_text_process --locked
 native-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_keyboard_process --locked
 native-hid-process|p|rust-native/tests/native_hid_process.py
 native-keyword-process|p|rust-native/tests/native_keyword_process.py
@@ -1868,6 +1868,10 @@ mod tests {
         let keyboard_sdk = steps.iter().position(|step|step.name=="native-keyboard-sdk-build").unwrap();
         let keyboard_test = steps.iter().position(|step|step.name=="native-keyboard-process").unwrap();
         assert!(keyboard_sdk < keyboard_test);
+        let settings_keyboard = steps.iter().position(|step|step.name=="settings-keyboard-process").unwrap();
+        assert!(keyboard_sdk < settings_keyboard);
+        assert!(steps[settings_keyboard].arguments.windows(2).any(|pair|pair==["--test","settings_keyboard_process"]));
+        assert!(!steps[settings_keyboard].arguments.iter().any(|arg|arg.ends_with(".py")));
         assert!(steps[keyboard_sdk].arguments.windows(2).any(|pair|pair==["--example","keyboard-host"]));
         assert!(steps[keyboard_test].arguments.windows(2).any(|pair|pair==["--test","native_keyboard_process"]));
         assert!(!steps[keyboard_test].arguments.iter().any(|arg|arg.ends_with(".py")));

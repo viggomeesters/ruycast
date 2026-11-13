@@ -410,7 +410,7 @@ rust-native/tests/rust_only_policy.py
 rust-native/tests/fixtures/script_fault_shim.rs
 rust-native/tests/script_process.py
 rust-native/tests/script_result_process.py
-rust-native/tests/settings_keyboard_process.py
+rust-native/tests/settings_keyboard_process.rs
 rust-native/tests/settings_preferences_process.py
 rust-native/tests/snippet_board_process.rs
 rust-native/tests/fixtures/snippet_board_fixture.rs
