@@ -3,6 +3,28 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("script-streams") if args.len() == 2 => {
+            match args[1].as_str() {
+                "exit7" => {
+                    print!("output");
+                    eprint!("error");
+                    std::io::stdout().flush().unwrap();
+                    std::io::stderr().flush().unwrap();
+                    std::process::exit(7);
+                }
+                "signal" => unsafe { libc::raise(libc::SIGTERM); },
+                "bounded" | "flood" => {
+                    let mut count = 0;
+                    loop {
+                        std::io::stdout().write_all(&[b'a'; 8192]).unwrap();
+                        std::io::stderr().write_all(&[b'b'; 8192]).unwrap();
+                        count += 1;
+                        if args[1] == "bounded" && count == 512 { break; }
+                    }
+                }
+                _ => panic!("Unknown owned stream fixture"),
+            }
+        }
         Some("--init-config" | "--headless") if args.len() == 1 => {
             if let Err(error) = benchmark_host_adapter(&args[0]) {
                 eprintln!("Owned benchmark adapter refused: {error}");

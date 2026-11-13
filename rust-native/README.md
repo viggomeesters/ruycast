@@ -214,7 +214,7 @@ Only execution fields deliberately changed in the own published Edit receipt bec
 
 ## Script result contract and choice ownership
 
-`tests/script_basic_process.rs` covers literal script arguments, invalid requests and missing executables through the real probe and CLI. `tests/script_fault_process.rs` covers injected descriptor, read, wait, signal and process-inventory failures and actual process reaping. The remaining `tests/script_process.py` cases cover process groups and stream behavior.
+`tests/script_basic_process.rs` covers literal script arguments, invalid requests, exit signals and bounded streams through the real probe and CLI. `tests/script_fault_process.rs` covers injected descriptor, read, wait, signal and process-inventory failures and actual process reaping. The remaining `tests/script_process.py` cases cover process groups and stream behavior.
 
 `tests/script_result_basic_process.rs` exercises CLI result interpretation with a Rust provider fixture and `tests/script_result_native_process.rs` covers native failure drafts; `tests/script_result_process.py` retains fixture helpers for Capture until its caller migrates.
 

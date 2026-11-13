@@ -123,3 +123,51 @@ fn repeated_missing_executable_leaves_no_children() {
         );
     }
 }
+fn stream_probe(home: &Path, mode: &str, options: Value) -> Value {
+    let target = env!("CARGO_BIN_EXE_private-results-fixture");
+    let mut c = command(target, json!(["script-streams", mode]));
+    if mode == "flood" {
+        c["timeout"] = json!(0.25);
+    }
+    let mut request = json!({"home":home,"command":c});
+    request
+        .as_object_mut()
+        .unwrap()
+        .extend(options.as_object().unwrap().clone());
+    let output = run(Path::new(env!("CARGO_BIN_EXE_script-probe")), &[], &request);
+    assert_eq!(output["noChildren"], true);
+    output["result"].clone()
+}
+#[test]
+fn nonzero_and_signal_response() {
+    let h = OwnedDir::new();
+    let v = stream_probe(&h.0, "exit7", json!({}));
+    let r = &v["response"];
+    assert_eq!(r["ok"], false);
+    assert_eq!(r["exitCode"], 7);
+    assert_eq!(r["stdout"], "output");
+    assert_eq!(r["stderr"], "error");
+    let v = stream_probe(&h.0, "signal", json!({}));
+    assert_eq!(v["response"]["exitCode"], -1);
+}
+#[test]
+fn both_output_streams_bounded_and_drained() {
+    let h = OwnedDir::new();
+    let v = stream_probe(&h.0, "bounded", json!({}));
+    assert_eq!(v["response"]["ok"], true);
+    assert_eq!(v["stdoutBytes"], 65536);
+    assert_eq!(v["stderrBytes"], 65536);
+}
+#[test]
+fn continuous_flood_cannot_starve_cancel_or_timeout() {
+    let h = OwnedDir::new();
+    for (options, end) in [
+        (json!({}), "timeout"),
+        (json!({"cancelMs":150}), "cancelled"),
+    ] {
+        let v = stream_probe(&h.0, "flood", options);
+        assert_eq!(v["end"], end);
+        assert_eq!(v["stdoutBytes"], 65536);
+        assert_eq!(v["stderrBytes"], 65536);
+    }
+}
