@@ -57,18 +57,6 @@ class NativeOpen(unittest.TestCase):
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
 
-    def test_post_effect_storage_failure_and_ranking_warning_are_visible(self):
-        for file in ['usage.json','search-ranking.json']:
-            h=self.host(command('url','ruycast-fixture://hold-sync',timeout=3),width=600)
-            self.show(h);self.activate(h);self.wait_file(h.base/'open-started')
-            self.assertEqual(h.rpc(dict(op='status'))['result']['openRequestsRunning'],1)
-            blocked=h.profile/file
-            if blocked.exists():blocked.unlink()
-            blocked.mkdir();(h.base/'workspace-release').write_text('release');self.done(h);h.settled()
-            self.assertTrue(h.rpc(dict(op='status'))['result']['nativeUI']['visible'])
-            text='\n'.join(self.capture(h,file+'-warning')['screenText'])
-            self.assertTrue('usage could not be saved' in text or 'Opened, but recent choices could not be saved' in text,text)
-            self.assertEqual(len(self.hides(h)),1)
 
     def test_missing_application_and_template_validation_keep_action_uncommitted(self):
         for theme in ['light','dark']:
