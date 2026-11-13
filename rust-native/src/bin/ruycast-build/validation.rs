@@ -86,7 +86,8 @@ caps-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools
 hid-probe-build|b|hid-probe tools
 hid-process|p|rust-native/tests/hid_process.py
 manager-probe-build|b|manager-probe tools
-manager-process|p|rust-native/tests/manager_process.py
+manager-workspace-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example workspace-fixture --locked
+manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test manager_process --locked
 cli-open-process|p|rust-native/tests/cli_open_process.py
 supervision-process|p|rust-native/tests/supervision_process.py
 script-process|p|rust-native/tests/script_process.py
@@ -1864,7 +1865,13 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 121);
+        assert_eq!(steps.len(), 122);
+        let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
+        let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
+        assert!(manager_sdk < manager_test);
+        assert!(steps[manager_sdk].arguments.windows(2).any(|pair|pair==["--example","workspace-fixture"]));
+        assert!(steps[manager_test].arguments.windows(2).any(|pair|pair==["--test","manager_process"]));
+        assert!(!steps[manager_test].arguments.iter().any(|arg|arg.ends_with(".py")));
         let keyboard_sdk = steps.iter().position(|step|step.name=="native-keyboard-sdk-build").unwrap();
         let keyboard_test = steps.iter().position(|step|step.name=="native-keyboard-process").unwrap();
         assert!(keyboard_sdk < keyboard_test);

@@ -393,7 +393,7 @@ rust-native/tests/fixtures/keyword_board.rs
 rust-native/tests/keyword_board.rs
 rust-native/tests/keyword_core.rs
 rust-native/tests/library_process.py
-rust-native/tests/manager_process.py
+rust-native/tests/manager_process.rs
 rust-native/tests/native_choice_process.py
 rust-native/tests/native_dashboard_process.py
 rust-native/tests/native_hid_process.py
