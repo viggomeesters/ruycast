@@ -63,15 +63,6 @@ class NativeOpen(unittest.TestCase):
             self.assertEqual((h.base/'creation-prefill-read').read_text(),'own-named-main-thread\n');self.assertEqual(h.config.read_bytes(),before);self.assertEqual(self.opens(h),[]);self.assertEqual(self.hides(h),[]);self.assertEqual(h.cli('usage')['result'],{})
             self.capture(h,'creation-prefill-'+('value' if text.strip() else 'empty'));h.probe('cancel-editor');helper.saved(h)
 
-    def test_url_clipboard_and_literal_path_share_native_admission(self):
-        h=self.host(command('url','https://example.invalid/{clipboard}'),clipboard='synthetic-Ω')
-        self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
-        self.assertTrue([r for r in self.trace(h) if r['phase']=='clipboard-read'][0]['mainThread'])
-        self.assertEqual(len(self.hides(h)),1)
-        (h.base/'open-started').unlink();p=h.base/'own literal Ω';p.write_text('own')
-        config=json.loads(h.config.read_text());config['commands'][-1]=command('path',str(p));h.replace(config);h.cli('reload')
-        self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
-        self.assertEqual(len(self.hides(h)),2);self.assertEqual(h.cli('usage')['result']['fixture.open'],2)
     def test_new_show_and_query_revoke_blocked_old_lookup(self):
         for action in ['show','query']:
             h=self.host(command(target='dev.fixture.hold-resolve'))

@@ -17,12 +17,17 @@ use std::{
 };
 
 fn host(command: Value) -> Bridge {
-    host_with_apps(command, false, false)
+    host_with_apps(command, false, false, None)
 }
 fn host_with_picker(command: Value, picker: bool) -> Bridge {
-    host_with_apps(command, picker, false)
+    host_with_apps(command, picker, false, None)
 }
-fn host_with_apps(command: Value, picker: bool, discovered: bool) -> Bridge {
+fn host_with_apps(
+    command: Value,
+    picker: bool,
+    discovered: bool,
+    clipboard: Option<&str>,
+) -> Bridge {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
         .map(std::path::PathBuf::from)
@@ -59,6 +64,12 @@ fn host_with_apps(command: Value, picker: bool, discovered: bool) -> Bridge {
         .insert("RUYCAST_NATIVE_TEST_CLIPBOARD_GUARD".into(), "trace".into());
     h.env
         .insert("RUYCAST_NATIVE_TEST_REQUIRE_HIDE".into(), "1".into());
+    if let Some(value) = clipboard {
+        h.env
+            .insert("RUYCAST_NATIVE_TEST_CLIPBOARD".into(), "named".into());
+        h.env
+            .insert("RUYCAST_NATIVE_TEST_CLIPBOARD_TEXT".into(), value.into());
+    }
     h.start();
     h.settled(|_| true);
     if picker || discovered {
@@ -136,7 +147,7 @@ fn done(h: &Bridge) {
 }
 #[test]
 fn discovered_app_is_not_required_to_be_saved_for_usage() {
-    let h = host_with_apps(command("app", "dev.fixture.inline"), false, true);
+    let h = host_with_apps(command("app", "dev.fixture.inline"), false, true, None);
     show(&h, "Discovered Native Fixture");
     key(&h, 36, 0, "\r", false);
     done(&h);
@@ -145,6 +156,36 @@ fn discovered_app_is_not_required_to_be_saved_for_usage() {
         1
     );
     assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+}
+#[test]
+fn url_clipboard_and_literal_path_share_native_admission() {
+    let h = host_with_apps(
+        command("url", "https://example.invalid/{clipboard}"),
+        false,
+        false,
+        Some("synthetic-Ω"),
+    );
+    activate(&h);
+    let trace = rows(&h.base.join("workspace-trace.jsonl"));
+    assert_eq!(
+        trace
+            .iter()
+            .find(|r| r["phase"] == "clipboard-read")
+            .unwrap()["mainThread"],
+        true
+    );
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+    fs::remove_file(h.base.join("open-started")).unwrap();
+    let path = h.base.join("own literal Ω");
+    fs::write(&path, "own").unwrap();
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    *cfg["commands"].as_array_mut().unwrap().last_mut().unwrap() =
+        command("path", path.to_str().unwrap());
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    activate(&h);
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 2);
+    assert_eq!(h.cli(&["usage"])["result"]["fixture.open"], 2);
 }
 #[test]
 fn existing_prompt_input_is_validated_and_executes_without_config_write() {
