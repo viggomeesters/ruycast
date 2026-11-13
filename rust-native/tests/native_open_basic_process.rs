@@ -382,6 +382,48 @@ fn template_form(h: &Bridge) {
     key(h, 36, 0, "\r", false);
     template_fields(h, |v| !v["fields"].is_null());
 }
+fn large_choices() -> String {
+    (0..10_000)
+        .map(|i| format!("Choice{i}"))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+#[test]
+fn open_large_choice_virtualizes_last_option_and_retains_exact_value() {
+    let target = format!("https://example.invalid/{{a default=\"x\"}}/{{b name=\"Place\" default=\"Choice0\" options=\"{}\"}}", large_choices());
+    let h = host(command("url", &target));
+    template_form(&h);
+    template_key(&h, 48, "\t");
+    template_key(&h, 49, " ");
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["rows"], 10_000);
+    assert!(v["choice"]["visibleRows"].as_u64().unwrap() <= 32);
+    assert!(v["choice"]["reads"].as_u64().unwrap() < 64);
+    h.probe("template-choice", json!({"command":"select","index":9999}));
+    h.settled(|_| true);
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["values"][1], "Choice0");
+    assert!(v["choice"]["reads"].as_u64().unwrap() < 128);
+    capture(&h, "choice-last");
+    template_key(&h, 36, "\r");
+    assert_eq!(template_fields(&h, |_| true)["values"][1], "Choice9999");
+    template_key_flags(&h, 36, "\r", CMD);
+    done(&h);
+    assert!(unquote(opens(&h)[0]["url"].as_str().unwrap()).contains("Choice9999"));
+}
+#[test]
+fn large_choice_datasource_and_canonical_default() {
+    let target = format!("https://example.invalid/{{a name=\"Text\" default=\"fixed\"}}/{{b name=\"Mode\" options=\"{}\"}}", large_choices());
+    let h = host(command("url", &target));
+    template_form(&h);
+    let v = template_fields(&h, |_| true);
+    assert!(v["optionReads"].as_u64().unwrap() < 64);
+    h.probe("template-choose", json!({"index":1,"selected":9999}));
+    assert_eq!(template_fields(&h, |_| true)["values"][1], "Choice9999");
+    probe(&h, "save-editor");
+    done(&h);
+    assert!(opens(&h)[0]["url"].as_str().unwrap().contains("Choice9999"));
+}
 #[test]
 fn single_query_field_inline_and_literal_alias_tail() {
     for query in ["nativeopen", "nativeopen literal&value"] {
