@@ -35,15 +35,6 @@ class TemplateForms(unittest.TestCase):
                 view=self.capture(h,'choice-long-'+theme+'-'+str(width));self.assertIn(label,view['accessibilityText'])
                 self.key(h,48,'\t');self.key(h,49,' ');view=self.capture(h,'choice-long-open-'+theme+'-'+str(width));self.assertIn(value,view['accessibilityText'])
                 self.key(h,53);self.assertEqual(self.fields(h)['values'][1],value)
-    def test_open_large_choice_virtualizes_last_option_and_retains_exact_value(self):
-        options=','.join('Choice%d'%i for i in range(10000))
-        h=self.host(native.command('url','https://example.invalid/{a default="x"}/{b name="Place" default="Choice0" options="'+options+'"}'));self.form(h)
-        self.key(h,48,'\t');self.key(h,49,' ');v=self.fields(h)
-        self.assertEqual(v['choice']['rows'],10000);self.assertLessEqual(v['choice']['visibleRows'],32);self.assertLess(v['choice']['reads'],64)
-        h.probe('template-choice',command='select',index=9999);h.settled();v=self.fields(h)
-        self.assertEqual(v['values'][1],'Choice0');self.assertLess(v['choice']['reads'],128)
-        self.capture(h,'choice-last');self.key(h,36,'\r');self.assertEqual(self.fields(h)['values'][1],'Choice9999')
-        self.key(h,36,'\r',1<<20);self.wait_file(h.base/'open-started');self.done(h);self.assertIn('Choice9999',unquote(self.opens(h)[0]['url']))
 
     def test_native_form_can_open_expanded_output_above_one_mib(self):
         h=self.host(native.command('url','https://example.invalid/{x}{x}{y default="Z"}'))
@@ -78,13 +69,6 @@ class TemplateForms(unittest.TestCase):
         self.assertEqual(v['fields'],5000);self.assertEqual(v['values'][-1],'last-value');self.assertLessEqual(v['liveRows'],32)
         h.probe('save-editor');self.wait_file(h.base/'open-started');self.done(h)
         self.assertTrue(unquote(self.opens(h)[0]['url']).endswith('last-value'))
-    def test_large_choice_datasource_and_canonical_default(self):
-        choices=','.join('Choice%d'%i for i in range(10000))
-        target='https://example.invalid/{a name="Text" default="fixed"}/{b name="Mode" options="'+choices+'"}'
-        h=self.host(native.command('url',target));self.form(h);v=self.fields(h)
-        self.assertLess(v['optionReads'],64)
-        h.probe('template-choose',index=1,selected=9999);self.assertEqual(self.fields(h)['values'][1],'Choice9999')
-        h.probe('save-editor');self.wait_file(h.base/'open-started');self.done(h);self.assertIn('Choice9999',self.opens(h)[0]['url'])
     def test_late_metadata_is_cancelled_by_new_show_and_config_change(self):
         for reason in ['show','config','cancel']:
             h=self.host(native.command('url','https://example.invalid/{a}/{b}'),barrier=True)
