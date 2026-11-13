@@ -74,20 +74,7 @@ fn probe(host: &Bridge, action: &str) -> Value {
     host.probe(action, json!({}))
 }
 fn capture(host: &Bridge, name: &str) -> Value {
-    let value = probe(host, "screenshot");
-    let image = host.profile.join("native-probe.png");
-    assert!(fs::read(&image).unwrap().starts_with(b"\x89PNG\r\n\x1a\n"));
-    if let Some(evidence) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
-        let directory = PathBuf::from(evidence).parent().unwrap().join("bridge");
-        fs::create_dir_all(&directory).unwrap();
-        fs::copy(image, directory.join(format!("{name}.png"))).unwrap();
-        fs::write(
-            directory.join(format!("{name}.json")),
-            serde_json::to_vec_pretty(&value).unwrap(),
-        )
-        .unwrap();
-    }
-    value
+    host.capture(name)
 }
 #[test]
 fn real_main_loop_normal_quit_without_kill_fallback() {

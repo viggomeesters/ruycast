@@ -303,6 +303,7 @@ rust-native/src/workspace.rs
 rust-native/src/workspace_activation.rs
 rust-native/swift-reference-lock.json
 rust-native/tests/actions_process.py
+rust-native/tests/actions_process.rs
 rust-native/tests/analytics_process.py
 rust-native/tests/fixtures/analytics_write_shim.rs
 rust-native/tests/app_picker_process.py
@@ -502,6 +503,7 @@ rust-native/tests/support/hid_state_goldens.rs
 rust-native/tests/support/status_rpc.rs
 rust-native/tests/support/runtime_host.rs
 rust-native/tests/support/native_bridge.rs
+rust-native/tests/support/native_actions.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
 rust-native/tests/utility_reference.json
