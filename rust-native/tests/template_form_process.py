@@ -46,19 +46,6 @@ class TemplateForms(unittest.TestCase):
     def form(self,h):
         self.show(h);self.activate(h);return self.fields(h,lambda v:v.get('fields') is not None)
 
-    def test_late_metadata_is_cancelled_by_new_show_and_config_change(self):
-        for reason in ['show','config','cancel']:
-            h=self.host(native.command('url','https://example.invalid/{a}/{b}'),barrier=True)
-            self.show(h);self.activate(h);self.wait_file(h.base/'template-fields-entered')
-            self.assertTrue(h.rpc(dict(op='status'))['ok'])
-            if reason=='show':self.show(h,'newer query')
-            elif reason=='config':
-                cfg=json.loads(h.config.read_text());cfg['commands'][-1]['target']='https://example.invalid/new/{x}/{y}'
-                h.replace(cfg);h.cli('reload')
-            else:h.probe('key-event',code=53,chars='',flags=0)
-            (h.base/'template-fields-release').write_text('release')
-            h.wait(lambda s:not s['nativeUI'].get('templatePreparing'));h.settled()
-            self.assertIsNone(h.probe('template-read')['fields']);self.assertEqual(self.opens(h),[])
     def test_metadata_deadline_wakes_owner_and_early_return_uses_bound_values(self):
         h=self.host(native.command('url','https://example.invalid/{query}'),barrier=True)
         self.show(h,'nativeopen early&value');self.wait_file(h.base/'template-fields-entered')

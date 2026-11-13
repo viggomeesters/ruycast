@@ -42,7 +42,7 @@ fn host_with_deadline(
         picker,
         discovered,
         clipboard,
-        deadline_ms,
+        (deadline_ms, false),
         760,
         None,
     )
@@ -52,7 +52,7 @@ fn host_with_width(
     picker: bool,
     discovered: bool,
     clipboard: Option<&str>,
-    deadline_ms: Option<u32>,
+    fixture: (Option<u32>, bool),
     width: u32,
     theme: Option<&str>,
 ) -> Bridge {
@@ -68,10 +68,18 @@ fn host_with_width(
         });
     assert!(shim.is_absolute() && shim.is_file());
     let mut h = Bridge::new(settings, false);
-    if let Some(deadline) = deadline_ms {
+    if let Some(deadline) = fixture.0 {
         h.env.insert(
             "RUYCAST_NATIVE_TEST_OPEN_DEADLINE_MS".into(),
             deadline.to_string().into(),
+        );
+    }
+    if fixture.1 {
+        h.env
+            .insert("RUYCAST_NATIVE_TEST_TEMPLATE_BARRIER".into(), "1".into());
+        h.env.insert(
+            "RUYCAST_NATIVE_TEST_FIXTURE_DIR".into(),
+            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("owned fixture parent"),
         );
     }
     if picker {
@@ -122,7 +130,7 @@ fn post_effect_storage_failure_and_ranking_warning_are_visible() {
     for file in ["usage.json", "search-ranking.json"] {
         let mut cmd = command("url", "ruycast-fixture://hold-sync");
         cmd["timeout"] = json!(3);
-        let h = host_with_width(cmd, false, false, None, None, 600, None);
+        let h = host_with_width(cmd, false, false, None, (None, false), 600, None);
         let gate = Release(h.base.join("workspace-release"));
         show(&h, "nativeopen");
         key(&h, 36, 0, "\r", false);
@@ -167,7 +175,7 @@ fn missing_application_and_template_validation_keep_action_uncommitted() {
             false,
             false,
             None,
-            None,
+            (None, false),
             760,
             Some(theme),
         );
@@ -383,6 +391,53 @@ fn template_form(h: &Bridge) {
     template_fields(h, |v| !v["fields"].is_null());
 }
 #[test]
+fn late_metadata_is_cancelled_by_new_show_and_config_change() {
+    for reason in ["show", "config", "cancel"] {
+        let h = host_with_width(
+            command("url", "https://example.invalid/{a}/{b}"),
+            false,
+            false,
+            None,
+            (None, true),
+            760,
+            None,
+        );
+        let gate = Release(h.base.join("template-fields-release"));
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        let marker = h.base.join("template-fields-entered");
+        let end = Instant::now() + Duration::from_secs(4);
+        while !marker.exists() {
+            assert!(
+                Instant::now() < end,
+                "own fixture did not enter template fields"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(h.rpc(&json!({"op":"status"}))["ok"], true);
+        if reason == "show" {
+            assert_eq!(
+                h.rpc(&json!({"op":"show","query":"newer query"}))["ok"],
+                true
+            );
+            h.settled(|s| s["nativeUI"]["visible"] == true);
+        } else if reason == "config" {
+            let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+            cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+                json!("https://example.invalid/new/{x}/{y}");
+            h.replace(&cfg, None);
+            h.cli(&["reload"]);
+        } else {
+            key(&h, 53, 0, "", false);
+        }
+        fs::write(&gate.0, "release").unwrap();
+        h.wait(|s| s["nativeUI"]["templatePreparing"] != true);
+        h.settled(|_| true);
+        assert!(h.probe("template-read", json!({}))["fields"].is_null());
+        assert!(opens(&h).is_empty());
+    }
+}
+#[test]
 fn canonical_choice_default_and_narrow_light_dark_render() {
     use objc2_foundation::NSString;
     let target = "https://example.invalid/{a name=\"Text\" default=\"fixed\"}/{b name=\"Place\" default=\"cafe\u{301}\" options=\"café,Other\"}";
@@ -392,7 +447,7 @@ fn canonical_choice_default_and_narrow_light_dark_render() {
             false,
             false,
             None,
-            None,
+            (None, false),
             600,
             Some(theme),
         );
@@ -444,7 +499,7 @@ fn long_choice_and_label_render_with_complete_accessibility_names() {
                 false,
                 false,
                 None,
-                None,
+                (None, false),
                 width,
                 Some(theme),
             );
