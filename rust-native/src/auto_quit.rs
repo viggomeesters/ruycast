@@ -4,6 +4,7 @@
 //! on its first observation; foreground, unknown/missing state, sleep/wake,
 //! process replacement and duration changes reset it. Startup/restart begins a
 //! fresh interval. Expiry produces candidates, never permission to terminate.
+pub mod safety;
 use crate::system_search::Identity;
 use rustcast_core::AutoQuitSettings;
 use std::{
