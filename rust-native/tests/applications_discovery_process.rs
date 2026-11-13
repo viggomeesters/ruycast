@@ -227,6 +227,60 @@ fn nested_app_symlink_outside_home_is_not_followed() {
 }
 
 #[test]
+fn metadata_and_localization_links_cannot_escape_fixture() {
+    use std::os::unix::fs::symlink;
+    for mode in ["contents", "plist", "resources", "strings", "hardlink"] {
+        let mut host = Host::new(Config::current(), false);
+        let external = Host::new(Config::current(), false);
+        bundle(
+            &external.applications,
+            "External",
+            Some("dev.fixture.external"),
+            None,
+            Some("Fixture External"),
+        );
+        let outside = external.applications.join("External.app/Contents");
+        let app = host.applications.join("Inside.app");
+        fs::create_dir(&app).unwrap();
+        let contents = app.join("Contents");
+        if mode == "contents" {
+            symlink(&outside, &contents).unwrap();
+        } else {
+            fs::create_dir(&contents).unwrap();
+            let info = outside.join("Info.plist");
+            if mode == "plist" {
+                symlink(&info, contents.join("Info.plist")).unwrap();
+            } else if mode == "hardlink" {
+                fs::hard_link(&info, contents.join("Info.plist")).unwrap();
+            } else {
+                fs::copy(&info, contents.join("Info.plist")).unwrap();
+                let resources = outside.join("Resources/en.lproj");
+                fs::create_dir_all(&resources).unwrap();
+                fs::write(
+                    resources.join("InfoPlist.strings"),
+                    "\"CFBundleDisplayName\" = \"Fixture localized external\";",
+                )
+                .unwrap();
+                if mode == "resources" {
+                    symlink(resources.parent().unwrap(), contents.join("Resources")).unwrap();
+                } else {
+                    let local = contents.join("Resources/en.lproj");
+                    fs::create_dir_all(&local).unwrap();
+                    symlink(
+                        resources.join("InfoPlist.strings"),
+                        local.join("InfoPlist.strings"),
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        host.start();
+        assert_eq!(ready(&host)["discoveredApps"], 0, "{mode}");
+        assert!(search(&host, "Fixture").is_empty(), "{mode}");
+    }
+}
+
+#[test]
 fn malformed_metadata_types_do_not_abort_worker() {
     let mut host = Host::new(Config::current(), false);
     for (name, value) in [
