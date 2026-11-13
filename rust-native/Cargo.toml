@@ -328,3 +328,8 @@ objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std"
 lto = "thin"
 codegen-units = 1
 panic = "unwind"
+
+[[example]]
+name = "auto-quit-owned-app"
+path = "tests/fixtures/auto_quit_app.rs"
+required-features = ["test-tools"]
