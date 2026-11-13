@@ -143,6 +143,7 @@ actions-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 editor-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test editor_process --locked
 creation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test creation_process --locked
 library-process|p|rust-native/tests/library_process.py
+library-checkbox-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_checkbox_process --locked
 inline-process|p|rust-native/tests/inline_process.py
 inline-input-process|p|rust-native/tests/inline_input_process.py
 input-actions-process|p|rust-native/tests/input_actions_process.py
@@ -1865,7 +1866,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 122);
+        assert_eq!(steps.len(), 123);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1944,6 +1945,9 @@ mod tests {
         let editor = steps.iter().find(|step|step.name=="editor-process").unwrap();
         assert!(editor.arguments.windows(2).any(|pair|pair==["--test","editor_process"]));
         assert!(!editor.arguments.iter().any(|arg|arg.ends_with(".py")));
+        let library_checkbox = steps.iter().find(|step|step.name=="library-checkbox-process").unwrap();
+        assert!(library_checkbox.arguments.windows(2).any(|pair|pair==["--test","library_checkbox_process"]));
+        assert!(steps.iter().any(|step|step.name=="library-process" && step.arguments.iter().any(|arg|arg.ends_with("library_process.py"))));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
