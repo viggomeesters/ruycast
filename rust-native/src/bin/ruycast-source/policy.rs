@@ -713,4 +713,17 @@ bench/f1-runner/src/sdk/reference_source_actors.rs
 bench/f1-runner/src/sdk/workspace_appdelegate_callbacks.rs
 bench/f1-runner/src/sdk/workspace_appdelegate_callback_pins.rs
 bench/f1-runner/src/sdk/workspace_appdelegate_notification.rs
+docs/adr/0002-auto-quit-media-safety.md
+docs/adr/0003-auto-quit-owned-app-proof.md
+docs/adr/0004-auto-quit-explicit-activity-acknowledgement.md
+rust-native/src/auto_quit.rs
+rust-native/src/auto_quit/native.rs
+rust-native/src/auto_quit/runtime.rs
+rust-native/src/auto_quit/safety.rs
+rust-native/src/native_auto_quit.rs
+rust-native/tests/auto_quit_admission.rs
+rust-native/tests/auto_quit_process.rs
+rust-native/tests/fixtures/auto_quit_app.rs
+rust-native/tests/fixtures/auto_quit_audio_probe.rs
+rust-native/tests/support/auto_quit_owned.rs
 "#;

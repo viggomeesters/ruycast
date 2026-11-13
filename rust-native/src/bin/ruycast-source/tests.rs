@@ -101,11 +101,12 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
     assert_eq!(extracted_manifest["version"], rustcast_core::product_version::CURRENT);
     assert_eq!(fs::read(extracted.join("ruycast").join(VERSION_SOURCE)).unwrap(), VERSION_BYTES);
     assert!(!a.join(".go").exists());
-    let examples = fs::read_dir(a.join("rust-native/examples"))
+    let mut examples = fs::read_dir(a.join("rust-native/examples"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .collect::<Vec<_>>();
-    assert_eq!(examples, [std::ffi::OsString::from("ui_completion.rs")]);
+    examples.sort();
+    assert_eq!(examples, ["clipboard_history_sdk_probe.rs", "snippet_effects_probe.rs", "ui_completion.rs"].map(std::ffi::OsString::from));
     assert!(!a.join("rust-native/examples/stage_private.rs").exists());
 }
 #[test]
