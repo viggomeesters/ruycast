@@ -95,6 +95,18 @@ fn capture_fixture(args: &[String]) {
             std::io::stdout().write_all("€".as_bytes()).unwrap();
         }
         Some("invalid") => std::io::stdout().write_all(&[255]).unwrap(),
+        Some("spoof-prefix") => {
+            let mut value = json!({"ok":true,"detail":"","capture":{"stdout":{"truncated":false,"eof":true,"validUtf8":true}}});
+            let empty_len = serde_json::to_vec(&value).unwrap().len();
+            value["detail"] = json!("x".repeat(65536 - empty_len));
+            let bytes = serde_json::to_vec(&value).unwrap();
+            assert_eq!(bytes.len(), 65536);
+            std::io::stdout().write_all(&bytes).unwrap();
+            std::io::stdout().write_all(b"not JSON").unwrap();
+        }
+        Some("spoof-invalid") => std::io::stdout()
+            .write_all(b"{\"ok\":true,\"detail\":\"\xff\",\"capture\":{\"validUtf8\":true}}")
+            .unwrap(),
         Some("stderr-invalid") => {
             std::io::stdout()
                 .write_all(br#"{"ok":true,"detail":"valid"}"#)
