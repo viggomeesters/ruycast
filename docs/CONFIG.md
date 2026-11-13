@@ -72,6 +72,22 @@ adapter must control attempts, recheck the live process and current setting,
 and apply media/recording safeguards immediately before normal termination.
 No operating-system observation or termination is connected by this model.
 
+The prepared `Tracker::observe_guarded` route passes due clock candidates
+through fail-closed safety admission. It rechecks current enablement/duration,
+process lifetime, background state and sample freshness, then blocks active,
+missing, unknown, failed or unavailable audio/recording/helper information.
+Even all-inactive flags remain blocked in product builds because complete
+recording/helper coverage has not been qualified. A synthetic qualification
+exists only in unit tests; it is absent from normal and test-tools product
+libraries. This does not create working Auto Quit.
+
+[#371](https://github.com/viggomeesters/ruycast/issues/371) remains open for live
+app/sleep-wake/safety snapshot integration and a qualified owned-app bridge.
+[#141](https://github.com/viggomeesters/ruycast/issues/141) still needs the final
+live identity, foreground, preference and safeguard recheck plus normal
+termination. Neither a passing model test nor a one-second-old safety snapshot
+authorizes an OS effect. The editor's not-connected status remains in place.
+
 A command requires `id`, `title`, `kind` and `target`; optional `aliases`, `arguments`, `hotkey` and `timeout` customize it.
 
 | Kind | Target |
