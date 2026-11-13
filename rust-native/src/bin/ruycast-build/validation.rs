@@ -137,7 +137,7 @@ clipboard-pause-original|c|test --manifest-path rust-native/Cargo.toml --feature
 task-date-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --task-date-only
 utility-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test utility_process --locked
 applications-process|p|rust-native/tests/applications_process.py
-actions-process|p|rust-native/tests/actions_process.py
+actions-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test actions_process --locked
 editor-process|p|rust-native/tests/editor_process.py
 creation-process|p|rust-native/tests/creation_process.py
 library-process|p|rust-native/tests/library_process.py
@@ -1869,6 +1869,9 @@ mod tests {
         assert!(bridge.arguments.windows(2).any(|pair|pair==["--test","bridge_process"]));
         assert!(normal_host_negative(bridge));
         assert!(!bridge.arguments.iter().any(|arg|arg.ends_with(".py")));
+        let actions = steps.iter().find(|step|step.name=="actions-process").unwrap();
+        assert!(actions.arguments.windows(2).any(|pair|pair==["--test","actions_process"]));
+        assert!(!actions.arguments.iter().any(|arg|arg.ends_with(".py")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

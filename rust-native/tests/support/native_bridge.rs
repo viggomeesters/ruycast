@@ -5,6 +5,7 @@ pub mod runtime_host;
 use runtime_host::{Config, Entry, Host};
 use serde_json::{json, Value};
 use std::{
+    fs,
     ops::{Deref, DerefMut},
     path::PathBuf,
 };
@@ -49,6 +50,22 @@ impl Bridge {
         let response = self.host.rpc(&Value::Object(request));
         assert_eq!(response["ok"], true, "{response}");
         response["result"].clone()
+    }
+    pub fn capture(&self, name: &str) -> Value {
+        let value = self.probe("screenshot", json!({}));
+        let image = self.profile.join("native-probe.png");
+        assert!(fs::read(&image).unwrap().starts_with(b"\x89PNG\r\n\x1a\n"));
+        if let Some(evidence) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+            let directory = PathBuf::from(evidence).parent().unwrap().join("bridge");
+            fs::create_dir_all(&directory).unwrap();
+            fs::copy(image, directory.join(format!("{name}.png"))).unwrap();
+            fs::write(
+                directory.join(format!("{name}.json")),
+                serde_json::to_vec_pretty(&value).unwrap(),
+            )
+            .unwrap();
+        }
+        value
     }
 }
 impl Deref for Bridge {

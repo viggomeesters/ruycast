@@ -201,6 +201,8 @@ The pinned InputActions menu also opens Edit, Set Alias, Set Hotkey and Remove, 
 
 Only execution fields deliberately changed in the own published Edit receipt become part of the resumed run binding. Alias/hotkey saves and enabled changes never silently adopt external execution changes. The next Run rereads the actual configuration and file mapping. Never-presented canceled child views preserve the live native text editor; returning from an actually shown child restores the captured bounded text rather than promising cross-editor Undo. Postpublication disk warnings report that the write already succeeded, avoiding an accidental retry.
 
+`tests/actions_process.rs` runs the sixteen original native Actions scenarios against owned hidden hosts, including alias and hotkey editing, conflicts, cancellation, undo and captures. `tests/actions_process.py` retains only fixture methods still borrowed by other Python suites; those methods remain visible until their callers migrate.
+
 `tests/input_actions_process.py` covers native editor return, actual saves/recording, field ownership, conflicts, relocation/removal, disabled input, queued cancellation, genuine directory-sync faults and the Settings peer. This remains development parity for ordinary saved scripts; provider-specific capture/date/Shortcuts/private handlers, remaining twelve-block migration acceptance, production packaging and release/install/readback remain pending.
 
 
