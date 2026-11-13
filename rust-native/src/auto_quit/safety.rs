@@ -172,6 +172,13 @@ impl Tracker {
 }
 
 #[cfg(test)]
+pub(super) fn owned_fixture_guard(application: &Observation) -> Guard {
+    Guard {
+        fixture: Some((application.application.clone(), application.process)),
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::system_search::Identity;

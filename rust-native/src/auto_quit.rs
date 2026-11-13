@@ -171,6 +171,11 @@ impl Tracker {
 }
 
 #[cfg(test)]
+#[path = "../tests/support/auto_quit_owned.rs"]
+mod owned_native_tests;
+
+
+#[cfg(test)]
 mod tests {
     use super::*;
     fn clock(seconds: u64) -> Duration {
