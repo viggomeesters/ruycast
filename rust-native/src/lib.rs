@@ -2,6 +2,7 @@
 pub mod artifact_lease;
 pub mod actions;
 pub mod activity;
+pub mod auto_quit;
 pub mod analytics;
 pub mod analytics_dashboard;
 pub mod caps_io;

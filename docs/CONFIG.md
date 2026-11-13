@@ -58,6 +58,20 @@ applications. The editor states this explicitly until the timer and safety
 steps of [#89](https://github.com/viggomeesters/ruycast/issues/89) are implemented.
 Preferences use the existing configuration validation and writer.
 
+The prepared timer policy starts a fresh interval when an enabled application
+is first observed in the background. Foreground use resets it. Sleep/wake,
+process restart, a missing or unknown observation and a changed duration all
+require a fresh interval. Startup does not restore elapsed time. This is the
+first implementation choice from #139, rather than a previously confirmed
+maintainer decision about timer behavior.
+
+The pure clock model emits candidates carrying the original bundle identifier,
+PID, user and process start time. New snapshots invalidate candidates for old
+intervals or processes. Candidates repeat while overdue; the future effect
+adapter must control attempts, recheck the live process and current setting,
+and apply media/recording safeguards immediately before normal termination.
+No operating-system observation or termination is connected by this model.
+
 A command requires `id`, `title`, `kind` and `target`; optional `aliases`, `arguments`, `hotkey` and `timeout` customize it.
 
 | Kind | Target |
