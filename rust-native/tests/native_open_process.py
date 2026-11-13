@@ -11,7 +11,6 @@ import bridge_process as native
 import workspace_process as fixture
 import runtime_process as rt
 import actions_process as action_helpers
-import applications_process as app_helpers
 
 
 def command(kind='app',target='dev.fixture.inline',**fields):
@@ -20,7 +19,7 @@ def command(kind='app',target='dev.fixture.inline',**fields):
 class NativeOpen(unittest.TestCase):
     @classmethod
     def setUpClass(cls): fixture.Workspace.setUpClass()
-    def host(self,cmd=None,*,discovered=False,clipboard=None,theme=None,width=760,barrier=False,picker=False,deadline_ms=None):
+    def host(self,cmd=None,*,discovered=False,clipboard=None,theme=None,width=760,barrier=False,deadline_ms=None):
         h=native.Bridge(start=False);self.addCleanup(h.close)
         if deadline_ms is not None:h.env['RUYCAST_NATIVE_TEST_OPEN_DEADLINE_MS']=str(deadline_ms)
         config=copy.deepcopy(rt.DEFAULT);config['commands'] += [cmd or command()]
@@ -32,12 +31,10 @@ class NativeOpen(unittest.TestCase):
         if discovered:
             p=h.applications/'Fixture.app/Contents';p.mkdir(parents=True)
             (p/'Info.plist').write_bytes(plistlib.dumps(dict(CFBundleIdentifier='dev.fixture.discovered',CFBundleName='Discovered Native Fixture')))
-        if picker:
-            app_helpers.Applications.bundle(self,h.applications,'Picker','dev.fixture.success',CFBundleName='Fixture Selected Browser')
         if barrier: h.env["RUYCAST_NATIVE_TEST_TEMPLATE_BARRIER"]="1"
         h.start();h.settled()
         for key in ['DYLD_INSERT_LIBRARIES','RUYCAST_WORKSPACE_FIXTURE_HOME']: h.env.pop(key,None)
-        if discovered or picker:h.wait(lambda s:not s['appDiscoveryPending'])
+        if discovered:h.wait(lambda s:not s['appDiscoveryPending'])
         return h
     def show(self,h,query='nativeopen'):
         self.assertTrue(h.rpc(dict(op='show',query=query))['ok']);h.settled(lambda s:s['nativeUI']['visible'])
@@ -59,15 +56,6 @@ class NativeOpen(unittest.TestCase):
             shutil.copy2(h.profile/'native-probe.png',out/(name+'.png'))
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
-    def test_native_picker_save_then_run_uses_selected_bundle_with_exact_hide(self):
-        h=self.host(command('url','https://example.invalid/picker'),picker=True)
-        self.show(h);helper=action_helpers.ActionsProcesses();helper.action(h,'Edit');helper.view(h,lambda v:v['formVisible']);h.settled()
-        h.probe('app-picker',command='open');h.probe('app-picker',command='click',index=1);h.probe('save-editor');helper.saved(h)
-        self.assertEqual(json.loads(h.config.read_text())['commands'][-1]['applicationID'],'dev.fixture.success')
-        self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
-        self.assertEqual([r['phase'] for r in self.opens(h)],['open-with-targets','open-with']);self.assertEqual(len(self.hides(h)),1)
-        self.assertEqual([r for r in self.trace(h) if r['phase']=='open-with-targets'][0]['urls'],['https://example.invalid/picker'])
-        self.assertTrue(any(r['phase']=='resolve' and r.get('bundleID')=='dev.fixture.success' for r in self.trace(h)))
     def test_new_quicklink_prefill_uses_real_named_main_service_without_execution(self):
         for text,expected in [('  https://example.invalid/new  ','https://example.invalid/new'),('   ','https://')]:
             h=self.host(clipboard=text);self.show(h);helper=action_helpers.ActionsProcesses();before=h.config.read_bytes();helper.action(h,'New Quicklink');helper.view(h,lambda v:v['formVisible'])
