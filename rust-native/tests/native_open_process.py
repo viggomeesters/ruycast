@@ -57,17 +57,6 @@ class NativeOpen(unittest.TestCase):
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
 
-    def test_failed_callback_and_post_sdk_timeout_surface_the_exact_owned_error(self):
-        for target in ['dev.fixture.error','ruycast-fixture://hold-sync']:
-            kind='app' if target.startswith('dev.fixture.') else 'url'
-            h=self.host(command(kind,target,timeout=1),deadline_ms=250 if kind=='url' else None)
-            self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
-            self.assertTrue(h.rpc(dict(op='status'))['result']['nativeUI']['visible'])
-            h.settled();view=self.capture(h,'timeout' if kind=='url' else 'callback-error');text='\n'.join(view['screenText'])
-            self.assertTrue('Fixture native error' in text or 'Check its outcome' in text,text)
-            self.assertEqual(len(self.hides(h)),1)
-            self.assertFalse(view['windowShown'])
-            if kind=='url':(h.base/'workspace-release').write_text('release')
     def test_post_effect_storage_failure_and_ranking_warning_are_visible(self):
         for file in ['usage.json','search-ranking.json']:
             h=self.host(command('url','ruycast-fixture://hold-sync',timeout=3),width=600)

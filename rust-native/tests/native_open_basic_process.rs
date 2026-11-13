@@ -182,6 +182,75 @@ fn rows(path: &std::path::Path) -> Vec<Value> {
         .map(|s| serde_json::from_str(s).unwrap())
         .collect()
 }
+fn capture(h: &Bridge, name: &str) -> Value {
+    let view = h.probe("screenshot", json!({}));
+    if let Some(out) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let path = std::path::PathBuf::from(out);
+        let directory = path.parent().unwrap().join("native-open");
+        fs::create_dir_all(&directory).unwrap();
+        fs::copy(
+            h.profile.join("native-probe.png"),
+            directory.join(format!("{name}.png")),
+        )
+        .unwrap();
+        fs::write(
+            directory.join(format!("{name}.json")),
+            serde_json::to_vec_pretty(&view).unwrap(),
+        )
+        .unwrap();
+    }
+    view
+}
+#[test]
+fn failed_callback_and_post_sdk_timeout_surface_the_exact_owned_error() {
+    for (kind, target) in [
+        ("app", "dev.fixture.error"),
+        ("url", "ruycast-fixture://hold-sync"),
+    ] {
+        let mut cmd = command(kind, target);
+        cmd["timeout"] = json!(1);
+        let h = host_with_deadline(
+            cmd,
+            false,
+            false,
+            None,
+            if kind == "url" { Some(250) } else { None },
+        );
+        let gate = Release(h.base.join("workspace-release"));
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        done(&h);
+        assert_eq!(
+            h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+            true
+        );
+        h.settled(|_| true);
+        let view = capture(
+            &h,
+            if kind == "url" {
+                "timeout"
+            } else {
+                "callback-error"
+            },
+        );
+        let text = view["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            text.contains("Fixture native error") || text.contains("Check its outcome"),
+            "{text}"
+        );
+        assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+        assert_eq!(view["windowShown"], false);
+        if kind == "url" {
+            fs::write(&gate.0, "release").unwrap();
+        }
+    }
+}
 fn activate(h: &Bridge) {
     show(h, "nativeopen");
     key(h, 36, 0, "\r", false);
