@@ -53,40 +53,46 @@ Changes to an application's identity require saving and reopening before its
 Auto Quit preference can be changed. Concurrent changes to the same preference
 report a conflict instead of replacing the other change.
 
-The timer is not connected yet, so enabling this preference does not quit
-applications. The editor states this explicitly until the timer and safety
-steps of [#89](https://github.com/viggomeesters/ruycast/issues/89) are implemented.
-Preferences use the existing configuration validation and writer.
+Auto Quit also requires the separate **Allow quitting when activity is unknown**
+checkbox for that application. It starts off, including for previously enabled
+preferences. Its warning is deliberate: recordings and helper audio can be
+missed and interrupted. Do not enable it for a meeting, recording or media app
+whose activity you need to preserve. This is an explicit per-app acceptance of
+incomplete detection, not a claim that unknown activity is inactive.
 
-The prepared timer policy starts a fresh interval when an enabled application
-is first observed in the background. Foreground use resets it. Sleep/wake,
-process restart, a missing or unknown observation and a changed duration all
-require a fresh interval. Startup does not restore elapsed time. This is the
-first implementation choice from #139, rather than a previously confirmed
-maintainer decision about timer behavior.
+```json
+"autoQuit": {
+  "test.synthetic.Editor": {
+    "enabled": true,
+    "minutes": 30,
+    "allowUnverifiedActivity": true
+  }
+}
+```
 
-The pure clock model emits candidates carrying the original bundle identifier,
-PID, user and process start time. New snapshots invalidate candidates for old
-intervals or processes. Candidates repeat while overdue; the future effect
-adapter must control attempts, recheck the live process and current setting,
-and apply media/recording safeguards immediately before normal termination.
-No operating-system observation or termination is connected by this model.
+The native monitor queries only enabled configured bundle identifiers every two
+seconds. A fresh interval begins when an application is first observed in the
+background. Foreground activation, sleep/wake, session locking, process restart,
+missing/unknown app state and changes to duration or acknowledgement reset it.
+Startup restores no elapsed time. Multiple instances have separate process
+lifetimes and intervals. Invalid/unreadable configuration retires all intervals.
 
-The prepared `Tracker::observe_guarded` route passes due clock candidates
-through fail-closed safety admission. It rechecks current enablement/duration,
-process lifetime, background state and sample freshness, then blocks active,
-missing, unknown, failed or unavailable audio/recording/helper information.
-Even all-inactive flags remain blocked in product builds because complete
-recording/helper coverage has not been qualified. A synthetic qualification
-exists only in unit tests; it is absent from normal and test-tools product
-libraries. This does not create working Auto Quit.
+Immediately before a normal quit request, the runtime rereads configuration and
+checks live process lifetime, foreground state and Core Audio input/output.
+Positive input or output activity blocks quitting even with acknowledgement.
+Failed/unavailable audio reads, stale identity and notification invalidation
+also block. Missing audio process objects remain unknown; unknown coverage is
+accepted only by the explicit acknowledgement. The public foreground APIs used
+are deprecated Process Manager calls, avoiding AppKit's main-runloop property
+cache. API failures fail closed.
 
-[#371](https://github.com/viggomeesters/ruycast/issues/371) remains open for live
-app/sleep-wake/safety snapshot integration and a qualified owned-app bridge.
-[#141](https://github.com/viggomeesters/ruycast/issues/141) still needs the final
-live identity, foreground, preference and safeguard recheck plus normal
-termination. Neither a passing model test nor a one-second-old safety snapshot
-authorizes an OS effect. The editor's not-connected status remains in place.
+Only the main app process has qualified positive Core Audio observations; camera,
+screen recording and helper-process activity are not comprehensively detected.
+An enabled preference without acknowledgement does not quit the app. No force
+kill or automatic save-prompt confirmation is used. A normal request may be
+refused or remain pending in a save prompt; the same timer interval requests
+only once. Foreground use or disabling/re-enabling starts a fresh opportunity.
+No RAM or compute saving has been measured.
 
 A command requires `id`, `title`, `kind` and `target`; optional `aliases`, `arguments`, `hotkey` and `timeout` customize it.
 

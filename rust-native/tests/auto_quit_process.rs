@@ -55,7 +55,15 @@ fn app_editor_persists_auto_quit_and_renders_light_and_dark() {
     config["autoQuit"] = json!({"test.synthetic.Player":{"enabled":true,"minutes":44}});
     config["theme"] = json!("light");
     host.replace(&config, None);
-    host.start();
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| host.start())).is_err() {
+        let output = host.stop(false).unwrap();
+        panic!(
+            "Owned editor host startup failed: {} {} {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
     host.settled(|_| true);
     edit(&host);
     assert_eq!(
@@ -82,12 +90,22 @@ fn app_editor_persists_auto_quit_and_renders_light_and_dark() {
     assert_eq!(fs::read(&host.config).unwrap(), initial);
     input(&host, "autoQuitMinutes", "17");
     host.probe("command-input", json!({"key":"autoQuit","value":true}));
+    let before_consent = fs::read(&host.config).unwrap();
+    host.probe("save-editor", json!({}));
+    view(&host, |v| {
+        v["screenText"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Auto Quit requires separate activity consent."))
+    });
+    assert_eq!(fs::read(&host.config).unwrap(), before_consent);
+    host.probe("command-input", json!({"key":"autoQuitRisk","value":true}));
     save(&host);
     for theme in ["light", "dark"] {
         let mut current: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
         assert_eq!(
             current["autoQuit"]["test.synthetic.Editor"],
-            json!({"enabled":true,"minutes":17})
+            json!({"enabled":true,"minutes":17,"allowUnverifiedActivity":true})
         );
         assert_eq!(current["autoQuit"]["test.synthetic.Player"]["minutes"], 44);
         current["theme"] = json!(theme);
@@ -106,6 +124,14 @@ fn app_editor_persists_auto_quit_and_renders_light_and_dark() {
             .as_array()
             .unwrap()
             .contains(&json!("Quit after (minutes)")));
+        assert!(screen["screenText"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("May interrupt recordings or helper audio.")));
+        assert!(screen["screenText"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Allow quitting when activity is unknown")));
         if let Some(directory) = std::env::var_os("RUYCAST_AUTO_QUIT_EVIDENCE_DIR") {
             let directory = PathBuf::from(directory);
             fs::create_dir_all(&directory).unwrap();
@@ -130,7 +156,7 @@ fn app_editor_persists_auto_quit_and_renders_light_and_dark() {
     edit(&host);
     assert_eq!(
         host.probe("command-read", json!({}))["value"]["_autoQuit"],
-        json!({"enabled":false,"minutes":17})
+        json!({"enabled":false,"minutes":17,"allowUnverifiedActivity":true})
     );
     host.probe("cancel-editor", json!({}));
 }

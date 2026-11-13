@@ -2366,6 +2366,7 @@ fn run_graph(
         services.system.fixture(hidden);
         #[cfg(feature = "test-tools")]
         services.system.require_fixture(hidden);
+        let auto_quit_monitor = std::rc::Rc::new(RefCell::new(if hidden { None } else { Some(crate::native_auto_quit::Monitor::new(mtm, paths.clone())) }));
         let clipboard_monitor=std::rc::Rc::new(RefCell::new(crate::native_services::ClipboardMonitor::new(mtm,clipboard.clone(),services_client.clipboard_capture.clone(),tx.clone())));
         let paste_client = services_client.paste();
         let mut paste = crate::native_paste::Service::new(
@@ -2486,6 +2487,7 @@ fn run_graph(
         let recovery_keyboard = keyboard.clone();
 
         let source_clipboard_monitor=clipboard_monitor.clone();
+        let source_auto_quit = auto_quit_monitor.clone();
         #[cfg(feature = "test-tools")]
         let _alias_probe_gap_cleanup = AliasProbeGapCleanup;
         let source = crate::main_loop::Source::new(
@@ -2516,6 +2518,7 @@ fn run_graph(
                         .as_mut()
                         .is_none_or(|keyboard| keyboard.stop());
                     source_clipboard_monitor.borrow_mut().stop();
+                    if let Some(monitor)=source_auto_quit.borrow_mut().as_mut(){monitor.stop();}
                     paste.stop();
                     for ticket in services.take_pastes() {
                         let outcome = ticket.authority.dispatch.retire();
@@ -2536,6 +2539,7 @@ fn run_graph(
                     }
                 }
                 if let Err(error)=source_clipboard_monitor.borrow_mut().pump(){windows[0].1.request_stop();panic!("{error}");}
+                if let Some(monitor)=source_auto_quit.borrow_mut().as_mut(){if let Err(error)=monitor.pump(){windows[0].1.request_stop();panic!("{error}");}}
                 let icons_changed=crate::native_rows::poll();
                 #[cfg(feature = "test-tools")]
                 source_f1_owner.borrow_mut().pump(&windows[0].0, &windows[0].1, false,services.owned_pending());
@@ -2709,6 +2713,7 @@ fn run_graph(
         services_client.attach_wake(wake.clone());
         crate::native_rows::start(wake.clone(),hidden);
         let _icon_cleanup=crate::native_rows::Cleanup;
+        if let Some(monitor)=auto_quit_monitor.borrow_mut().as_mut(){monitor.start(wake.clone())?;}
         clipboard_monitor.borrow_mut().start(wake)?;
         let worker_connection = connection.clone();
         #[cfg(feature = "test-tools")]
@@ -4861,8 +4866,8 @@ fn native_probe(
                                 NSControlStateValueOn
                             })
                     }
-                    "autoQuit" => {
-                        let button = &state.surface.command.auto_quit;
+                    "autoQuit" | "autoQuitRisk" => {
+                        let button = if key == "autoQuit" { &state.surface.command.auto_quit } else { &state.surface.command.auto_quit_risk };
                         if (button.state() == NSControlStateValueOn) != (request["value"] == true) {
                             unsafe { button.performClick(None); }
                         }
