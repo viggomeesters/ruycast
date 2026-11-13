@@ -314,7 +314,6 @@ rust-native/tests/caps_process.rs
 rust-native/tests/fixtures/caps_sdk.rs
 rust-native/tests/fixtures/caps_fixture.rs
 rust-native/tests/fixtures/caps_missing_set.rs
-rust-native/tests/capture_process.py
 rust-native/tests/capture_bytes_process.rs
 rust-native/tests/capture_cli_process.rs
 rust-native/tests/capture_native_process.rs
@@ -420,7 +419,6 @@ rust-native/tests/rust_only_policy.py
 rust-native/tests/fixtures/script_fault_shim.rs
 rust-native/tests/script_basic_process.rs
 rust-native/tests/script_fault_process.rs
-rust-native/tests/script_result_process.py
 rust-native/tests/script_result_basic_process.rs
 rust-native/tests/script_result_native_process.rs
 rust-native/tests/settings_keyboard_process.rs
@@ -519,6 +517,7 @@ rust-native/tests/support/runtime_host.rs
 rust-native/tests/support/native_bridge.rs
 rust-native/tests/support/native_actions.rs
 rust-native/tests/support/native_editor.rs
+rust-native/tests/support/capture_holder.rs
 rust-native/tests/support/native_keyboard.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs

@@ -159,10 +159,9 @@ input-process|p|rust-native/tests/input_process.py
 execution-process|p|rust-native/tests/execution_process.py
 script-result-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_result_basic_process --locked
 script-result-native-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_result_native_process --locked
-capture-process|p|rust-native/tests/capture_process.py
+capture-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_native_process --locked
 capture-bytes-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_bytes_process --locked
 capture-cli-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_cli_process --locked
-capture-native-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_native_process --locked
 rich-process|p|rust-native/tests/rich_process.py
 clipboard-import-parser|p|Tests/test_clipboard_import.py
 benchmark-contract-1|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_ignores_external_configuration_with_500_commands -- --ignored --exact
@@ -1878,7 +1877,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 135);
+        assert_eq!(steps.len(), 134);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1987,7 +1986,7 @@ mod tests {
         assert!(capture_bytes.arguments.windows(2).any(|pair|pair==["--test","capture_bytes_process"]));
         let capture_cli = steps.iter().find(|step|step.name=="capture-cli-process").unwrap();
         assert!(capture_cli.arguments.windows(2).any(|pair|pair==["--test","capture_cli_process"]));
-        let capture_native = steps.iter().find(|step|step.name=="capture-native-process").unwrap();
+        let capture_native = steps.iter().find(|step|step.name=="capture-process").unwrap();
         assert!(capture_native.arguments.windows(2).any(|pair|pair==["--test","capture_native_process"]));
         let names = steps
             .iter()

@@ -1044,7 +1044,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/execution.rs", include_bytes!("../../execution.rs"), "a211e57ffabbb0cb0cbb8ce19ad894939ca310c36a34a9fea055a0df3e023c8f"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "e8b4b609655d7946bbb27f287aaa739ed1530133f22a7cfdca2d5003655aa462"),
             ("rust/src/script.rs", include_bytes!("../../../../rust/src/script.rs"), "16974362c399c6c5a92596d7563d501eb0492df9f5e2463d8147eeb70108bfb0"),
-            ("rust-native/tests/script_result_process.py", include_bytes!("../../../tests/script_result_process.py"), "e80343cbeff4c67401c29ca1593767c7724244c73e324ce273ab90ce0e33d917"),
             ("rust-native/tests/script_result_basic_process.rs", include_bytes!("../../../tests/script_result_basic_process.rs"), "70e1a2de21b80f8702438acb49b03fac13576c84cc90e3857af8fc3aa48eb498"),
             ("rust-native/tests/script_result_native_process.rs", include_bytes!("../../../tests/script_result_native_process.rs"), "6791270af079e8a05e679dc86de1528dd4dfb7f881b7a291dc8b9878a8786410"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "8df1771311f7d65bbe1bfffc09bb8caf925744f1f0ea9531ecb391ce7ff35b07"),
@@ -1617,7 +1616,7 @@ mod tests {
     fn script_result_basic_binds_current_sources_and_route() {
         use sha2::Digest;
         let inputs = settings_sources("--check-apple-shortcuts");
-        for path in ["rust-native/tests/script_result_process.py", "rust-native/tests/script_result_basic_process.rs", "rust-native/tests/script_result_native_process.rs", "rust-native/src/bin/private_results_fixture.rs"] {
+        for path in ["rust-native/tests/script_result_basic_process.rs", "rust-native/tests/script_result_native_process.rs", "rust-native/src/bin/private_results_fixture.rs"] {
             let (_, bytes, expected) = inputs.iter().find(|entry| entry.0 == path).unwrap();
             assert_eq!(format!("{:x}", sha2::Sha256::digest(bytes)), *expected, "{path}");
         }
@@ -2163,7 +2162,7 @@ mod tests {
         ];
         for (id, steps, case_count, source_count) in [
             ("--check-window-search", &["unit", "system-search-process", "system-search-sdk"][..], 18, 29),
-            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 42),
+            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 41),
             ("--check-render-updates", &["render-updates-process"][..], 1, 14),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();

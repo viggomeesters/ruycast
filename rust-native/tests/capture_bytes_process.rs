@@ -1,7 +1,10 @@
 //! Trusted byte capture through the actual supervisor and CLI.
 #![cfg(feature = "test-tools")]
+#[path = "support/capture_holder.rs"]
+mod capture_holder;
 #[path = "support/child_output.rs"]
 mod child_output;
+use capture_holder::Holder;
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -232,48 +235,6 @@ fn old_versions_are_refused_before_command_sideeffect() {
             .unwrap()
             .contains("incompatible"));
         assert!(!marker.exists());
-    }
-}
-struct Holder {
-    ready: PathBuf,
-    gate: PathBuf,
-    done: PathBuf,
-    released: bool,
-}
-impl Holder {
-    fn new(base: &Path, held: &str) -> Self {
-        Self {
-            ready: base.join(format!("ready-{held}")),
-            gate: base.join(format!("release-{held}")),
-            done: base.join(format!("done-{held}")),
-            released: false,
-        }
-    }
-    fn release(&mut self) {
-        fs::write(&self.gate, "release").unwrap();
-        if self.ready.exists() {
-            let deadline = std::time::Instant::now() + Duration::from_secs(2);
-            while !self.done.exists() && std::time::Instant::now() < deadline {
-                std::thread::sleep(Duration::from_millis(10));
-            }
-            assert!(
-                self.done.exists(),
-                "owned detached holder did not self-close"
-            );
-        }
-        self.released = true;
-    }
-}
-impl Drop for Holder {
-    fn drop(&mut self) {
-        if !self.released {
-            let _ = fs::write(&self.gate, "release");
-            let deadline = std::time::Instant::now() + Duration::from_secs(2);
-            while self.ready.exists() && !self.done.exists() && std::time::Instant::now() < deadline
-            {
-                std::thread::sleep(Duration::from_millis(10));
-            }
-        }
     }
 }
 #[test]
