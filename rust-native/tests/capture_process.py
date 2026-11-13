@@ -36,17 +36,6 @@ class CaptureProcesses(unittest.TestCase):
                 self.assertEqual(result['capture'][stream],dict(truncated=False,validUtf8=True,eof=held not in ['both',stream]))
             self.assertTrue(json.loads(result['response']['result']['stdout'])['capture']['stdout']['eof'])
             release_holder(ready,gate,done)
-    def test_spawn_error_has_explicit_unknown_capture_and_legacy_response_is_unchanged(self):
-        command=self.command();command['target']=str(self.base/'missing-executable');result=self.probe(command)
-        self.assertIsNone(result['capture']);self.assertFalse(result['response']['ok'])
-        for code in ['import os;os.write(1,b"a"*65537)','import os;os.write(1,bytes([255]))','raise SystemExit(7)']:
-            command=self.command(code);expected=subprocess.run([str(supervision.CLI),'__run-script'],input=json.dumps(command),capture_output=True,text=True,env=self.env,timeout=4)
-            self.assertEqual(self.probe(command)['response'],json.loads(expected.stdout))
-    def test_old_versions_are_refused_before_command_sideeffect(self):
-        for version in [1,2]:
-            marker=self.base/('old-helper-command-'+str(version))
-            helper=self.fake('print(json.dumps({"scriptSupervisor":%d,"ready":True}),flush=True)\nline=sys.stdin.readline()\nif line:pathlib.Path(%r).write_text(line)'%(version,str(marker)))
-            result=self.probe(helper=helper);self.assertIn('incompatible',result['error']);self.assertFalse(marker.exists())
 
 class NativeCapture(unittest.TestCase):
     host=results.ScriptResults.host;command=results.ScriptResults.command;file=results.ScriptResults.file

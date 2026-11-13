@@ -35,6 +35,16 @@ impl Drop for OwnedDir {
     }
 }
 fn run(program: &Path, arguments: &[&str], input: &Value) -> Value {
+    run_env(program, arguments, input, &[], true, Duration::from_secs(7))
+}
+fn run_env(
+    program: &Path,
+    arguments: &[&str],
+    input: &Value,
+    environment: &[(&str, &str)],
+    require_success: bool,
+    timeout: Duration,
+) -> Value {
     let mut c = Command::new(program);
     c.args(arguments)
         .stdin(Stdio::piped())
@@ -46,22 +56,27 @@ fn run(program: &Path, arguments: &[&str], input: &Value) -> Value {
         "RUSTCAST_HOME",
         "RUYCAST_CONFIG_DIR",
         "RUSTCAST_CONFIG_DIR",
+        "RUYCAST_TEST_OLD_SUPERVISOR_VERSION",
+        "RUYCAST_TEST_OLD_SUPERVISOR_MARKER",
     ] {
         c.env_remove(key);
     }
+    c.envs(environment.iter().copied());
     let mut child = c.spawn().unwrap();
     let written = child
         .stdin
         .take()
         .unwrap()
         .write_all(input.to_string().as_bytes());
-    let output = child_output::wait(child, Duration::from_secs(7));
+    let output = child_output::wait(child, timeout);
     written.expect("send fixture request");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    if require_success {
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     serde_json::from_slice(&output.stdout).unwrap()
 }
 fn probe(home: &Path, args: Value) -> Value {
@@ -152,4 +167,70 @@ fn lossy_json_cannot_claim_its_original_bytes_are_valid() {
     assert_eq!(native["detail"], "�");
     assert_eq!(native["capture"]["validUtf8"], true);
     assert_eq!(v["capture"]["stdout"]["validUtf8"], false);
+}
+#[test]
+fn spawn_error_has_explicit_unknown_capture_and_legacy_response_is_unchanged() {
+    let h = OwnedDir::new();
+    let cli = PathBuf::from(std::env::var_os("RUYCAST_TEST_CLI").unwrap());
+    let probe_bin = Path::new(env!("CARGO_BIN_EXE_supervision-probe"));
+    let target = env!("CARGO_BIN_EXE_script-probe");
+    let mut command = json!({"id":"script.fixture","title":"Fixture","kind":"script","target":h.0.join("missing-executable"),"arguments":[],"timeout":2});
+    let result = run(
+        probe_bin,
+        &[],
+        &json!({"helper":cli,"home":h.0,"command":command}),
+    );
+    assert_eq!(result["noChildren"], true);
+    assert!(result["result"]["capture"].is_null());
+    assert_eq!(result["result"]["response"]["ok"], false);
+    for args in [
+        json!(["capture-fixture", "bytes", "stdout", "65537"]),
+        json!(["capture-fixture", "invalid"]),
+        json!(["capture-fixture", "exit7"]),
+    ] {
+        command["target"] = json!(target);
+        command["arguments"] = args;
+        let expected = run_env(
+            &cli,
+            &["__run-script"],
+            &command,
+            &[],
+            false,
+            Duration::from_secs(4),
+        );
+        let actual = run(
+            probe_bin,
+            &[],
+            &json!({"helper":cli,"home":h.0,"command":command}),
+        );
+        assert_eq!(actual["noChildren"], true);
+        assert_eq!(actual["result"]["response"], expected);
+    }
+}
+#[test]
+fn old_versions_are_refused_before_command_sideeffect() {
+    let h = OwnedDir::new();
+    let executable = env!("CARGO_BIN_EXE_script-probe");
+    for version in ["1", "2"] {
+        let marker = h.0.join(format!("old-helper-command-{version}"));
+        let command = json!({"id":"script.fixture","title":"Fixture","kind":"script","target":executable,"arguments":["capture-fixture","invalid"],"timeout":2});
+        let marker_text = marker.to_str().unwrap();
+        let result = run_env(
+            Path::new(env!("CARGO_BIN_EXE_supervision-probe")),
+            &[],
+            &json!({"helper":executable,"command":command,"home":h.0}),
+            &[
+                ("RUYCAST_TEST_OLD_SUPERVISOR_VERSION", version),
+                ("RUYCAST_TEST_OLD_SUPERVISOR_MARKER", marker_text),
+            ],
+            true,
+            Duration::from_secs(7),
+        );
+        assert_eq!(result["noChildren"], true);
+        assert!(result["result"]["error"]
+            .as_str()
+            .unwrap()
+            .contains("incompatible"));
+        assert!(!marker.exists());
+    }
 }
