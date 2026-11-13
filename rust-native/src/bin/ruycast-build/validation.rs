@@ -100,7 +100,8 @@ dashboard-export-process|c|test --manifest-path rust-native/Cargo.toml --feature
 settings-preferences-process|p|rust-native/tests/settings_preferences_process.py
 settings-keyboard-process|p|rust-native/tests/settings_keyboard_process.py
 clipboard-text-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_text_process --locked
-native-keyboard-process|p|rust-native/tests/native_keyboard_process.py
+native-keyboard-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyboard-host --locked
+native-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_keyboard_process --locked
 native-hid-process|p|rust-native/tests/native_hid_process.py
 native-keyword-process|p|rust-native/tests/native_keyword_process.py
 native-choice-process|p|rust-native/tests/native_choice_process.py
@@ -1822,7 +1823,13 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 120);
+        assert_eq!(steps.len(), 121);
+        let keyboard_sdk = steps.iter().position(|step|step.name=="native-keyboard-sdk-build").unwrap();
+        let keyboard_test = steps.iter().position(|step|step.name=="native-keyboard-process").unwrap();
+        assert!(keyboard_sdk < keyboard_test);
+        assert!(steps[keyboard_sdk].arguments.windows(2).any(|pair|pair==["--example","keyboard-host"]));
+        assert!(steps[keyboard_test].arguments.windows(2).any(|pair|pair==["--test","native_keyboard_process"]));
+        assert!(!steps[keyboard_test].arguments.iter().any(|arg|arg.ends_with(".py")));
         let caps_sdk = steps.iter().position(|step|step.name=="caps-sdk-build").unwrap();
         let caps_test = steps.iter().position(|step|step.name=="caps-process").unwrap();
         assert!(caps_sdk < caps_test);
