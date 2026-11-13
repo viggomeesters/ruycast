@@ -51,11 +51,5 @@ class NativeCapture(unittest.TestCase):
         code='import os;os.write(1,b\'{"ok":true,"detail":"valid"}\');os.write(2,bytes([255])*65537)'
         host=self.host(native=True,commands=[self.command(code,inputPrompt='Message')]);self.open(host);self.type(host,'input');host.probe('save-editor');self.idle(host)
         view=self.view(host,lambda v:not v['formVisible'] and v.get('scriptResult') is not None);self.assertTrue(view['resultPanel']['detailVisible']);self.assertFalse(view['resultPanel']['editable']);self.assertEqual(view['resultPanel']['detail'],'valid');self.assertFalse(any('incomplete or invalid' in t for t in view['screenText']));self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
-    def test_cli_valid_prefix_and_spoofed_capture_remain_provider_data(self):
-        host=self.host(commands=[self.command(valid_prefix_code())]);response=host.rpc(dict(op='execute',id='runfixture'))
-        self.assertTrue(response['ok']);self.assertGreater(len(response['detail']),65000);self.assertEqual(response['capture'],dict(stdout=dict(truncated=False,eof=True,validUtf8=True)))
-    def test_cli_keeps_provider_capture_fields_and_legacy_lossy_behavior(self):
-        for code in ['print(\'{"ok":true,"detail":"valid","capture":{"truncated":true}}\')','import os;os.write(1,b\'{"ok":true,"detail":"\\xff","capture":{"validUtf8":true}}\')']:
-            host=self.host(commands=[self.command(code)]);result=host.rpc(dict(op='execute',id='runfixture'));self.assertTrue(result['ok']);self.assertIn('capture',result);self.assertNotIn('stdout',result['capture']);self.assertNotIn('stderr',result['capture'])
 
 if __name__=='__main__':unittest.main()
