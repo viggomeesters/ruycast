@@ -203,6 +203,8 @@ Only execution fields deliberately changed in the own published Edit receipt bec
 
 `tests/actions_process.rs` runs the sixteen original native Actions scenarios against owned hidden hosts, including alias and hotkey editing, conflicts, cancellation, undo and captures. `tests/actions_process.py` retains only fixture methods still borrowed by other Python suites; those methods remain visible until their callers migrate.
 
+`tests/creation_process.rs` uses the same owned Actions fixtures for the thirteen creation scenarios, including draft validation, external edits, pending-prefill cancellation and bounded shutdown.
+
 `tests/settings_keyboard_process.rs` covers the two General Settings recorder scenarios on the same owned SDK. It emits the separate `GeneralKeyboard` source/artifact binding; the native keyboard suite continues to emit `NativeKeyboard`.
 
 `tests/settings_preferences_process.rs` covers the four General, Advanced and menu bar preference scenarios with hidden Settings probes, owned profiles, fake folder dialogs and their nine existing captures.
