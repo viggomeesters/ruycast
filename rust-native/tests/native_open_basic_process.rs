@@ -383,6 +383,61 @@ fn template_form(h: &Bridge) {
     template_fields(h, |v| !v["fields"].is_null());
 }
 #[test]
+fn multi_field_text_and_lazy_choice_open_exact_rendered_url() {
+    let h = host(command("url", "https://example.invalid/{first name=\"Message\"}/{second name=\"Country\" options=\"One,Two\"}"));
+    let before = fs::read(&h.config).unwrap();
+    show(&h, "nativeopen");
+    key(&h, 36, 0, "\r", false);
+    let v = template_fields(&h, |v| v["fields"] == 2);
+    assert_eq!(v["values"], json!(["", ""]));
+    h.probe("template-type", json!({"index":0,"text":"a&b Ω"}));
+    h.probe("template-choose", json!({"index":1,"selected":1}));
+    assert_eq!(
+        template_fields(&h, |_| true)["values"],
+        json!(["a&b Ω", "Two"])
+    );
+    capture(&h, "template-basic");
+    assert!(probe(&h, "read")["accessibilityText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("Message")));
+    assert!(probe(&h, "read")["accessibilityText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("Country")));
+    probe(&h, "save-editor");
+    done(&h);
+    assert_eq!(fs::read(&h.config).unwrap(), before);
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+    let results = opens(&h);
+    let url = results[0]["url"].as_str().unwrap();
+    assert!(url.contains("a%26b"));
+    assert!(url.contains("Two"));
+}
+#[test]
+fn actual_undo_then_run_uses_current_field_editor_and_no_secret_logs() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a name=\"Text\"}/{b name=\"Other\" default=\"fixed\"}",
+    ));
+    template_form(&h);
+    h.probe("template-type", json!({"index":0,"text":"PRIVATE-first"}));
+    h.settled(|_| true);
+    h.probe("template-type", json!({"index":0,"text":"PRIVATE-second"}));
+    h.settled(|_| true);
+    key(&h, 6, CMD, "z", false);
+    h.settled(|_| true);
+    capture(&h, "template-undo");
+    probe(&h, "save-editor");
+    done(&h);
+    let target = unquote(opens(&h)[0]["url"].as_str().unwrap());
+    assert!(target.contains("PRIVATE-first"));
+    assert!(!target.contains("PRIVATE-second"));
+    let raw = serde_json::to_string(&h.rpc(&json!({"op":"logs"}))).unwrap();
+    assert!(!raw.contains("PRIVATE-first"));
+    assert!(!raw.contains("PRIVATE-second"));
+}
+#[test]
 fn old_callbacks_cannot_save_or_cancel_an_alias_editor() {
     let h = host(command("url", "https://example.invalid/{a}/{b}"));
     template_form(&h);
