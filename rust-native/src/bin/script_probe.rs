@@ -161,6 +161,9 @@ fn capture_fixture(args: &[String]) {
             std::io::stdout().write_all("€".as_bytes()).unwrap();
         }
         Some("invalid") => std::io::stdout().write_all(&[255]).unwrap(),
+        Some("spoof-truncated") => std::io::stdout()
+            .write_all(b"{\"ok\":true,\"detail\":\"valid\",\"capture\":{\"truncated\":true}}\n")
+            .unwrap(),
         Some("exit7") => std::process::exit(7),
         Some("spoof-prefix") => {
             let mut value = json!({"ok":true,"detail":"","capture":{"stdout":{"truncated":false,"eof":true,"validUtf8":true}}});
