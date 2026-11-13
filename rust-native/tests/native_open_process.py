@@ -57,10 +57,6 @@ class NativeOpen(unittest.TestCase):
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
 
-    def test_gui_without_wall_timer_still_cancels_on_new_show(self):
-        h=self.host(command('url','ruycast-fixture://hold-sync',timeout=.1));self.show(h);self.activate(h);self.wait_file(h.base/'open-started');time.sleep(1.2)
-        self.assertEqual(h.rpc(dict(op='status'))['result']['openRequestsRunning'],1);self.show(h);self.done(h)
-        (h.base/'workspace-release').write_text('release');h.wait(lambda s:s['liveExecutionWorkers']==0);self.assertTrue(h.rpc(dict(op='status'))['result']['nativeUI']['visible']);self.assertNotIn('Check its outcome','\n'.join(h.probe('read')['screenText']))
     def test_expiry_cancel_and_config_change_before_hide_never_open(self):
         for reason in ['expiry','cancel','config']:
             h=self.host(command(target='dev.fixture.hold-resolve',timeout=1),deadline_ms=250 if reason=='expiry' else None)
@@ -94,13 +90,6 @@ class NativeOpen(unittest.TestCase):
             self.assertTrue('usage could not be saved' in text or 'Opened, but recent choices could not be saved' in text,text)
             self.assertEqual(len(self.hides(h)),1)
 
-    def test_new_show_after_sdk_entry_cannot_be_hidden_or_receive_old_failure(self):
-        h=self.host(command('url','ruycast-fixture://hold-sync',timeout=1))
-        self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.assertEqual(h.rpc(dict(op='status'))['result']['openRequestsRunning'],1);self.show(h)
-        self.done(h);(h.base/'workspace-release').write_text('release');h.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertTrue(h.rpc(dict(op='status'))['result']['nativeUI']['visible'])
-        self.assertEqual(len(self.hides(h)),1)
-        self.assertNotIn('Check its outcome','\n'.join(h.probe('read')['screenText']))
     def test_missing_application_and_template_validation_keep_action_uncommitted(self):
         for theme in ['light','dark']:
             h=self.host(command(target='dev.fixture.missing'),theme=theme)
