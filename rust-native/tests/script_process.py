@@ -137,26 +137,6 @@ class Scripts(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):
             os.kill(leader, 0)
 
-    def test_interrupted_read_recovers(self):
-        self.assertTrue(self.run_probe(self.command(['hello'], '/bin/echo'), fault='read-eintr')['response']['ok'])
-        self.assert_trace('FAULTREAD')
-
-    def test_interrupted_wait_recovers(self):
-        self.assertTrue(self.run_probe(self.command(['hello'], '/bin/echo'), fault='wait-eintr')['response']['ok'])
-        self.assert_trace('FAULTWAIT')
-
-    def test_live_group_permission_error_is_not_success(self):
-        result = self.run_probe(self.command(['10'], '/bin/sleep', timeout=.1), fault='kill-eperm')
-        self.assertFalse(result['ok'])
-        self.assert_trace('FAULTKILL')
-
-    def test_group_inventory_failure_is_not_success(self):
-        for mode, marker in [('list-error', 'FAULTLIST'), ('list-truncated', 'FAULTLIST'), ('info-error', 'FAULTINFO')]:
-            self.trace_path = self.home / 'syscalls.trace'
-            self.trace_path.unlink(missing_ok=True)
-            result = self.run_probe(self.command(['hello'], '/bin/echo'), fault=mode)
-            self.assertFalse(result['ok'])
-            self.assert_trace(marker)
 
 
 if __name__ == '__main__':

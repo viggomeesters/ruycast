@@ -35,6 +35,9 @@ impl Drop for OwnedDir {
     }
 }
 fn run_fault(home: &Path, mode: &str, marker: &str) {
+    run_fault_with(home, mode, marker, false, false);
+}
+fn run_fault_with(home: &Path, mode: &str, marker: &str, echo: bool, success: bool) {
     let probe = Path::new(env!("CARGO_BIN_EXE_script-probe"));
     let shim = std::env::var_os("RUYCAST_TEST_SCRIPT_FAULT_SHIM")
         .map(PathBuf::from)
@@ -49,7 +52,11 @@ fn run_fault(home: &Path, mode: &str, marker: &str) {
         "build script-fault-shim first"
     );
     let trace = home.join("syscalls.trace");
-    let request = json!({"home":home,"command":{"id":"script.fixture","title":"Script fixture","kind":"script","target":"/bin/sleep","arguments":["10"]}});
+    let mut command = json!({"id":"script.fixture","title":"Script fixture","kind":"script","target":if echo {"/bin/echo"} else {"/bin/sleep"},"arguments":[if echo {"hello"} else {"10"}]});
+    if mode == "kill-eperm" {
+        command["timeout"] = json!(0.1);
+    }
+    let request = json!({"home":home,"command":command});
     let mut c = Command::new(probe);
     c.stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -81,7 +88,11 @@ fn run_fault(home: &Path, mode: &str, marker: &str) {
     );
     let v: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(v["noChildren"], true);
-    assert_eq!(v["result"]["ok"], false);
+    if success {
+        assert_eq!(v["result"]["response"]["ok"], true);
+    } else {
+        assert_eq!(v["result"]["ok"], false);
+    }
     let text = fs::read_to_string(trace).unwrap();
     let lines: Vec<Vec<&str>> = text
         .lines()
@@ -142,4 +153,34 @@ fn read_failure_reaps() {
 fn wait_failure_reaps() {
     let h = OwnedDir::new();
     run_fault(&h.0, "wait-error", "FAULTWAIT");
+}
+#[test]
+fn interrupted_read_recovers() {
+    let h = OwnedDir::new();
+    run_fault_with(&h.0, "read-eintr", "FAULTREAD", true, true);
+}
+#[test]
+fn interrupted_wait_recovers() {
+    let h = OwnedDir::new();
+    run_fault_with(&h.0, "wait-eintr", "FAULTWAIT", true, true);
+}
+#[test]
+fn live_group_permission_error_is_not_success() {
+    let h = OwnedDir::new();
+    run_fault_with(&h.0, "kill-eperm", "FAULTKILL", false, false);
+}
+#[test]
+fn group_inventory_failure_is_not_success() {
+    let h = OwnedDir::new();
+    for (mode, marker) in [
+        ("list-error", "FAULTLIST"),
+        ("list-truncated", "FAULTLIST"),
+        ("info-error", "FAULTINFO"),
+    ] {
+        let trace = h.0.join("syscalls.trace");
+        if trace.exists() {
+            fs::remove_file(trace).unwrap();
+        }
+        run_fault_with(&h.0, mode, marker, true, false);
+    }
 }
