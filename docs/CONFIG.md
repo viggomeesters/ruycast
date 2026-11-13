@@ -30,7 +30,7 @@ The shipped version-1 example is `config/default.json`. Unknown fields, invalid 
 | `clipboard.excludedApps` | Bundle IDs excluded while in the foreground; concealed/transient items and uncertain app-switch intervals are also skipped |
 | `commands` | Ordered command array; usage ranks the empty query, exact aliases rank first for typed searches |
 
-### Auto Quit configuration preparation
+### Auto Quit preferences
 
 The optional `autoQuit` object stores preferences by application bundle identifier,
 independently of launcher command IDs. Missing applications and omitted `enabled`
@@ -45,9 +45,18 @@ that differ only by case cannot appear together.
 }
 ```
 
-This is configuration preparation for [#138](https://github.com/viggomeesters/ruycast/issues/138).
-There is no settings control or timer yet, and enabling this field does not quit
-applications. Preferences use the existing configuration validation and writer.
+Open an application's **Edit** form from its Actions menu in the launcher or
+Settings → Applications. Set **Auto Quit** and **Quit after (minutes)**, then save.
+An application without a saved preference starts disabled with a proposed
+30-minute duration. Disabling retains the saved duration; Cancel discards edits.
+Changes to an application's identity require saving and reopening before its
+Auto Quit preference can be changed. Concurrent changes to the same preference
+report a conflict instead of replacing the other change.
+
+The timer is not connected yet, so enabling this preference does not quit
+applications. The editor states this explicitly until the timer and safety
+steps of [#89](https://github.com/viggomeesters/ruycast/issues/89) are implemented.
+Preferences use the existing configuration validation and writer.
 
 A command requires `id`, `title`, `kind` and `target`; optional `aliases`, `arguments`, `hotkey` and `timeout` customize it.
 

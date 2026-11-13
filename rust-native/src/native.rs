@@ -4861,6 +4861,12 @@ fn native_probe(
                                 NSControlStateValueOn
                             })
                     }
+                    "autoQuit" => {
+                        let button = &state.surface.command.auto_quit;
+                        if (button.state() == NSControlStateValueOn) != (request["value"] == true) {
+                            unsafe { button.performClick(None); }
+                        }
+                    }
                     _ => {
                         let fields = state.surface.command.fields.borrow();
                         let field = fields
