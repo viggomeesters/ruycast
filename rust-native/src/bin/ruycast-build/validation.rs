@@ -141,7 +141,7 @@ utility-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 applications-process|p|rust-native/tests/applications_process.py
 actions-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test actions_process --locked
 editor-process|p|rust-native/tests/editor_process.py
-creation-process|p|rust-native/tests/creation_process.py
+creation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test creation_process --locked
 library-process|p|rust-native/tests/library_process.py
 inline-process|p|rust-native/tests/inline_process.py
 inline-input-process|p|rust-native/tests/inline_input_process.py
@@ -1938,6 +1938,9 @@ mod tests {
         let actions = steps.iter().find(|step|step.name=="actions-process").unwrap();
         assert!(actions.arguments.windows(2).any(|pair|pair==["--test","actions_process"]));
         assert!(!actions.arguments.iter().any(|arg|arg.ends_with(".py")));
+        let creation = steps.iter().find(|step|step.name=="creation-process").unwrap();
+        assert!(creation.arguments.windows(2).any(|pair|pair==["--test","creation_process"]));
+        assert!(!creation.arguments.iter().any(|arg|arg.ends_with(".py")));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())
