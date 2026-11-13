@@ -13,6 +13,12 @@ fn main() {
                     std::process::exit(7);
                 }
                 "signal" => unsafe { libc::raise(libc::SIGTERM); },
+                "stdin-eof" => {
+                    use std::io::Read;
+                    let mut byte = [0];
+                    let count = std::io::stdin().read(&mut byte).unwrap();
+                    print!("{}", if count == 0 { 1 } else { 0 });
+                }
                 "bounded" | "flood" => {
                     let mut count = 0;
                     loop {

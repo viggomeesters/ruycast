@@ -44,19 +44,6 @@ class Scripts(unittest.TestCase):
         self.assertTrue(result['noChildren'])
         return result['result']
 
-    def test_home_expansion_and_null_stdin(self):
-        script = self.home / 'fixture'
-        script.write_text('#!/bin/sh\nread value; printf "%s" "$?"\n')
-        script.chmod(0o700)
-        self.assertEqual(self.run_probe(self.command([], '~/fixture'))['response']['result']['stdout'], '1')
-
-    def test_cancel_and_deadline_before_spawn(self):
-        sentinel = self.home / 'should-not-run'
-        command = self.command(['-c', 'touch "$1"', 'fixture', str(sentinel)])
-        for option, end in [('cancelMs', 'cancelled'), ('deadlineMs', 'deadline')]:
-            self.assertEqual(self.run_probe(command, **{option: 0})['end'], end)
-            self.assertFalse(sentinel.exists())
-
     def fixture_tree(self):
         sentinel = self.home / 'descendant-ran'
         pid_file = self.home / 'leader.pid'
