@@ -1,4 +1,4 @@
-//! Twelve original source-driven native bridge cases on prohibited/offscreen profiles.
+//! Native bridge and normal-host refusal cases on prohibited/offscreen profiles.
 #![cfg(feature = "test-tools")]
 #[path = "support/native_bridge.rs"]
 mod native_bridge;
@@ -57,7 +57,7 @@ fn receipt(settings: &Config) {
         .into_iter()
         .map(|(label, path)| runtime_host::bind_artifact(path, label))
         .collect::<BTreeMap<_, _>>();
-        fs::write(PathBuf::from(directory).join("bridge-reference-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"suiteMethods":12,"hostArguments":["--native-hidden"],"normalHostPurpose":"normal-feature refusal only; matrix retains verified normalHostInputs release-role binding","scope":"Owned prohibited/offscreen AppKit profiles and panel renders; deliberately visible own fixture remains offscreen and never key/main; no desktop input, global registration or applied real opens"})).unwrap()).unwrap();
+        fs::write(PathBuf::from(directory).join("bridge-reference-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"suiteMethods":13,"hostArguments":["--native-hidden","--headless-test"],"normalHostPurpose":"normal-feature refusal only; matrix retains verified normalHostInputs release-role binding","scope":"Owned prohibited/offscreen AppKit profiles and panel renders; deliberately visible own fixture remains offscreen and never key/main; no desktop input, global registration or applied real opens"})).unwrap()).unwrap();
     }
 }
 fn bridge(start: bool) -> Bridge {
@@ -130,6 +130,17 @@ fn normal_binary_refuses_hidden_test_runtime() {
     let normal = normal_host();
     let output = runtime_host::run(
         host.command(&normal).arg("--native-hidden"),
+        Duration::from_secs(4),
+    );
+    assert!(!output.status.success());
+    assert!(!host.socket().exists());
+}
+#[test]
+fn normal_binary_refuses_headless_fixture_flag() {
+    let host = bridge(false);
+    let normal = normal_host();
+    let output = runtime_host::run(
+        host.command(&normal).arg("--headless-test"),
         Duration::from_secs(4),
     );
     assert!(!output.status.success());

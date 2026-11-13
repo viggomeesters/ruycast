@@ -40,8 +40,6 @@ class Applications(unittest.TestCase):
             (target/(name+'.png')).write_bytes((host.profile/'native-probe.png').read_bytes())
             (target/(name+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2))
         return value
-    def test_normal_host_refuses_headless_fixture_flag(self):
-        host=self.host();normal=rt.ROOT/'target/debug/ruycast-native';p=subprocess.run([str(normal),'--headless-test'],env=host.env,capture_output=True,text=True,timeout=4);self.assertNotEqual(p.returncode,0);self.assertFalse((host.profile/'control.sock').exists())
 
 
 if __name__=='__main__':unittest.main(verbosity=2)
