@@ -15,6 +15,41 @@ use actions::{
 use capture_holder::Holder;
 use serde_json::{json, Value};
 use std::fs;
+#[test]
+fn late_discovery_preserves_real_input_text_token_and_undo() {
+    use std::time::{Duration, Instant};
+    let mut h = Bridge::new(Config::current(), false);
+    h.env
+        .insert("RUYCAST_NATIVE_TEST_APP_BARRIER".into(), "1".into());
+    let contents = h.applications.join("App.app/Contents");
+    fs::create_dir_all(&contents).unwrap();
+    fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.late</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleName</key><string>Fixture Late</string></dict></plist>").unwrap();
+    let mut cfg = default_config();
+    cfg["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Input Fixture","kind":"script","target":"/usr/bin/true","aliases":["runfixture"],"inputPrompt":"Message"}));
+    fs::write(&h.config, serde_json::to_vec(&cfg).unwrap()).unwrap();
+    h.start();
+    let marker = h.base.join("app-discovery-ready");
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !marker.exists() {
+        assert!(Instant::now() < deadline, "discovery barrier missing");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let token = open(&h)["editorToken"].clone();
+    type_text(&h, "PRIVATE own input");
+    assert_eq!(probe(&h, "run-input-read")["canUndo"], true);
+    fs::write(h.base.join("app-discovery-release"), "go").unwrap();
+    h.wait(|s| s["appDiscoveryPending"] == false);
+    h.settled(|_| true);
+    assert_eq!(probe(&h, "read")["editorToken"], token);
+    assert_eq!(probe(&h, "run-input-read")["text"], "PRIVATE own input");
+    assert_eq!(probe(&h, "run-input-read")["canUndo"], true);
+    type_text(&h, " retained");
+    assert_eq!(
+        probe(&h, "run-input-read")["text"],
+        "PRIVATE own input retained"
+    );
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
 fn host(args: Value) -> Bridge {
     let mut h = Bridge::new(Config::current(), false);
     let mut cfg = default_config();
