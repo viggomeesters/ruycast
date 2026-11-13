@@ -140,7 +140,6 @@ interaction-trace-process|c|run --manifest-path rust-native/Cargo.toml --feature
 clipboard-pause-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_pause_repair --locked -- real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume --exact
 task-date-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --task-date-only
 utility-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test utility_process --locked
-applications-process|p|rust-native/tests/applications_process.py
 applications-discovery-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test applications_discovery_process --locked
 actions-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test actions_process --locked
 editor-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test editor_process --locked
@@ -1092,7 +1091,7 @@ fn check_host_sdk_sources(root: &Path, binding: &serde_json::Value) -> Result<()
 }
 const NORMAL_HOST_ALIAS: &str = "rust-native/target/debug/ruycast-native";
 fn normal_host_negative(entry: &Step) -> bool {
-    matches!(entry.name.as_str(), "bridge-process" | "applications-process")
+    matches!(entry.name.as_str(), "bridge-process")
 }
 fn normal_host_inputs(root: &Path, receipt: &Receipt) -> Result<serde_json::Value> {
     if receipt.configuration != "release" {
@@ -1221,7 +1220,7 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
         );
     }
     for step in actual {
-        if matches!(step["name"].as_str(), Some("bridge-process" | "applications-process")) {
+        if matches!(step["name"].as_str(), Some("bridge-process")) {
             check_normal_host_inputs(root, &receipt, &step["normalHostInputs"])?;
         }
         if step["name"] == "system-search-sdk" {
@@ -1871,14 +1870,14 @@ mod tests {
         assert!(prepare_normal_host(&fixture.0, &receipt, &mut copies).is_err());
         let selected = matrix("aarch64-apple-darwin").unwrap().into_iter()
             .filter(normal_host_negative).map(|entry|entry.name).collect::<Vec<_>>();
-        assert_eq!(selected, ["bridge-process", "applications-process"]);
+        assert_eq!(selected, ["bridge-process"]);
     }
     #[test]
     fn complete_ordered_matrix_keeps_all_oracles_and_explicit_targets() {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 135);
+        assert_eq!(steps.len(), 134);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
