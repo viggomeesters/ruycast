@@ -295,6 +295,88 @@ fn template_key(h: &Bridge, code: u32, chars: &str) {
     key(h, code, 0, chars, false);
     h.settled(|_| true);
 }
+fn template_key_flags(h: &Bridge, code: u32, chars: &str, flags: u64) {
+    key(h, code, flags, chars, false);
+    h.settled(|_| true);
+}
+fn unquote(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            if let (Some(a), Some(b)) = (
+                (bytes[index + 1] as char).to_digit(16),
+                (bytes[index + 2] as char).to_digit(16),
+            ) {
+                decoded.push((a * 16 + b) as u8);
+                index += 3;
+                continue;
+            }
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&decoded).into_owned()
+}
+fn opens(h: &Bridge) -> Vec<Value> {
+    rows(&h.base.join("workspace-trace.jsonl"))
+        .into_iter()
+        .filter(|r| r["phase"].as_str().unwrap().starts_with("open-"))
+        .collect()
+}
+#[test]
+fn real_tab_and_backtab_cross_readonly_choice_without_focus_forcing() {
+    let h = host(command("url", "https://example.invalid/{a default=\"A\"}/{b default=\"One\" options=\"One,Two\"}/{c default=\"C\"}"));
+    template_form(&h);
+    h.probe("template-type", json!({"index":0,"text":"First"}));
+    template_key(&h, 48, "\t");
+    template_key(&h, 48, "\t");
+    template_key(&h, 7, "x");
+    assert_eq!(
+        template_fields(&h, |_| true)["values"],
+        json!(["First", "One", "x"])
+    );
+    template_key_flags(&h, 48, "\u{19}", 1 << 17);
+    template_key_flags(&h, 48, "\u{19}", 1 << 17);
+    template_key(&h, 12, "q");
+    assert_eq!(
+        template_fields(&h, |_| true)["values"],
+        json!(["q", "One", "x"])
+    );
+    template_key(&h, 36, "\r");
+    done(&h);
+    assert_eq!(
+        unquote(opens(&h)[0]["url"].as_str().unwrap()),
+        "https://example.invalid/q/One/x"
+    );
+}
+#[test]
+fn actual_local_option_mouse_click_commits_once_and_restores_form() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a default=\"A\"}/{b default=\"One\" options=\"One,Two\"}",
+    ));
+    template_form(&h);
+    template_key(&h, 48, "\t");
+    template_key(&h, 49, " ");
+    h.probe("template-choice", json!({"command":"click","index":1}));
+    h.settled(|_| true);
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["open"], false);
+    assert_eq!(v["values"], json!(["A", "Two"]));
+    assert_eq!(v["fieldsAXHidden"], false);
+    assert_eq!(probe(&h, "read")["saveEnabled"], true);
+    assert!(opens(&h).is_empty());
+    template_key_flags(&h, 36, "\r", CMD);
+    done(&h);
+    let result = opens(&h);
+    assert_eq!(result.len(), 1);
+    assert_eq!(
+        unquote(result[0]["url"].as_str().unwrap()),
+        "https://example.invalid/A/Two"
+    );
+}
 fn template_form(h: &Bridge) {
     show(h, "nativeopen");
     key(h, 36, 0, "\r", false);
