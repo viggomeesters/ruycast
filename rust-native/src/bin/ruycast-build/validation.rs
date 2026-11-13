@@ -149,7 +149,7 @@ library-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 library-checkbox-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_checkbox_process --locked
 library-drafts-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_drafts_process --locked
 library-navigation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_navigation_process --locked
-inline-process|p|rust-native/tests/inline_process.py
+inline-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_sync_process --locked
 inline-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_basic_process --locked
 inline-composition-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_composition_process --locked
 inline-transition-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test inline_transition_process --locked
@@ -1941,6 +1941,9 @@ mod tests {
         assert!(steps[foundation_test].arguments.windows(2).any(|pair|pair==["--test","foundation_process"]));
         assert!(!steps[foundation_test].arguments.iter().any(|arg|arg.ends_with(".py")));
         assert!(runtime_sdk < runtime_test);
+        let inline_sync = steps.iter().position(|step|step.name=="inline-process").unwrap();
+        assert!(runtime_sdk < inline_sync);
+        assert!(steps[inline_sync].arguments.windows(2).any(|pair|pair==["--test","inline_sync_process"]));
         assert!(steps[runtime_sdk].arguments.windows(2).any(|pair|pair==["--example","fcntl-sync-shim"]));
         assert!(steps[runtime_test].arguments.windows(2).any(|pair|pair==["--test","runtime_process"]));
         assert!(!steps[runtime_test].arguments.iter().any(|arg|arg.ends_with(".py")));

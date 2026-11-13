@@ -367,11 +367,11 @@ rust-native/tests/hid_rust_provider.rs
 rust-native/tests/hid_state_process.rs
 rust-native/tests/hid_state_reference.json
 rust-native/tests/inline_input_process.py
-rust-native/tests/inline_process.py
 rust-native/tests/inline_basic_process.rs
 rust-native/tests/inline_composition_process.rs
 rust-native/tests/inline_transition_process.rs
 rust-native/tests/inline_focus_process.rs
+rust-native/tests/inline_sync_process.rs
 rust-native/tests/input_actions_process.py
 rust-native/tests/input_process.py
 rust-native/tests/keyboard_process.py
