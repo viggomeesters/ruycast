@@ -28,6 +28,15 @@ fn host_with_apps(
     discovered: bool,
     clipboard: Option<&str>,
 ) -> Bridge {
+    host_with_deadline(command, picker, discovered, clipboard, None)
+}
+fn host_with_deadline(
+    command: Value,
+    picker: bool,
+    discovered: bool,
+    clipboard: Option<&str>,
+    deadline_ms: Option<u32>,
+) -> Bridge {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
         .map(std::path::PathBuf::from)
@@ -40,6 +49,12 @@ fn host_with_apps(
         });
     assert!(shim.is_absolute() && shim.is_file());
     let mut h = Bridge::new(settings, false);
+    if let Some(deadline) = deadline_ms {
+        h.env.insert(
+            "RUYCAST_NATIVE_TEST_OPEN_DEADLINE_MS".into(),
+            deadline.to_string().into(),
+        );
+    }
     if picker {
         let contents = h.applications.join("Picker.app/Contents");
         fs::create_dir_all(&contents).unwrap();
@@ -79,6 +94,45 @@ fn host_with_apps(
     h.env
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
     h
+}
+#[test]
+fn expiry_cancel_and_config_change_before_hide_never_open() {
+    for reason in ["expiry", "cancel", "config"] {
+        let mut cmd = command("app", "dev.fixture.hold-resolve");
+        cmd["timeout"] = json!(1);
+        let h = host_with_deadline(
+            cmd,
+            false,
+            false,
+            None,
+            if reason == "expiry" { Some(250) } else { None },
+        );
+        let gate = Release(h.base.join("workspace-release"));
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        let marker = h.base.join("resolve-entered");
+        let end = Instant::now() + Duration::from_secs(4);
+        while !marker.exists() {
+            assert!(Instant::now() < end, "own fixture did not enter resolve");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if reason == "cancel" {
+            key(&h, 53, 0, "", false);
+        } else if reason == "config" {
+            let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+            cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+                json!("dev.fixture.changed");
+            h.replace(&cfg, None);
+            h.cli(&["reload"]);
+        }
+        h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+        fs::write(&gate.0, "release").unwrap();
+        h.wait(|s| s["liveExecutionWorkers"] == 0);
+        assert!(rows(&h.base.join("workspace-trace.jsonl"))
+            .iter()
+            .all(|r| !r["phase"].as_str().unwrap().starts_with("open-")));
+        assert!(rows(&h.profile.join("native-hide.jsonl")).is_empty());
+    }
 }
 #[test]
 fn native_picker_save_then_run_uses_selected_bundle_with_exact_hide() {
