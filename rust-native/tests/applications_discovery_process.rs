@@ -203,3 +203,50 @@ fn saved_id_collision_never_publishes_two_rows() {
         vec![json!("Fixture Saved")]
     );
 }
+
+#[test]
+fn nested_app_symlink_outside_home_is_not_followed() {
+    use std::os::unix::fs::symlink;
+    let mut host = Host::new(Config::current(), false);
+    let other = Host::new(Config::current(), false);
+    bundle(
+        &other.applications,
+        "PrivateExternal",
+        Some("dev.fixture.external"),
+        None,
+        Some("Fixture External"),
+    );
+    symlink(
+        other.applications.join("PrivateExternal.app"),
+        host.applications.join("Link.app"),
+    )
+    .unwrap();
+    host.start();
+    assert_eq!(ready(&host)["discoveredApps"], 0);
+    assert!(search(&host, "Fixture").is_empty());
+}
+
+#[test]
+fn malformed_metadata_types_do_not_abort_worker() {
+    let mut host = Host::new(Config::current(), false);
+    for (name, value) in [
+        ("NumberID", "<dict><key>CFBundleIdentifier</key><integer>12</integer></dict>"),
+        ("ArrayRoot", "<array/>"),
+        ("WrongLabel", "<dict><key>CFBundleIdentifier</key><string>dev.fixture.wronglabel</string><key>CFBundleDisplayName</key><array><string>wrong</string></array><key>CFBundleName</key><string>Fixture fallback</string></dict>"),
+    ] {
+        let contents = host.applications.join(format!("{name}.app/Contents"));
+        fs::create_dir_all(&contents).unwrap();
+        fs::write(contents.join("Info.plist"), format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\">{value}</plist>")).unwrap();
+    }
+    host.start();
+    let status = ready(&host);
+    assert!(status["appDiscoveryError"].is_null());
+    assert_eq!(status["discoveredApps"], 1);
+    assert_eq!(
+        search(&host, "Fixture")
+            .iter()
+            .map(|c| c["title"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("Fixture fallback")]
+    );
+}
