@@ -434,7 +434,22 @@ const SETTINGS: &[SettingsGate] = &[
         "actions_process::alias_native_composition_does_not_save_or_cancel", "actions_process::remove_confirmation_cancel_then_commit_and_disable",
         "actions_process::visible_selection_is_bound_and_unseen_selection_is_refused", "actions_process::busy_config_lock_keeps_draft_and_retries",
         "actions_process::queued_save_cancel_and_hide_prevent_dispatch_and_zombie_editor", "actions_process::queued_menu_return_cancel_does_not_open_editor",
-        "actions_process::forms_and_actions_render_with_long_titles_in_light_and_dark", "native_keyboard_process.NativeKeyboard",
+        "actions_process::forms_and_actions_render_with_long_titles_in_light_and_dark",
+        "native_keyboard_process::native_callback_toggles_launcher_and_two_queued_presses_preserve_toggle_order",
+        "native_keyboard_process::item_callback_uses_exact_command_not_selected_row_and_logs_hotkey_without_showing_palette",
+        "native_keyboard_process::hotkey_snippet_failure_keeps_exact_analytics_source_before_missing_sdk_refusal",
+        "native_keyboard_process::reload_retires_old_ids_and_disabled_bindings",
+        "native_keyboard_process::actual_recording_waits_for_physical_unregistration_and_restores_accepted_plan",
+        "native_keyboard_process::two_window_recorders_do_not_resume_on_other_window_cancel",
+        "native_keyboard_process::headless_hidden_does_not_enable_keyboard_without_explicit_optin",
+        "native_keyboard_process::missing_owned_sdk_stamp_fails_before_any_global_target_or_handler",
+        "native_keyboard_process::positive_held_main_registration_keeps_owner_responsive_and_profile_locked_until_retirement",
+        "native_keyboard_process::launcher_from_hotkey_report_returns_to_commands_before_toggle_hides",
+        "native_keyboard_process::failed_registration_does_not_publish_editor_save_and_old_routes_survive",
+        "native_keyboard_process::pending_recorder_consumes_save_keys_and_cancels_during_positive_physical_hold",
+        "native_keyboard_process::callback_during_commit_before_main_ack_is_deferred_until_exact_store_adoption",
+        "native_keyboard_process::recorder_begin_reenters_registration_blocks_immediately_and_retires_new_handle",
+        "native_keyboard_process::current_native_copy_and_recorder_error_renders_in_both_themes",
         "snippet_process::plain_unknown_modes_and_complete_literal_text",
         "snippet_process::teams_paragraphs_html_breaks_and_safe_escaping",
         "snippet_process::links_balanced_parentheses_escape_labels_and_invalid_syntax",
@@ -476,7 +491,7 @@ const SETTINGS: &[SettingsGate] = &[
         "actions_process::hotkey_conflict_and_solo_modifiers",
         "actions_process::recorder_stops_on_window_app_resign_unfocus_hide_and_cancel",
         "input_actions_process.InputActions.test_alias_save_resumes_same_input_and_hotkey_recorder_save_does_too",
-        "native_keyboard_process.NativeKeyboard.test_pending_recorder_consumes_save_keys_and_cancels_during_positive_physical_hold",
+        "native_keyboard_process::pending_recorder_consumes_save_keys_and_cancels_during_positive_physical_hold",
         "ui_completion::item_binding_original",
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-browser-tabs", original_source:"Sources/RuycastApp/BrowserTabChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk"], native_cases:&[
@@ -746,7 +761,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_process.py", include_bytes!("../../../tests/library_process.py"), "983cfb56c04bdb7c825aa0cc554f9210e4ba678e6238a6487834f3e8e9d83d6a"),
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec"),
+            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "cba3fcc734084a204b89c585a1e0341e89c2b3508896e0eaf21660dddf1d62c7"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
@@ -768,6 +783,9 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
 
         "--check-actions-menu" => &[
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "13c9106738b5488b089e7ce5464d1a64117f1ee394e7d3b40d388916c68c2477"),
+            ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "e216089693c96dcc6989109e1336e8f790409e9424343b764293934a3454b188"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
@@ -790,7 +808,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_process.py", include_bytes!("../../../tests/library_process.py"), "983cfb56c04bdb7c825aa0cc554f9210e4ba678e6238a6487834f3e8e9d83d6a"),
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec"),
+            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "cba3fcc734084a204b89c585a1e0341e89c2b3508896e0eaf21660dddf1d62c7"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
@@ -816,7 +834,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_process.py", include_bytes!("../../../tests/library_process.py"), "983cfb56c04bdb7c825aa0cc554f9210e4ba678e6238a6487834f3e8e9d83d6a"),
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec"),
+            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/bridge_process.rs", include_bytes!("../../../tests/bridge_process.rs"), "8e000b88e3443d6035cbbf5485df2d4ef7e13a23c72e7fa0627918ed5d20d932"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
@@ -1070,13 +1088,16 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("Sources/RuycastApp/PerformancePipelineChecks.swift", include_bytes!("../../../../Sources/RuycastApp/PerformancePipelineChecks.swift"), "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659"),
         ],
         "--check-settings" => &[
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "13c9106738b5488b089e7ce5464d1a64117f1ee394e7d3b40d388916c68c2477"),
+            ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "e216089693c96dcc6989109e1336e8f790409e9424343b764293934a3454b188"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "42ac7a43f80aad7f46fca0ed4d10a9ca2838bb3418910695967a6760fc0b74ec"),
+            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "2b426ebe9c5b49d43de120859277f468c8285de16dc989b7179fc2de56a5862a"),
@@ -1553,6 +1574,27 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn settings_keyboard_crosswalk_uses_current_rust_suite_and_owned_sdk() {
+        use sha2::Digest;
+        let source = include_str!("../../../tests/native_keyboard_process.rs");
+        let gate = super::SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
+        let names = gate.native_cases.iter().filter_map(|name| name.strip_prefix("native_keyboard_process::")).collect::<Vec<_>>();
+        assert_eq!(names.len(), 15);
+        for name in names { assert!(source.contains(&format!("fn {name}()")), "{name}"); }
+        assert!(!gate.native_cases.iter().any(|name| name.starts_with("native_keyboard_process.")));
+        for id in ["--check-actions-menu", "--check-settings"] {
+            let entries = super::settings_sources(id);
+            for path in ["rust-native/tests/native_keyboard_process.py", "rust-native/tests/native_keyboard_process.rs", "rust-native/tests/support/native_keyboard.rs", "rust-native/src/bin/private_results_fixture.rs"] {
+                let matches = entries.iter().filter(|entry| entry.0 == path).collect::<Vec<_>>();
+                assert_eq!(matches.len(), 1, "{id}: {path}");
+                assert_eq!(format!("{:x}", sha2::Sha256::digest(matches[0].1)), matches[0].2);
+            }
+        }
+        let matrix = include_str!("validation.rs");
+        assert!(matrix.contains("native-keyboard-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyboard-host --locked"));
+        assert!(matrix.contains("native-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_keyboard_process --locked"));
+    }
     #[test]
     fn settings_actions_crosswalk_uses_current_rust_suite_and_helpers() {
         use sha2::Digest;
@@ -2076,7 +2118,7 @@ mod tests {
             ("input_actions_process.", "rust-native/tests/input_actions_process.py"),
             ("native_edit::", "rust-native/src/native_edit.rs"),
             ("native_snippet_choice_process.", "rust-native/tests/native_snippet_choice_process.py"),
-            ("native_keyboard_process.", "rust-native/tests/native_keyboard_process.py"),
+            ("native_keyboard_process::", "rust-native/tests/native_keyboard_process.rs"),
             ("bridge_process::", "rust-native/tests/bridge_process.rs"),
             ("inline_input_process.", "rust-native/tests/inline_input_process.py"),
             ("input_process.", "rust-native/tests/input_process.py"),
@@ -2089,7 +2131,7 @@ mod tests {
         for (id, count, input_count, complete) in [
             ("--check-polish", 10, 33, true),
             ("--check-feedback", 21, 39, true),
-            ("--check-actions-menu", 11, 27, true),
+            ("--check-actions-menu", 11, 30, true),
             ("--check-interactions", 16, 42, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();

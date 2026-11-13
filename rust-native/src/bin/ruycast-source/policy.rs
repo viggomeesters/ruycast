@@ -398,6 +398,7 @@ rust-native/tests/native_choice_process.py
 rust-native/tests/native_dashboard_process.py
 rust-native/tests/native_hid_process.py
 rust-native/tests/native_keyboard_process.py
+rust-native/tests/native_keyboard_process.rs
 rust-native/tests/native_keyword_process.py
 rust-native/tests/native_open_process.py
 rust-native/tests/native_process.py
@@ -504,6 +505,7 @@ rust-native/tests/support/status_rpc.rs
 rust-native/tests/support/runtime_host.rs
 rust-native/tests/support/native_bridge.rs
 rust-native/tests/support/native_actions.rs
+rust-native/tests/support/native_keyboard.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
 rust-native/tests/utility_reference.json
