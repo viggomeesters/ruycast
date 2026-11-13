@@ -3,6 +3,8 @@
 #[allow(dead_code)]
 #[path = "support/native_actions.rs"]
 mod actions;
+#[path = "support/capture_holder.rs"]
+mod capture_holder;
 use actions::{
     native_bridge::{
         runtime_host::{default_config, Config},
@@ -10,6 +12,7 @@ use actions::{
     },
     *,
 };
+use capture_holder::Holder;
 use serde_json::{json, Value};
 use std::fs;
 fn host(args: Value) -> Bridge {
@@ -100,4 +103,43 @@ fn stderr_loss_does_not_reject_otherwise_complete_stdout() {
     assert_eq!(v["resultPanel"]["detail"], "valid");
     assert!(!text_contains(&v, "incomplete or invalid"));
     assert_eq!(h.rpc(&json!({"op":"usage"}))["result"]["script.fixture"], 1);
+}
+
+#[test]
+fn native_requires_stdout_eof_but_not_stderr_eof() {
+    for held in ["stdout", "stderr", "both"] {
+        let h = host(json!(["capture-fixture", "invalid"]));
+        let mut holder = Holder::new(&h.base, held);
+        let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+        let command = cfg["commands"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|c| c["id"] == "script.fixture")
+            .unwrap();
+        command["arguments"] = json!(["capture-holder", "parent", held, h.base]);
+        h.replace(&cfg, None);
+        assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+        open(&h);
+        type_text(&h, "input");
+        probe(&h, "save-editor");
+        idle(&h);
+        if held == "stderr" {
+            let v = view(&h, |v| {
+                v["formVisible"] == false && !v["scriptResult"].is_null()
+            });
+            assert_eq!(v["resultPanel"]["detailVisible"], true);
+            assert_eq!(v["resultPanel"]["editable"], false);
+            assert_eq!(v["resultPanel"]["detail"], "prefix while pipe is open");
+            assert_eq!(h.rpc(&json!({"op":"usage"}))["result"]["script.fixture"], 1);
+        } else {
+            view(&h, |v| {
+                v["formVisible"] == false && text_contains(v, "incomplete or invalid")
+            });
+            assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
+        }
+        assert!(holder.ready.exists());
+        assert!(!holder.done.exists());
+        holder.release();
+    }
 }

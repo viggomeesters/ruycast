@@ -216,7 +216,7 @@ Only execution fields deliberately changed in the own published Edit receipt bec
 
 `tests/script_basic_process.rs` covers literal script arguments, home expansion, prelaunch cancellation, invalid requests, exit signals and bounded streams through the real probe and CLI. `tests/script_fault_process.rs` covers injected descriptor, read, wait, signal and process-inventory failures and actual process reaping. The Rust suites also cover process groups and inherited pipes.
 
-`tests/script_result_basic_process.rs` exercises CLI result interpretation with a Rust provider fixture and `tests/script_result_native_process.rs` covers native failure drafts; `tests/script_result_process.py` retains fixture helpers for Capture until its caller migrates.
+`tests/script_result_basic_process.rs` exercises CLI result interpretation with a Rust provider fixture and `tests/script_result_native_process.rs` covers native failure drafts.
 
 `script_result` decodes ordinary-script provider envelopes on the worker. A boolean `ok` plus a choices object or detail string identifies a first rich response; an originating choice job must explicitly retain its expected-envelope flag for an `ok`-only follow-up. Process failures override provider success, preserve failure details/extra fields, and inspect both successful nested stdout and failing top-level stdout. CLI responses preserve the provider envelope and process exit code. Plain output remains the ordinary runner response. Native presentation rejects invalid successful choices; the CLI preserves them as opaque provider data, matching the existing transport contract. A completed process with invalid presentation metadata is not silently offered as an unfinished effect. Post-effect usage errors preserve the actual provider payload instead of replacing it with a generic error.
 
@@ -225,7 +225,7 @@ Typed choices preserve provider order and existing canonically unique/nonempty I
 
 ## Trusted capture before provider interpretation
 
-`tests/capture_bytes_process.rs` checks byte limits, UTF-8, detached pipe holders, spoofed capture metadata and protocol refusals through the real supervisor; `tests/capture_cli_process.rs` checks opaque provider fields through the headless host, and `tests/capture_native_process.rs` checks incomplete-output warnings and preserved input. The remaining Python test covers native detached pipes.
+`tests/capture_bytes_process.rs` checks byte limits, UTF-8, detached pipe holders, spoofed capture metadata and protocol refusals through the real supervisor; `tests/capture_cli_process.rs` checks opaque provider fields through the headless host, and `tests/capture_native_process.rs` checks incomplete-output warnings and preserved input. The native suite also covers detached pipes.
 
 The shared core records actual raw-byte discard, retained-prefix UTF-8 validity and observed EOF independently for stdout/stderr. WouldBlock or the bounded read turn never proves EOF. Exact65,536-byte output is complete; reading another byte marks truncation. UTF-8 validity describes retained bytes before lossy conversion, including a cap that splits an otherwise valid codepoint. Completion.response() and legacy __run-script JSON remain unchanged.
 
