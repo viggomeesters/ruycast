@@ -805,6 +805,58 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
     #[test]
+    fn auto_quit_preferences_survive_save_reload_and_disabled_duration() {
+        let temp = Temp::new();
+        let mut store = ConfigStore::open(temp.paths()).unwrap();
+        assert!(store.current().auto_quit.is_empty());
+        let mut value: Value = serde_json::from_slice(store.snapshot()).unwrap();
+        value["autoQuit"] = serde_json::json!({
+            "test.synthetic.Editor": {"enabled": true, "minutes": 17},
+            "test.synthetic.Player": {"minutes": 30}
+        });
+        store.save(&value).unwrap();
+        let mut reopened = ConfigStore::open(temp.paths()).unwrap();
+        assert!(reopened.current().auto_quit["test.synthetic.Editor"].enabled);
+        assert!(!reopened.current().auto_quit["test.synthetic.Player"].enabled);
+        value["autoQuit"]["test.synthetic.Editor"]["enabled"] = false.into();
+        reopened.save(&value).unwrap();
+        let mut reopened = ConfigStore::open(temp.paths()).unwrap();
+        let preference = &reopened.current().auto_quit["test.synthetic.Editor"];
+        assert!(!preference.enabled);
+        assert_eq!(preference.minutes, 17);
+        assert_eq!(
+            reopened.current().auto_quit["test.synthetic.Player"].minutes,
+            30
+        );
+        let saved = reopened.snapshot().to_vec();
+        for duration in [
+            serde_json::json!(0),
+            serde_json::json!(-1),
+            serde_json::json!(1.5),
+            serde_json::json!("17"),
+            Value::Null,
+        ] {
+            value["autoQuit"]["test.synthetic.Editor"]["minutes"] = duration;
+            assert!(reopened.save(&value).is_err());
+            assert_eq!(reopened.snapshot(), saved);
+            assert_eq!(read_regular(&reopened.file).unwrap(), saved);
+        }
+        value["autoQuit"]["test.synthetic.Editor"]["minutes"] = 17.into();
+        for identity in [
+            "",
+            "test..Editor",
+            "test synthetic.Editor",
+            "/Applications/Editor.app",
+            "TEST.SYNTHETIC.EDITOR",
+        ] {
+            value["autoQuit"][identity] = serde_json::json!({"minutes": 10});
+            assert!(reopened.save(&value).is_err());
+            value["autoQuit"].as_object_mut().unwrap().remove(identity);
+        }
+        assert_eq!(read_regular(&reopened.file).unwrap(), saved);
+        assert!(rustcast_core::validate(&value).is_ok());
+    }
+    #[test]
     fn post_retention_snapshot_conflicts_refuse_reload_save_and_reconcile_commit() {
         struct ExternalWrite {
             file: PathBuf,

@@ -5,7 +5,7 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     ffi::{CStr, CString},
     os::raw::c_char,
 };
@@ -78,6 +78,13 @@ pub struct ClipboardSettings {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutoQuitSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    pub minutes: u32,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Config {
     pub version: u32,
     pub launcher_hotkey: String,
@@ -93,6 +100,10 @@ pub struct Config {
     pub theme: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub menu_bar_visible: Option<bool>,
+    /// Bundle identifier -> preference, independent of launcher command IDs.
+    /// Missing entries are disabled. This configuration alone never quits apps.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub auto_quit: BTreeMap<String, AutoQuitSettings>,
     pub commands: Vec<Command>,
 }
 pub fn default_config() -> Value {
@@ -181,6 +192,20 @@ pub fn validate(value: &Value) -> Result<Config, String> {
     let c: Config = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
     if c.version != 1 {
         return Err("Unsupported config version; expected 1.".into());
+    }
+    let mut auto_quit_apps = HashSet::new();
+    for (application, preference) in &c.auto_quit {
+        if application.split('.').any(|part| part.is_empty())
+            || !application
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b".-".contains(&byte))
+            || !auto_quit_apps.insert(application.to_ascii_lowercase())
+        {
+            return Err("Auto Quit requires unique application bundle identifiers (letters, digits, hyphens and periods).".into());
+        }
+        if preference.minutes == 0 {
+            return Err("Auto Quit minutes must be a positive whole number.".into());
+        }
     }
     if !(1..=1000).contains(&c.clipboard.limit)
         || !(1..=1_000_000).contains(&c.clipboard.max_text_bytes)
