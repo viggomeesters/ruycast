@@ -31,6 +31,10 @@ fn main() {
         run_tree(&args);
         return;
     }
+    if args.first().is_some_and(|arg| arg == "capture-holder") {
+        capture_holder(&args);
+        return;
+    }
     if args.first().is_some_and(|arg| arg == "capture-fixture") {
         capture_fixture(&args);
         return;
@@ -80,6 +84,61 @@ fn main() {
         json!({"result":result,"noChildren":clean,"childProbe":child,"childError":child_error,"elapsedMs":started.elapsed().as_millis()})
     );
     assert!(clean, "runner left an owned child");
+}
+
+#[allow(
+    clippy::zombie_processes,
+    reason = "the detached holder is released and verified by the owning test"
+)]
+fn capture_holder(args: &[String]) {
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+    assert_eq!(args.len(), 4);
+    let mode = &args[1];
+    let held = &args[2];
+    assert!(["stdout", "stderr", "both"].contains(&held.as_str()));
+    let base = std::path::Path::new(&args[3]);
+    let ready = base.join(format!("ready-{held}"));
+    let gate = base.join(format!("release-{held}"));
+    let done = base.join(format!("done-{held}"));
+    if mode == "child" {
+        std::fs::write(&ready, "ready").unwrap();
+        let deadline = Instant::now() + Duration::from_secs(4);
+        while !gate.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        unsafe {
+            libc::close(1);
+            libc::close(2);
+        }
+        std::fs::write(done, "closed").unwrap();
+        return;
+    }
+    assert_eq!(mode, "parent");
+    let mut child = Command::new(std::env::current_exe().unwrap());
+    child.args(["capture-holder", "child", held, &args[3]]);
+    if held == "stderr" {
+        child.stdout(Stdio::null());
+    }
+    if held == "stdout" {
+        child.stderr(Stdio::null());
+    }
+    unsafe {
+        child.pre_exec(|| {
+            if libc::setsid() < 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        });
+    }
+    child.spawn().unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !ready.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(ready.exists(), "detached holder did not become ready");
+    println!("{{\"ok\":true,\"detail\":\"prefix while pipe is open\",\"capture\":{{\"stdout\":{{\"eof\":true}}}}}}");
 }
 
 fn capture_fixture(args: &[String]) {

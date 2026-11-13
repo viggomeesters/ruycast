@@ -3,7 +3,6 @@ import json
 import subprocess
 import unittest
 import time
-import supervision_process as supervision
 import script_result_process as results
 import input_process as inputs
 
@@ -24,18 +23,6 @@ def release_holder(ready,gate,done):
         end=time.monotonic()+2
         while not done.exists() and time.monotonic()<end:time.sleep(.01)
         assert done.exists(),'Own detached fixture did not self-close'
-
-class CaptureProcesses(unittest.TestCase):
-    setUp=supervision.Supervision.setUp;command=supervision.Supervision.command
-    probe=supervision.Supervision.probe;fake=supervision.Supervision.fake
-    def test_ready_detached_pipe_holders_do_not_create_false_eof(self):
-        for held in ['stdout','stderr','both']:
-            code,ready,gate,done=pipe_holder_code(self.base,held);self.addCleanup(release_holder,ready,gate,done)
-            result=self.probe(self.command(code));self.assertTrue(ready.exists());self.assertFalse(done.exists())
-            for stream in ['stdout','stderr']:
-                self.assertEqual(result['capture'][stream],dict(truncated=False,validUtf8=True,eof=held not in ['both',stream]))
-            self.assertTrue(json.loads(result['response']['result']['stdout'])['capture']['stdout']['eof'])
-            release_holder(ready,gate,done)
 
 class NativeCapture(unittest.TestCase):
     host=results.ScriptResults.host;command=results.ScriptResults.command;file=results.ScriptResults.file

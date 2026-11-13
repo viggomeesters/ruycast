@@ -234,3 +234,65 @@ fn old_versions_are_refused_before_command_sideeffect() {
         assert!(!marker.exists());
     }
 }
+struct Holder {
+    ready: PathBuf,
+    gate: PathBuf,
+    done: PathBuf,
+    released: bool,
+}
+impl Holder {
+    fn new(base: &Path, held: &str) -> Self {
+        Self {
+            ready: base.join(format!("ready-{held}")),
+            gate: base.join(format!("release-{held}")),
+            done: base.join(format!("done-{held}")),
+            released: false,
+        }
+    }
+    fn release(&mut self) {
+        fs::write(&self.gate, "release").unwrap();
+        if self.ready.exists() {
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while !self.done.exists() && std::time::Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            assert!(
+                self.done.exists(),
+                "owned detached holder did not self-close"
+            );
+        }
+        self.released = true;
+    }
+}
+impl Drop for Holder {
+    fn drop(&mut self) {
+        if !self.released {
+            let _ = fs::write(&self.gate, "release");
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while self.ready.exists() && !self.done.exists() && std::time::Instant::now() < deadline
+            {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+}
+#[test]
+fn ready_detached_pipe_holders_do_not_create_false_eof() {
+    let h = OwnedDir::new();
+    for held in ["stdout", "stderr", "both"] {
+        let mut holder = Holder::new(&h.0, held);
+        let v = probe(&h.0, json!(["capture-holder", "parent", held, h.0]));
+        assert!(holder.ready.exists());
+        assert!(!holder.done.exists());
+        for stream in ["stdout", "stderr"] {
+            assert_eq!(
+                v["capture"][stream],
+                json!({"truncated":false,"validUtf8":true,"eof":held!="both" && held!=stream})
+            );
+        }
+        let provider: Value =
+            serde_json::from_str(v["response"]["result"]["stdout"].as_str().unwrap()).unwrap();
+        assert_eq!(provider["capture"]["stdout"]["eof"], true);
+        holder.release();
+    }
+}
