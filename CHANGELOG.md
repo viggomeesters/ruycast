@@ -2,6 +2,9 @@
 
 ## 0.9.0 — Rust candidate (unreleased)
 
+- Connect Auto Quit background timers to native app observation and normal termination, with a separate per-app acknowledgement of incomplete recording/helper detection.
+- Block observed active audio, failed reads and stale/foreground processes; reset timers on foreground use, sleep/wake and session changes, and preserve save prompts without repeated requests.
+
 - Find the paired script helper when building the host and CLI in one shared developer target, with the existing trust checks.
 - Keep Caps Lock off after a successful Hyper start, including delayed latch changes, pauses and shutdown.
 - Move the native app, command-line interface, configuration and local storage to Rust, preserving the existing launcher, editors and macOS integration routes.
