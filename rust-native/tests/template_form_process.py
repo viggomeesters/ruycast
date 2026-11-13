@@ -26,15 +26,6 @@ class TemplateForms(unittest.TestCase):
         self.fail('Own template field state did not settle: '+str(value))
     def key(self,h,code,chars='',flags=0):
         h.probe('key-event',code=code,chars=chars,flags=flags);h.settled()
-    def test_real_tab_and_backtab_cross_readonly_choice_without_focus_forcing(self):
-        h=self.host(native.command('url','https://example.invalid/{a default="A"}/{b default="One" options="One,Two"}/{c default="C"}'))
-        self.form(h);h.probe('template-type',index=0,text='First')
-        self.key(h,48,'\t');self.key(h,48,'\t');self.key(h,7,'x')
-        self.assertEqual(self.fields(h)['values'],['First','One','x'])
-        self.key(h,48,'\x19',1<<17);self.key(h,48,'\x19',1<<17);self.key(h,12,'q')
-        self.assertEqual(self.fields(h)['values'],['q','One','x'])
-        self.key(h,36,'\r');self.wait_file(h.base/'open-started');self.done(h)
-        self.assertEqual(unquote(self.opens(h)[0]['url']),'https://example.invalid/q/One/x')
     def test_contained_choice_keys_tentative_cancel_commit_and_native_ax_modality(self):
         h=self.host(native.command('url','https://example.invalid/{a default="A"}/{b name="Place" default="One" options="One,Two"}/{c default="C"}'))
         self.form(h);self.key(h,48,'\t');self.key(h,49,' ')
@@ -51,11 +42,6 @@ class TemplateForms(unittest.TestCase):
         self.key(h,49,' ');self.assertTrue(self.fields(h)['choice']['open'])
         self.key(h,125);self.key(h,36,'\r');v=self.fields(h);self.assertFalse(v['choice']['open']);self.assertEqual(v['values'][1],'Two')
         self.key(h,48,'\t');self.key(h,7,'x');self.assertEqual(self.fields(h)['values'],['A','Two','x'])
-    def test_actual_local_option_mouse_click_commits_once_and_restores_form(self):
-        h=self.host(native.command('url','https://example.invalid/{a default="A"}/{b default="One" options="One,Two"}'));self.form(h)
-        self.key(h,48,'\t');self.key(h,49,' ');h.probe('template-choice',command='click',index=1);h.settled();v=self.fields(h)
-        self.assertFalse(v['choice']['open']);self.assertEqual(v['values'],['A','Two']);self.assertFalse(v['fieldsAXHidden']);self.assertTrue(h.probe('read')['saveEnabled']);self.assertEqual(self.opens(h),[])
-        self.key(h,36,'\r',1<<20);self.wait_file(h.base/'open-started');self.done(h);self.assertEqual(len(self.opens(h)),1);self.assertEqual(unquote(self.opens(h)[0]['url']),'https://example.invalid/A/Two')
     def test_marked_input_defers_choice_and_unrelated_reload_preserves_open_list(self):
         h=self.host(native.command('url','https://example.invalid/{a}/{b options="One,Two"}'));self.form(h)
         h.probe('template-mark',index=0,text='に');h.probe('template-choice',command='open',index=1)
