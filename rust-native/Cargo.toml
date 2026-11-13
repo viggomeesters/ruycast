@@ -8,6 +8,11 @@ publish = false
 test-tools = []
 local-preview = []
 
+[[example]]
+name = "auto-quit-audio-probe"
+path = "tests/fixtures/auto_quit_audio_probe.rs"
+required-features = ["test-tools"]
+
 [[bin]]
 name = "perf-probe"
 path = "../scripts/perf-probe.rs"
