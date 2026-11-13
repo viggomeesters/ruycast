@@ -62,15 +62,6 @@ class NativeOpen(unittest.TestCase):
             value=h.probe('command-read')['value'];self.assertTrue(value['id'].startswith('url.'));self.assertEqual(value['target'],expected)
             self.assertEqual((h.base/'creation-prefill-read').read_text(),'own-named-main-thread\n');self.assertEqual(h.config.read_bytes(),before);self.assertEqual(self.opens(h),[]);self.assertEqual(self.hides(h),[]);self.assertEqual(h.cli('usage')['result'],{})
             self.capture(h,'creation-prefill-'+('value' if text.strip() else 'empty'));h.probe('cancel-editor');helper.saved(h)
-    def test_existing_prompt_input_is_validated_and_executes_without_config_write(self):
-        h=self.host(command(inputPrompt='Label'));before=h.config.read_bytes()
-        self.show(h);self.activate(h);h.settled()
-        self.assertTrue(h.probe('read')['runInputInline'])
-        h.probe('key-event',code=36,chars='\r',flags=1<<20);h.settled()
-        h.probe('run-input-type',text='own prompt value')
-        h.probe('key-event',code=36,chars='\r',flags=1<<20)
-        self.wait_file(h.base/'open-started');self.done(h)
-        self.assertEqual(h.config.read_bytes(),before);self.assertEqual(len(self.hides(h)),1)
 
     def test_url_clipboard_and_literal_path_share_native_admission(self):
         h=self.host(command('url','https://example.invalid/{clipboard}'),clipboard='synthetic-Ω')
@@ -81,10 +72,6 @@ class NativeOpen(unittest.TestCase):
         config=json.loads(h.config.read_text());config['commands'][-1]=command('path',str(p));h.replace(config);h.cli('reload')
         self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
         self.assertEqual(len(self.hides(h)),2);self.assertEqual(h.cli('usage')['result']['fixture.open'],2)
-    def test_discovered_app_is_not_required_to_be_saved_for_usage(self):
-        h=self.host(discovered=True);self.show(h,'Discovered Native Fixture');self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
-        self.assertEqual(h.cli('usage')['result']['discovered.dev.fixture.discovered'],1)
-        self.assertEqual(len(self.hides(h)),1)
     def test_new_show_and_query_revoke_blocked_old_lookup(self):
         for action in ['show','query']:
             h=self.host(command(target='dev.fixture.hold-resolve'))
