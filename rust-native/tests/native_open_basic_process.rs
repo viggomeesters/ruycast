@@ -1,0 +1,106 @@
+//! Real offscreen native activation with the owned synthetic Workspace SDK.
+#![cfg(feature = "test-tools")]
+#[allow(dead_code)]
+#[path = "support/native_actions.rs"]
+mod actions;
+use actions::{
+    native_bridge::{
+        runtime_host::{default_config, Config},
+        Bridge,
+    },
+    *,
+};
+use serde_json::{json, Value};
+use std::{
+    fs,
+    time::{Duration, Instant},
+};
+
+fn host(command: Value) -> Bridge {
+    let settings = Config::current();
+    let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            settings
+                .host
+                .parent()
+                .unwrap()
+                .join("examples/libworkspace_fixture.dylib")
+        });
+    assert!(shim.is_absolute() && shim.is_file());
+    let mut h = Bridge::new(settings, false);
+    let mut cfg = default_config();
+    cfg["commands"].as_array_mut().unwrap().push(command);
+    h.replace(&cfg, None);
+    h.env
+        .insert("RUYCAST_NATIVE_TEST_WIDTH".into(), "760".into());
+    h.env
+        .insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
+    let fixture_home = h.base.as_os_str().to_owned();
+    h.env
+        .insert("RUYCAST_WORKSPACE_FIXTURE_HOME".into(), fixture_home);
+    h.env
+        .insert("RUYCAST_NATIVE_TEST_CLIPBOARD_GUARD".into(), "trace".into());
+    h.env
+        .insert("RUYCAST_NATIVE_TEST_REQUIRE_HIDE".into(), "1".into());
+    h.start();
+    h.settled(|_| true);
+    h.env.remove(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"));
+    h.env
+        .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
+    h
+}
+fn command(kind: &str, target: &str) -> Value {
+    json!({"id":"fixture.open","title":"Native Open Fixture","kind":kind,"target":target,"aliases":["nativeopen"]})
+}
+fn rows(path: &std::path::Path) -> Vec<Value> {
+    fs::read_to_string(path)
+        .unwrap_or_default()
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect()
+}
+fn activate(h: &Bridge) {
+    show(h, "nativeopen");
+    key(h, 36, 0, "\r", false);
+    let marker = h.base.join("open-started");
+    let end = Instant::now() + Duration::from_secs(4);
+    while !marker.exists() {
+        assert!(
+            Instant::now() < end,
+            "own fixture did not enter open-started"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+}
+#[test]
+fn open_with_uses_exact_hide_before_its_native_callback() {
+    let mut cmd = command("url", "https://example.invalid/own");
+    cmd["applicationID"] = json!("dev.fixture.inline");
+    let h = host(cmd);
+    activate(&h);
+    assert!(rows(&h.base.join("workspace-trace.jsonl"))
+        .iter()
+        .any(|r| r["phase"] == "open-with"));
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+}
+#[test]
+fn saved_app_hides_exact_panel_before_sdk_and_records_success() {
+    let h = host(command("app", "dev.fixture.inline"));
+    activate(&h);
+    let hides = rows(&h.profile.join("native-hide.jsonl"));
+    assert_eq!(hides.len(), 1);
+    assert_eq!(hides[0]["mainThread"], true);
+    assert_eq!(hides[0]["afterVisible"], false);
+    assert_eq!(probe(&h, "read")["windowShown"], false);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+        false
+    );
+    assert_eq!(h.cli(&["usage"])["result"]["fixture.open"], 1);
+    assert!(rows(&h.base.join("workspace-trace.jsonl"))
+        .iter()
+        .filter(|r| r["phase"].as_str().unwrap().starts_with("open-"))
+        .all(|r| r["mainThread"] == false));
+}

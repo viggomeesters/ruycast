@@ -411,6 +411,7 @@ rust-native/tests/native_keyboard_process.py
 rust-native/tests/native_keyboard_process.rs
 rust-native/tests/native_keyword_process.py
 rust-native/tests/native_open_process.py
+rust-native/tests/native_open_basic_process.rs
 rust-native/tests/native_process.py
 rust-native/tests/native_snippet_choice_process.py
 rust-native/tests/rich_process.py

@@ -59,11 +59,6 @@ class NativeOpen(unittest.TestCase):
             shutil.copy2(h.profile/'native-probe.png',out/(name+'.png'))
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
-    def test_open_with_uses_exact_hide_before_its_native_callback(self):
-        h=self.host(command('url','https://example.invalid/own',applicationID='dev.fixture.inline'))
-        self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
-        self.assertTrue(any(r['phase']=='open-with' for r in self.opens(h)))
-        self.assertEqual(len(self.hides(h)),1)
     def test_native_picker_save_then_run_uses_selected_bundle_with_exact_hide(self):
         h=self.host(command('url','https://example.invalid/picker'),picker=True)
         self.show(h);helper=action_helpers.ActionsProcesses();helper.action(h,'Edit');helper.view(h,lambda v:v['formVisible']);h.settled()
@@ -89,12 +84,6 @@ class NativeOpen(unittest.TestCase):
         self.wait_file(h.base/'open-started');self.done(h)
         self.assertEqual(h.config.read_bytes(),before);self.assertEqual(len(self.hides(h)),1)
 
-    def test_saved_app_hides_exact_panel_before_sdk_and_records_success(self):
-        h=self.host();self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
-        hides=self.hides(h);self.assertEqual(len(hides),1);self.assertTrue(hides[0]['mainThread']);self.assertFalse(hides[0]['afterVisible'])
-        self.assertFalse(h.probe('read')['windowShown']);self.assertFalse(h.rpc(dict(op='status'))['result']['nativeUI']['visible'])
-        self.assertEqual(h.cli('usage')['result']['fixture.open'],1)
-        self.assertTrue(all(not r['mainThread'] for r in self.opens(h)))
     def test_url_clipboard_and_literal_path_share_native_admission(self):
         h=self.host(command('url','https://example.invalid/{clipboard}'),clipboard='synthetic-Ω')
         self.show(h);self.activate(h);self.wait_file(h.base/'open-started');self.done(h)
