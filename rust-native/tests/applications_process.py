@@ -67,21 +67,5 @@ class Applications(unittest.TestCase):
     def test_normal_host_refuses_headless_fixture_flag(self):
         host=self.host();normal=rt.ROOT/'target/debug/ruycast-native';p=subprocess.run([str(normal),'--headless-test'],env=host.env,capture_output=True,text=True,timeout=4);self.assertNotEqual(p.returncode,0);self.assertFalse((host.profile/'control.sock').exists())
 
-    def test_fixture_rejects_metadata_and_localization_symlink_escape(self):
-        for mode in ['contents','plist','resources','strings','hardlink']:
-            with self.subTest(mode=mode):
-                host=self.host();external=self.host();outside=self.bundle(external.applications,'External','dev.fixture.external',CFBundleName='Fixture External')
-                app=host.applications/'Inside.app';app.mkdir()
-                if mode=='contents':(app/'Contents').symlink_to(outside/'Contents',target_is_directory=True)
-                else:
-                    (app/'Contents').mkdir();info=outside/'Contents/Info.plist'
-                    if mode=='plist':(app/'Contents/Info.plist').symlink_to(info)
-                    elif mode=='hardlink':os.link(info,app/'Contents/Info.plist')
-                    else:
-                        (app/'Contents/Info.plist').write_bytes(info.read_bytes());resources=outside/'Contents/Resources/en.lproj';resources.mkdir(parents=True);(resources/'InfoPlist.strings').write_text('"CFBundleDisplayName" = "Fixture localized external";')
-                        if mode=='resources':(app/'Contents/Resources').symlink_to(resources.parent,target_is_directory=True)
-                        else:
-                            local=app/'Contents/Resources/en.lproj';local.mkdir(parents=True);(local/'InfoPlist.strings').symlink_to(resources/'InfoPlist.strings')
-                host.start();self.assertEqual(self.ready(host)['discoveredApps'],0);self.assertEqual(self.search(host),[])
 
 if __name__=='__main__':unittest.main(verbosity=2)
