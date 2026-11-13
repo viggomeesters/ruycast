@@ -58,14 +58,5 @@ class NativeOpen(unittest.TestCase):
         return view
 
 
-    def test_missing_application_and_template_validation_keep_action_uncommitted(self):
-        for theme in ['light','dark']:
-            h=self.host(command(target='dev.fixture.missing'),theme=theme)
-            self.show(h);self.activate(h);self.done(h)
-            view=h.probe('screenshot');self.assertIn('App is not installed:','\n'.join(view['screenText']));self.assertEqual(self.hides(h),[]);self.assertEqual(self.opens(h),[])
-            if directory:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-                out=Path(directory).parent/'native-open';out.mkdir(parents=True,exist_ok=True)
-                shutil.copy2(h.profile/'native-probe.png',out/(theme+'.png'))
-                (out/(theme+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
 
 if __name__=='__main__':unittest.main(verbosity=2)

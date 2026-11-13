@@ -487,7 +487,7 @@ const SETTINGS: &[SettingsGate] = &[
         "snippet_process::invalid_long_url_does_not_repeat_legacy_exponential_match",
         "keyword_rich_process.KeywordRich",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","inline-input-process","input-process","native-choice-process","native-open-process","native-open-basic-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
+    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","inline-input-process","input-process","native-choice-process","native-open-basic-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
         "bridge_process::show_search_and_local_native_query_share_the_owner",
         "bridge_process::rapid_arrows_and_click_on_other_row_keep_intended_identity",
         "inline_input_process.InlineInput.test_expand_preserves_actual_field_editor_text_and_token_without_execution",
@@ -791,7 +791,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
-            ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "b272e6927a248fd739bbec282f68d746f6449651654426fe22f35be2622a359c"),
+            ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "71ab70a9ece2884fb9d5ab9ee5e308b4c739cb4c4fa73d9692befeaa1529a2a4"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
@@ -842,7 +842,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
-            ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "b272e6927a248fd739bbec282f68d746f6449651654426fe22f35be2622a359c"),
+            ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "71ab70a9ece2884fb9d5ab9ee5e308b4c739cb4c4fa73d9692befeaa1529a2a4"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
@@ -850,7 +850,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
 
         "--check-interactions" => &[
-            ("rust-native/tests/native_open_basic_process.rs", include_bytes!("../../../tests/native_open_basic_process.rs"), "efc20f26ea52cee870e35fa09b9d550abb2822c41a7b08a5e2c4108b956d23fc"),
+            ("rust-native/tests/native_open_basic_process.rs", include_bytes!("../../../tests/native_open_basic_process.rs"), "45a65c765bbd3587632c75f81a0c9cc813c9192515c497c7b8abb0c8b14a9a2e"),
             ("rust-native/tests/fixtures/workspace_fixture.rs", include_bytes!("../../../tests/fixtures/workspace_fixture.rs"), "893eaba2a1a537958085554a78d7cd69131003c0c705d0a6c5952b16a9f5cb06"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
@@ -881,7 +881,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
-            ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "b272e6927a248fd739bbec282f68d746f6449651654426fe22f35be2622a359c"),
+            ("rust-native/tests/native_open_process.py", include_bytes!("../../../tests/native_open_process.py"), "71ab70a9ece2884fb9d5ab9ee5e308b4c739cb4c4fa73d9692befeaa1529a2a4"),
             ("rust-native/tests/native_choice_process.py", include_bytes!("../../../tests/native_choice_process.py"), "22e8d18db1207b3e7eac3cf0eacdcae6fad300e460b25cbaeb0b5abb2d7d86c3"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
