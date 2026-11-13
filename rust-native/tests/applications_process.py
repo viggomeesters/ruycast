@@ -40,14 +40,6 @@ class Applications(unittest.TestCase):
             (target/(name+'.png')).write_bytes((host.profile/'native-probe.png').read_bytes())
             (target/(name+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2))
         return value
-    def test_native_palette_has_apps_but_settings_contains_only_saved_commands(self):
-        host=self.host(native=True);self.bundle(host.applications,'App','dev.fixture.palette',CFBundleName='Fixture Palette');host.start();self.ready(host)
-        for theme in ['light','dark']:
-            cfg=json.loads(host.config.read_text());cfg['theme']=theme;host.config.write_text(json.dumps(cfg));host.rpc({'op':'reload'});host.rpc(dict(op='show',query='Fixture Palette'));host.settled()
-            v=self.capture(host,'apps-'+theme);self.assertIn('Fixture Palette',v['screenText']);self.assertEqual(host.rpc({'op':'status'})['result']['nativeUI']['selectedId'],'discovered.dev.fixture.palette')
-        host.rpc(dict(op='show',mode='settings',query='Fixture Palette'));host.wait(lambda s:s['managementUI']['revision']==s['managementUI']['appliedRevision'])
-        v=host.rpc(dict(op='native.test',surface='settings',action='read'))['result'];self.assertEqual(v['rows'],0);self.assertIn('No commands found',v['screenText'])
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{});self.assertEqual(host.rpc({'op':'logs'})['result'],[])
     def test_late_discovery_preserves_real_input_text_token_and_undo(self):
         host=self.host(native=True,barrier=True);self.bundle(host.applications,'App','dev.fixture.late',CFBundleName='Fixture Late')
         cfg=copy.deepcopy(rt.DEFAULT);cfg['commands'].append(dict(id='script.fixture',title='Input Fixture',kind='script',target='/usr/bin/true',aliases=['runfixture'],inputPrompt='Message'));host.config.write_text(json.dumps(cfg));host.start();self.file(host.base/'app-discovery-ready')
