@@ -234,6 +234,10 @@ fn new_show_and_query_revoke_blocked_old_lookup() {
     }
 }
 fn done(h: &Bridge) {
+    wait_open_started(h);
+    h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+}
+fn wait_open_started(h: &Bridge) {
     let marker = h.base.join("open-started");
     let end = Instant::now() + Duration::from_secs(4);
     while !marker.exists() {
@@ -243,7 +247,68 @@ fn done(h: &Bridge) {
         );
         std::thread::sleep(Duration::from_millis(10));
     }
-    h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+}
+#[test]
+fn gui_without_wall_timer_still_cancels_on_new_show() {
+    let mut cmd = command("url", "ruycast-fixture://hold-sync");
+    cmd["timeout"] = json!(0.1);
+    let h = host(cmd);
+    let gate = Release(h.base.join("workspace-release"));
+    show(&h, "nativeopen");
+    key(&h, 36, 0, "\r", false);
+    wait_open_started(&h);
+    std::thread::sleep(Duration::from_millis(1200));
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["openRequestsRunning"],
+        1
+    );
+    show(&h, "nativeopen");
+    done(&h);
+    fs::write(&gate.0, "release").unwrap();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+        true
+    );
+    assert!(!probe(&h, "read")["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+        .contains("Check its outcome"));
+}
+#[test]
+fn new_show_after_sdk_entry_cannot_be_hidden_or_receive_old_failure() {
+    let mut cmd = command("url", "ruycast-fixture://hold-sync");
+    cmd["timeout"] = json!(1);
+    let h = host(cmd);
+    let gate = Release(h.base.join("workspace-release"));
+    show(&h, "nativeopen");
+    key(&h, 36, 0, "\r", false);
+    wait_open_started(&h);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["openRequestsRunning"],
+        1
+    );
+    show(&h, "nativeopen");
+    done(&h);
+    fs::write(&gate.0, "release").unwrap();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+        true
+    );
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+    assert!(!probe(&h, "read")["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect::<Vec<_>>()
+        .join("\n")
+        .contains("Check its outcome"));
 }
 #[test]
 fn discovered_app_is_not_required_to_be_saved_for_usage() {
