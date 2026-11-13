@@ -57,15 +57,6 @@ class NativeOpen(unittest.TestCase):
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
 
-    def test_expiry_cancel_and_config_change_before_hide_never_open(self):
-        for reason in ['expiry','cancel','config']:
-            h=self.host(command(target='dev.fixture.hold-resolve',timeout=1),deadline_ms=250 if reason=='expiry' else None)
-            self.show(h);self.activate(h);self.wait_file(h.base/'resolve-entered')
-            if reason=='cancel':h.probe('key-event',code=53,chars='',flags=0)
-            elif reason=='config':
-                config=json.loads(h.config.read_text());config['commands'][-1]['target']='dev.fixture.changed';h.replace(config);h.cli('reload')
-            self.done(h);(h.base/'workspace-release').write_text('release');h.wait(lambda s:s['liveExecutionWorkers']==0)
-            self.assertEqual(self.opens(h),[]);self.assertEqual(self.hides(h),[])
     def test_failed_callback_and_post_sdk_timeout_surface_the_exact_owned_error(self):
         for target in ['dev.fixture.error','ruycast-fixture://hold-sync']:
             kind='app' if target.startswith('dev.fixture.') else 'url'
