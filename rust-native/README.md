@@ -225,6 +225,8 @@ Typed choices preserve provider order and existing canonically unique/nonempty I
 
 ## Trusted capture before provider interpretation
 
+`tests/capture_bytes_process.rs` checks byte limits and UTF-8 capture metadata through the real supervisor; the remaining Python capture tests still exercise other behaviors.
+
 The shared core records actual raw-byte discard, retained-prefix UTF-8 validity and observed EOF independently for stdout/stderr. WouldBlock or the bounded read turn never proves EOF. Exact65,536-byte output is complete; reading another byte marks truncation. UTF-8 validity describes retained bytes before lossy conversion, including a cap that splits an otherwise valid codepoint. Completion.response() and legacy __run-script JSON remain unchanged.
 
 The independent supervisor uses internal protocol3 with strict typed ready/final frames and required nullable capture metadata, outside the opaque provider response. Version1 and the pre-EOF version2 development protocol fail before command commit. Missing capture cannot claim a successful/exited process; core errors without a Completion retain explicit null. The worker carries a typed outcome instead of merging transport fields into provider data. CLI transport ignores capture metadata and retains its legacy bounded/lossy behavior and original provider extra fields.

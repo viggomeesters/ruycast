@@ -36,19 +36,6 @@ class CaptureProcesses(unittest.TestCase):
                 self.assertEqual(result['capture'][stream],dict(truncated=False,validUtf8=True,eof=held not in ['both',stream]))
             self.assertTrue(json.loads(result['response']['result']['stdout'])['capture']['stdout']['eof'])
             release_holder(ready,gate,done)
-    def test_exact_limit_and_overflow_are_distinct_per_stream(self):
-        for stream in [1,2]:
-            for size in [65536,65537]:
-                result=self.probe(self.command('import os;os.write(%d,b"a"*%d)'%(stream,size)))
-                own='stdout' if stream==1 else 'stderr';other='stderr' if stream==1 else 'stdout'
-                self.assertEqual(result['capture'][own],dict(truncated=size>65536,eof=True,validUtf8=True))
-                self.assertEqual(result['capture'][other],dict(truncated=False,eof=True,validUtf8=True))
-                self.assertEqual(len(result['response']['result'][own]),65536)
-    def test_utf8_validity_describes_retained_raw_prefix_not_full_original_stream(self):
-        for code,truncated,valid in [('"Ω".encode()*32768',False,True),('b"a"*65535+"€".encode()',True,False),('bytes([255])',False,False)]:
-            result=self.probe(self.command('import os;os.write(1,%s)'%code))
-            self.assertEqual(result['capture']['stdout'],dict(truncated=truncated,eof=True,validUtf8=valid))
-            self.assertEqual(result['capture']['stderr'],dict(truncated=False,eof=True,validUtf8=True))
     def test_valid_json_prefix_with_discarded_tail_and_spoof_fields_is_still_incomplete(self):
         code=valid_prefix_code()
         result=self.probe(self.command(code));prefix=json.loads(result['response']['result']['stdout'])
@@ -57,9 +44,6 @@ class CaptureProcesses(unittest.TestCase):
     def test_lossy_json_cannot_claim_its_original_bytes_are_valid(self):
         result=self.probe(self.command('import os;os.write(1,b\'{"ok":true,"detail":"\\xff","capture":{"validUtf8":true}}\')'))
         native=json.loads(result['response']['result']['stdout']);self.assertEqual(native['detail'],'\ufffd');self.assertTrue(native['capture']['validUtf8']);self.assertFalse(result['capture']['stdout']['validUtf8'])
-    def test_stderr_overflow_and_invalid_utf8_are_independent_of_valid_stdout(self):
-        result=self.probe(self.command('import os;os.write(1,b\'{"ok":true,"detail":"valid"}\');os.write(2,bytes([255])*65537)'))
-        self.assertEqual(result['capture']['stdout'],dict(truncated=False,eof=True,validUtf8=True));self.assertEqual(result['capture']['stderr'],dict(truncated=True,eof=True,validUtf8=False))
     def test_spawn_error_has_explicit_unknown_capture_and_legacy_response_is_unchanged(self):
         command=self.command();command['target']=str(self.base/'missing-executable');result=self.probe(command)
         self.assertIsNone(result['capture']);self.assertFalse(result['response']['ok'])
