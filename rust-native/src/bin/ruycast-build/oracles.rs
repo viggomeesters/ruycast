@@ -548,7 +548,7 @@ const SETTINGS: &[SettingsGate] = &[
         "system_search_sdk::direct_sdk_transport_is_fully_owned",
         "system_search_process.SystemSearch.test_cli_real_provider_routes_metadata_order_and_exact_effects",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-apple-shortcuts", original_source:"Sources/RuycastApp/AppleShortcutChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk","private-results-process","script-process","script-result-process","script-result-basic-process"], native_cases:&[
+    SettingsGate { id:"--check-apple-shortcuts", original_source:"Sources/RuycastApp/AppleShortcutChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk","private-results-process","script-process","script-result-process","script-result-basic-process","script-result-native-process"], native_cases:&[
         "system_search::tests::shortcut_uuid_parser_overrides_and_execution_tuple_are_exact",
         "system_search::tests::owned_shortcut_children_drain_both_pipes_and_never_wait_for_inherited_eof",
         "system_search::tests::generated_uuid_and_builtin_bindings_persist_without_resurrecting_deleted_saved_rows",
@@ -1044,8 +1044,9 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/execution.rs", include_bytes!("../../execution.rs"), "a211e57ffabbb0cb0cbb8ce19ad894939ca310c36a34a9fea055a0df3e023c8f"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "e8b4b609655d7946bbb27f287aaa739ed1530133f22a7cfdca2d5003655aa462"),
             ("rust/src/script.rs", include_bytes!("../../../../rust/src/script.rs"), "16974362c399c6c5a92596d7563d501eb0492df9f5e2463d8147eeb70108bfb0"),
-            ("rust-native/tests/script_result_process.py", include_bytes!("../../../tests/script_result_process.py"), "d36688a31229b823638c01ed7f2f0ad083eae09c013b62250044244ccfcf4845"),
+            ("rust-native/tests/script_result_process.py", include_bytes!("../../../tests/script_result_process.py"), "94dd622d4b60d199c6cadf39558e08bff77282eaee630a4dec1cd1f3ca92b26e"),
             ("rust-native/tests/script_result_basic_process.rs", include_bytes!("../../../tests/script_result_basic_process.rs"), "cc95adffb9b1b58a7d0b4154940631e650746ce3d997033ebf615412c7eb7598"),
+            ("rust-native/tests/script_result_native_process.rs", include_bytes!("../../../tests/script_result_native_process.rs"), "6791270af079e8a05e679dc86de1528dd4dfb7f881b7a291dc8b9878a8786410"),
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
             ("Sources/RuycastApp/AppleShortcutChecks.swift", include_bytes!("../../../../Sources/RuycastApp/AppleShortcutChecks.swift"), "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74"),
@@ -1615,12 +1616,13 @@ mod tests {
     fn script_result_basic_binds_current_sources_and_route() {
         use sha2::Digest;
         let inputs = settings_sources("--check-apple-shortcuts");
-        for path in ["rust-native/tests/script_result_process.py", "rust-native/tests/script_result_basic_process.rs"] {
+        for path in ["rust-native/tests/script_result_process.py", "rust-native/tests/script_result_basic_process.rs", "rust-native/tests/script_result_native_process.rs"] {
             let (_, bytes, expected) = inputs.iter().find(|entry| entry.0 == path).unwrap();
             assert_eq!(format!("{:x}", sha2::Sha256::digest(bytes)), *expected, "{path}");
         }
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-apple-shortcuts").unwrap();
         assert!(gate.required_native_steps.contains(&"script-result-basic-process"));
+        assert!(gate.required_native_steps.contains(&"script-result-native-process"));
     }
     #[test]
     fn library_checkbox_crosswalk_binds_current_sources_and_cases() {
@@ -2160,7 +2162,7 @@ mod tests {
         ];
         for (id, steps, case_count, source_count) in [
             ("--check-window-search", &["unit", "system-search-process", "system-search-sdk"][..], 18, 29),
-            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-basic-process"][..], 10, 40),
+            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-basic-process", "script-result-native-process"][..], 10, 41),
             ("--check-render-updates", &["render-updates-process"][..], 1, 14),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
