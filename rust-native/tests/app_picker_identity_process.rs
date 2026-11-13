@@ -27,6 +27,7 @@ struct Options<'a> {
     long: bool,
     default_name: bool,
     missing_name: bool,
+    barrier: bool,
     theme: Option<&'a str>,
     width: Option<u32>,
 }
@@ -36,6 +37,10 @@ fn host_with(options: Options<'_>) -> Bridge {
         "RUYCAST_NATIVE_TEST_WIDTH".into(),
         options.width.unwrap_or(760).to_string().into(),
     );
+    if options.barrier {
+        h.env
+            .insert("RUYCAST_NATIVE_TEST_APP_BARRIER".into(), "1".into());
+    }
     for (id, title) in [
         ("dev.fixture.a", "Fixture Browser A"),
         ("dev.fixture.b", "Fixture Browser B"),
@@ -76,7 +81,9 @@ fn host_with(options: Options<'_>) -> Bridge {
     }
     h.replace(&cfg, None);
     h.start();
-    h.wait(|s| s["appDiscoveryPending"] == false);
+    if !options.barrier {
+        h.wait(|s| s["appDiscoveryPending"] == false);
+    }
     h.settled(|_| true);
     h
 }
@@ -258,4 +265,144 @@ fn reserved_default_name_and_saved_id_are_visibly_distinct() {
         .contains(&json!("dev.fixture.missing")));
     h.probe("app-picker", json!({"command":"click","index":1}));
     assert_eq!(read(&h)["value"], "dev.fixture.missing");
+}
+#[test]
+fn modal_keys_cancel_and_stale_callbacks_do_not_change_draft() {
+    let h = host(None, false);
+    edit(&h);
+    let before = fs::read(&h.config).unwrap();
+    h.probe("app-picker", json!({"command":"open"}));
+    h.probe("app-picker", json!({"command":"retain"}));
+    let old = read(&h);
+    assert_eq!(old["expanded"], true);
+    assert_eq!(old["fieldAXHidden"], true);
+    assert_eq!(probe(&h, "read")["saveEnabled"], false);
+    h.probe("app-picker", json!({"command":"select","index":2}));
+    key(&h, 36, CMD, "\r", false);
+    probe(&h, "save-editor");
+    assert_eq!(read(&h)["list"]["open"], true);
+    assert_eq!(read(&h)["value"], "");
+    key(&h, 53, 0, "", false);
+    assert_eq!(read(&h)["fieldAXHidden"], false);
+    assert_eq!(read(&h)["value"], "");
+    assert_eq!(probe(&h, "read")["saveEnabled"], true);
+    h.probe("app-picker", json!({"command":"open"}));
+    let current = read(&h);
+    assert!(
+        current["list"]["generation"].as_u64().unwrap()
+            > old["list"]["generation"].as_u64().unwrap()
+    );
+    h.probe("app-picker", json!({"command":"stale","index":2}));
+    assert_eq!(read(&h)["value"], "");
+    assert_eq!(read(&h)["list"]["open"], true);
+    key(&h, 53, 0, "", false);
+    probe(&h, "cancel-editor");
+    saved(&h);
+    edit(&h);
+    let token = read(&h)["token"].clone();
+    h.probe("app-picker", json!({"command":"stale-button"}));
+    assert_eq!(read(&h)["token"], token);
+    assert_eq!(read(&h)["list"]["open"], false);
+    assert_eq!(fs::read(&h.config).unwrap(), before);
+}
+#[test]
+fn late_discovery_and_unrelated_reload_preserve_editor_draft() {
+    let h = host_with(Options {
+        barrier: true,
+        ..Options::default()
+    });
+    let v = edit(&h);
+    assert_eq!(v["pending"], true);
+    assert_eq!(v["enabled"], false);
+    h.probe("command-input", json!({"key":"title","text":"Kept draft"}));
+    fs::write(h.base.join("app-discovery-release"), "go").unwrap();
+    h.wait(|s| s["appDiscoveryPending"] == false);
+    h.settled(|_| true);
+    assert_eq!(probe(&h, "command-read")["value"]["title"], "Kept draft");
+    assert_eq!(read(&h)["enabled"], true);
+    h.probe("app-picker", json!({"command":"open"}));
+    let old = read(&h);
+    let mut cfg = config(&h);
+    cfg["theme"] = json!("light");
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    h.settled(|_| true);
+    assert_eq!(read(&h)["list"]["generation"], old["list"]["generation"]);
+    assert_eq!(read(&h)["fieldAXHidden"], true);
+    key(&h, 53, 0, "", false);
+    assert_eq!(probe(&h, "command-read")["value"]["title"], "Kept draft");
+}
+#[test]
+fn external_application_id_conflict_keeps_draft_and_file() {
+    let h = host(None, false);
+    edit(&h);
+    choose(&h, 2);
+    let mut cfg = config(&h);
+    cfg["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "url.fixture")
+        .unwrap()["applicationID"] = json!("dev.fixture.a");
+    h.replace(&cfg, None);
+    let before = fs::read(&h.config).unwrap();
+    probe(&h, "save-editor");
+    view(&h, |v| text_contains(v, "changed elsewhere"));
+    assert_eq!(read(&h)["value"], "dev.fixture.b");
+    assert_eq!(fs::read(&h.config).unwrap(), before);
+}
+fn discovered(h: &Bridge, id: &str) -> Value {
+    config(h)["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["target"] == id)
+        .unwrap()
+        .clone()
+}
+#[test]
+fn discovered_app_alias_hotkey_edit_and_disable_persist() {
+    let h = host(None, false);
+    show(&h, "Fixture Browser A");
+    alias(&h);
+    h.probe("alias-input", json!({"text":"ownbrowser"}));
+    probe(&h, "save-editor");
+    saved(&h);
+    assert_eq!(
+        discovered(&h, "dev.fixture.a")["aliases"],
+        json!(["ownbrowser"])
+    );
+    show(&h, "ownbrowser");
+    hotkey(&h);
+    key(&h, 18, CMD | SHIFT, "1", false);
+    saved(&h);
+    assert_eq!(discovered(&h, "dev.fixture.a")["hotkey"], "shift+cmd+1");
+    show(&h, "Fixture Browser B");
+    action(&h, "Edit");
+    view(&h, |v| v["formVisible"] == true);
+    h.probe(
+        "command-input",
+        json!({"key":"title","text":"Own browser B"}),
+    );
+    probe(&h, "save-editor");
+    saved(&h);
+    show(&h, "Own browser B");
+    action(&h, "Disable");
+    h.settled(|_| true);
+    assert_eq!(discovered(&h, "dev.fixture.b")["enabled"], false);
+}
+#[test]
+fn discovered_app_disable_creates_suppression_without_alias() {
+    let h = host(None, false);
+    show(&h, "Fixture Browser B");
+    action(&h, "Disable");
+    h.settled(|_| true);
+    assert_eq!(discovered(&h, "dev.fixture.b")["enabled"], false);
+    assert!(
+        !h.rpc(&json!({"op":"search","query":"Fixture Browser B"}))["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["target"] == "dev.fixture.b")
+    );
 }
