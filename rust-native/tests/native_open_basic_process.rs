@@ -383,6 +383,65 @@ fn template_form(h: &Bridge) {
     template_fields(h, |v| !v["fields"].is_null());
 }
 #[test]
+fn old_option_table_cannot_commit_after_same_form_reopen_or_cancel() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a default=\"x\"}/{b default=\"One\" options=\"One,Two\"}",
+    ));
+    template_form(&h);
+    template_key(&h, 48, "\t");
+    template_key(&h, 49, " ");
+    let old = template_fields(&h, |_| true);
+    h.probe("template-choice", json!({"command":"retain"}));
+    template_key(&h, 53, "");
+    template_key(&h, 49, " ");
+    let before = template_fields(&h, |_| true);
+    assert!(
+        before["choice"]["generation"].as_u64().unwrap()
+            > old["choice"]["generation"].as_u64().unwrap()
+    );
+    h.probe("template-choice", json!({"command":"stale","index":1}));
+    let after = template_fields(&h, |_| true);
+    assert_eq!(after["choice"]["open"], true);
+    assert_eq!(after["values"], before["values"]);
+    assert_eq!(
+        after["choice"]["generation"],
+        before["choice"]["generation"]
+    );
+    probe(&h, "cancel-editor");
+    h.settled(|_| true);
+    h.probe("template-choice", json!({"command":"stale","index":1}));
+    assert_eq!(template_fields(&h, |_| true)["values"], json!([]));
+    assert!(opens(&h).is_empty());
+}
+#[test]
+fn cancel_wipes_values_and_old_callbacks_cannot_operate_new_form() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{a name=\"First\"}/{b name=\"Second\"}",
+    ));
+    template_form(&h);
+    h.probe(
+        "template-type",
+        json!({"index":0,"text":"PRIVATE-OLD-VALUE"}),
+    );
+    h.probe("template-retain", json!({"index":0}));
+    probe(&h, "cancel-editor");
+    h.settled(|_| true);
+    assert_eq!(h.probe("template-read", json!({}))["values"], json!([]));
+    let old = h.probe("template-stale", json!({}));
+    assert_eq!(old["oldValue"], "");
+    assert_eq!(old["oldToken"], 0);
+    template_form(&h);
+    h.probe("template-type", json!({"index":0,"text":"new value"}));
+    let before = h.probe("template-read", json!({}));
+    h.probe("template-stale", json!({}));
+    let after = h.probe("template-read", json!({}));
+    assert_eq!(after["token"], before["token"]);
+    assert_eq!(after["values"], before["values"]);
+    assert!(opens(&h).is_empty());
+}
+#[test]
 fn marked_input_defers_choice_and_unrelated_reload_preserves_open_list() {
     let h = host(command(
         "url",
