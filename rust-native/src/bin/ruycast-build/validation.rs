@@ -112,6 +112,7 @@ snippet-effects-process|p|rust-native/tests/snippet_effects_process.py
 native-open-process|p|rust-native/tests/native_open_process.py
 template-form-process|p|rust-native/tests/template_form_process.py
 app-picker-process|p|rust-native/tests/app_picker_process.py
+app-picker-identity-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test app_picker_identity_process --locked
 bridge-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test bridge_process --locked
 system-search-tools-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --bin ruycast-native --bin system-search-probe --locked
 system-search-process|p|rust-native/tests/system_search_process.py
@@ -1877,7 +1878,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 135);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1988,6 +1989,8 @@ mod tests {
         assert!(capture_cli.arguments.windows(2).any(|pair|pair==["--test","capture_cli_process"]));
         let capture_native = steps.iter().find(|step|step.name=="capture-process").unwrap();
         assert!(capture_native.arguments.windows(2).any(|pair|pair==["--test","capture_native_process"]));
+        let app_picker_identity = steps.iter().find(|step|step.name=="app-picker-identity-process").unwrap();
+        assert!(app_picker_identity.arguments.windows(2).any(|pair|pair==["--test","app_picker_identity_process"]));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

@@ -102,7 +102,7 @@ URL/path editors select an app by name from the discovery worker's shared immuta
 
 A readonly native button opens the contained virtual choice list. Native keyboard/mouse, modal accessibility and stale-editor/list-generation rules are shared with URL template choices. Discovery completion updates only the app metadata, preserving live editor fields and Undo. No OS popup or app inventory scan runs on each key.
 
-Discovered apps support Edit, Set Alias, Set Hotkey and Disable by materializing a validated saved binding. Reload/identity/field-conflict checks preserve concurrent changes and reject a removed saved command or another configured app overriding the target. Settings Library itself remains saved-only; this does not add app-kind destination selection or New App creation. Persisted shortcuts still require the pending production global-hook layer. tests/app_picker_process.py and native_open_process.py cover selection/persistence and exact hide-before-open through disposable native fixtures; physical desktop acceptance remains excluded.
+Discovered apps support Edit, Set Alias, Set Hotkey and Disable by materializing a validated saved binding. Reload/identity/field-conflict checks preserve concurrent changes and reject a removed saved command or another configured app overriding the target. Settings Library itself remains saved-only; this does not add app-kind destination selection or New App creation. Persisted shortcuts still require the pending production global-hook layer. tests/app_picker_identity_process.rs, app_picker_process.py and native_open_process.py cover selection/persistence and exact hide-before-open through disposable native fixtures; physical desktop acceptance remains excluded.
 
 
 ## Creating commands

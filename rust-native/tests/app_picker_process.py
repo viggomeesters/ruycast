@@ -38,22 +38,6 @@ class AppPicker(unittest.TestCase):
         h.probe('app-picker',command='open');self.assertTrue(self.read(h)['list']['open'])
         h.probe('app-picker',command='select',index=index);self.key(h,36,0,'\r');h.settled()
     def command(self,h):return next(c for c in json.loads(h.config.read_text())['commands'] if c['id']=='url.fixture')
-    def test_native_app_name_selection_persists_exact_bundle_and_default_clears(self):
-        h=self.host();v=self.edit(h);self.assertEqual(v['title'],'Default app');self.assertTrue(v['enabled']);before=h.config.read_bytes()
-        self.choose(h,2);v=self.read(h);self.assertEqual(v['value'],'dev.fixture.b');self.assertEqual(v['title'],'Fixture Browser B');self.assertEqual(h.config.read_bytes(),before)
-        self.capture(h,'app-selected');self.key(h,36,actions.CMD,'\r');self.saved(h);self.assertEqual(self.command(h)['applicationID'],'dev.fixture.b')
-        self.edit(h);self.choose(h,0);h.probe('save-editor');self.saved(h);self.assertNotIn('applicationID',self.command(h))
-    def test_missing_saved_id_is_retained_without_silent_first_app_fallback(self):
-        h=self.host('dev.fixture.missing');v=self.edit(h);self.assertEqual(v['value'],'dev.fixture.missing');self.assertEqual(v['title'],'dev.fixture.missing')
-        h.probe('app-picker',command='open');v=self.read(h);self.assertEqual(v['list']['selected'],1);self.assertEqual(v['list']['rows'],4)
-        self.key(h,53);h.probe('command-input',key='title',text='Renamed');h.probe('save-editor');self.saved(h)
-        self.assertEqual(self.command(h)['applicationID'],'dev.fixture.missing')
-    def test_duplicate_names_show_bundle_ids_and_never_save_display_text(self):
-        h=self.host(duplicate=True);self.edit(h);h.probe('app-picker',command='open');self.capture(h,'app-duplicates')
-        text=h.probe('read')['screenText'];self.assertIn('Fixture Same — dev.fixture.a',text);self.assertIn('Fixture Same — dev.fixture.b',text)
-        h.probe('app-picker',command='click',index=2);self.assertEqual(self.read(h)['value'],'dev.fixture.b')
-        h.probe('save-editor');self.saved(h);self.assertEqual(self.command(h)['applicationID'],'dev.fixture.b')
-
     def test_long_app_titles_native_accessibility_and_light_dark_widths(self):
         for theme in ['light','dark']:
             for width in [600,760]:
