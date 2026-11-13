@@ -24,6 +24,10 @@ fn main() {
         run_tree(&args);
         return;
     }
+    if args.first().is_some_and(|arg| arg == "capture-fixture") {
+        capture_fixture(&args);
+        return;
+    }
     let mut input = String::new();
     io::stdin().read_to_string(&mut input).unwrap();
     let input: Input = serde_json::from_str(&input).unwrap();
@@ -69,6 +73,36 @@ fn main() {
         json!({"result":result,"noChildren":clean,"childProbe":child,"childError":child_error,"elapsedMs":started.elapsed().as_millis()})
     );
     assert!(clean, "runner left an owned child");
+}
+
+fn capture_fixture(args: &[String]) {
+    use std::io::Write;
+    match args.get(1).map(String::as_str) {
+        Some("bytes") if args.len() == 4 => {
+            let count: usize = args[3].parse().unwrap();
+            let bytes = vec![b'a'; count];
+            match args[2].as_str() {
+                "stdout" => std::io::stdout().write_all(&bytes).unwrap(),
+                "stderr" => std::io::stderr().write_all(&bytes).unwrap(),
+                _ => panic!("invalid capture stream"),
+            }
+        }
+        Some("omega") => std::io::stdout()
+            .write_all("Ω".repeat(32768).as_bytes())
+            .unwrap(),
+        Some("split") => {
+            std::io::stdout().write_all(&vec![b'a'; 65535]).unwrap();
+            std::io::stdout().write_all("€".as_bytes()).unwrap();
+        }
+        Some("invalid") => std::io::stdout().write_all(&[255]).unwrap(),
+        Some("stderr-invalid") => {
+            std::io::stdout()
+                .write_all(br#"{"ok":true,"detail":"valid"}"#)
+                .unwrap();
+            std::io::stderr().write_all(&vec![255; 65537]).unwrap();
+        }
+        _ => panic!("invalid owned capture fixture"),
+    }
 }
 
 // This mode deliberately creates an unreaped descendant for the supervisor under test.
