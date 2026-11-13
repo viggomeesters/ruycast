@@ -56,12 +56,6 @@ class NativeOpen(unittest.TestCase):
             shutil.copy2(h.profile/'native-probe.png',out/(name+'.png'))
             (out/(name+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
         return view
-    def test_new_quicklink_prefill_uses_real_named_main_service_without_execution(self):
-        for text,expected in [('  https://example.invalid/new  ','https://example.invalid/new'),('   ','https://')]:
-            h=self.host(clipboard=text);self.show(h);helper=action_helpers.ActionsProcesses();before=h.config.read_bytes();helper.action(h,'New Quicklink');helper.view(h,lambda v:v['formVisible'])
-            value=h.probe('command-read')['value'];self.assertTrue(value['id'].startswith('url.'));self.assertEqual(value['target'],expected)
-            self.assertEqual((h.base/'creation-prefill-read').read_text(),'own-named-main-thread\n');self.assertEqual(h.config.read_bytes(),before);self.assertEqual(self.opens(h),[]);self.assertEqual(self.hides(h),[]);self.assertEqual(h.cli('usage')['result'],{})
-            self.capture(h,'creation-prefill-'+('value' if text.strip() else 'empty'));h.probe('cancel-editor');helper.saved(h)
 
     def test_new_show_and_query_revoke_blocked_old_lookup(self):
         for action in ['show','query']:

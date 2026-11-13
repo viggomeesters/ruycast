@@ -188,6 +188,59 @@ fn url_clipboard_and_literal_path_share_native_admission() {
     assert_eq!(h.cli(&["usage"])["result"]["fixture.open"], 2);
 }
 #[test]
+fn new_quicklink_prefill_uses_real_named_main_service_without_execution() {
+    for (text, expected, name) in [
+        (
+            "  https://example.invalid/new  ",
+            "https://example.invalid/new",
+            "value",
+        ),
+        ("   ", "https://", "empty"),
+    ] {
+        let h = host_with_apps(
+            command("app", "dev.fixture.inline"),
+            false,
+            false,
+            Some(text),
+        );
+        show(&h, "nativeopen");
+        let before = fs::read(&h.config).unwrap();
+        action(&h, "New Quicklink");
+        view(&h, |v| v["formVisible"] == true);
+        let value = h.probe("command-read", json!({}))["value"].clone();
+        assert!(value["id"].as_str().unwrap().starts_with("url."));
+        assert_eq!(value["target"], expected);
+        assert_eq!(
+            fs::read_to_string(h.base.join("creation-prefill-read")).unwrap(),
+            "own-named-main-thread\n"
+        );
+        assert_eq!(fs::read(&h.config).unwrap(), before);
+        assert!(rows(&h.base.join("workspace-trace.jsonl"))
+            .iter()
+            .all(|r| !r["phase"].as_str().unwrap().starts_with("open-")));
+        assert!(rows(&h.profile.join("native-hide.jsonl")).is_empty());
+        assert_eq!(h.cli(&["usage"])["result"], json!({}));
+        let screenshot = h.probe("screenshot", json!({}));
+        if let Some(out) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+            let path = std::path::PathBuf::from(out);
+            let directory = path.parent().unwrap().join("native-open");
+            fs::create_dir_all(&directory).unwrap();
+            fs::copy(
+                h.profile.join("native-probe.png"),
+                directory.join(format!("creation-prefill-{name}.png")),
+            )
+            .unwrap();
+            fs::write(
+                directory.join(format!("creation-prefill-{name}.json")),
+                serde_json::to_vec_pretty(&screenshot).unwrap(),
+            )
+            .unwrap();
+        }
+        probe(&h, "cancel-editor");
+        saved(&h);
+    }
+}
+#[test]
 fn existing_prompt_input_is_validated_and_executes_without_config_write() {
     let mut cmd = command("app", "dev.fixture.inline");
     cmd["inputPrompt"] = json!("Label");
