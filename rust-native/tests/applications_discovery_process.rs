@@ -31,6 +31,43 @@ fn ready(h: &Host) -> Value {
     h.wait(|s| s["appDiscoveryPending"] == false)
 }
 #[test]
+fn fixture_refuses_escape_roots_and_missing_marker() {
+    use std::os::unix::fs::symlink;
+    for mode in ["escape", "marker", "symlink"] {
+        let mut host = Host::new(Config::current(), false);
+        match mode {
+            "escape" => {
+                host.env.insert(
+                    "RUYCAST_NATIVE_TEST_APP_ROOTS".into(),
+                    json!(["/Applications"]).to_string().into(),
+                );
+            }
+            "marker" => fs::remove_file(host.base.join(".ruycast-test-fixture")).unwrap(),
+            "symlink" => {
+                let link = host.base.join("Escape");
+                symlink("/Applications", &link).unwrap();
+                host.env.insert(
+                    "RUYCAST_NATIVE_TEST_APP_ROOTS".into(),
+                    json!([link]).to_string().into(),
+                );
+            }
+            _ => unreachable!(),
+        }
+        let output = runtime_host::run(
+            host.command(&host.settings.host).arg("--headless-test"),
+            Duration::from_secs(4),
+        );
+        assert!(!output.status.success(), "{mode}");
+        assert!(
+            String::from_utf8_lossy(&output.stdout)
+                .to_lowercase()
+                .contains("discovery"),
+            "{mode}"
+        );
+        assert!(!host.socket().exists(), "{mode}");
+    }
+}
+#[test]
 fn shutdown_cancels_waiting_discovery_without_release() {
     let mut host = Host::new(Config::current(), false);
     host.env
