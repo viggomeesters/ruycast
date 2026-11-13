@@ -1061,6 +1061,21 @@ fn keyboard_fixture(root: &Path) -> Result<(PathBuf, String)> {
     }
     Ok((artifact, sha))
 }
+fn check_host_sdk_sources(root: &Path, binding: &serde_json::Value) -> Result<()> {
+    let sources = binding["sources"].as_object().ok_or("Missing SDK source binding.")?;
+    if sources.len() != KEYBOARD_SDK_SOURCES.len() {
+        return Err("Incomplete or unexpected native SDK source roster.".into());
+    }
+    for name in KEYBOARD_SDK_SOURCES {
+        let path = root.join(name);
+        let source = owned_path(root, &path)?;
+        let key = source.to_str().ok_or("Invalid native SDK source path.")?;
+        if sources.get(key).and_then(serde_json::Value::as_str) != Some(digest(source)?.as_str()) {
+            return Err("Native SDK fixture source changed.".into());
+        }
+    }
+    Ok(())
+}
 const NORMAL_HOST_ALIAS: &str = "rust-native/target/debug/ruycast-native";
 fn normal_host_negative(entry: &Step) -> bool {
     matches!(entry.name.as_str(), "bridge-process" | "applications-process")
@@ -1136,7 +1151,7 @@ fn check_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
 }
 pub(super) fn plan(target: &str) -> Result<serde_json::Value> {
     Ok(
-        serde_json::json!({"schema":"ruycast.native-validation-plan.v1","steps":matrix(target)?,"renders":[["light","600"],["light","760"],["dark","600"],["dark","760"]],"references":REFERENCES,"requiredNativeSDKs":4,"productionAccepted":false}),
+        serde_json::json!({"schema":"ruycast.native-validation-plan.v1","steps":matrix(target)?,"renders":[["light","600"],["light","760"],["dark","600"],["dark","760"]],"references":REFERENCES,"requiredNativeSDKs":5,"productionAccepted":false}),
     )
 }
 fn owned_path<'a>(root: &Path, path: &'a Path) -> Result<&'a Path> {
@@ -1393,18 +1408,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
         }
         let binding: serde_json::Value =
             serde_json::from_slice(&regular_bytes(&path)?).map_err(error)?;
-        for (name, expected) in binding["sources"]
-            .as_object()
-            .ok_or("Missing SDK source binding.")?
-        {
-            let source = owned_path(root, Path::new(name))?;
-            if !source.starts_with(root.join("rust-native/tests")) {
-                return Err("Unexpected native SDK source authority.".into());
-            }
-            if expected.as_str() != Some(digest(source)?.as_str()) {
-                return Err("Native SDK fixture source changed.".into());
-            }
-        }
+        check_host_sdk_sources(root, &binding)?;
         let artifact = Path::new(
             binding["artifact"]
                 .as_str()
@@ -1446,7 +1450,44 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 mod tests {
     use super::*;
     #[test]
+    fn keyboard_receipt_sources_match_both_consumers_and_reject_drift() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let mut sources = BTreeMap::new();
+        for name in KEYBOARD_SDK_SOURCES {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"owned nonexecutable source").unwrap();
+            sources.insert(path.clone(), digest(&path).unwrap());
+        }
+        let directory = root.join(DIRECTORY).join("native-profile/host-sdks");
+        fs::create_dir_all(&directory).unwrap();
+        let artifact = directory.join("NativeKeyboard.dylib");
+        fs::write(&artifact, b"owned nonexecutable fixture").unwrap();
+        let binding = serde_json::json!({"sources":sources,"artifact":artifact,"sha256":digest(&artifact).unwrap()});
+        fs::write(directory.join("NativeKeyboard.json"), serde_json::to_vec(&binding).unwrap()).unwrap();
+        assert!(keyboard_fixture(root).is_ok());
+        assert!(check_host_sdk_sources(root, &binding).is_ok());
+        let mut omitted = binding.clone();
+        omitted["sources"].as_object_mut().unwrap().remove(root.join(KEYBOARD_SDK_SOURCES[0]).to_str().unwrap());
+        assert!(check_host_sdk_sources(root, &omitted).is_err());
+        let mut extra = binding.clone();
+        extra["sources"].as_object_mut().unwrap().insert(root.join("rust-native/tests/extra.rs").to_str().unwrap().into(), serde_json::json!("irrelevant"));
+        assert!(check_host_sdk_sources(root, &extra).is_err());
+        let mut escaped = binding.clone();
+        escaped["sources"].as_object_mut().unwrap().remove(root.join(KEYBOARD_SDK_SOURCES[0]).to_str().unwrap());
+        escaped["sources"].as_object_mut().unwrap().insert(root.join("../outside").to_str().unwrap().into(), serde_json::json!("irrelevant"));
+        assert!(check_host_sdk_sources(root, &escaped).is_err());
+        fs::write(&artifact, b"changed artifact").unwrap();
+        assert!(keyboard_fixture(root).is_err());
+        fs::write(&artifact, b"owned nonexecutable fixture").unwrap();
+        fs::write(root.join(KEYBOARD_SDK_SOURCES[0]), b"changed source").unwrap();
+        assert!(check_host_sdk_sources(root, &binding).is_err());
+        assert!(keyboard_fixture(root).is_err());
+    }
+    #[test]
     fn host_sdk_roster_requires_the_general_recorder_and_refuses_substitutes_or_extras() {
+        assert_eq!(plan("aarch64-apple-darwin").unwrap()["requiredNativeSDKs"], 5);
         let paths = ["GeneralKeyboard", "NativeChoice", "NativeHid", "NativeKeyboard", "NativeKeyword"]
             .map(|name| format!("rust-native/target/verification/native-profile/host-sdks/{name}.dylib"));
         assert!(check_host_sdk_paths(paths.iter()).is_ok());
