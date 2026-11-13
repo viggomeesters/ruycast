@@ -383,6 +383,31 @@ fn template_form(h: &Bridge) {
     template_fields(h, |v| !v["fields"].is_null());
 }
 #[test]
+fn canonical_choice_default_and_narrow_light_dark_render() {
+    use objc2_foundation::NSString;
+    let target = "https://example.invalid/{a name=\"Text\" default=\"fixed\"}/{b name=\"Place\" default=\"cafe\u{301}\" options=\"café,Other\"}";
+    for theme in ["light", "dark"] {
+        let h = host_with_width(
+            command("url", target),
+            false,
+            false,
+            None,
+            None,
+            600,
+            Some(theme),
+        );
+        template_form(&h);
+        capture(&h, &format!("template-{theme}"));
+        probe(&h, "save-editor");
+        done(&h);
+        let decoded = unquote(opens(&h)[0]["url"].as_str().unwrap());
+        let normalized = NSString::from_str(&decoded)
+            .precomposedStringWithCanonicalMapping()
+            .to_string();
+        assert!(normalized.contains("café"));
+    }
+}
+#[test]
 fn many_fields_are_virtualized_and_last_value_remains_reachable() {
     let target = format!(
         "https://example.invalid/{}",
