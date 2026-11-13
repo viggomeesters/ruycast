@@ -17,9 +17,12 @@ use std::{
 };
 
 fn host(command: Value) -> Bridge {
-    host_with_picker(command, false)
+    host_with_apps(command, false, false)
 }
 fn host_with_picker(command: Value, picker: bool) -> Bridge {
+    host_with_apps(command, picker, false)
+}
+fn host_with_apps(command: Value, picker: bool, discovered: bool) -> Bridge {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
         .map(std::path::PathBuf::from)
@@ -37,6 +40,11 @@ fn host_with_picker(command: Value, picker: bool) -> Bridge {
         fs::create_dir_all(&contents).unwrap();
         fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.success</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleName</key><string>Fixture Selected Browser</string></dict></plist>").unwrap();
     }
+    if discovered {
+        let contents = h.applications.join("Fixture.app/Contents");
+        fs::create_dir_all(&contents).unwrap();
+        fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.discovered</string><key>CFBundleName</key><string>Discovered Native Fixture</string></dict></plist>").unwrap();
+    }
     let mut cfg = default_config();
     cfg["commands"].as_array_mut().unwrap().push(command);
     h.replace(&cfg, None);
@@ -53,7 +61,7 @@ fn host_with_picker(command: Value, picker: bool) -> Bridge {
         .insert("RUYCAST_NATIVE_TEST_REQUIRE_HIDE".into(), "1".into());
     h.start();
     h.settled(|_| true);
-    if picker {
+    if picker || discovered {
         h.wait(|s| s["appDiscoveryPending"] == false);
     }
     h.env.remove(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"));
@@ -112,6 +120,9 @@ fn rows(path: &std::path::Path) -> Vec<Value> {
 fn activate(h: &Bridge) {
     show(h, "nativeopen");
     key(h, 36, 0, "\r", false);
+    done(h);
+}
+fn done(h: &Bridge) {
     let marker = h.base.join("open-started");
     let end = Instant::now() + Duration::from_secs(4);
     while !marker.exists() {
@@ -122,6 +133,36 @@ fn activate(h: &Bridge) {
         std::thread::sleep(Duration::from_millis(10));
     }
     h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+}
+#[test]
+fn discovered_app_is_not_required_to_be_saved_for_usage() {
+    let h = host_with_apps(command("app", "dev.fixture.inline"), false, true);
+    show(&h, "Discovered Native Fixture");
+    key(&h, 36, 0, "\r", false);
+    done(&h);
+    assert_eq!(
+        h.cli(&["usage"])["result"]["discovered.dev.fixture.discovered"],
+        1
+    );
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+}
+#[test]
+fn existing_prompt_input_is_validated_and_executes_without_config_write() {
+    let mut cmd = command("app", "dev.fixture.inline");
+    cmd["inputPrompt"] = json!("Label");
+    let h = host(cmd);
+    let before = fs::read(&h.config).unwrap();
+    show(&h, "nativeopen");
+    key(&h, 36, 0, "\r", false);
+    h.settled(|_| true);
+    assert_eq!(probe(&h, "read")["runInputInline"], true);
+    key(&h, 36, CMD, "\r", false);
+    h.settled(|_| true);
+    h.probe("run-input-type", json!({"text":"own prompt value"}));
+    key(&h, 36, CMD, "\r", false);
+    done(&h);
+    assert_eq!(fs::read(&h.config).unwrap(), before);
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
 }
 #[test]
 fn open_with_uses_exact_hide_before_its_native_callback() {
