@@ -347,6 +347,7 @@ rust-native/tests/fixtures/dashboard_export_shim.rs
 rust-native/tests/fixtures/fcntl_abi.rs
 rust-native/tests/dashboard_presentation_process.py
 rust-native/tests/editor_process.py
+rust-native/tests/editor_process.rs
 rust-native/tests/execution_process.py
 rust-native/tests/fixtures/fcntl_sync_shim.rs
 rust-native/tests/fixtures/fcntl_sync_probe.rs
@@ -504,6 +505,7 @@ rust-native/tests/support/status_rpc.rs
 rust-native/tests/support/runtime_host.rs
 rust-native/tests/support/native_bridge.rs
 rust-native/tests/support/native_actions.rs
+rust-native/tests/support/native_editor.rs
 rust-native/tests/support/native_keyboard.rs
 rust-native/tests/support/owned_keyboard.rs
 rust-native/tests/utility_oracle.rs
