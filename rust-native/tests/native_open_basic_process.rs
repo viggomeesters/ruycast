@@ -415,6 +415,61 @@ fn native_list_type_selection_remains_tentative_until_return() {
     template_key(&h, 36, "\r");
     assert_eq!(template_fields(&h, |_| true)["values"][1], "Beta");
 }
+#[test]
+fn contained_choice_keys_tentative_cancel_commit_and_native_ax_modality() {
+    let h = host(command("url", "https://example.invalid/{a default=\"A\"}/{b name=\"Place\" default=\"One\" options=\"One,Two\"}/{c default=\"C\"}"));
+    template_form(&h);
+    template_key(&h, 48, "\t");
+    template_key(&h, 49, " ");
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["open"], true);
+    assert_eq!(v["fieldsAXHidden"], true);
+    assert!(v["fieldControlsEnabled"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|v| v == false));
+    assert_eq!(probe(&h, "read")["saveEnabled"], false);
+    template_key(&h, 125, "");
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["selected"], 1);
+    assert_eq!(v["values"][1], "One");
+    capture(&h, "choice-open");
+    template_key(&h, 7, "x");
+    template_key_flags(&h, 36, "\r", CMD);
+    probe(&h, "save-editor");
+    h.settled(|_| true);
+    assert_eq!(template_fields(&h, |_| true)["choice"]["open"], true);
+    assert_eq!(
+        template_fields(&h, |_| true)["values"],
+        json!(["A", "One", "C"])
+    );
+    assert!(opens(&h).is_empty());
+    template_key(&h, 53, "");
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["open"], false);
+    assert_eq!(v["fieldsAXHidden"], false);
+    assert_eq!(v["values"][1], "One");
+    assert!(v["fieldControlsEnabled"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|v| v == true));
+    assert_eq!(probe(&h, "read")["saveEnabled"], true);
+    template_key(&h, 49, " ");
+    assert_eq!(template_fields(&h, |_| true)["choice"]["open"], true);
+    template_key(&h, 125, "");
+    template_key(&h, 36, "\r");
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["choice"]["open"], false);
+    assert_eq!(v["values"][1], "Two");
+    template_key(&h, 48, "\t");
+    template_key(&h, 7, "x");
+    assert_eq!(
+        template_fields(&h, |_| true)["values"],
+        json!(["A", "Two", "x"])
+    );
+}
 fn capture(h: &Bridge, name: &str) -> Value {
     let view = h.probe("screenshot", json!({}));
     if let Some(out) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
