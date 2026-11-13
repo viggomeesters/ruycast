@@ -425,7 +425,9 @@ const SETTINGS: &[SettingsGate] = &[
         "startup_process::settings_original_sided_filter_preserves_both_routes_repeat_release_and_modifier_boundaries",
         "startup_process::settings_disabled_dryrun_and_discovered_identity_cannot_bypass_saved_policy",
         "startup_process::settings_reenable_conflict_then_alias_preservation_and_retention_fourteen_reload",
-        "settings_preferences_process.Preferences", "settings_keyboard_process.GeneralKeyboard",
+        "settings_preferences_process.Preferences",
+        "settings_keyboard_process::general_recorder_uses_shared_lease_and_cannot_resume_peer_recorder",
+        "settings_keyboard_process::general_recorded_hotkey_replaces_physical_plan_through_config_staging",
         "library_process.Library", "actions_process::actions_keyboard_badges_and_escape_keeps_palette",
         "actions_process::alias_save_clear_and_cli_resolution", "actions_process::alias_conflict_keeps_draft_and_allows_repair",
         "actions_process::failed_async_save_restores_native_field_focus_and_undo", "actions_process::other_external_fields_merge_but_same_alias_change_conflicts",
@@ -784,7 +786,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
 
         "--check-actions-menu" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "13c9106738b5488b089e7ce5464d1a64117f1ee394e7d3b40d388916c68c2477"),
-            ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "e216089693c96dcc6989109e1336e8f790409e9424343b764293934a3454b188"),
+            ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
@@ -1089,7 +1091,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
         "--check-settings" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "13c9106738b5488b089e7ce5464d1a64117f1ee394e7d3b40d388916c68c2477"),
-            ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "e216089693c96dcc6989109e1336e8f790409e9424343b764293934a3454b188"),
+            ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
@@ -1127,7 +1129,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/keyword_reference.json", include_bytes!("../../../tests/keyword_reference.json"), "b3ad168109a4712a792756f6227a730cec365fae7399824803034131ce956119"),
             ("rust-native/tests/keyword_rich_process.py", include_bytes!("../../../tests/keyword_rich_process.py"), "48bc3d8bbcb3e617c1fb10671aea305c22329c44a37cd51c8cb06d9cc4e24965"),
             ("rust-native/tests/library_process.py", include_bytes!("../../../tests/library_process.py"), "983cfb56c04bdb7c825aa0cc554f9210e4ba678e6238a6487834f3e8e9d83d6a"),
-            ("rust-native/tests/settings_keyboard_process.py", include_bytes!("../../../tests/settings_keyboard_process.py"), "b68148b8081c88c38f94b1bae1f026fd0dc06057fe23d1d3225b955b6e148847"),
+            ("rust-native/tests/settings_keyboard_process.rs", include_bytes!("../../../tests/settings_keyboard_process.rs"), "0c4326feb11b031e79f30926410dc44719347b0988628b813c1286052df9e762"),
             ("rust-native/tests/settings_preferences_process.py", include_bytes!("../../../tests/settings_preferences_process.py"), "f347de11ddc52082cc23de86c99a751e4436f42e6ee99fe1301c1e6fe4550f38"),
             ("rust-native/tests/snippet_board_process.rs", include_bytes!("../../../tests/snippet_board_process.rs"), "8f5841d6591e369d7b120534b1bb2f78f87cfafc098efe4066992d7f0fef6d3a"),
             ("rust-native/tests/snippet_process.rs", include_bytes!("../../../tests/snippet_process.rs"), "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0"),
@@ -1574,6 +1576,19 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn general_keyboard_crosswalk_names_both_rust_tests() {
+        use sha2::Digest;
+        let gate = super::SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
+        let cases = gate.native_cases.iter().filter_map(|name|name.strip_prefix("settings_keyboard_process::")).collect::<Vec<_>>();
+        assert_eq!(cases.len(), 2);
+        let entries = super::settings_sources("--check-settings");
+        let source = entries.iter().find(|entry|entry.0 == "rust-native/tests/settings_keyboard_process.rs").unwrap();
+        assert_eq!(format!("{:x}",sha2::Sha256::digest(source.1)),source.2);
+        let text = std::str::from_utf8(source.1).unwrap();
+        for case in cases { assert!(text.contains(&format!("fn {case}()"))); }
+        assert!(!gate.native_cases.iter().any(|name|name.starts_with("settings_keyboard_process.")));
+    }
     #[test]
     fn settings_keyboard_crosswalk_uses_current_rust_suite_and_owned_sdk() {
         use sha2::Digest;

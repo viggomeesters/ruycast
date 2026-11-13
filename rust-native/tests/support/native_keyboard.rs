@@ -17,7 +17,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn sdk(owner: &Bridge) -> PathBuf {
+fn sdk(owner: &Bridge, role: &'static str) -> PathBuf {
+    assert!(matches!(role, "NativeKeyboard" | "GeneralKeyboard"));
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_ruycast-native"));
     let source = std::env::var_os("RUYCAST_TEST_KEYBOARD_HOST_SHIM")
         .map(PathBuf::from)
@@ -34,14 +35,14 @@ fn sdk(owner: &Bridge) -> PathBuf {
     let path = owner.base.join("keyboard.dylib");
     fs::copy(&source, &path).unwrap();
     let current = format!("{:x}", Sha256::digest(fs::read(&path).unwrap()));
-    static RECEIPT: OnceLock<String> = OnceLock::new();
+    static RECEIPT: OnceLock<(String, &'static str)> = OnceLock::new();
     let expected = RECEIPT.get_or_init(|| {
         let Some(evidence) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") else {
-            return current.clone();
+            return (current.clone(), role);
         };
         let directory = PathBuf::from(evidence).join("host-sdks");
         fs::create_dir_all(&directory).unwrap();
-        let artifact = directory.join("NativeKeyboard.dylib");
+        let artifact = directory.join(format!("{role}.dylib"));
         if path != artifact {
             fs::copy(&path, &artifact).unwrap();
         }
@@ -73,15 +74,16 @@ fn sdk(owner: &Bridge) -> PathBuf {
         let sha = format!("{:x}", Sha256::digest(fs::read(&artifact).unwrap()));
         assert_eq!(sha, current);
         fs::write(
-            directory.join("NativeKeyboard.json"),
+            directory.join(format!("{role}.json")),
             serde_json::to_vec_pretty(&json!({"sources":sources,"artifact":artifact,"sha256":sha}))
                 .unwrap(),
         )
         .unwrap();
-        current.clone()
+        (current.clone(), role)
     });
     assert_eq!(
-        &current, expected,
+        (&current, role),
+        (&expected.0, expected.1),
         "Keyboard SDK changed between owned hosts"
     );
     path
@@ -93,8 +95,18 @@ pub fn host(
     marker: bool,
     theme: Option<&str>,
 ) -> Bridge {
+    host_for_role(commands, start, optin, marker, theme, "NativeKeyboard")
+}
+pub fn host_for_role(
+    commands: &[Value],
+    start: bool,
+    optin: bool,
+    marker: bool,
+    theme: Option<&str>,
+    role: &'static str,
+) -> Bridge {
     let mut host = Bridge::new(Config::current(), false);
-    let fixture = sdk(&host);
+    let fixture = sdk(&host, role);
     if !commands.is_empty() || theme.is_some() {
         let mut config = runtime_host::default_config();
         config["commands"]
