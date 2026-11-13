@@ -26,15 +26,6 @@ class TemplateForms(unittest.TestCase):
         self.fail('Own template field state did not settle: '+str(value))
     def key(self,h,code,chars='',flags=0):
         h.probe('key-event',code=code,chars=chars,flags=flags);h.settled()
-    def test_long_choice_and_label_render_with_complete_accessibility_names(self):
-        label='Place '+('long label '*12);value=('Long option '+('Ω value '*30)).rstrip()
-        target='https://example.invalid/{a default="fixed"}/{b name="'+label+'" default="'+value+'" options="'+value+',Other"}'
-        for theme in ['light','dark']:
-            for width in [600,760]:
-                h=self.host(native.command('url',target),theme=theme,width=width);self.form(h)
-                view=self.capture(h,'choice-long-'+theme+'-'+str(width));self.assertIn(label,view['accessibilityText'])
-                self.key(h,48,'\t');self.key(h,49,' ');view=self.capture(h,'choice-long-open-'+theme+'-'+str(width));self.assertIn(value,view['accessibilityText'])
-                self.key(h,53);self.assertEqual(self.fields(h)['values'][1],value)
 
     def test_native_form_can_open_expanded_output_above_one_mib(self):
         h=self.host(native.command('url','https://example.invalid/{x}{x}{y default="Z"}'))
@@ -62,13 +53,6 @@ class TemplateForms(unittest.TestCase):
             h.probe('save-editor');self.wait_file(h.base/'open-started');self.done(h)
             self.assertIn('café',__import__('unicodedata').normalize('NFC',unquote(self.opens(h)[0]['url'])))
 
-    def test_many_fields_are_virtualized_and_last_value_remains_reachable(self):
-        target='https://example.invalid/'+'/'.join('{f%d default="x"}'%i for i in range(5000))
-        h=self.host(native.command('url',target));self.form(h)
-        h.probe('template-type',index=4999,text='last-value');v=self.fields(h)
-        self.assertEqual(v['fields'],5000);self.assertEqual(v['values'][-1],'last-value');self.assertLessEqual(v['liveRows'],32)
-        h.probe('save-editor');self.wait_file(h.base/'open-started');self.done(h)
-        self.assertTrue(unquote(self.opens(h)[0]['url']).endswith('last-value'))
     def test_late_metadata_is_cancelled_by_new_show_and_config_change(self):
         for reason in ['show','config','cancel']:
             h=self.host(native.command('url','https://example.invalid/{a}/{b}'),barrier=True)

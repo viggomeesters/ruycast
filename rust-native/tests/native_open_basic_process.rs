@@ -382,6 +382,65 @@ fn template_form(h: &Bridge) {
     key(h, 36, 0, "\r", false);
     template_fields(h, |v| !v["fields"].is_null());
 }
+#[test]
+fn many_fields_are_virtualized_and_last_value_remains_reachable() {
+    let target = format!(
+        "https://example.invalid/{}",
+        (0..5000)
+            .map(|i| format!("{{f{i} default=\"x\"}}"))
+            .collect::<Vec<_>>()
+            .join("/")
+    );
+    let h = host(command("url", &target));
+    template_form(&h);
+    h.probe("template-type", json!({"index":4999,"text":"last-value"}));
+    let v = template_fields(&h, |_| true);
+    assert_eq!(v["fields"], 5000);
+    assert_eq!(
+        v["values"].as_array().unwrap().last().unwrap(),
+        "last-value"
+    );
+    assert!(v["liveRows"].as_u64().unwrap() <= 32);
+    probe(&h, "save-editor");
+    done(&h);
+    assert!(unquote(opens(&h)[0]["url"].as_str().unwrap()).ends_with("last-value"));
+}
+#[test]
+fn long_choice_and_label_render_with_complete_accessibility_names() {
+    let label = format!("Place {}", "long label ".repeat(12));
+    let value = format!("Long option {}", "Ω value ".repeat(30))
+        .trim_end()
+        .to_owned();
+    let target = format!("https://example.invalid/{{a default=\"fixed\"}}/{{b name=\"{label}\" default=\"{value}\" options=\"{value},Other\"}}");
+    for theme in ["light", "dark"] {
+        for width in [600, 760] {
+            let h = host_with_width(
+                command("url", &target),
+                false,
+                false,
+                None,
+                None,
+                width,
+                Some(theme),
+            );
+            template_form(&h);
+            let v = capture(&h, &format!("choice-long-{theme}-{width}"));
+            assert!(v["accessibilityText"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(label)));
+            template_key(&h, 48, "\t");
+            template_key(&h, 49, " ");
+            let v = capture(&h, &format!("choice-long-open-{theme}-{width}"));
+            assert!(v["accessibilityText"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(value)));
+            template_key(&h, 53, "");
+            assert_eq!(template_fields(&h, |_| true)["values"][1], value);
+        }
+    }
+}
 fn large_choices() -> String {
     (0..10_000)
         .map(|i| format!("Choice{i}"))
