@@ -17,6 +17,9 @@ use std::{
 };
 
 fn host(command: Value) -> Bridge {
+    host_with_picker(command, false)
+}
+fn host_with_picker(command: Value, picker: bool) -> Bridge {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
         .map(std::path::PathBuf::from)
@@ -29,6 +32,11 @@ fn host(command: Value) -> Bridge {
         });
     assert!(shim.is_absolute() && shim.is_file());
     let mut h = Bridge::new(settings, false);
+    if picker {
+        let contents = h.applications.join("Picker.app/Contents");
+        fs::create_dir_all(&contents).unwrap();
+        fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.success</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleName</key><string>Fixture Selected Browser</string></dict></plist>").unwrap();
+    }
     let mut cfg = default_config();
     cfg["commands"].as_array_mut().unwrap().push(command);
     h.replace(&cfg, None);
@@ -45,10 +53,51 @@ fn host(command: Value) -> Bridge {
         .insert("RUYCAST_NATIVE_TEST_REQUIRE_HIDE".into(), "1".into());
     h.start();
     h.settled(|_| true);
+    if picker {
+        h.wait(|s| s["appDiscoveryPending"] == false);
+    }
     h.env.remove(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"));
     h.env
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
     h
+}
+#[test]
+fn native_picker_save_then_run_uses_selected_bundle_with_exact_hide() {
+    let h = host_with_picker(command("url", "https://example.invalid/picker"), true);
+    show(&h, "nativeopen");
+    action(&h, "Edit");
+    view(&h, |v| v["formVisible"] == true);
+    h.settled(|_| true);
+    h.probe("app-picker", json!({"command":"open"}));
+    h.probe("app-picker", json!({"command":"click","index":1}));
+    probe(&h, "save-editor");
+    saved(&h);
+    let cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    assert_eq!(
+        cfg["commands"].as_array().unwrap().last().unwrap()["applicationID"],
+        "dev.fixture.success"
+    );
+    activate(&h);
+    let trace = rows(&h.base.join("workspace-trace.jsonl"));
+    let opens = trace
+        .iter()
+        .filter(|r| r["phase"].as_str().unwrap().starts_with("open-"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        opens.iter().map(|r| r["phase"].clone()).collect::<Vec<_>>(),
+        vec![json!("open-with-targets"), json!("open-with")]
+    );
+    assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+    assert_eq!(
+        trace
+            .iter()
+            .find(|r| r["phase"] == "open-with-targets")
+            .unwrap()["urls"],
+        json!(["https://example.invalid/picker"])
+    );
+    assert!(trace
+        .iter()
+        .any(|r| r["phase"] == "resolve" && r["bundleID"] == "dev.fixture.success"));
 }
 fn command(kind: &str, target: &str) -> Value {
     json!({"id":"fixture.open","title":"Native Open Fixture","kind":kind,"target":target,"aliases":["nativeopen"]})
