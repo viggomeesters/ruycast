@@ -21,7 +21,7 @@ The native check runs on the main thread with activation prohibited and the pane
 
 `--benchmark-model` uses synthetic 500/1000/5000/10000 catalogs and 1000 timed queries per size after ten warm-ups. It measures only the new session and existing Rust search kernel. It omits current-app recency preparation, analytics, main search aggregation, UI/presentation and many features. Do not interpret comparison with the complete Swift-host benchmark as a causal rewrite gain.
 
-The frozen 0.8.25/build65 remains historical measurement evidence. Preserve the current working installation (the separate native-edit repair delivered 0.8.26/build66) until complete behavior/configuration/CLI/security parity and independent delivery review. The private `.go/plans/full-rust-native.md` owns technical migration acceptance; the public issue owns the requested result. No GitHub Actions.
+The frozen 0.8.25/build65 remains historical measurement evidence. Preserve the current working installation (the separate native-edit repair delivered 0.8.26/build66) until complete behavior/configuration/CLI/security parity and independent delivery review. The public migration issue and its linked issues track the remaining technical acceptance. No GitHub Actions.
 
 ## Rust foundation
 
@@ -30,12 +30,12 @@ The library now owns an enabled catalog, typed in-process ranked search, stable 
 The writer reports whether rename already published the payload before a directory durability failure. The host reconciles that outcome and rechecks mapping/target instead of claiming the old bytes are still on disk. Relocation retains the original and removes only its own unchanged failed copy; post-publication external edits remain available for recovery. These checks cover cooperating writers and detected races; they are not atomic CAS guarantees against a malicious process running as the same user.
 
 ```sh
-cargo build --manifest-path rust-native/Cargo.toml --features test-tools --bin foundation-probe --locked
-python3 rust-native/tests/foundation_process.py
+cargo build --manifest-path rust-native/Cargo.toml --features test-tools --example fcntl-sync-shim --locked
+cargo test --manifest-path rust-native/Cargo.toml --features test-tools --test foundation_process --locked
 cargo clippy --manifest-path rust-native/Cargo.toml --locked --all-targets --all-features -- -D warnings
 ```
 
-The probe requires an explicit feature and uses only disposable prepared profiles. The process suite builds a macOS interposer to fail actual Rust `File::sync_all` directory operations (`fcntl`), including external target/mapping mutation. A missing injection marker fails the test. No injection path exists in the production library. The foundation alone does not accept native wiring; the current configuration writer and Carbon host integration are documented below.
+The probe requires an explicit feature and uses only disposable prepared profiles. The Rust process suite uses an owned copy of the Rust macOS interposer to fail actual `File::sync_all` directory operations (`fcntl`), including external target/mapping mutation. A missing injection marker fails the test. No injection path exists in the production library. The foundation alone does not accept native wiring; the current configuration writer and Carbon host integration are documented below.
 
 Bindings documentation: [objc2](https://github.com/madsmtm/objc2), [AppKit](https://docs.rs/objc2-app-kit/0.3.2/objc2_app_kit/). Dependency versions are locked in Cargo.lock.
 

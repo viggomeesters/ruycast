@@ -91,8 +91,8 @@ manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 cli-open-process|p|rust-native/tests/cli_open_process.py
 supervision-process|p|rust-native/tests/supervision_process.py
 script-process|p|rust-native/tests/script_process.py
-foundation-process|p|rust-native/tests/foundation_process.py
 runtime-writer-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example fcntl-sync-shim --locked
+foundation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test foundation_process --locked
 runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked
 native-profile-process|p|rust-native/tests/native_process.py
 bridge-tools-build|b|ruycast-native native
@@ -1923,6 +1923,10 @@ mod tests {
         assert!(!template.arguments.iter().any(|arg|arg.ends_with(".py") || arg.contains("swiftc")));
         let runtime_sdk = steps.iter().position(|step|step.name=="runtime-writer-sdk-build").unwrap();
         let runtime_test = steps.iter().position(|step|step.name=="runtime-process").unwrap();
+        let foundation_test = steps.iter().position(|step|step.name=="foundation-process").unwrap();
+        assert!(runtime_sdk < foundation_test);
+        assert!(steps[foundation_test].arguments.windows(2).any(|pair|pair==["--test","foundation_process"]));
+        assert!(!steps[foundation_test].arguments.iter().any(|arg|arg.ends_with(".py")));
         assert!(runtime_sdk < runtime_test);
         assert!(steps[runtime_sdk].arguments.windows(2).any(|pair|pair==["--example","fcntl-sync-shim"]));
         assert!(steps[runtime_test].arguments.windows(2).any(|pair|pair==["--test","runtime_process"]));
