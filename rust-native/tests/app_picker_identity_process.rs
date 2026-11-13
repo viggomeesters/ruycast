@@ -12,6 +12,61 @@ use actions::{
 };
 use serde_json::{json, Value};
 use std::fs;
+#[test]
+fn discovered_app_appears_in_palette_but_not_saved_settings() {
+    let mut h = Bridge::new(Config::current(), false);
+    let contents = h.applications.join("App.app/Contents");
+    fs::create_dir_all(&contents).unwrap();
+    fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.palette</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleName</key><string>Fixture Palette</string></dict></plist>").unwrap();
+    h.start();
+    h.wait(|s| s["appDiscoveryPending"] == false);
+    for theme in ["light", "dark"] {
+        let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+        cfg["theme"] = json!(theme);
+        fs::write(&h.config, serde_json::to_vec(&cfg).unwrap()).unwrap();
+        h.rpc(&json!({"op":"reload"}));
+        h.rpc(&json!({"op":"show","query":"Fixture Palette"}));
+        h.settled(|_| true);
+        let v = h.probe("screenshot", json!({}));
+        assert_eq!(v["windowShown"], false);
+        assert_eq!(v["windowKey"], false);
+        assert_eq!(v["windowMain"], false);
+        if let Some(out) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+            let path = std::path::PathBuf::from(out);
+            let directory = path.parent().unwrap().join("applications");
+            fs::create_dir_all(&directory).unwrap();
+            fs::copy(
+                h.profile.join("native-probe.png"),
+                directory.join(format!("apps-{theme}.png")),
+            )
+            .unwrap();
+            fs::write(
+                directory.join(format!("apps-{theme}.json")),
+                serde_json::to_vec_pretty(&v).unwrap(),
+            )
+            .unwrap();
+        }
+        assert!(v["screenText"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Fixture Palette")));
+        assert_eq!(
+            h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["selectedId"],
+            "discovered.dev.fixture.palette"
+        );
+    }
+    h.rpc(&json!({"op":"show","mode":"settings","query":"Fixture Palette"}));
+    h.wait(|s| s["managementUI"]["revision"] == s["managementUI"]["appliedRevision"]);
+    let v =
+        h.rpc(&json!({"op":"native.test","surface":"settings","action":"read"}))["result"].clone();
+    assert_eq!(v["rows"], 0);
+    assert!(v["screenText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("No commands found")));
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
+    assert_eq!(h.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
 fn host(application: Option<&str>, duplicate: bool) -> Bridge {
     host_with(Options {
         application,
