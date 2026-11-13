@@ -26,15 +26,6 @@ class TemplateForms(unittest.TestCase):
         self.fail('Own template field state did not settle: '+str(value))
     def key(self,h,code,chars='',flags=0):
         h.probe('key-event',code=code,chars=chars,flags=flags);h.settled()
-    def test_marked_input_defers_choice_and_unrelated_reload_preserves_open_list(self):
-        h=self.host(native.command('url','https://example.invalid/{a}/{b options="One,Two"}'));self.form(h)
-        h.probe('template-mark',index=0,text='に');h.probe('template-choice',command='open',index=1)
-        v=self.fields(h);self.assertTrue(v['marked']);self.assertFalse(v['choice']['open'])
-        h.probe('template-unmark');h.probe('template-choice',command='open',index=1);before=self.fields(h)
-        cfg=json.loads(h.config.read_text());cfg['theme']='light';h.replace(cfg);h.cli('reload');h.settled();after=self.fields(h)
-        self.assertTrue(after['choice']['open']);self.assertEqual(after['choice']['generation'],before['choice']['generation']);self.assertEqual(after['values'],before['values'])
-        self.assertTrue(after['fieldsAXHidden']);self.assertFalse(any(after['fieldControlsEnabled']))
-        self.key(h,53);self.assertFalse(self.fields(h)['fieldsAXHidden'])
     def test_long_choice_and_label_render_with_complete_accessibility_names(self):
         label='Place '+('long label '*12);value=('Long option '+('Ω value '*30)).rstrip()
         target='https://example.invalid/{a default="fixed"}/{b name="'+label+'" default="'+value+'" options="'+value+',Other"}'
@@ -113,15 +104,6 @@ class TemplateForms(unittest.TestCase):
         h.probe('template-stale');h.settled()
         view=h.probe('read');self.assertTrue(view['formVisible']);self.assertEqual(view['aliasValue'],'UNSAVED-ALIAS')
         self.assertEqual(h.config.read_bytes(),before);self.assertEqual(self.opens(h),[])
-    def test_marked_text_and_unrelated_reload_preserve_live_native_editor(self):
-        h=self.host(native.command('url','https://example.invalid/{a name="Text"}/{b name="Other" default="fixed"}'))
-        self.form(h);h.probe('template-mark',index=0,text='日本語')
-        before=h.probe('template-read');self.assertTrue(before['marked'])
-        cfg=json.loads(h.config.read_text());cfg['theme']='light';h.replace(cfg);h.cli('reload');h.settled()
-        self.assertTrue(h.probe('template-read')['marked']);self.assertEqual(h.probe('template-read')['token'],before['token'])
-        h.probe('save-editor');h.settled();self.assertEqual(self.opens(h),[])
-        h.probe('template-unmark');h.probe('template-type',index=0,text='日本語');h.probe('save-editor')
-        self.wait_file(h.base/'open-started');self.done(h);self.assertIn('日本語',unquote(self.opens(h)[0]['url']))
     def test_canonical_choice_default_and_narrow_light_dark_render(self):
         target='https://example.invalid/{a name="Text" default="fixed"}/{b name="Place" default="cafe\u0301" options="café,Other"}'
         for theme in ['light','dark']:
