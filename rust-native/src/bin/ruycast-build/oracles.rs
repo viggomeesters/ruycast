@@ -548,7 +548,7 @@ const SETTINGS: &[SettingsGate] = &[
         "system_search_sdk::direct_sdk_transport_is_fully_owned",
         "system_search_process.SystemSearch.test_cli_real_provider_routes_metadata_order_and_exact_effects",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-apple-shortcuts", original_source:"Sources/RuycastApp/AppleShortcutChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk","private-results-process","script-process","script-result-process","script-result-basic-process","script-result-native-process"], native_cases:&[
+    SettingsGate { id:"--check-apple-shortcuts", original_source:"Sources/RuycastApp/AppleShortcutChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk","private-results-process","script-process","script-result-process","script-result-native-process"], native_cases:&[
         "system_search::tests::shortcut_uuid_parser_overrides_and_execution_tuple_are_exact",
         "system_search::tests::owned_shortcut_children_drain_both_pipes_and_never_wait_for_inherited_eof",
         "system_search::tests::generated_uuid_and_builtin_bindings_persist_without_resurrecting_deleted_saved_rows",
@@ -558,7 +558,7 @@ const SETTINGS: &[SettingsGate] = &[
         "system_search_sdk::shortcuts_original_native_return_and_twenty_four_hidden_states_keep_uuid_identity",
         "system_search_process.SystemSearch.test_cli_shortcut_uuid_duplicate_titles_bindings_and_private_output",
         "system_search_process.SystemSearch.test_native_shortcut_alias_override_and_reopen",
-        "script_result_process.ScriptResults.test_cli_preserves_choices_detail_unknown_fields_and_success_usage",
+        "script_result_basic_process::cli_preserves_choices_detail_unknown_fields_and_success_usage",
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-window-search", original_source:"Sources/RuycastApp/WindowSearchChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk"], native_cases:&[
         "system_search::tests::window_identity_duplicate_titles_and_minimized_restore_are_exact",
@@ -759,7 +759,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/control.rs", include_bytes!("../../control.rs"), "3ed188dcb94c9578ed6dc499ec2737be8ed7ad019d4924fabe2d8f0edd6a06ef"),
             ("rust-native/src/lib.rs", include_bytes!("../../lib.rs"), "f6f059088e1000c1828df47924f5748f35d1bb362a74640f4796dd93b1c1a28f"),
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "3fd6aa6c6a3c8321dde7a9f4b85a01045e18aad1e0bfeea89d2a9d5d0f935409"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "af1f61ab80cd08a19cabe3e365647aa915f183858dd958e22bb3e62ff9d7e61e"),
             ("Sources/RuycastApp/PolishChecks.swift", include_bytes!("../../../../Sources/RuycastApp/PolishChecks.swift"), "87377916433de1fd22fea0ee92b586e741f635213d2b2472368f1a8ae62111a2"),
         ],
         "--check-feedback" => &[
@@ -813,7 +813,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-actions-menu" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "13c9106738b5488b089e7ce5464d1a64117f1ee394e7d3b40d388916c68c2477"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "af1f61ab80cd08a19cabe3e365647aa915f183858dd958e22bb3e62ff9d7e61e"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
@@ -1044,9 +1044,10 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/execution.rs", include_bytes!("../../execution.rs"), "a211e57ffabbb0cb0cbb8ce19ad894939ca310c36a34a9fea055a0df3e023c8f"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "e8b4b609655d7946bbb27f287aaa739ed1530133f22a7cfdca2d5003655aa462"),
             ("rust/src/script.rs", include_bytes!("../../../../rust/src/script.rs"), "16974362c399c6c5a92596d7563d501eb0492df9f5e2463d8147eeb70108bfb0"),
-            ("rust-native/tests/script_result_process.py", include_bytes!("../../../tests/script_result_process.py"), "94dd622d4b60d199c6cadf39558e08bff77282eaee630a4dec1cd1f3ca92b26e"),
-            ("rust-native/tests/script_result_basic_process.rs", include_bytes!("../../../tests/script_result_basic_process.rs"), "cc95adffb9b1b58a7d0b4154940631e650746ce3d997033ebf615412c7eb7598"),
+            ("rust-native/tests/script_result_process.py", include_bytes!("../../../tests/script_result_process.py"), "e80343cbeff4c67401c29ca1593767c7724244c73e324ce273ab90ce0e33d917"),
+            ("rust-native/tests/script_result_basic_process.rs", include_bytes!("../../../tests/script_result_basic_process.rs"), "70e1a2de21b80f8702438acb49b03fac13576c84cc90e3857af8fc3aa48eb498"),
             ("rust-native/tests/script_result_native_process.rs", include_bytes!("../../../tests/script_result_native_process.rs"), "6791270af079e8a05e679dc86de1528dd4dfb7f881b7a291dc8b9878a8786410"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "af1f61ab80cd08a19cabe3e365647aa915f183858dd958e22bb3e62ff9d7e61e"),
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
             ("Sources/RuycastApp/AppleShortcutChecks.swift", include_bytes!("../../../../Sources/RuycastApp/AppleShortcutChecks.swift"), "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74"),
@@ -1129,7 +1130,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-settings" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "13c9106738b5488b089e7ce5464d1a64117f1ee394e7d3b40d388916c68c2477"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "af1f61ab80cd08a19cabe3e365647aa915f183858dd958e22bb3e62ff9d7e61e"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
@@ -1186,7 +1187,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/runtime_utilities.rs", include_bytes!("../../runtime_utilities.rs"), "209d90ba65f4fb8fd9a1341d419fddf5ada441dcebb641914cd2ac1e6692e8bd"),
             ("rust-native/src/runtime_builtins.rs", include_bytes!("../../runtime_builtins.rs"), "43bc0ddfcfde25438465f7dc2f9c245bd7084d8906f44baf5f229be43e6f991c"),
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0ea7151b3dde2228cd0bb9e692870278540245a8926620184c6c25fd54acad81"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "af1f61ab80cd08a19cabe3e365647aa915f183858dd958e22bb3e62ff9d7e61e"),
             (
                 "rust-native/src/activity.rs",
                 include_bytes!("../../activity.rs"),
@@ -1616,12 +1617,12 @@ mod tests {
     fn script_result_basic_binds_current_sources_and_route() {
         use sha2::Digest;
         let inputs = settings_sources("--check-apple-shortcuts");
-        for path in ["rust-native/tests/script_result_process.py", "rust-native/tests/script_result_basic_process.rs", "rust-native/tests/script_result_native_process.rs"] {
+        for path in ["rust-native/tests/script_result_process.py", "rust-native/tests/script_result_basic_process.rs", "rust-native/tests/script_result_native_process.rs", "rust-native/src/bin/private_results_fixture.rs"] {
             let (_, bytes, expected) = inputs.iter().find(|entry| entry.0 == path).unwrap();
             assert_eq!(format!("{:x}", sha2::Sha256::digest(bytes)), *expected, "{path}");
         }
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-apple-shortcuts").unwrap();
-        assert!(gate.required_native_steps.contains(&"script-result-basic-process"));
+        assert!(gate.required_native_steps.contains(&"script-result-process"));
         assert!(gate.required_native_steps.contains(&"script-result-native-process"));
     }
     #[test]
@@ -2157,12 +2158,12 @@ mod tests {
             ("runtime::system::shortcut_budget_tests::", "rust-native/src/runtime_system.rs"),
             ("system_search_sdk::", "rust-native/tests/system_search_sdk.rs"),
             ("system_search_process.", "rust-native/tests/system_search_process.py"),
-            ("script_result_process.", "rust-native/tests/script_result_process.py"),
+            ("script_result_basic_process::", "rust-native/tests/script_result_basic_process.rs"),
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
         ];
         for (id, steps, case_count, source_count) in [
             ("--check-window-search", &["unit", "system-search-process", "system-search-sdk"][..], 18, 29),
-            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-basic-process", "script-result-native-process"][..], 10, 41),
+            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 42),
             ("--check-render-updates", &["render-updates-process"][..], 1, 14),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();

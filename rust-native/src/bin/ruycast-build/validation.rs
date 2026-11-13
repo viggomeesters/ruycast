@@ -155,8 +155,7 @@ inline-input-process|p|rust-native/tests/inline_input_process.py
 input-actions-process|p|rust-native/tests/input_actions_process.py
 input-process|p|rust-native/tests/input_process.py
 execution-process|p|rust-native/tests/execution_process.py
-script-result-process|p|rust-native/tests/script_result_process.py
-script-result-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_result_basic_process --locked
+script-result-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_result_basic_process --locked
 script-result-native-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_result_native_process --locked
 capture-process|p|rust-native/tests/capture_process.py
 rich-process|p|rust-native/tests/rich_process.py
@@ -1874,7 +1873,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 131);
+        assert_eq!(steps.len(), 130);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1968,7 +1967,7 @@ mod tests {
         assert!(inline_transition.arguments.windows(2).any(|pair|pair==["--test","inline_transition_process"]));
         let inline_focus = steps.iter().find(|step|step.name=="inline-focus-process").unwrap();
         assert!(inline_focus.arguments.windows(2).any(|pair|pair==["--test","inline_focus_process"]));
-        let script_result_basic = steps.iter().find(|step|step.name=="script-result-basic-process").unwrap();
+        let script_result_basic = steps.iter().find(|step|step.name=="script-result-process").unwrap();
         assert!(script_result_basic.arguments.windows(2).any(|pair|pair==["--test","script_result_basic_process"]));
         let script_result_native = steps.iter().find(|step|step.name=="script-result-native-process").unwrap();
         assert!(script_result_native.arguments.windows(2).any(|pair|pair==["--test","script_result_native_process"]));
