@@ -165,3 +165,62 @@ fn generic_ok_only_and_plain_json_keep_the_ordinary_runner_wrapper() {
         );
     }
 }
+#[test]
+fn cli_preserves_choices_detail_unknown_fields_and_success_usage() {
+    let h = host();
+    let payload = json!({"ok":true,"choices":choices(),"detail":"PRIVATE report Ω","extra":{"data":"PRIVATE extra"}});
+    assert_eq!(run_value(&h, &payload, 0), with_exit(&payload));
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"]["script.fixture"], 1);
+    for name in ["command-log.json", "usage.json"] {
+        assert!(!fs::read_to_string(h.profile.join(name))
+            .unwrap()
+            .contains("PRIVATE"));
+    }
+}
+#[test]
+fn usage_failure_preserves_completed_provider_result_and_does_not_retry() {
+    use std::{
+        io::{BufRead, BufReader, Write},
+        thread,
+        time::{Duration, Instant},
+    };
+    let h = host();
+    let ready = h.base.join("ready");
+    let gate = h.base.join("gate");
+    let out = h.base.join("out");
+    let payload =
+        json!({"ok":true,"choices":choices(),"detail":"PRIVATE completed report","extra":17});
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    let commands = cfg["commands"].as_array_mut().unwrap();
+    commands.retain(|c| c["id"] != "script.fixture");
+    commands.push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),"arguments":["fake","gated",ready,gate,out,format!("{payload}\n")],"timeout":3}));
+    h.replace(&cfg, None);
+    assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+    let mut stream = h.connect(Duration::from_secs(6));
+    stream
+        .set_read_timeout(Some(Duration::from_secs(6)))
+        .unwrap();
+    stream
+        .set_write_timeout(Some(Duration::from_secs(3)))
+        .unwrap();
+    writeln!(stream, "{}", json!({"op":"execute","id":"runfixture"})).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !ready.exists() {
+        assert!(Instant::now() < deadline, "provider did not signal ready");
+        thread::sleep(Duration::from_millis(10));
+    }
+    fs::create_dir(h.profile.join("usage.json")).unwrap();
+    fs::write(&gate, "go").unwrap();
+    let mut line = String::new();
+    BufReader::new(stream).read_line(&mut line).unwrap();
+    let response: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["actionCompleted"], true);
+    assert_eq!(response["detail"], payload["detail"]);
+    assert_eq!(response["choices"], payload["choices"]);
+    assert_eq!(response["extra"], 17);
+    assert_eq!(fs::read_to_string(out).unwrap(), "once");
+    assert!(!fs::read_to_string(h.profile.join("command-log.json"))
+        .unwrap()
+        .contains("PRIVATE"));
+}
