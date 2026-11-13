@@ -13,23 +13,67 @@ use actions::{
 use serde_json::{json, Value};
 use std::fs;
 fn host(application: Option<&str>, duplicate: bool) -> Bridge {
+    host_with(Options {
+        application,
+        duplicate,
+        ..Options::default()
+    })
+}
+#[derive(Default)]
+struct Options<'a> {
+    application: Option<&'a str>,
+    duplicate: bool,
+    empty: bool,
+    long: bool,
+    default_name: bool,
+    missing_name: bool,
+    theme: Option<&'a str>,
+    width: Option<u32>,
+}
+fn host_with(options: Options<'_>) -> Bridge {
     let mut h = Bridge::new(Config::current(), false);
+    h.env.insert(
+        "RUYCAST_NATIVE_TEST_WIDTH".into(),
+        options.width.unwrap_or(760).to_string().into(),
+    );
     for (id, title) in [
         ("dev.fixture.a", "Fixture Browser A"),
         ("dev.fixture.b", "Fixture Browser B"),
     ] {
+        if options.empty {
+            continue;
+        }
         let contents = h.applications.join(format!("{id}.app/Contents"));
         fs::create_dir_all(&contents).unwrap();
-        let name = if duplicate { "Fixture Same" } else { title };
+        let name = if options.default_name && id == "dev.fixture.a" {
+            "Default app".to_owned()
+        } else if options.missing_name && id == "dev.fixture.a" {
+            "dev.fixture.missing".to_owned()
+        } else if options.duplicate {
+            "Fixture Same".to_owned()
+        } else {
+            format!(
+                "{}{}",
+                title,
+                if options.long {
+                    " long büro 日本語 ".repeat(20)
+                } else {
+                    String::new()
+                }
+            )
+        };
         let plist=format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>{id}</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleName</key><string>{name}</string></dict></plist>");
         fs::write(contents.join("Info.plist"), plist).unwrap();
     }
     let mut cfg = default_config();
     let mut command = json!({"id":"url.fixture","title":"Fixture Link","kind":"url","target":"https://example.invalid/own","aliases":["fixtureurl"]});
-    if let Some(id) = application {
+    if let Some(id) = options.application {
         command["applicationID"] = json!(id);
     }
     cfg["commands"].as_array_mut().unwrap().push(command);
+    if let Some(theme) = options.theme {
+        cfg["theme"] = json!(theme);
+    }
     h.replace(&cfg, None);
     h.start();
     h.wait(|s| s["appDiscoveryPending"] == false);
@@ -115,4 +159,103 @@ fn duplicate_names_show_bundle_ids_and_never_save_display_text() {
     probe(&h, "save-editor");
     saved(&h);
     assert_eq!(command(&h, "url.fixture")["applicationID"], "dev.fixture.b");
+}
+#[test]
+fn long_app_titles_native_accessibility_and_light_dark_widths() {
+    for theme in ["light", "dark"] {
+        for width in [600, 760] {
+            let h = host_with(Options {
+                theme: Some(theme),
+                width: Some(width),
+                long: true,
+                ..Options::default()
+            });
+            edit(&h);
+            choose(&h, 2);
+            let v = read(&h);
+            assert_eq!(v["axValue"], "dev.fixture.b");
+            assert!(v["title"].as_str().unwrap().chars().count() > 200);
+            h.capture(&format!("app-long-{theme}-{width}"));
+            h.probe("app-picker", json!({"command":"open"}));
+            let screen = h.capture(&format!("app-long-open-{theme}-{width}"));
+            assert!(screen["accessibilityText"]
+                .as_array()
+                .unwrap()
+                .contains(&v["title"]));
+            key(&h, 53, 0, "", false);
+            probe(&h, "cancel-editor");
+            saved(&h);
+        }
+    }
+}
+#[test]
+fn empty_discovery_keeps_default_and_tab_closes_tentative_choice() {
+    let h = host_with(Options {
+        empty: true,
+        ..Options::default()
+    });
+    edit(&h);
+    h.probe("app-picker", json!({"command":"open"}));
+    assert_eq!(read(&h)["list"]["rows"], 1);
+    h.capture("app-empty");
+    key(&h, 48, 0, "\t", false);
+    assert_eq!(read(&h)["list"]["open"], false);
+    assert_eq!(read(&h)["value"], "");
+    assert_eq!(read(&h)["fieldAXHidden"], false);
+}
+#[test]
+fn explicit_empty_id_is_preserved_until_default_is_explicitly_chosen() {
+    let h = host(Some(""), false);
+    edit(&h);
+    h.probe(
+        "command-input",
+        json!({"key":"title","text":"Only title changed"}),
+    );
+    probe(&h, "save-editor");
+    saved(&h);
+    assert_eq!(command(&h, "url.fixture")["applicationID"], "");
+    assert!(command(&h, "url.fixture").get("applicationID").is_some());
+    edit(&h);
+    choose(&h, 0);
+    probe(&h, "save-editor");
+    saved(&h);
+    assert!(command(&h, "url.fixture").get("applicationID").is_none());
+}
+#[test]
+fn reserved_default_name_and_saved_id_are_visibly_distinct() {
+    let h = host_with(Options {
+        default_name: true,
+        ..Options::default()
+    });
+    edit(&h);
+    h.probe("app-picker", json!({"command":"open"}));
+    let v = h.capture("app-reserved-default");
+    assert!(v["accessibilityText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("Default app")));
+    assert!(v["accessibilityText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("Default app — dev.fixture.a")));
+    h.probe("app-picker", json!({"command":"click","index":1}));
+    assert_eq!(read(&h)["value"], "dev.fixture.a");
+    let h = host_with(Options {
+        application: Some("dev.fixture.missing"),
+        missing_name: true,
+        ..Options::default()
+    });
+    edit(&h);
+    h.probe("app-picker", json!({"command":"open"}));
+    let v = h.capture("app-saved-id");
+    assert!(v["accessibilityText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("Saved app — dev.fixture.missing")));
+    assert!(v["accessibilityText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("dev.fixture.missing")));
+    h.probe("app-picker", json!({"command":"click","index":1}));
+    assert_eq!(read(&h)["value"], "dev.fixture.missing");
 }
