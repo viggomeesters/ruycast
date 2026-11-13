@@ -37,7 +37,15 @@ fn host_with_deadline(
     clipboard: Option<&str>,
     deadline_ms: Option<u32>,
 ) -> Bridge {
-    host_with_width(command, picker, discovered, clipboard, deadline_ms, 760)
+    host_with_width(
+        command,
+        picker,
+        discovered,
+        clipboard,
+        deadline_ms,
+        760,
+        None,
+    )
 }
 fn host_with_width(
     command: Value,
@@ -46,6 +54,7 @@ fn host_with_width(
     clipboard: Option<&str>,
     deadline_ms: Option<u32>,
     width: u32,
+    theme: Option<&str>,
 ) -> Bridge {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
@@ -76,6 +85,9 @@ fn host_with_width(
         fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.discovered</string><key>CFBundleName</key><string>Discovered Native Fixture</string></dict></plist>").unwrap();
     }
     let mut cfg = default_config();
+    if let Some(theme) = theme {
+        cfg["theme"] = json!(theme);
+    }
     cfg["commands"].as_array_mut().unwrap().push(command);
     h.replace(&cfg, None);
     h.env
@@ -110,7 +122,7 @@ fn post_effect_storage_failure_and_ranking_warning_are_visible() {
     for file in ["usage.json", "search-ranking.json"] {
         let mut cmd = command("url", "ruycast-fixture://hold-sync");
         cmd["timeout"] = json!(3);
-        let h = host_with_width(cmd, false, false, None, None, 600);
+        let h = host_with_width(cmd, false, false, None, None, 600, None);
         let gate = Release(h.base.join("workspace-release"));
         show(&h, "nativeopen");
         key(&h, 36, 0, "\r", false);
@@ -145,6 +157,36 @@ fn post_effect_storage_failure_and_ranking_warning_are_visible() {
             "{text}"
         );
         assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+    }
+}
+#[test]
+fn missing_application_and_template_validation_keep_action_uncommitted() {
+    for theme in ["light", "dark"] {
+        let h = host_with_width(
+            command("app", "dev.fixture.missing"),
+            false,
+            false,
+            None,
+            None,
+            760,
+            Some(theme),
+        );
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+        let view = capture(&h, theme);
+        let text = view["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(text.contains("App is not installed:"));
+        assert!(rows(&h.profile.join("native-hide.jsonl")).is_empty());
+        assert!(rows(&h.base.join("workspace-trace.jsonl"))
+            .iter()
+            .all(|r| !r["phase"].as_str().unwrap().starts_with("open-")));
     }
 }
 #[test]
