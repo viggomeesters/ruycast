@@ -367,6 +367,7 @@ rust-native/tests/inline_input_process.py
 rust-native/tests/inline_process.py
 rust-native/tests/inline_basic_process.rs
 rust-native/tests/inline_composition_process.rs
+rust-native/tests/inline_transition_process.rs
 rust-native/tests/input_actions_process.py
 rust-native/tests/input_process.py
 rust-native/tests/keyboard_process.py
