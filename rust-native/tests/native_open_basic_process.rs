@@ -37,6 +37,16 @@ fn host_with_deadline(
     clipboard: Option<&str>,
     deadline_ms: Option<u32>,
 ) -> Bridge {
+    host_with_width(command, picker, discovered, clipboard, deadline_ms, 760)
+}
+fn host_with_width(
+    command: Value,
+    picker: bool,
+    discovered: bool,
+    clipboard: Option<&str>,
+    deadline_ms: Option<u32>,
+    width: u32,
+) -> Bridge {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
         .map(std::path::PathBuf::from)
@@ -69,7 +79,7 @@ fn host_with_deadline(
     cfg["commands"].as_array_mut().unwrap().push(command);
     h.replace(&cfg, None);
     h.env
-        .insert("RUYCAST_NATIVE_TEST_WIDTH".into(), "760".into());
+        .insert("RUYCAST_NATIVE_TEST_WIDTH".into(), width.to_string().into());
     h.env
         .insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
     let fixture_home = h.base.as_os_str().to_owned();
@@ -94,6 +104,48 @@ fn host_with_deadline(
     h.env
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
     h
+}
+#[test]
+fn post_effect_storage_failure_and_ranking_warning_are_visible() {
+    for file in ["usage.json", "search-ranking.json"] {
+        let mut cmd = command("url", "ruycast-fixture://hold-sync");
+        cmd["timeout"] = json!(3);
+        let h = host_with_width(cmd, false, false, None, None, 600);
+        let gate = Release(h.base.join("workspace-release"));
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        wait_open_started(&h);
+        assert_eq!(
+            h.rpc(&json!({"op":"status"}))["result"]["openRequestsRunning"],
+            1
+        );
+        let blocked = h.profile.join(file);
+        if blocked.exists() {
+            fs::remove_file(&blocked).unwrap();
+        }
+        fs::create_dir(&blocked).unwrap();
+        fs::write(&gate.0, "release").unwrap();
+        done(&h);
+        h.settled(|_| true);
+        assert_eq!(
+            h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+            true
+        );
+        let view = capture(&h, &format!("{file}-warning"));
+        let text = view["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            text.contains("usage could not be saved")
+                || text.contains("Opened, but recent choices could not be saved"),
+            "{text}"
+        );
+        assert_eq!(rows(&h.profile.join("native-hide.jsonl")).len(), 1);
+    }
 }
 #[test]
 fn expiry_cancel_and_config_change_before_hide_never_open() {
