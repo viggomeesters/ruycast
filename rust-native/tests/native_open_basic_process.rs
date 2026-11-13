@@ -383,6 +383,32 @@ fn template_form(h: &Bridge) {
     template_fields(h, |v| !v["fields"].is_null());
 }
 #[test]
+fn single_query_field_inline_and_literal_alias_tail() {
+    for query in ["nativeopen", "nativeopen literal&value"] {
+        let h = host(command("url", "https://example.invalid/{query}"));
+        assert_eq!(h.rpc(&json!({"op":"show","query":query}))["ok"], true);
+        h.settled(|s| s["nativeUI"]["visible"] == true);
+        if query == "nativeopen" {
+            key(&h, 36, 0, "\r", false);
+        }
+        let end = Instant::now() + Duration::from_secs(5);
+        while probe(&h, "read")["runInputInline"] != true {
+            assert!(Instant::now() < end, "inline input did not open");
+            h.settled(|_| true);
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if query == "nativeopen" {
+            h.probe("run-inline-type", json!({"text":"literal&value"}));
+        }
+        key(&h, 36, 0, "\r", false);
+        done(&h);
+        assert!(opens(&h)[0]["url"]
+            .as_str()
+            .unwrap()
+            .contains("literal%26value"));
+    }
+}
+#[test]
 fn multi_field_text_and_lazy_choice_open_exact_rendered_url() {
     let h = host(command("url", "https://example.invalid/{first name=\"Message\"}/{second name=\"Country\" options=\"One,Two\"}"));
     let before = fs::read(&h.config).unwrap();

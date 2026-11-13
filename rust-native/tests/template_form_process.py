@@ -85,17 +85,6 @@ class TemplateForms(unittest.TestCase):
         self.assertLess(v['optionReads'],64)
         h.probe('template-choose',index=1,selected=9999);self.assertEqual(self.fields(h)['values'][1],'Choice9999')
         h.probe('save-editor');self.wait_file(h.base/'open-started');self.done(h);self.assertIn('Choice9999',self.opens(h)[0]['url'])
-    def test_single_query_field_inline_and_literal_alias_tail(self):
-        for query in ['nativeopen','nativeopen literal&value']:
-            h=self.host(native.command('url','https://example.invalid/{query}'))
-            self.show(h,query)
-            if query=='nativeopen':self.activate(h)
-            end=time.monotonic()+5
-            while not h.probe('read')['runInputInline']:
-                self.assertLess(time.monotonic(),end);h.settled();time.sleep(.01)
-            if query=='nativeopen':h.probe('run-inline-type',text='literal&value')
-            h.probe('key-event',code=36,chars='\r',flags=0)
-            self.wait_file(h.base/'open-started');self.done(h);self.assertIn('literal%26value',self.opens(h)[0]['url'])
     def test_late_metadata_is_cancelled_by_new_show_and_config_change(self):
         for reason in ['show','config','cancel']:
             h=self.host(native.command('url','https://example.invalid/{a}/{b}'),barrier=True)
