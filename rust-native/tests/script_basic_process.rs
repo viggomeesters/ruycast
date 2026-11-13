@@ -195,3 +195,82 @@ fn cancel_and_deadline_before_spawn() {
         assert!(!sentinel.exists());
     }
 }
+fn tree_case(mode: &str) {
+    let h = OwnedDir::new();
+    let sentinel = h.0.join("descendant-ran");
+    let pid = h.0.join("leader.pid");
+    let mut c = command(
+        env!("CARGO_BIN_EXE_script-probe"),
+        json!(["script-tree", "leader", pid, sentinel]),
+    );
+    let mut request = json!({"home":h.0,"command":c});
+    match mode {
+        "timeout" => {
+            c = request["command"].clone();
+            c["timeout"] = json!(0.2);
+            request["command"] = c;
+        }
+        "cancelled" => request["cancelMs"] = json!(200),
+        "deadline" => request["deadlineMs"] = json!(200),
+        "panic" => request["panicMs"] = json!(200),
+        _ => unreachable!(),
+    };
+    let output = run(Path::new(env!("CARGO_BIN_EXE_script-probe")), &[], &request);
+    assert_eq!(output["noChildren"], true);
+    let r = &output["result"];
+    if mode == "panic" {
+        assert_eq!(r["panicCaught"], true);
+    } else {
+        assert_eq!(r["end"], mode);
+        if mode == "timeout" {
+            assert!(r["response"]["error"]
+                .as_str()
+                .unwrap()
+                .contains("timed out"));
+        }
+        if mode == "cancelled" {
+            assert!(r["response"]["error"]
+                .as_str()
+                .unwrap()
+                .contains("may have already occurred"));
+        }
+    }
+    assert!(pid.exists(), "fixture never started");
+    let leader = fs::read_to_string(pid).unwrap().parse::<i32>().unwrap();
+    assert_eq!(unsafe { libc::kill(leader, 0) }, -1);
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ESRCH)
+    );
+    std::thread::sleep(Duration::from_millis(850));
+    assert!(!sentinel.exists(), "descendant survived");
+}
+#[test]
+fn timeout_cleans_group() {
+    tree_case("timeout");
+}
+#[test]
+fn cancellation_cleans_group() {
+    tree_case("cancelled");
+}
+#[test]
+fn absolute_deadline_cleans_group() {
+    tree_case("deadline");
+}
+#[test]
+fn callback_panic_cleans_group() {
+    tree_case("panic");
+}
+#[test]
+fn early_success_closes_inherited_pipes() {
+    let h = OwnedDir::new();
+    let sentinel = h.0.join("pipe-descendant");
+    let c = command(
+        env!("CARGO_BIN_EXE_script-probe"),
+        json!(["script-tree", "early", h.0.join("unused-pid"), sentinel]),
+    );
+    let result = probe(&h.0, c);
+    assert_eq!(result["response"]["result"]["stdout"], "done\n");
+    std::thread::sleep(Duration::from_millis(850));
+    assert!(!sentinel.exists());
+}

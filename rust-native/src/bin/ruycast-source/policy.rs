@@ -415,7 +415,6 @@ rust-native/tests/runtime_process.py
 rust-native/tests/runtime_process.rs
 rust-native/tests/rust_only_policy.py
 rust-native/tests/fixtures/script_fault_shim.rs
-rust-native/tests/script_process.py
 rust-native/tests/script_basic_process.rs
 rust-native/tests/script_fault_process.rs
 rust-native/tests/script_result_process.py
