@@ -342,7 +342,6 @@ rust-native/examples/ui_completion.rs
 rust-native/tests/clipboard_text_process.rs
 rust-native/tests/clipboard_text_reference.json
 rust-native/tests/creation_process.py
-rust-native/tests/dashboard_export_process.py
 rust-native/tests/dashboard_export_process.rs
 rust-native/tests/fixtures/dashboard_export_shim.rs
 rust-native/tests/fixtures/fcntl_abi.rs

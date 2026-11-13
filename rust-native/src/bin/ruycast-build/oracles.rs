@@ -1220,11 +1220,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
                 "df7ce714c4eb567d2ac0f7bbbcc6b084e12046134b4e318f2ab931be89a173d7",
             ),
             (
-                "rust-native/tests/dashboard_export_process.py",
-                include_bytes!("../../../tests/dashboard_export_process.py"),
-                "4b2ea05620fc454903c56d0ed909180f357d379d5eb1ae87607fda59fd902572",
-            ),
-            (
                 "rust-native/tests/dashboard_export_process.rs",
                 include_bytes!("../../../tests/dashboard_export_process.rs"),
                 "710c9f5b5010acef290e19af2a9f14d3f1cb8851cf4d596f97952dea33644a0b",
@@ -1579,6 +1574,21 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn analytics_dashboard_export_crosswalk_uses_existing_rust_cases() {
+        use sha2::Digest;
+        let gate = super::SETTINGS.iter().find(|gate|gate.id=="--check-analytics").unwrap();
+        assert!(gate.required_native_steps.contains(&"dashboard-export-process"));
+        let entries=super::settings_sources(gate.id);
+        assert!(!entries.iter().any(|entry|entry.0=="rust-native/tests/dashboard_export_process.py"));
+        let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();
+        assert_eq!(sources.len(),1);
+        assert_eq!(format!("{:x}",sha2::Sha256::digest(sources[0].1)),sources[0].2);
+        let source=std::str::from_utf8(sources[0].1).unwrap();
+        let cases=gate.native_cases.iter().filter_map(|case|case.strip_prefix("dashboard_export_process::")).collect::<Vec<_>>();
+        assert_eq!(cases.len(),5);
+        for case in cases {assert!(source.contains(&format!("fn {case}()")));}
+    }
     #[test]
     fn settings_preferences_crosswalk_uses_four_current_rust_cases() {
         use sha2::Digest;
