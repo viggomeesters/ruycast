@@ -133,6 +133,40 @@ fn activate(h: &Bridge) {
     key(h, 36, 0, "\r", false);
     done(h);
 }
+struct Release(std::path::PathBuf);
+impl Drop for Release {
+    fn drop(&mut self) {
+        let _ = fs::write(&self.0, "release");
+    }
+}
+#[test]
+fn new_show_and_query_revoke_blocked_old_lookup() {
+    for action_name in ["show", "query"] {
+        let h = host(command("app", "dev.fixture.hold-resolve"));
+        let gate = h.base.join("workspace-release");
+        let _release = Release(gate.clone());
+        show(&h, "nativeopen");
+        key(&h, 36, 0, "\r", false);
+        let marker = h.base.join("resolve-entered");
+        let end = Instant::now() + Duration::from_secs(4);
+        while !marker.exists() {
+            assert!(Instant::now() < end, "own fixture did not enter resolve");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if action_name == "show" {
+            show(&h, "nativeopen");
+        } else {
+            h.probe("query", json!({"query":"new-intent"}));
+        }
+        fs::write(gate, "release").unwrap();
+        h.wait(|s| s["openRequestsRunning"] == 0 && s["nativeUI"]["executionRunning"] != true);
+        assert!(rows(&h.base.join("workspace-trace.jsonl"))
+            .iter()
+            .all(|r| !r["phase"].as_str().unwrap().starts_with("open-")));
+        assert!(rows(&h.profile.join("native-hide.jsonl")).is_empty());
+        assert!(h.cli(&["usage"])["result"].get("fixture.open").is_none());
+    }
+}
 fn done(h: &Bridge) {
     let marker = h.base.join("open-started");
     let end = Instant::now() + Duration::from_secs(4);
