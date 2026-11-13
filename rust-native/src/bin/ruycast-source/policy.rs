@@ -346,7 +346,6 @@ rust-native/tests/dashboard_export_process.rs
 rust-native/tests/fixtures/dashboard_export_shim.rs
 rust-native/tests/fixtures/fcntl_abi.rs
 rust-native/tests/dashboard_presentation_process.py
-rust-native/tests/editor_process.py
 rust-native/tests/editor_process.rs
 rust-native/tests/execution_process.py
 rust-native/tests/fixtures/fcntl_sync_shim.rs
@@ -396,6 +395,7 @@ rust-native/tests/library_process.py
 rust-native/tests/library_checkbox_process.rs
 rust-native/tests/library_drafts_process.rs
 rust-native/tests/library_navigation_process.rs
+rust-native/tests/library_lifecycle_process.rs
 rust-native/tests/manager_process.rs
 rust-native/tests/native_choice_process.py
 rust-native/tests/native_dashboard_process.py

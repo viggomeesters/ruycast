@@ -7,7 +7,6 @@ import shutil
 import unittest
 import bridge_process as bridge
 import actions_process as helpers
-import editor_process as editor
 from runtime_process import DEFAULT
 
 class SettingsHost(bridge.Bridge):
@@ -30,8 +29,6 @@ class Library(unittest.TestCase):
     saved=helpers.ActionsProcesses.saved
     action=helpers.ActionsProcesses.action
     alias=helpers.ActionsProcesses.alias
-    edit=editor.CommandEditor.edit
-    field=editor.CommandEditor.field
     command=helpers.ActionsProcesses.command
     def host(self):
         host=SettingsHost();self.addCleanup(host.close);host.settled();return host
@@ -46,18 +43,3 @@ class Library(unittest.TestCase):
         return value
     def rows(self,host):return host.probe('library-read')['rows']
     def nav(self,host,action,**fields):host.probe(action,**fields);host.settled();return host.probe('library-read')
-    def test_toolbar_add_is_private_until_save_then_shared_with_palette(self):
-        host=self.host();self.show(host,'');before=host.config.read_bytes();host.probe('library-add',kind='snippet');self.view(host,lambda v:v['formVisible']);self.assertEqual(host.config.read_bytes(),before);self.field(host,'title','Created in Settings');self.field(host,'target','Hello');self.field(host,'aliases','newsettings');id=host.probe('command-read')['value']['id'];self.capture(host,'new-snippet');host.probe('save-editor');self.saved(host);self.assertEqual(host.cli('search','newsettings')['result'][0]['id'],id)
-    def test_invalid_config_keeps_both_last_good_views_and_refuses_draft_save(self):
-        host=self.host();palette=Palette(host);helpers.ActionsProcesses.show(self,palette,'finder');self.show(host);self.edit(host);self.field(host,'title','Keep draft');host.config.write_text('broken PRIVATE-SENTINEL');host.settled(lambda s:s['configError'] is not None);before=host.config.read_bytes();host.probe('save-editor');self.view(host,lambda v:v['formVisible'] and len(v['screenText'])>4);self.assertEqual(host.config.read_bytes(),before);self.assertEqual(host.probe('command-read')['value']['title'],'Keep draft');self.assertNotIn('PRIVATE-SENTINEL',json.dumps(host.probe('read')));self.assertTrue(palette.probe('read')['rows']>0)
-    def test_theme_and_application_resign_update_both_windows(self):
-        host=self.host();palette=Palette(host);helpers.ActionsProcesses.show(self,palette,'finder');self.show(host)
-        for theme in ['light','dark']:
-            config=json.loads(host.config.read_bytes());config['theme']=theme;host.replace(config);host.settled(lambda s:s['theme']==theme);palette.settled();self.assertEqual('DarkAqua' in host.probe('read')['appearance'],theme=='dark');self.assertEqual('DarkAqua' in palette.probe('read')['appearance'],theme=='dark');self.capture(host,'library-'+theme)
-        helpers.ActionsProcesses.hotkey(self,palette);helpers.ActionsProcesses.hotkey(self,host);host.probe('resign-app');self.assertFalse(host.probe('read')['recording']);self.assertFalse(palette.probe('read')['recording']);self.assertTrue(palette.probe('read')['formVisible']);self.assertTrue(host.probe('read')['formVisible'])
-    def test_hidden_settings_callbacks_do_not_change_navigation_or_cancel_palette(self):
-        host=self.host();palette=Palette(host);helpers.ActionsProcesses.show(self,palette,'finder');self.alias(palette);token=palette.probe('read')['editorToken'];self.show(host,'safari');host.probe('window-close');host.settled(lambda s:not s['managementUI']['visible']);before=host.probe('library-read');host.probe('library-tab',tab='snippets');host.probe('library-filter',filter='disabled');host.settled();after=host.probe('library-read');self.assertEqual(after['tab'],before['tab']);self.assertEqual(after['filter'],before['filter']);self.assertFalse(after['visible']);self.assertEqual(palette.probe('read')['editorToken'],token)
-    def test_normal_quit_with_both_windows_and_drafts_releases_socket(self):
-        host=self.host();palette=Palette(host);helpers.ActionsProcesses.show(self,palette,'finder');self.alias(palette);self.show(host,'safari');self.edit(host);before=host.config.read_bytes();self.assertTrue(host.rpc({'op':'quit'})['ok']);out,err=host.process.communicate(timeout=4);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());self.assertFalse((host.profile/'control.sock').exists());self.assertEqual(host.config.read_bytes(),before)
-
-if __name__=='__main__':unittest.main(verbosity=2)
