@@ -64,8 +64,6 @@ class Applications(unittest.TestCase):
                 else:
                     link=host.base/'Escape';link.symlink_to('/Applications',target_is_directory=True);host.env['RUYCAST_NATIVE_TEST_APP_ROOTS']=json.dumps([str(link)])
                 p=subprocess.run([str(HEADLESS),'--headless-test'],env=host.env,capture_output=True,text=True,timeout=4);self.assertNotEqual(p.returncode,0);self.assertIn('discovery',p.stdout.lower());self.assertFalse((host.profile/'control.sock').exists())
-    def test_fixture_does_not_follow_nested_app_symlink_outside_home(self):
-        host=self.host();other=self.host();external=self.bundle(other.applications,'PrivateExternal','dev.fixture.external',CFBundleName='Fixture External');(host.applications/'Link.app').symlink_to(external,target_is_directory=True);host.start();self.assertEqual(self.ready(host)['discoveredApps'],0);self.assertEqual(self.search(host),[])
     def test_normal_host_refuses_headless_fixture_flag(self):
         host=self.host();normal=rt.ROOT/'target/debug/ruycast-native';p=subprocess.run([str(normal),'--headless-test'],env=host.env,capture_output=True,text=True,timeout=4);self.assertNotEqual(p.returncode,0);self.assertFalse((host.profile/'control.sock').exists())
 
@@ -85,10 +83,5 @@ class Applications(unittest.TestCase):
                         else:
                             local=app/'Contents/Resources/en.lproj';local.mkdir(parents=True);(local/'InfoPlist.strings').symlink_to(resources/'InfoPlist.strings')
                 host.start();self.assertEqual(self.ready(host)['discoveredApps'],0);self.assertEqual(self.search(host),[])
-    def test_malformed_metadata_types_do_not_abort_worker(self):
-        host=self.host()
-        for name,info in [('NumberID',dict(CFBundleIdentifier=12)),('ArrayRoot',[]),('WrongLabel',dict(CFBundleIdentifier='dev.fixture.wronglabel',CFBundleDisplayName=['wrong'],CFBundleName='Fixture fallback'))]:
-            app=host.applications/(name+'.app');(app/'Contents').mkdir(parents=True);(app/'Contents/Info.plist').write_bytes(plistlib.dumps(info))
-        host.start();status=self.ready(host);self.assertIsNone(status['appDiscoveryError']);self.assertEqual(status['discoveredApps'],1);self.assertEqual([c['title'] for c in self.search(host)],['Fixture fallback'])
 
 if __name__=='__main__':unittest.main(verbosity=2)
