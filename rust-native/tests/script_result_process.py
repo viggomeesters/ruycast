@@ -18,14 +18,6 @@ class ScriptResults(unittest.TestCase):
         self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
         self.assertNotIn('PRIVATE',(host.profile/'command-log.json').read_text());self.assertNotIn('PRIVATE',(host.profile/'usage.json').read_text())
     show=inputs.NativeInput.show;view=inputs.NativeInput.view;key=inputs.NativeInput.key;type=inputs.NativeInput.type;idle=inputs.NativeInput.idle;capture=inputs.NativeInput.capture
-    def test_native_provider_and_process_failure_details_keep_the_same_input_draft(self):
-        for ok,status in [(False,0),(False,7),(True,7)]:
-            payload=dict(ok=ok,error='Provider asks attention',detail='PRIVATE failure detail')
-            code='print(%r);raise SystemExit(%d)'%(json.dumps(payload),status)
-            host=self.host(native=True,commands=[self.command(code,inputPrompt='Message')]);token=inputs.NativeInput.open(self,host)['editorToken'];self.type(host,'PRIVATE keep input');host.probe('save-editor');self.idle(host)
-            report=self.view(host,lambda v:v.get('scriptResult') is not None);self.assertTrue(report['resultPanel']['selectable']);self.assertFalse(report['resultPanel']['editable']);host.probe('result-control',name='close')
-            expected='status 7' if ok else 'Provider asks attention'
-            self.view(host,lambda v:v['formVisible'] and any(expected in t for t in v['screenText']));self.assertEqual(host.probe('read')['editorToken'],token);field=host.probe('run-input-read');self.assertEqual(field['text'],'PRIVATE keep input');self.assertTrue(field['focused'] and field['editable'] and field['canUndo']);self.type(host,' continued');self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE keep input continued');self.assertEqual(host.rpc({'op':'usage'})['result'],{});self.assertNotIn('PRIVATE',(host.profile/'command-log.json').read_text());self.capture(host,'script-result-failure-%s-%s'%(ok,status))
     def test_usage_failure_preserves_completed_provider_result_and_does_not_retry(self):
         host=self.host();ready=host.base/'ready';gate=host.base/'gate';out=host.base/'out'
         native=dict(ok=True,choices=self.choices(),detail='PRIVATE completed report',extra=17)

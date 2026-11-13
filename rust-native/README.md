@@ -214,7 +214,7 @@ Only execution fields deliberately changed in the own published Edit receipt bec
 
 ## Script result contract and choice ownership
 
-`tests/script_result_basic_process.rs` exercises CLI result interpretation with a Rust provider fixture; the remaining `tests/script_result_process.py` cases and Capture fixture helpers remain until migrated.
+`tests/script_result_basic_process.rs` exercises CLI result interpretation with a Rust provider fixture and `tests/script_result_native_process.rs` covers native failure drafts; the remaining `tests/script_result_process.py` cases and Capture fixture helpers remain until migrated.
 
 `script_result` decodes ordinary-script provider envelopes on the worker. A boolean `ok` plus a choices object or detail string identifies a first rich response; an originating choice job must explicitly retain its expected-envelope flag for an `ok`-only follow-up. Process failures override provider success, preserve failure details/extra fields, and inspect both successful nested stdout and failing top-level stdout. CLI responses preserve the provider envelope and process exit code. Plain output remains the ordinary runner response. Native presentation rejects invalid successful choices; the CLI preserves them as opaque provider data, matching the existing transport contract. A completed process with invalid presentation metadata is not silently offered as an unfinished effect. Post-effect usage errors preserve the actual provider payload instead of replacing it with a generic error.
 
