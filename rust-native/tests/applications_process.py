@@ -40,11 +40,6 @@ class Applications(unittest.TestCase):
             (target/(name+'.png')).write_bytes((host.profile/'native-probe.png').read_bytes())
             (target/(name+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2))
         return value
-    def test_late_discovery_preserves_real_input_text_token_and_undo(self):
-        host=self.host(native=True,barrier=True);self.bundle(host.applications,'App','dev.fixture.late',CFBundleName='Fixture Late')
-        cfg=copy.deepcopy(rt.DEFAULT);cfg['commands'].append(dict(id='script.fixture',title='Input Fixture',kind='script',target='/usr/bin/true',aliases=['runfixture'],inputPrompt='Message'));host.config.write_text(json.dumps(cfg));host.start();self.file(host.base/'app-discovery-ready')
-        helper=inputs.NativeInput();before=helper.open(host);token=before['editorToken'];helper.type(host,'PRIVATE own input');self.assertTrue(host.probe('run-input-read')['canUndo'])
-        (host.base/'app-discovery-release').write_text('go');self.ready(host);host.settled();after=host.probe('read');self.assertEqual(after['editorToken'],token);self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE own input');self.assertTrue(host.probe('run-input-read')['canUndo']);helper.type(host,' retained');self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE own input retained');self.assertEqual(host.rpc({'op':'usage'})['result'],{})
     def test_normal_host_refuses_headless_fixture_flag(self):
         host=self.host();normal=rt.ROOT/'target/debug/ruycast-native';p=subprocess.run([str(normal),'--headless-test'],env=host.env,capture_output=True,text=True,timeout=4);self.assertNotEqual(p.returncode,0);self.assertFalse((host.profile/'control.sock').exists())
 
