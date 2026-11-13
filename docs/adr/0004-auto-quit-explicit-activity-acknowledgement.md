@@ -30,7 +30,10 @@ acquires the existing nonblocking configuration writer/relocation lock, reads
 current config again and sends the normal request while holding that same
 lock. A disable published during the queries wins; a busy writer blocks. The
 owned native regression publishes disable immediately before final admission
-and verifies that no quit reaches the child. Normal public AppKit termination
+and verifies that no quit reaches the child. Mutable audio, foreground and
+process binding are refreshed after that final config read, under the lock.
+Additional causal native tests change the foreground source or end the owned
+Child exactly after config reading; both must prevent the normal quit. Normal public AppKit termination
 preserves application refusal and save prompts. Each timer interval consumes
 at most one request, including a failed send or a pending save decision.
 

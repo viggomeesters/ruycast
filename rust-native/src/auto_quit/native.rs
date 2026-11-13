@@ -129,6 +129,10 @@ pub struct Native {
     owned: Option<(Identity, std::path::PathBuf)>,
     #[cfg(test)]
     before_effect: Option<Box<dyn FnMut()>>,
+    #[cfg(test)]
+    after_config_read: Option<Box<dyn FnMut(&mut Self)>>,
+    #[cfg(test)]
+    foreground_override: Option<i32>,
 }
 impl Native {
     pub fn new(main: MainThreadMarker, paths: ProfilePaths, live: Rc<dyn Fn() -> bool>) -> Self {
@@ -141,6 +145,10 @@ impl Native {
             owned: None,
             #[cfg(test)]
             before_effect: None,
+            #[cfg(test)]
+            after_config_read: None,
+            #[cfg(test)]
+            foreground_override: None,
         }
     }
     #[cfg(test)]
@@ -156,11 +164,30 @@ impl Native {
             _main: None,
             owned: Some((process, executable)),
             before_effect: None,
+            #[cfg(test)]
+            after_config_read: None,
+            #[cfg(test)]
+            foreground_override: None,
         }
     }
     #[cfg(test)]
     pub(super) fn before_effect(&mut self, hook: impl FnMut() + 'static) {
         self.before_effect = Some(Box::new(hook));
+    }
+    #[cfg(test)]
+    pub(super) fn after_config_read(&mut self, hook: impl FnMut(&mut Self) + 'static) {
+        self.after_config_read = Some(Box::new(hook));
+    }
+    #[cfg(test)]
+    pub(super) fn owned_foreground(&mut self, pid: i32) {
+        self.foreground_override = Some(pid);
+    }
+    fn foreground(&self) -> Option<i32> {
+        #[cfg(test)]
+        if let Some(pid) = self.foreground_override {
+            return Some(pid);
+        }
+        foreground()
     }
     fn app(&self, application: &str, process: Identity) -> Option<Retained<NSRunningApplication>> {
         if !(self.live)()
@@ -192,7 +219,7 @@ impl Native {
     }
     fn observation(&self, application: &str, process: Identity) -> Option<Observation> {
         self.app(application, process)?;
-        let activity = match foreground() {
+        let activity = match self.foreground() {
             Some(pid) if pid == process.pid => Activity::Foreground,
             Some(_) => Activity::Background,
             None => Activity::Unknown,
@@ -277,11 +304,10 @@ impl Adapter for Native {
         {
             return false;
         }
-        let Some(app) = self.app(&candidate.application, candidate.process) else {
-            return false;
-        };
         if !(self.live)()
-            || foreground().is_none_or(|pid| pid == candidate.process.pid)
+            || self
+                .foreground()
+                .is_none_or(|pid| pid == candidate.process.pid)
             || identity(candidate.process.pid) != Some(candidate.process)
         {
             return false;
@@ -294,7 +320,12 @@ impl Adapter for Native {
         // relocation. Disable published during sensor queries wins; a busy
         // writer blocks this effect. Keep the final read and normal request in
         // one bounded nonblocking admission, without any new writer authority.
-        ConfigStore::with_locked_current(&self.paths, |config| {
+        let paths = self.paths.clone();
+        ConfigStore::with_locked_current(&paths, |config| {
+            #[cfg(test)]
+            if let Some(mut hook) = self.after_config_read.take() {
+                hook(self);
+            }
             let allowed = config
                 .auto_quit
                 .iter()
@@ -304,7 +335,36 @@ impl Adapter for Native {
                         && value.allow_unverified_activity
                         && value.minutes == expected.minutes
                 });
-            Ok(allowed && (self.live)() && app.terminate())
+            if !allowed {
+                return Ok(false);
+            }
+            // Config reading can take time. Refresh mutable safety after it,
+            // while the same writer lock prevents a concurrent disable.
+            let Some(snapshot) = self.snapshot(candidate) else {
+                return Ok(false);
+            };
+            if snapshot.application.activity != Activity::Background
+                || [snapshot.running, snapshot.input, snapshot.output]
+                    .iter()
+                    .any(|value| {
+                        matches!(value, Signal::Active | Signal::Failed | Signal::Unavailable)
+                    })
+            {
+                return Ok(false);
+            }
+            // Revalidate identity, bundle and foreground directly before effect.
+            let Some(app) = self.app(&candidate.application, candidate.process) else {
+                return Ok(false);
+            };
+            if self
+                .foreground()
+                .is_none_or(|pid| pid == candidate.process.pid)
+                || identity(candidate.process.pid) != Some(candidate.process)
+                || !(self.live)()
+            {
+                return Ok(false);
+            }
+            Ok(app.terminate())
         })
         .unwrap_or(false)
     }

@@ -466,3 +466,85 @@ fn real_minute_product_runtime_normally_quits_owned_child() {
         start.elapsed().as_secs_f64()
     );
 }
+
+#[test]
+#[ignore = "owned final-config-read race proof; explicit isolated fixture paths required"]
+fn final_native_guard_revalidates_foreground_and_lifetime_after_config_read() {
+    let _serial = OWNED_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    use super::runtime::{Adapter, Runtime};
+    use crate::profile::{ConfigStore, ProfilePaths};
+    struct Timed {
+        native: super::native::Native,
+        time: Duration,
+    }
+    impl Adapter for Timed {
+        fn now(&self) -> Duration {
+            self.time
+        }
+        fn preferences(&mut self) -> Result<super::runtime::Preferences, String> {
+            self.native.preferences()
+        }
+        fn applications(&mut self, p: &super::runtime::Preferences) -> Vec<Observation> {
+            self.native.applications(p)
+        }
+        fn snapshot(&mut self, d: &Due) -> Option<Snapshot> {
+            let mut value = self.native.snapshot(d)?;
+            value.sampled_at = self.time;
+            Some(value)
+        }
+        fn request(&mut self, d: &Due, p: &AutoQuitSettings) -> bool {
+            self.native.request(d, p)
+        }
+    }
+    let root = PathBuf::from(std::env::var_os("RUYCAST_AUTO_QUIT_FIXTURE_DIR").unwrap())
+        .join("final-read-race");
+    fs::create_dir_all(&root).unwrap();
+    let binary = PathBuf::from(std::env::var_os("RUYCAST_AUTO_QUIT_FIXTURE_BIN").unwrap());
+    for cause in ["foreground", "lifetime"] {
+        let directory = root.join(cause);
+        fs::create_dir_all(&directory).unwrap();
+        let mut owned = Owned::launch(&directory, &binary, "accept");
+        let profile = directory.join(format!("profile-{}", std::process::id()));
+        let paths = ProfilePaths::new(profile.clone(), profile, None);
+        let mut store = ConfigStore::open(paths.clone()).unwrap();
+        let mut config = rustcast_core::default_config();
+        config["autoQuit"] =
+            serde_json::json!({BUNDLE:{"enabled":true,"minutes":1,"allowUnverifiedActivity":true}});
+        store.save(&config).unwrap();
+        let mut native =
+            super::native::Native::owned_test(paths, owned.identity, owned.executable.clone());
+        if cause == "foreground" {
+            let pid = owned.identity.pid;
+            // Change the foreground source exactly after the final config read,
+            // without activating a window or disturbing the user's focus.
+            native.after_config_read(move |native| native.owned_foreground(pid));
+        } else {
+            let mut input = owned.child.stdin.take().unwrap();
+            let identity = owned.identity;
+            native.after_config_read(move |_| {
+                input.write_all(b"x").unwrap();
+                let deadline = Instant::now() + Duration::from_secs(3);
+                while crate::system_search::native::identity(identity.pid) == Some(identity) {
+                    assert!(Instant::now() < deadline);
+                    thread::sleep(Duration::from_millis(10));
+                }
+            });
+        }
+        let mut adapter = Timed {
+            native,
+            time: Duration::ZERO,
+        };
+        let mut runtime = Runtime::default();
+        assert_eq!(runtime.tick(&mut adapter).unwrap(), 0);
+        adapter.time = Duration::from_secs(60);
+        assert_eq!(
+            runtime.tick(&mut adapter).unwrap(),
+            0,
+            "{cause} transition during config read must prevent effect"
+        );
+        assert!(!owned.receipt_has_quit());
+        println!("final config-read race {cause}: normal quit blocked");
+    }
+}
