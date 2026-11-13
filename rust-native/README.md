@@ -225,7 +225,7 @@ Typed choices preserve provider order and existing canonically unique/nonempty I
 
 ## Trusted capture before provider interpretation
 
-`tests/capture_bytes_process.rs` checks byte limits, UTF-8, detached pipe holders, spoofed capture metadata and protocol refusals through the real supervisor; `tests/capture_cli_process.rs` checks opaque provider fields through the headless host; the remaining Python capture tests still exercise native behavior.
+`tests/capture_bytes_process.rs` checks byte limits, UTF-8, detached pipe holders, spoofed capture metadata and protocol refusals through the real supervisor; `tests/capture_cli_process.rs` checks opaque provider fields through the headless host, and `tests/capture_native_process.rs` checks incomplete-output warnings and preserved input. The remaining Python test covers native detached pipes.
 
 The shared core records actual raw-byte discard, retained-prefix UTF-8 validity and observed EOF independently for stdout/stderr. WouldBlock or the bounded read turn never proves EOF. Exact65,536-byte output is complete; reading another byte marks truncation. UTF-8 validity describes retained bytes before lossy conversion, including a cap that splits an otherwise valid codepoint. Completion.response() and legacy __run-script JSON remain unchanged.
 

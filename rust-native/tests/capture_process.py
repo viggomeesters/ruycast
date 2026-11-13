@@ -28,12 +28,6 @@ class NativeCapture(unittest.TestCase):
     host=results.ScriptResults.host;command=results.ScriptResults.command;file=results.ScriptResults.file
     show=inputs.NativeInput.show;view=inputs.NativeInput.view;key=inputs.NativeInput.key;type=inputs.NativeInput.type;idle=inputs.NativeInput.idle;capture=inputs.NativeInput.capture
     def open(self,host):return inputs.NativeInput.open(self,host)
-    def test_incomplete_or_altered_success_warns_and_does_not_offer_completed_input_again(self):
-        cases=['import os;os.write(1,b"a"*65537)','import os;os.write(1,b\'{"ok":true,"detail":"\\xff"}\')']
-        cases.append(valid_prefix_code())
-        for index,code in enumerate(cases):
-            host=self.host(native=True,commands=[self.command(code,inputPrompt='Message')]);self.open(host);self.type(host,'PRIVATE input');host.probe('save-editor');self.idle(host)
-            self.view(host,lambda v:not v['formVisible'] and any('incomplete or invalid' in t for t in v['screenText']));self.assertEqual(host.rpc({'op':'usage'})['result'],{});self.assertNotIn('PRIVATE',(host.profile/'command-log.json').read_text());self.capture(host,'capture-success-warning-'+str(index))
     def test_native_requires_stdout_eof_but_not_stderr_eof(self):
         for held in ['stdout','stderr','both']:
             host=self.host(native=True);code,ready,gate,done=pipe_holder_code(host.base,held);self.addCleanup(release_holder,ready,gate,done)
@@ -43,13 +37,5 @@ class NativeCapture(unittest.TestCase):
             else:
                 self.view(host,lambda v:not v['formVisible'] and any('incomplete or invalid' in t for t in v['screenText']));self.assertEqual(host.rpc({'op':'usage'})['result'],{})
             self.assertTrue(ready.exists());self.assertFalse(done.exists());release_holder(ready,gate,done)
-    def test_incomplete_process_failure_retains_input_and_actual_process_error(self):
-        code='import os;os.write(1,b\'{"ok":true,"detail":"\\xff","actionCompleted":true}\');raise SystemExit(7)'
-        host=self.host(native=True,commands=[self.command(code,inputPrompt='Message')]);token=self.open(host)['editorToken'];self.type(host,'PRIVATE keep');host.probe('save-editor');self.idle(host)
-        self.view(host,lambda v:v['formVisible'] and any('status 7' in t for t in v['screenText']));self.assertEqual(host.probe('read')['editorToken'],token);self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE keep');self.type(host,' continued');self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE keep continued');self.capture(host,'capture-failure-keeps-input')
-    def test_stderr_loss_does_not_reject_otherwise_complete_stdout(self):
-        code='import os;os.write(1,b\'{"ok":true,"detail":"valid"}\');os.write(2,bytes([255])*65537)'
-        host=self.host(native=True,commands=[self.command(code,inputPrompt='Message')]);self.open(host);self.type(host,'input');host.probe('save-editor');self.idle(host)
-        view=self.view(host,lambda v:not v['formVisible'] and v.get('scriptResult') is not None);self.assertTrue(view['resultPanel']['detailVisible']);self.assertFalse(view['resultPanel']['editable']);self.assertEqual(view['resultPanel']['detail'],'valid');self.assertFalse(any('incomplete or invalid' in t for t in view['screenText']));self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
 
 if __name__=='__main__':unittest.main()
