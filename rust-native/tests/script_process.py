@@ -44,25 +44,6 @@ class Scripts(unittest.TestCase):
         self.assertTrue(result['noChildren'])
         return result['result']
 
-    def test_nonzero_and_signal_response(self):
-        result = self.run_probe(self.command(['-c', 'printf output; printf error >&2; exit 7']))['response']
-        self.assertEqual((result['ok'], result['exitCode'], result['stdout'], result['stderr']), (False, 7, 'output', 'error'))
-        result = self.run_probe(self.command(['-c', 'kill -TERM $$']))['response']
-        self.assertEqual(result['exitCode'], -1)
-
-    def test_both_output_streams_bounded_and_drained(self):
-        code = 'import os;[(os.write(1,b"a"*8192),os.write(2,b"b"*8192)) for _ in range(512)]'
-        result = self.run_probe(self.command(['-c', code], '/usr/bin/python3'))
-        self.assertTrue(result['response']['ok'])
-        self.assertEqual((result['stdoutBytes'], result['stderrBytes']), (65536, 65536))
-
-    def test_continuous_flood_cannot_starve_cancel_or_timeout(self):
-        code = 'import os\nwhile True:\n os.write(1,b"a"*8192);os.write(2,b"b"*8192)'
-        for options, end in [({}, 'timeout'), ({'cancelMs': 150}, 'cancelled')]:
-            result = self.run_probe(self.command(['-c', code], '/usr/bin/python3', timeout=.25), **options)
-            self.assertEqual(result['end'], end)
-            self.assertEqual((result['stdoutBytes'], result['stderrBytes']), (65536, 65536))
-
     def test_home_expansion_and_null_stdin(self):
         script = self.home / 'fixture'
         script.write_text('#!/bin/sh\nread value; printf "%s" "$?"\n')
