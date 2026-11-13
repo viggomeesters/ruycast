@@ -91,6 +91,7 @@ manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 cli-open-process|p|rust-native/tests/cli_open_process.py
 supervision-process|p|rust-native/tests/supervision_process.py
 script-process|p|rust-native/tests/script_process.py
+script-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked
 runtime-writer-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example fcntl-sync-shim --locked
 foundation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test foundation_process --locked
 runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked
@@ -1873,7 +1874,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 130);
+        assert_eq!(steps.len(), 131);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
@@ -1971,6 +1972,8 @@ mod tests {
         assert!(script_result_basic.arguments.windows(2).any(|pair|pair==["--test","script_result_basic_process"]));
         let script_result_native = steps.iter().find(|step|step.name=="script-result-native-process").unwrap();
         assert!(script_result_native.arguments.windows(2).any(|pair|pair==["--test","script_result_native_process"]));
+        let script_basic = steps.iter().find(|step|step.name=="script-basic-process").unwrap();
+        assert!(script_basic.arguments.windows(2).any(|pair|pair==["--test","script_basic_process"]));
         let names = steps
             .iter()
             .map(|step| step.name.as_str())

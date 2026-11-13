@@ -44,14 +44,6 @@ class Scripts(unittest.TestCase):
         self.assertTrue(result['noChildren'])
         return result['result']
 
-    def test_literal_arguments_and_cli_identical_response(self):
-        command = self.command(['%s', 'literal $(touch NEVER);\nΩ'], '/usr/bin/printf')
-        expected = self.run_probe(command)['response']
-        self.assertEqual(expected['result']['stdout'], command['arguments'][1])
-        output = subprocess.run([str(CLI), '__run-script'], input=json.dumps(command), capture_output=True, text=True, timeout=5, env=self.env)
-        self.assertEqual(output.returncode, 0, output.stderr)
-        self.assertEqual(json.loads(output.stdout), expected)
-
     def test_nonzero_and_signal_response(self):
         result = self.run_probe(self.command(['-c', 'printf output; printf error >&2; exit 7']))['response']
         self.assertEqual((result['ok'], result['exitCode'], result['stdout'], result['stderr']), (False, 7, 'output', 'error'))
@@ -76,17 +68,6 @@ class Scripts(unittest.TestCase):
         script.write_text('#!/bin/sh\nread value; printf "%s" "$?"\n')
         script.chmod(0o700)
         self.assertEqual(self.run_probe(self.command([], '~/fixture'))['response']['result']['stdout'], '1')
-
-    def test_invalid_timeout_kind_path_and_spawn_failure(self):
-        command = self.command([])
-        for change in [dict(timeout=0), dict(timeout=301), dict(kind='url'), dict(target='relative')]:
-            self.assertFalse(self.run_probe(dict(command, **change))['ok'])
-        result = self.run_probe(self.command([], str(self.home / 'missing')))
-        self.assertFalse(result['ok'])
-
-    def test_repeated_missing_executable_leaves_no_children(self):
-        for _ in range(12):
-            self.assertFalse(self.run_probe(self.command([], str(self.home / 'missing')))['ok'])
 
     def test_cancel_and_deadline_before_spawn(self):
         sentinel = self.home / 'should-not-run'
