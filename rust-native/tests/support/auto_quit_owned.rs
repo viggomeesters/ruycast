@@ -23,7 +23,7 @@ struct ProcessSerialNumber {
 #[link(name = "ApplicationServices", kind = "framework")]
 unsafe extern "C" {
     fn GetFrontProcess(process: *mut ProcessSerialNumber) -> i16;
-    fn GetProcessPID(process: *const ProcessSerialNumber, pid: *mut i32) -> i16;
+    fn GetProcessPID(process: *const ProcessSerialNumber, pid: *mut i32) -> i32;
 }
 fn foreground_pid() -> Option<i32> {
     let mut process = ProcessSerialNumber { high: 0, low: 0 };
