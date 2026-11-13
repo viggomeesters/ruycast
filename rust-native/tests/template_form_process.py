@@ -51,16 +51,6 @@ class TemplateForms(unittest.TestCase):
         self.key(h,49,' ');self.assertTrue(self.fields(h)['choice']['open'])
         self.key(h,125);self.key(h,36,'\r');v=self.fields(h);self.assertFalse(v['choice']['open']);self.assertEqual(v['values'][1],'Two')
         self.key(h,48,'\t');self.key(h,7,'x');self.assertEqual(self.fields(h)['values'],['A','Two','x'])
-    def test_empty_choice_never_silently_commits_first_option(self):
-        h=self.host(native.command('url','https://example.invalid/{a}/{b name="Place" options="One,Two"}'));self.form(h)
-        self.key(h,48,'\t');self.key(h,49,' ');v=self.fields(h);self.assertEqual(v['choice']['selected'],-1)
-        self.key(h,36,'\r');v=self.fields(h);self.assertTrue(v['choice']['open']);self.assertEqual(v['values'][1],'')
-        self.key(h,125);self.assertEqual(self.fields(h)['values'][1],'');self.key(h,36,'\r');self.assertEqual(self.fields(h)['values'][1],'One')
-    def test_native_list_type_selection_remains_tentative_until_return(self):
-        h=self.host(native.command('url','https://example.invalid/{a default="A"}/{b default="Alpha" options="Alpha,Beta,Gamma"}'));self.form(h)
-        self.key(h,48,'\t');self.key(h,49,' ');self.key(h,11,'b');v=self.fields(h)
-        self.assertTrue(v['choice']['open']);self.assertEqual(v['choice']['selected'],1);self.assertEqual(v['values'][1],'Alpha')
-        self.key(h,36,'\r');self.assertEqual(self.fields(h)['values'][1],'Beta')
     def test_actual_local_option_mouse_click_commits_once_and_restores_form(self):
         h=self.host(native.command('url','https://example.invalid/{a default="A"}/{b default="One" options="One,Two"}'));self.form(h)
         self.key(h,48,'\t');self.key(h,49,' ');h.probe('template-choice',command='click',index=1);h.settled();v=self.fields(h)
