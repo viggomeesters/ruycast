@@ -5,6 +5,8 @@
 //! process replacement and duration changes reset it. Startup/restart begins a
 //! fresh interval. Expiry produces candidates, never permission to terminate.
 pub mod safety;
+pub mod runtime;
+pub mod native;
 use crate::system_search::Identity;
 use rustcast_core::AutoQuitSettings;
 use std::{
@@ -49,6 +51,7 @@ impl Eq for Due {}
 struct Interval {
     application: String,
     minutes: u32,
+    allow_unverified_activity: bool,
     deadline: Duration,
     generation: u64,
 }
@@ -63,6 +66,10 @@ pub struct Tracker {
 }
 
 impl Tracker {
+    pub fn reset_application(&mut self, application: &str) {
+        self.intervals.retain(|_, interval| !interval.application.eq_ignore_ascii_case(application));
+    }
+
     /// Both sleep and wake retire every old candidate. The first observation
     /// after wake starts fresh; time spent asleep never expires an interval.
     pub fn set_sleeping(&mut self, sleeping: bool) {
@@ -123,6 +130,7 @@ impl Tracker {
                         .application
                         .eq_ignore_ascii_case(&application.application)
                         && interval.minutes == preference.minutes
+                        && interval.allow_unverified_activity == preference.allow_unverified_activity
                 });
             let interval = match interval {
                 Some(interval) => interval,
@@ -140,6 +148,7 @@ impl Tracker {
                     Interval {
                         application: application.application.clone(),
                         minutes: preference.minutes,
+                        allow_unverified_activity: preference.allow_unverified_activity,
                         deadline,
                         generation,
                     }
@@ -197,6 +206,7 @@ mod tests {
         BTreeMap::from([(
             "test.synthetic.Editor".into(),
             AutoQuitSettings {
+            allow_unverified_activity: false,
                 enabled: true,
                 minutes,
             },

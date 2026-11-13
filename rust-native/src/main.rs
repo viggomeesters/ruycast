@@ -21,6 +21,7 @@ mod native_os_controls;
 mod native_paste;
 mod native_result;
 mod native_services;
+mod native_auto_quit;
 mod native_clipboard;
 mod native_clipboard_preferences;
 mod native_surface;

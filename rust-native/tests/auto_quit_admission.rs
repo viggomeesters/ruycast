@@ -1,5 +1,5 @@
-//! Integration compilation uses the product library without cfg(test), including
-//! when test-tools is enabled. Its Decision type must have no admitting variant.
+//! Product compilation: enabled alone never accepts unverified activity.
+//! The exhaustive match has no unit-only OwnedFixture variant.
 use rustcast_core::AutoQuitSettings;
 use ruycast_native::{
     auto_quit::{
@@ -11,7 +11,7 @@ use ruycast_native::{
 use std::{collections::BTreeMap, time::Duration};
 
 #[test]
-fn product_library_never_exposes_unit_fixture_admission() {
+fn product_library_requires_separate_unverified_activity_acknowledgement() {
     let application = Observation {
         application: "test.synthetic.NoCapture".into(),
         process: Identity {
@@ -25,6 +25,7 @@ fn product_library_never_exposes_unit_fixture_admission() {
     let preferences = BTreeMap::from([(
         application.application.clone(),
         AutoQuitSettings {
+            allow_unverified_activity: false,
             enabled: true,
             minutes: 1,
         },
@@ -32,6 +33,7 @@ fn product_library_never_exposes_unit_fixture_admission() {
     let safety = Snapshot {
         application: application.clone(),
         sampled_at: Duration::from_secs(60),
+        running: Signal::Inactive,
         input: Signal::Inactive,
         output: Signal::Inactive,
         recording: Signal::Inactive,
@@ -54,9 +56,12 @@ fn product_library_never_exposes_unit_fixture_admission() {
         &[safety],
     );
     assert_eq!(assessment.len(), 1);
-    // Intentionally exhaustive: adding a product admission variant requires
-    // changing this safety contract and independently reviewing that change.
+    // Intentionally exhaustive: product admission needs explicit consent; the
+    // unit-only synthetic fixture variant is absent in either product build.
     match assessment[0].decision {
         Decision::Blocked(reason) => assert_eq!(reason, Blocked::UnqualifiedCoverage),
+        Decision::AllowedUnverified => {
+            panic!("enabled alone must never acknowledge unverified activity")
+        }
     }
 }

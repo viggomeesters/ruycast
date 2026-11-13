@@ -345,6 +345,8 @@ pub fn headless(paths: ProfilePaths, fixture: bool) -> Result<serde_json::Value,
         clipboard.own_writes(),
     );
     let (tx, rx) = mpsc::sync_channel(32);
+    let auto_quit = Rc::new(RefCell::new(if fixture { None } else { Some(crate::native_auto_quit::Monitor::new(main, paths.clone())) }));
+    let source_auto_quit = auto_quit.clone();
     let (finish, finished) = mpsc::sync_channel(1);
     let done = Rc::new(Cell::new(false));
     let observed = done.clone();
@@ -353,6 +355,7 @@ pub fn headless(paths: ProfilePaths, fixture: bool) -> Result<serde_json::Value,
     let source = crate::main_loop::Source::new(
         main,
         move || {
+            if let Some(monitor)=source_auto_quit.borrow_mut().as_mut(){let _=monitor.pump();}
             services.drain_with_prefill(
                 || clipboard.read(),
                 |_| Err("No native window is available.".into()),
@@ -365,6 +368,7 @@ pub fn headless(paths: ProfilePaths, fixture: bool) -> Result<serde_json::Value,
                 panic!("{error}");
             }
             if let Ok(result) = finished.try_recv() {
+                if let Some(monitor)=source_auto_quit.borrow_mut().as_mut(){monitor.stop();}
                 paste.stop();
                 observed.set(true);
                 *output.borrow_mut() = Some(result);
@@ -377,6 +381,7 @@ pub fn headless(paths: ProfilePaths, fixture: bool) -> Result<serde_json::Value,
     // lose its wake. Client and server share only the thread-safe signal.
     let wake_signal = signal.clone();
     client.attach_wake(Arc::new(move || wake_signal.wake()));
+    if let Some(monitor)=auto_quit.borrow_mut().as_mut(){let signal=signal.clone();monitor.start(Arc::new(move||signal.wake()))?;}
     let stop = tx.clone();
     let worker = std::thread::Builder::new()
         .name("ruycast-runtime".into())

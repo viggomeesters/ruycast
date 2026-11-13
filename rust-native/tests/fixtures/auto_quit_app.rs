@@ -88,7 +88,7 @@ fn main() {
     // Cleanup affects this child only, never another PID. The watchdog bounds
     // failures even if the parent disappears; no kill/force-quit API is used.
     std::thread::spawn(|| {
-        std::thread::sleep(Duration::from_secs(20));
+        std::thread::sleep(Duration::from_secs(90));
         std::process::exit(80);
     });
     std::thread::spawn(|| {

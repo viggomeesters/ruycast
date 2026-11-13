@@ -79,10 +79,13 @@ pub struct ClipboardSettings {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AutoQuitSettings {
+    #[serde(default, skip_serializing_if = "auto_quit_risk_is_false")]
+    pub allow_unverified_activity: bool,
     #[serde(default)]
     pub enabled: bool,
     pub minutes: u32,
 }
+fn auto_quit_risk_is_false(value: &bool) -> bool { !*value }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Config {

@@ -1,9 +1,8 @@
 //! Fail-closed admission for real Tracker candidates. No sensor/effect fiction.
 //!
-//! Current production coverage cannot prove absence of recording/helper use.
-//! All production candidates therefore remain blocked, even with zero flags.
-//! Fixture admission exists only in unit-test compilation, never test-tools or
-//! normal product binaries. Live OS observations/effects remain separate work.
+//! Recording/helper coverage remains incomplete. Enabled alone never admits;
+//! an independently stored per-app acknowledgement may accept unknown coverage.
+//! Positive activity and failed/unavailable observations still block.
 use super::{Activity, Due, Observation, Tracker};
 use rustcast_core::AutoQuitSettings;
 use std::{collections::BTreeMap, time::Duration};
@@ -27,6 +26,7 @@ pub enum Helpers {
 pub struct Snapshot {
     pub application: Observation,
     pub sampled_at: Duration,
+    pub running: Signal,
     pub input: Signal,
     pub output: Signal,
     pub recording: Signal,
@@ -51,8 +51,10 @@ pub enum Blocked {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Decision {
     Blocked(Blocked),
-    /// Exists only in unit tests. Product/test-tools builds have no admitting
-    /// variant, so a fixture cannot become a production allowlist by accident.
+    /// Explicit per-app acknowledgement; never inferred from enabled=true.
+    AllowedUnverified,
+    /// Synthetic qualification remains unit-only and does not provide product
+    /// acknowledgement or a fixture allowlist in test-tools binaries.
     #[cfg(test)]
     OwnedFixture,
 }
@@ -89,7 +91,10 @@ impl Guard {
         let Some(preference) = preference.filter(|p| p.enabled && p.minutes > 0) else {
             return block(Disabled);
         };
-        if tracker.intervals[&due.process].minutes != preference.minutes {
+        if tracker.intervals[&due.process].minutes != preference.minutes
+            || tracker.intervals[&due.process].allow_unverified_activity
+                != preference.allow_unverified_activity
+        {
             return block(PreferenceChanged);
         }
         let Some(snapshot) = snapshot else {
@@ -112,18 +117,29 @@ impl Guard {
         {
             return block(StaleSafety);
         }
-        if snapshot.input == Signal::Active || snapshot.output == Signal::Active {
+        if snapshot.running == Signal::Active
+            || snapshot.input == Signal::Active
+            || snapshot.output == Signal::Active
+        {
             return block(ActiveAudio);
         }
         if snapshot.recording == Signal::Active {
             return block(ActiveRecording);
         }
-        let signals = [snapshot.input, snapshot.output, snapshot.recording];
+        let signals = [
+            snapshot.running,
+            snapshot.input,
+            snapshot.output,
+            snapshot.recording,
+        ];
         if signals.contains(&Signal::Failed) || snapshot.helpers == Helpers::Failed {
             return block(FailedSafety);
         }
         if signals.contains(&Signal::Unavailable) || snapshot.helpers == Helpers::Unavailable {
             return block(UnavailableSafety);
+        }
+        if preference.allow_unverified_activity {
+            return Decision::AllowedUnverified;
         }
         if signals.contains(&Signal::Unknown) || snapshot.helpers == Helpers::Unknown {
             return block(UnknownSafety);
@@ -139,7 +155,7 @@ impl Guard {
 }
 impl Tracker {
     /// The clock-to-policy path. Candidates never become termination actions;
-    /// production assessment currently always returns an explicit block reason.
+    /// product effects still require final live state and explicit acknowledgement.
     pub fn observe_guarded(
         &mut self,
         guard: &Guard,
@@ -198,6 +214,7 @@ mod tests {
         BTreeMap::from([(
             "test.synthetic.NoCapture".into(),
             AutoQuitSettings {
+                allow_unverified_activity: false,
                 enabled: true,
                 minutes: 1,
             },
@@ -207,6 +224,7 @@ mod tests {
         Snapshot {
             application: app,
             sampled_at: Duration::from_secs(60),
+            running: Signal::Inactive,
             input: Signal::Inactive,
             output: Signal::Inactive,
             recording: Signal::Inactive,

@@ -12,6 +12,7 @@ use std::cell::{Cell, RefCell};
 enum Focus {
     Application,
     AutoQuit,
+    AutoQuitRisk,
     Field(usize),
     Text,
     Argument(usize),
@@ -184,6 +185,7 @@ pub struct CommandFields {
     pub output: Retained<NSPopUpButton>,
     pub enabled: Retained<NSButton>,
     pub auto_quit: Retained<NSButton>,
+    pub auto_quit_risk: Retained<NSButton>,
     pub arguments: RefCell<Vec<Retained<CommandText>>>,
     pub add_argument: Retained<NSButton>,
     pub remove_arguments: RefCell<Vec<Retained<NSButton>>>,
@@ -527,6 +529,10 @@ impl CommandFields {
         auto_quit.setButtonType(NSButtonType::Switch);
         auto_quit.setTitle(ns_string!("Auto Quit"));
         auto_quit.setAccessibilityLabel(Some(ns_string!("Auto Quit")));
+        let auto_quit_risk = NSButton::new(main);
+        auto_quit_risk.setButtonType(NSButtonType::Switch);
+        auto_quit_risk.setTitle(ns_string!("Allow quitting when activity is unknown"));
+        auto_quit_risk.setAccessibilityLabel(Some(ns_string!("Allow quitting when activity is unknown")));
         let add_argument = NSButton::new(main);
         add_argument.setTitle(ns_string!("Add Argument"));
         add_argument.setAccessibilityLabel(Some(ns_string!("Add Argument")));
@@ -558,6 +564,7 @@ impl CommandFields {
             output,
             enabled,
             auto_quit,
+            auto_quit_risk,
             arguments: RefCell::new(vec![]),
             add_argument,
             remove_arguments: RefCell::new(vec![]),
@@ -583,6 +590,7 @@ impl CommandFields {
             self.focus.set(Some(Focus::AutoQuit));
             return;
         }
+        if same(&self.auto_quit_risk) { self.focus.set(Some(Focus::AutoQuitRisk)); return; }
         for (i, f) in self.fields.borrow().iter().enumerate() {
             if f.input.currentEditor().is_some_and(|e| same(&e)) {
                 self.focus.set(Some(Focus::Field(i)));
@@ -606,6 +614,7 @@ impl CommandFields {
             Some(Focus::AutoQuit) => {
                 panel.makeFirstResponder(Some(&self.auto_quit));
             }
+            Some(Focus::AutoQuitRisk) => { panel.makeFirstResponder(Some(&self.auto_quit_risk)); }
             Some(Focus::Field(i)) => {
                 if let Some(f) = self.fields.borrow().get(i) {
                     panel.makeFirstResponder(Some(&f.input));
@@ -882,11 +891,17 @@ impl CommandFields {
             y += 36.;
             self.document.addSubview(&label(
                 main,
-                "Timer not connected yet.",
+                "May interrupt recordings or helper audio.",
                 y,
                 self.width.get(),
             ));
             y += 28.;
+            self.auto_quit_risk.setFrame(rect(0., y, self.width.get(), 28.));
+            self.auto_quit_risk.setState(if command["_autoQuit"]["allowUnverifiedActivity"] == true {
+                NSControlStateValueOn
+            } else { NSControlStateValueOff });
+            self.document.addSubview(&self.auto_quit_risk);
+            y += 36.;
             self.field(
                 main,
                 "autoQuitMinutes",
@@ -1099,6 +1114,11 @@ impl CommandFields {
                         .ok_or("Auto Quit minutes must be a positive whole number (1–4294967295).")?;
                     value["_autoQuit"]["minutes"] = json!(minutes);
                     value["_autoQuit"]["enabled"] = json!(self.auto_quit.state() == NSControlStateValueOn);
+                    if self.auto_quit_risk.state() == NSControlStateValueOn {
+                        value["_autoQuit"]["allowUnverifiedActivity"] = json!(true);
+                    } else if let Some(preference) = value["_autoQuit"].as_object_mut() {
+                        preference.remove("allowUnverifiedActivity");
+                    }
                 }
                 "aliases" => {
                     let original = value["aliases"]
@@ -1202,6 +1222,7 @@ impl CommandFields {
         self.output.setEnabled(enabled);
         self.enabled.setEnabled(enabled);
         self.auto_quit.setEnabled(enabled);
+        self.auto_quit_risk.setEnabled(enabled);
         self.add_argument.setEnabled(enabled);
         if let Some(button) = self.advanced.borrow().as_ref() {
             button.setEnabled(enabled);
@@ -1262,7 +1283,7 @@ impl CommandFields {
             .borrow()
             .iter()
             .map(|b| &**b)
-            .chain([&*self.enabled, &*self.auto_quit, &*self.add_argument])
+            .chain([&*self.enabled, &*self.auto_quit, &*self.auto_quit_risk, &*self.add_argument])
         {
             if unsafe { button.superview() }.is_some() && !button.isHidden() {
                 if let Some(name) = (button as &NSView).accessibilityLabel() {

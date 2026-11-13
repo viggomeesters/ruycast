@@ -450,6 +450,13 @@ impl ConfigStore {
             last_error: None,
         })
     }
+    /// Serializes final read-only effect admission with the existing native/
+    /// CLI writer and relocation lock. Never waits for a busy writer.
+    pub(crate) fn with_locked_current<T>(paths: &ProfilePaths, operation: impl FnOnce(&Config) -> Result<T>) -> Result<T> {
+        let _lock = ConfigLock::acquire(paths)?;
+        let store = Self::open_existing(paths.clone())?;
+        operation(store.current())
+    }
     pub fn current(&self) -> &Config {
         &self.current
     }

@@ -13,6 +13,7 @@ use std::{
     time::Instant,
 };
 const BUNDLE: &str = "test.ruycast.OwnedAutoQuit";
+static OWNED_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 // Public Process Manager reads avoid NSRunningApplication's documented cache
 // until the next main-runloop turn. No activation or application enumeration.
 #[repr(C)]
@@ -116,6 +117,7 @@ impl Owned {
             sampled_at: now,
             // Qualified solely by this owned executable: no capture/media APIs,
             // no helper process creation, no document loading or plugins.
+            running: Signal::Inactive,
             input: Signal::Inactive,
             output: Signal::Inactive,
             recording: Signal::Inactive,
@@ -164,6 +166,9 @@ impl Drop for Owned {
 #[test]
 #[ignore = "owned native app proof requires explicit compiled fixture and isolated absolute directory"]
 fn native_owned_app_accepts_refuses_and_defers_normal_auto_quit() {
+    let _serial = OWNED_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
     assert!(std::env::var_os("DYLD_INSERT_LIBRARIES").is_none());
     // Test threads are not main; only the child owns AppKit application state.
     assert!(MainThreadMarker::new().is_none());
@@ -180,6 +185,7 @@ fn native_owned_app_accepts_refuses_and_defers_normal_auto_quit() {
         let prefs = BTreeMap::from([(
             BUNDLE.into(),
             AutoQuitSettings {
+                allow_unverified_activity: false,
                 enabled: true,
                 minutes: 1,
             },
@@ -280,4 +286,183 @@ fn native_owned_app_accepts_refuses_and_defers_normal_auto_quit() {
         };
         println!("owned-app {mode}: normal quit received; outcome={outcome}");
     }
+}
+
+#[test]
+#[ignore = "explicit owned native runtime proof; requires compiled fixture and isolated paths"]
+fn product_runtime_quits_only_the_consented_owned_app() {
+    let _serial = OWNED_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    use super::runtime::{Adapter, Preferences, Runtime};
+    use crate::profile::{ConfigStore, ProfilePaths};
+    struct Clocked {
+        native: super::native::Native,
+        now: Duration,
+    }
+    impl Adapter for Clocked {
+        fn now(&self) -> Duration {
+            self.now
+        }
+        fn preferences(&mut self) -> Result<Preferences, String> {
+            self.native.preferences()
+        }
+        fn applications(&mut self, p: &Preferences) -> Vec<Observation> {
+            self.native.applications(p)
+        }
+        fn snapshot(&mut self, due: &Due) -> Option<Snapshot> {
+            let mut value = self.native.snapshot(due)?;
+            value.sampled_at = self.now;
+            Some(value)
+        }
+        fn request(&mut self, due: &Due, p: &AutoQuitSettings) -> bool {
+            self.native.request(due, p)
+        }
+    }
+    let root = PathBuf::from(std::env::var_os("RUYCAST_AUTO_QUIT_FIXTURE_DIR").unwrap())
+        .join("product-runtime");
+    fs::create_dir_all(&root).unwrap();
+    let binary = PathBuf::from(std::env::var_os("RUYCAST_AUTO_QUIT_FIXTURE_BIN").unwrap());
+    for mode in ["accept", "refuse", "defer"] {
+        let mut owned = Owned::launch(&root, &binary, mode);
+        let profile = root.join(format!("profile-{}-{mode}", std::process::id()));
+        let paths = ProfilePaths::new(profile.clone(), profile.clone(), None);
+        let mut store = ConfigStore::open(paths.clone()).unwrap();
+        let mut config = rustcast_core::default_config();
+        config["autoQuit"] = serde_json::json!({BUNDLE:{"enabled":true,"minutes":1}});
+        store.save(&config).unwrap();
+        let mut adapter = Clocked {
+            native: super::native::Native::owned_test(
+                paths,
+                owned.identity,
+                owned.executable.clone(),
+            ),
+            now: Duration::ZERO,
+        };
+        let mut runtime = Runtime::default();
+        assert_eq!(runtime.tick(&mut adapter).unwrap(), 0);
+        adapter.now = Duration::from_secs(60);
+        assert_eq!(
+            runtime.tick(&mut adapter).unwrap(),
+            0,
+            "enabled alone is not consent"
+        );
+        assert!(!owned.receipt_has_quit());
+        config["autoQuit"][BUNDLE]["allowUnverifiedActivity"] = serde_json::json!(true);
+        store.save(&config).unwrap();
+        assert_eq!(
+            runtime.tick(&mut adapter).unwrap(),
+            0,
+            "consent starts a fresh interval"
+        );
+        adapter.now = Duration::from_secs(120);
+        if mode == "accept" {
+            let effect_paths = store.paths.clone();
+            adapter.native.before_effect(move || {
+                let mut writer = ConfigStore::open_existing(effect_paths.clone()).unwrap();
+                let mut disabled: serde_json::Value =
+                    serde_json::from_slice(writer.snapshot()).unwrap();
+                disabled["autoQuit"][BUNDLE]["enabled"] = serde_json::json!(false);
+                writer.save(&disabled).unwrap();
+            });
+            assert_eq!(
+                runtime.tick(&mut adapter).unwrap(),
+                0,
+                "disable published during final sensor queries must win"
+            );
+            assert!(!owned.receipt_has_quit());
+            assert_eq!(runtime.tick(&mut adapter).unwrap(), 0);
+            store.reload().unwrap();
+            store.save(&config).unwrap();
+            assert_eq!(runtime.tick(&mut adapter).unwrap(), 0);
+            adapter.now = Duration::from_secs(180);
+        }
+        let result = runtime.tick(&mut adapter).unwrap();
+        let preferences = adapter.preferences().unwrap();
+        let observations = adapter.applications(&preferences);
+        assert_eq!(
+            result, 1,
+            "consented native runtime must send normal quit: observations={observations:?}"
+        );
+        assert_eq!(
+            runtime.tick(&mut adapter).unwrap(),
+            0,
+            "no repeat after refusal or deferred save"
+        );
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !owned.receipt_has_quit() {
+            assert!(Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(10));
+        }
+        if mode == "accept" {
+            let exit = loop {
+                if let Some(exit) = owned.child.try_wait().unwrap() {
+                    break exit;
+                }
+                assert!(Instant::now() < deadline);
+                thread::sleep(Duration::from_millis(10));
+            };
+            assert!(exit.success());
+        } else {
+            thread::sleep(Duration::from_millis(100));
+            assert!(owned.child.try_wait().unwrap().is_none());
+        }
+        println!("product runtime {mode}: consent required, fresh timer, normal request, refusal preserved");
+    }
+}
+
+#[test]
+#[ignore = "explicit one-minute real monotonic/native product proof against owned child only"]
+fn real_minute_product_runtime_normally_quits_owned_child() {
+    let _serial = OWNED_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    use crate::profile::{ConfigStore, ProfilePaths};
+    let root = PathBuf::from(std::env::var_os("RUYCAST_AUTO_QUIT_FIXTURE_DIR").unwrap())
+        .join("real-minute");
+    fs::create_dir_all(&root).unwrap();
+    let binary = PathBuf::from(std::env::var_os("RUYCAST_AUTO_QUIT_FIXTURE_BIN").unwrap());
+    let mut owned = Owned::launch(&root, &binary, "accept");
+    let profile = root.join(format!("profile-{}", std::process::id()));
+    let paths = ProfilePaths::new(profile.clone(), profile, None);
+    let mut store = ConfigStore::open(paths.clone()).unwrap();
+    let mut config = rustcast_core::default_config();
+    config["autoQuit"] =
+        serde_json::json!({BUNDLE:{"enabled":true,"minutes":1,"allowUnverifiedActivity":true}});
+    store.save(&config).unwrap();
+    let mut native =
+        super::native::Native::owned_test(paths, owned.identity, owned.executable.clone());
+    let mut runtime = super::runtime::Runtime::default();
+    let start = Instant::now();
+    assert_eq!(runtime.tick(&mut native).unwrap(), 0);
+    loop {
+        thread::sleep(Duration::from_secs(2));
+        let sent = runtime.tick(&mut native).unwrap();
+        if start.elapsed() < Duration::from_secs(60) {
+            assert_eq!(sent, 0);
+            assert!(!owned.receipt_has_quit());
+        }
+        if sent == 1 {
+            assert!(start.elapsed() >= Duration::from_secs(60));
+            break;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(66),
+            "real native timer did not send normal quit"
+        );
+    }
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let exit = loop {
+        if let Some(exit) = owned.child.try_wait().unwrap() {
+            break exit;
+        }
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(10));
+    };
+    assert!(owned.receipt_has_quit());
+    assert!(exit.success());
+    println!(
+        "real product timer: normal owned-child quit after {:.2}s, clean exit",
+        start.elapsed().as_secs_f64()
+    );
 }
