@@ -171,3 +171,27 @@ fn continuous_flood_cannot_starve_cancel_or_timeout() {
         assert_eq!(v["stderrBytes"], 65536);
     }
 }
+#[test]
+fn home_expansion_and_null_stdin() {
+    use std::os::unix::fs::PermissionsExt;
+    let h = OwnedDir::new();
+    let fixture = h.0.join("fixture");
+    fs::copy(env!("CARGO_BIN_EXE_private-results-fixture"), &fixture).unwrap();
+    fs::set_permissions(&fixture, fs::Permissions::from_mode(0o700)).unwrap();
+    let c = command("~/fixture", json!(["script-streams", "stdin-eof"]));
+    assert_eq!(probe(&h.0, c)["response"]["result"]["stdout"], "1");
+}
+#[test]
+fn cancel_and_deadline_before_spawn() {
+    let h = OwnedDir::new();
+    let sentinel = h.0.join("should-not-run");
+    let c = command("/usr/bin/touch", json!([sentinel]));
+    for (option, end) in [("cancelMs", "cancelled"), ("deadlineMs", "deadline")] {
+        let mut req = json!({"home":h.0,"command":c});
+        req[option] = json!(0);
+        let v = run(Path::new(env!("CARGO_BIN_EXE_script-probe")), &[], &req);
+        assert_eq!(v["noChildren"], true);
+        assert_eq!(v["result"]["end"], end);
+        assert!(!sentinel.exists());
+    }
+}
