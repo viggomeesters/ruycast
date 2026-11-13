@@ -40,34 +40,6 @@ class Applications(unittest.TestCase):
             (target/(name+'.png')).write_bytes((host.profile/'native-probe.png').read_bytes())
             (target/(name+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2))
         return value
-    def test_actual_metadata_depth_hidden_and_unchanged_cli_search(self):
-        host=self.host(barrier=True)
-        self.bundle(host.applications,'Folder/Visible','dev.fixture.visible',CFBundleDisplayName='Fixture Display',CFBundleName='Not this')
-        self.bundle(host.applications,'OnlyName','dev.fixture.name',CFBundleName='Fixture Name')
-        self.bundle(host.applications,'Fixture Filename Ω','dev.fixture.filename')
-        self.bundle(host.applications,'.Hidden','dev.fixture.hidden')
-        self.bundle(host.applications,'Folder/Visible.app/Contents/Embedded','dev.fixture.embedded',CFBundleName='Fixture Embedded')
-        self.bundle(host.applications,'a/b/c/AtLevel4','dev.fixture.depth',CFBundleName='Fixture Depth')
-        self.bundle(host.applications,'a/b/c/d/TooDeep','dev.fixture.toodeep',CFBundleName='Fixture Too Deep')
-        for name,identifier in [('Empty',''),('Blank','   ')]:
-            self.bundle(host.applications,name,identifier,CFBundleName='Fixture Invalid '+name)
-        missing=self.bundle(host.applications,'Missing','temporary',CFBundleName='Fixture Invalid Missing')/'Contents/Info.plist'
-        info=plistlib.loads(missing.read_bytes());del info['CFBundleIdentifier'];missing.write_bytes(plistlib.dumps(info))
-        host.start();self.file(host.base/'app-discovery-ready');before=host.rpc({'op':'commands'})['result'];(host.base/'app-discovery-release').write_text('go');status=self.ready(host);self.assertIsNone(status['appDiscoveryError']);self.assertEqual(status['discoveredApps'],4)
-        found=host.cli('search','Fixture','--limit','0')['result'];self.assertEqual([c['title'] for c in found],['Fixture Depth','Fixture Display','Fixture Filename Ω','Fixture Name'])
-        self.assertTrue(all(c['kind']=='app' and c['id']=='discovered.'+c['target'] for c in found));self.assertEqual(host.rpc({'op':'commands'})['result'],before)
-    def test_roots_precedence_and_configured_target_override_disable(self):
-        host=self.host();system=host.base/'SystemApps';user=host.base/'UserApps';system.mkdir();user.mkdir()
-        self.bundle(system,'Old','dev.fixture.same',CFBundleName='Fixture Old');self.bundle(user,'New','dev.fixture.same',CFBundleName='Fixture New')
-        self.bundle(user,'Other','dev.fixture.other',CFBundleName='Fixture Other');host.env['RUYCAST_NATIVE_TEST_APP_ROOTS']=json.dumps([str(system),str(user)])
-        cfg=copy.deepcopy(rt.DEFAULT);cfg['commands'].append(dict(id='saved.fixture',title='Saved Fixture',kind='app',target='dev.fixture.same',aliases=['fixtureapp'],enabled=False));host.config.write_text(json.dumps(cfg));host.start();self.assertEqual(self.ready(host)['discoveredApps'],2)
-        self.assertEqual([c['target'] for c in self.search(host)],['dev.fixture.other'])
-        cfg['commands'][-1]['enabled']=True;host.config.write_text(json.dumps(cfg));self.assertTrue(host.rpc({'op':'reload'})['ok']);found=self.search(host,'fixtureapp');self.assertEqual([c['id'] for c in found],['saved.fixture'])
-        cfg['commands'].pop();host.config.write_text(json.dumps(cfg));self.assertTrue(host.rpc({'op':'reload'})['ok']);self.assertEqual([c['title'] for c in self.search(host)],['Fixture New','Fixture Other'])
-    def test_saved_id_collision_never_publishes_two_rows(self):
-        host=self.host();self.bundle(host.applications,'App','dev.fixture.collision',CFBundleName='Fixture Discovered')
-        cfg=copy.deepcopy(rt.DEFAULT);cfg['commands'].append(dict(id='discovered.dev.fixture.collision',title='Fixture Saved',kind='script',target='/usr/bin/true'));host.config.write_text(json.dumps(cfg));host.start();self.ready(host)
-        self.assertEqual([c['title'] for c in self.search(host)],['Fixture Saved'])
     def test_native_palette_has_apps_but_settings_contains_only_saved_commands(self):
         host=self.host(native=True);self.bundle(host.applications,'App','dev.fixture.palette',CFBundleName='Fixture Palette');host.start();self.ready(host)
         for theme in ['light','dark']:
