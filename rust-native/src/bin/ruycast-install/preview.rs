@@ -138,7 +138,7 @@ fn launch(app: &Path, home: &Path, runner: &mut dyn tools::Runner) -> Result<()>
     Ok(())
 }
 
-pub fn install(args: &[String]) -> Result<()> {
+pub fn install(args: &[String], reenroll: bool) -> Result<()> {
     let [source] = args else {
         return Err("Usage: ruycast-install install-preview ABSOLUTE_APP".into());
     };
@@ -151,20 +151,25 @@ pub fn install(args: &[String]) -> Result<()> {
     if source.starts_with(&app) || source == app {
         return Err("Provide a separate, staged preview bundle.".into());
     }
-    let signer = home.join(".local/share/ruycast/signing");
+    let original_signer = home.join(".local/share/ruycast/signing");
+    let preview_signer = home.join(".local/share/ruycast-preview/signing");
     let profile = home.join("Library/Application Support/Ruycast Rust Preview");
     let mut runner = tools::System;
     let _lock = fs::Lock::acquire(&apps.join(".ruycast-preview-install.lock"), 0)?;
 
     // This is an update of the enrolled preview. The existing signature pins
     // the signer even if the on-disk signing configuration has changed.
-    let mut identity = signing::load(&signer, &repo)?;
-    identity["requirement"] = json!(signing::requirement_for(
-        ID,
-        identity["certificate_sha1"].as_str().unwrap(),
-    ));
     fs::no_links(&app)?;
-    verify_identity(&app, &identity, &home, &mut runner)?;
+    let (signer, mut identity) =
+        select_signer(&original_signer, &preview_signer, reenroll, |root| {
+            let mut identity = signing::load(root, &repo)?;
+            identity["requirement"] = json!(signing::requirement_for(
+                ID,
+                identity["certificate_sha1"].as_str().unwrap(),
+            ));
+            verify_identity(&app, &identity, &home, &mut runner)?;
+            Ok(identity)
+        })?;
     let (previous_build, previous_version) = metadata(&app, &mut runner)?;
     let stage = fs::fresh(&apps, ".ruycast-preview-update-")?;
     let candidate = stage.join(NAME);
@@ -182,6 +187,15 @@ pub fn install(args: &[String]) -> Result<()> {
         }
         if build <= previous_build {
             return Err("The preview update must have a higher build number.".into());
+        }
+        if reenroll {
+            // Explicit recovery preserves the original keychain and grants. The
+            // replacement preview identity has its own persistent keychain.
+            identity = signing::prepare(&signer, &repo, &home, &mut runner)?;
+            identity["requirement"] = json!(signing::requirement_for(
+                ID,
+                identity["certificate_sha1"].as_str().unwrap(),
+            ));
         }
         signing::sign_bundle(&candidate, &signer, &repo, &home, &mut runner, ID)?;
         verify_identity(&candidate, &identity, &home, &mut runner)?;
@@ -237,10 +251,8 @@ pub fn install(args: &[String]) -> Result<()> {
             for attempt in 0..40 {
                 if let Ok(after) = status(&app, &home, &profile, &version, &mut runner) {
                     if after["pid"].as_u64() != Some(old_pid)
-                        && (before["health"] != "healthy" || after["health"] == "healthy")
-                        && ["accessibility", "inputMonitoring"]
-                            .into_iter()
-                            .all(|key| before[key] != true || after[key] == true)
+                        && health_accepted(&before, &after, reenroll)
+                        && permissions_accepted(&before, &after, reenroll)
                     {
                         return Ok(after);
                     }
@@ -256,7 +268,7 @@ pub fn install(args: &[String]) -> Result<()> {
             Ok(after) => {
                 println!(
                     "{}",
-                    json!({"build":build,"rollback":candidate,"accessibility":after["accessibility"],"inputMonitoring":after["inputMonitoring"]})
+                    json!({"build":build,"rollback":candidate,"accessibility":after["accessibility"],"inputMonitoring":after["inputMonitoring"],"signingRecovery":reenroll,"manualPermissionGrantsMayBeRequired":reenroll,"health":after["health"],"signer":signer})
                 );
                 Ok(())
             }
@@ -303,4 +315,134 @@ pub fn install(args: &[String]) -> Result<()> {
         let _ = std::fs::remove_dir_all(stage);
     }
     result
+}
+
+fn select_signer(
+    original: &Path,
+    dedicated: &Path,
+    reenroll: bool,
+    mut load_and_verify_pin: impl FnMut(&Path) -> Result<Value>,
+) -> Result<(PathBuf, Value)> {
+    // Directory presence never proves enrollment: failed recovery and rollback
+    // retain the original bundle. Always select using its verified signature.
+    match load_and_verify_pin(original) {
+        Ok(identity) => Ok((
+            if reenroll { dedicated } else { original }.to_owned(),
+            identity,
+        )),
+        Err(error) if reenroll => Err(error),
+        Err(_) => load_and_verify_pin(dedicated).map(|identity| (dedicated.to_owned(), identity)),
+    }
+}
+
+fn health_accepted(before: &Value, after: &Value, reenroll: bool) -> bool {
+    if reenroll && after["health"] != "healthy" {
+        return (after["accessibility"] == false || after["inputMonitoring"] == false)
+            && after["storageAndKeyboardHealthy"] == true;
+    }
+    before["health"] != "healthy" || after["health"] == "healthy"
+}
+
+// Changing signing identity can require new macOS privacy grants. Ordinary
+// updates still fail closed and roll back when any existing grant disappears.
+fn permissions_accepted(before: &Value, after: &Value, reenroll: bool) -> bool {
+    reenroll
+        || ["accessibility", "inputMonitoring"]
+            .into_iter()
+            .all(|key| before[key] != true || after[key] == true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn installed_pin_selects_original_after_abort_or_rollback_despite_prepared_signer() {
+        let parent = PathBuf::from(std::env::var_os("RUYCAST_INSTALL_TEST_ROOT").unwrap());
+        let root = parent.join(format!("preview-selector-{}", std::process::id()));
+        let original = root.join("original");
+        let dedicated = root.join("dedicated");
+        std::fs::create_dir_all(&original).unwrap();
+        std::fs::create_dir(&dedicated).unwrap();
+        for dedicated_state in [
+            "incomplete-preparation",
+            "prepared-before-swap",
+            "retained-after-rollback",
+        ] {
+            std::fs::write(dedicated.join("state"), dedicated_state).unwrap();
+            let mut loaded = Vec::new();
+            let selected = select_signer(&original, &dedicated, false, |root| {
+                loaded.push(root.to_owned());
+                if root == original {
+                    Ok(json!({"pin":"original"}))
+                } else {
+                    Err("Dedicated pin does not match installed original".into())
+                }
+            })
+            .unwrap();
+            assert_eq!(selected.0, original);
+            assert_eq!(loaded, [original.clone()]);
+        }
+        let selected = select_signer(&original, &dedicated, false, |root| {
+            if root == dedicated {
+                Ok(json!({"pin":"dedicated"}))
+            } else {
+                Err("Original pin does not match installed dedicated preview".into())
+            }
+        })
+        .unwrap();
+        assert_eq!(selected.0, dedicated);
+        assert!(select_signer(&original, &dedicated, false, |_| Err(
+            "No pin matches".into()
+        ))
+        .is_err());
+        let mut loaded = Vec::new();
+        assert!(select_signer(&original, &dedicated, true, |root| {
+            loaded.push(root.to_owned());
+            Err("Recovery requires original pin".into())
+        })
+        .is_err());
+        assert_eq!(loaded, [original]);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn recovery_reports_pending_grants_without_rolling_back_a_running_preview() {
+        let before = json!({"health":"healthy"});
+        let mut after = json!({"health":"needs-attention","accessibility":false,"inputMonitoring":false,"storageAndKeyboardHealthy":true});
+        assert!(!health_accepted(&before, &after, false));
+        assert!(health_accepted(&before, &after, true));
+        // The canonical runtime gate includes every independent storage and
+        // keyboard failure, even while grants are missing at the same time.
+        for _failure in [
+            "config",
+            "clipboardPause",
+            "clipboardCleanup",
+            "clipboardWarning",
+            "analyticsStorage",
+            "activityStorage",
+            "keyboard",
+        ] {
+            after["storageAndKeyboardHealthy"] = json!(false);
+            assert!(!health_accepted(&before, &after, true));
+        }
+        after
+            .as_object_mut()
+            .unwrap()
+            .remove("storageAndKeyboardHealthy");
+        assert!(!health_accepted(&before, &after, true));
+    }
+
+    #[test]
+    fn ordinary_preview_update_refuses_lost_privacy_grants() {
+        let before = json!({"accessibility":true,"inputMonitoring":true});
+        for after in [
+            json!({"accessibility":false,"inputMonitoring":true}),
+            json!({"accessibility":true,"inputMonitoring":false}),
+        ] {
+            assert!(!permissions_accepted(&before, &after, false));
+            assert!(permissions_accepted(&before, &after, true));
+        }
+        assert!(permissions_accepted(&before, &before, false));
+    }
 }
