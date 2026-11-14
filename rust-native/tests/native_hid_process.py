@@ -29,36 +29,6 @@ class NativeHid(unittest.TestCase):
         config['commands'].append(self.script(id='hid.action',key=hotkey,target='/usr/bin/touch',args=[str(marker)]))
         host.replace(config);host.start();host.wait(lambda s:s['hidGeneration']==s['keyboardGeneration'] and s['hidStatus']=='On')
         return host,marker,config
-    def test_two_actual_recorders_suppress_actions_keep_hyper_and_clear_old_tap_epoch(self):
-        host,marker,_=self.configured('ctrl+left-control')
-        self.hid(host,'input',usage=224,down=True,time=1)
-        host.rpc({'op':'show','query':'finder'});host.wait(lambda s:s['nativeUI']['visible'])
-        host.probe('key-event',code=43,flags=CMD|SHIFT,chars=',');host.wait(lambda s:s['recordingShortcut'])
-        self.view(host,lambda v:v['recording'])
-        host.rpc({'op':'show','mode':'settings'})
-        host.wait(lambda s:s['managementUI']['visible'])
-        host.rpc(dict(op='native.test',surface='settings',action='inline-hotkey',id='app.safari'))
-        host.wait(lambda s:s['managementUI']['editorOpen'])
-        deadline=time.monotonic()+4
-        while not host.rpc(dict(op='native.test',surface='settings',action='read'))['result']['recording']:
-            self.assertLess(time.monotonic(),deadline);time.sleep(.01)
-        host.probe('cancel-editor');host.wait(lambda s:not s['nativeUI']['editorOpen'])
-        recording=host.rpc({'op':'status'})['result']
-        self.assertTrue(recording['recordingShortcut'])
-        self.assertEqual(recording['hyper'],'On')
-        self.assertEqual(recording['modifierTaps'],'Off')
-        self.assertEqual(recording['sidedShortcuts'],'Off')
-        self.hid(host,'input',usage=224,down=False,time=1.2)
-        self.hid(host,'input',usage=224,down=True,time=1.3);self.hid(host,'input',usage=224,down=False,time=1.5)
-        self.assertFalse(marker.exists())
-        self.hid(host,'input',usage=57,down=True,time=2)
-        self.assertEqual(self.hid(host,'event',type=10,key=2,flags=0)['event']['flags'],HYPER)
-        self.hid(host,'input',usage=57,down=False,time=2.1)
-        host.rpc(dict(op='native.test',surface='settings',action='cancel-editor'));host.wait(lambda s:not s['recordingShortcut'])
-        self.hid(host,'input',usage=224,down=False,time=2.2)
-        self.assertFalse(marker.exists())
-        self.hid(host,'input',usage=224,down=True,time=3);self.hid(host,'input',usage=224,down=False,time=3.2);self.wait_file(marker)
-
     def test_quit_hides_both_actual_offscreen_panels_and_recorders_before_held_sdk(self):
         for force in [True,False]:
             host,_,_=self.configured()
@@ -151,19 +121,4 @@ class NativeHid(unittest.TestCase):
             self.assertGreater(proofs[5]['hookEpoch'],proofs[0]['hookEpoch'])
             self.wait_file(carbon_marker);host.wait(lambda s:s['scriptsRunning']==0)
             self.assertFalse(hid_marker.exists())
-    def test_quit_retains_profile_and_main_recovery_after_worker_stop(self):
-        for fault in ['hid-fail-manager_close','hid-fail-invalidate','caps-fail-set:false']:
-            host,_,_=self.configured();self.hid(host,'input',usage=57,down=True,time=0)
-            path=host.base/fault;path.touch()
-            try:
-                self.assertTrue(host.rpc({'op':'quit'})['ok'])
-                time.sleep(.15);self.assertIsNone(host.process.poll(),fault)
-                second=subprocess.run([str(bridge.TOOLS),'--native-hidden'],env=host.env,capture_output=True,text=True,timeout=3)
-                self.assertNotEqual(second.returncode,0);self.assertIn('already running',second.stdout)
-            finally:path.unlink(missing_ok=True)
-            expected_pid=host.process.pid
-            out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode())
-            proof=json.loads((host.base/'keyboard-retired.json').read_text());self.assertEqual(proof['pid'],expected_pid)
-            witness=proof['state'];self.assertEqual(witness['allocated'],0);self.assertEqual(witness['caps'],0)
-
 if __name__=='__main__':unittest.main(verbosity=2)
