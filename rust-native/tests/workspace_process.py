@@ -69,67 +69,6 @@ class Workspace(unittest.TestCase):
         self.assertTrue(value['response']['actionCompleted'])
         self.assertEqual(value['response']['code'], 'open-outcome-unknown')
 
-    def test_app_callback_from_worker_and_exact_response(self):
-        value = self.one()
-        self.assertEqual(value['response'], dict(ok=True, result=dict(command='fixture', state='opened')))
-        self.assertEqual(value['beforeCommitCalls'], 1)
-        self.assertEqual([x['phase'] for x in self.trace], ['installed', 'resolve', 'open-app', 'callback'])
-        self.assertTrue(all(not x['mainThread'] for x in self.trace[1:]))
-
-    def test_missing_and_invalid_application_never_commit(self):
-        data = self.probe([dict(request=request(target='dev.fixture.' + mode))
-                           for mode in ['missing', 'invalid-location']])
-        for value in data['cases']:
-            self.assertFalse(value['response']['ok'])
-            self.assertFalse(value['committed'])
-            self.assertEqual(value['beforeCommitCalls'], 0)
-        self.assertEqual(self.opens(), [])
-        self.assertEqual(data['cases'][0]['response']['error'], 'App is not installed: dev.fixture.missing')
-
-    def test_default_url_uses_synchronous_boolean_and_encoding(self):
-        value = self.one(request('url', 'ruycast-fixture://success/Ω space?q=hello world'))
-        self.assertTrue(value['response']['ok'])
-        self.assertEqual(value['pendingCallbacks'], 0)
-        self.assertEqual(self.opens()[0]['phase'], 'open-default')
-        self.assertIn('%20', self.opens()[0]['url'])
-
-    def test_default_url_known_false_is_not_unknown(self):
-        value = self.one(request('url', 'ruycast-fixture://reject/path'))
-        self.assertTrue(value['committed'])
-        self.assertEqual(value['response'], dict(ok=False, error='macOS could not open Fixture.'))
-
-    def test_path_unicode_newline_literal_and_missing(self):
-        path = self.home / 'Ω file\n$(literal)'
-        path.write_text('fixture')
-        data = self.probe([dict(request=request('path', str(path))),
-                           dict(request=request('path', str(self.home / 'missing')))])
-        self.assertTrue(data['cases'][0]['response']['ok'])
-        self.assertIn('%0A', self.opens()[0]['url'])
-        self.assertFalse(data['cases'][1]['committed'])
-        self.assertEqual(data['cases'][1]['beforeCommitCalls'], 0)
-        self.assertIn('Path does not exist:', data['cases'][1]['response']['error'])
-
-    def test_explicit_open_with_preserves_state_only_shape(self):
-        value = self.one(request('url', 'https://example.invalid/a', applicationId='dev.fixture.success'))
-        self.assertEqual(value['response'], dict(ok=True, result=dict(state='opened')))
-        targets = [e for e in self.trace if e['phase'] == 'open-with-targets']
-        self.assertEqual(targets[0]['urls'], ['https://example.invalid/a'])
-        self.assertEqual(self.opens()[-1]['phase'], 'open-with')
-
-    def test_missing_open_with_never_commit(self):
-        value = self.one(request('url', 'https://example.invalid', applicationId='dev.fixture.missing'))
-        self.assertFalse(value['committed'])
-        self.assertEqual(value['response']['error'], 'The selected app is not installed. Choose another app in Settings.')
-        self.assertEqual(self.opens(), [])
-
-    def test_native_error_and_bounded_large_error(self):
-        data = self.probe([dict(request=request(target='dev.fixture.' + mode)) for mode in ['error', 'large-error']])
-        small, large = data['cases']
-        self.assertEqual(small['response'], dict(ok=False, error='Fixture native error.'))
-        self.assertTrue(large['committed'])
-        self.assertLess(len(large['response']['error'].encode()), 65536)
-        self.assertTrue(large['response']['error'].endswith('…'))
-
     def test_nil_callback_result_is_unknown(self):
         self.unknown(self.one(request(target='dev.fixture.nil-result')))
 

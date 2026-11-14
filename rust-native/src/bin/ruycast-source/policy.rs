@@ -447,6 +447,7 @@ rust-native/tests/template_reference.json
 rust-native/tests/workspace_activation_process.rs
 rust-native/tests/support/keyword_native.rs
 rust-native/tests/workspace_process.py
+rust-native/tests/workspace_open_process.rs
 rust-native/tests/fixtures/workspace_sdk.rs
 rust-native/tests/fixtures/workspace_fixture.rs
 rust-native/tests/workspace_rust_provider.rs
