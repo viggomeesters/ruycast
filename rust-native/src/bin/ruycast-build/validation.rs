@@ -108,7 +108,6 @@ native-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features
 native-hid-process|p|rust-native/tests/native_hid_process.py
 native-choice-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example choice-fixture --locked
 native-choice-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_choice_host_process --locked
-native-choice-process|p|rust-native/tests/native_choice_process.py
 snippet-effects-process|p|rust-native/tests/snippet_effects_process.py
 native-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_open_basic_process --locked
 app-picker-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test app_picker_identity_process --locked
@@ -1877,7 +1876,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 133);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
@@ -2033,7 +2032,7 @@ mod tests {
             "snippet-html-import",
             "script-advanced-process",
             "system-search-sdk",
-            "native-choice-process",
+            "native-choice-host-process",
             "capture-process",
             "rich-process",
             "unit",

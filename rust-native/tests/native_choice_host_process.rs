@@ -23,7 +23,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn choice_host_custom(use_guard: bool, body: Option<&str>, mode: Option<&str>) -> Bridge {
+fn choice_host_custom(
+    use_guard: bool,
+    body: Option<&str>,
+    mode: Option<&str>,
+    options: Value,
+) -> Bridge {
     let mut h = host(&[], false, true, true, None);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_ruycast-native"));
     let artifact = std::env::var_os("RUYCAST_TEST_CHOICE_SDK")
@@ -95,6 +100,17 @@ fn choice_host_custom(use_guard: bool, body: Option<&str>, mode: Option<&str>) -
     if let Some(mode) = mode {
         config["commands"][0]["snippetOutput"] = json!(mode);
     }
+    if let Some(keyword) = options.get("keyword") {
+        config["commands"][0]["keyword"] = keyword.clone();
+    }
+    if let Some(theme) = options.get("theme") {
+        config["theme"] = theme.clone();
+    }
+    if options["barrier"] == true {
+        let home = h.base.as_os_str().to_owned();
+        h.env
+            .insert("RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER".into(), home);
+    }
     config["snippetExpansionEnabled"] = json!(true);
     h.replace(&config, None);
     h.start();
@@ -103,7 +119,7 @@ fn choice_host_custom(use_guard: bool, body: Option<&str>, mode: Option<&str>) -
     h
 }
 fn choice_host_with_guard(use_guard: bool) -> Bridge {
-    choice_host_custom(use_guard, None, None)
+    choice_host_custom(use_guard, None, None, json!({}))
 }
 fn choice_host() -> Bridge {
     choice_host_with_guard(true)
@@ -469,7 +485,7 @@ fn bounded_original_return_failure_has_feedback_without_attempt_or_output() {
 #[test]
 fn rich_choice_uses_original_target_and_delayed_cursor() {
     for mode in ["html", "teams"] {
-        let h=visible_host(choice_host_custom(true,Some("Hello {field name=\"name\" default=\"World\"}{field name=\"kind\" options=\"!,?\" default=\"!\"} {cursor}TAIL"),Some(mode)));
+        let h=visible_host(choice_host_custom(true,Some("Hello {field name=\"name\" default=\"World\"}{field name=\"kind\" options=\"!,?\" default=\"!\"} {cursor}TAIL"),Some(mode),json!({})));
         choice(&h, "insert", json!({}));
         let mut state = wait_output(&h);
         let end = Instant::now() + Duration::from_secs(2);
@@ -530,4 +546,148 @@ fn quit_keeps_profile_through_held_native_monitor_cleanup() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(!h.profile.join("control.sock").exists());
+}
+
+fn capture_choice(h: &Bridge, name: &str) -> Value {
+    let value = choice(h, "render", json!({}));
+    assert_eq!(value["labels"], json!(["name", "kind"]));
+    assert_eq!(value["nativeIsKey"], false);
+    assert_eq!(value["nativeVisible"], false);
+    let expected = if name.ends_with("dark") {
+        "NSAppearanceNameDarkAqua"
+    } else {
+        "NSAppearanceNameAqua"
+    };
+    assert_eq!(value["appearance"], expected);
+    assert_eq!(value["explicitAppearance"], expected);
+    if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let dir = PathBuf::from(folder)
+            .parent()
+            .unwrap()
+            .join("native-choice");
+        fs::create_dir_all(&dir).unwrap();
+        fs::copy(h.base.join("choice.png"), dir.join(format!("{name}.png"))).unwrap();
+        fs::write(
+            dir.join(format!("{name}.json")),
+            serde_json::to_vec_pretty(&value).unwrap(),
+        )
+        .unwrap();
+    }
+    value
+}
+#[test]
+fn pending_configuration_blocks_submit_and_preserves_real_draft() {
+    for theme in ["light", "dark"] {
+        let h = visible_host(choice_host_custom(
+            true,
+            None,
+            None,
+            json!({"barrier":true,"theme":theme}),
+        ));
+        let mut config = native_keyboard::actions::config(&h);
+        choice(&h, "set", json!({"field":0,"value":"Kept"}));
+        assert_eq!(
+            capture_choice(&h, &format!("ready-{theme}"))["insertEnabled"],
+            true
+        );
+        let before = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"]
+            .as_u64()
+            .unwrap();
+        fs::write(h.base.join("hold-config-adoption"), b"").unwrap();
+        let release = ReleaseOnDrop(h.base.join("config-adoption-release"));
+        config["commands"].as_array_mut().unwrap().push(json!({"id":"unrelated","title":"Unrelated","kind":"url","target":"https://example.com"}));
+        h.replace(&config, None);
+        native_keyboard::wait_file(&h.base.join("config-adoption-entered"));
+        h.wait(|s| s["configurationUpdating"] == true && s["keywordGeneration"] == 0);
+        let result = choice(&h, "insert", json!({}));
+        assert_eq!(result["live"], true);
+        assert_eq!(result["insertEnabled"], false);
+        assert_eq!(choice(&h, "submit-key", json!({}))["live"], true);
+        assert_eq!(result["values"], json!(["Kept", "!"]));
+        assert_eq!(choice(&h, "read-request", json!({}))["phase"], "Visible");
+        assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+        assert_eq!(
+            capture_choice(&h, &format!("pending-{theme}"))["insertEnabled"],
+            false
+        );
+        activate(&h, &["own"]);
+        assert_eq!(choice(&h, "read-request", json!({}))["phase"], "Visible");
+        drop(release);
+        h.wait(|s| {
+            s["keywordGeneration"] == s["keyboardGeneration"]
+                && s["keyboardGeneration"].as_u64().unwrap_or(0) > before
+                && s["configurationUpdating"] == false
+        });
+        assert_eq!(choice(&h, "read", json!({}))["insertEnabled"], true);
+        choice(&h, "insert", json!({}));
+        assert_eq!(inserted(&wait_output(&h)), "Hello Kept!");
+    }
+}
+#[test]
+fn plain_analytics_and_rich_partial_failure_notice() {
+    let h = choice_host_custom(true, Some("Hello"), None, json!({}));
+    assert_eq!(
+        typed(&h, "abc"),
+        vec![json!(false), json!(false), json!(true)]
+    );
+    let data = analytics(&h);
+    assert_eq!(
+        (
+            data["totalAttempts"].clone(),
+            data["totalSuccesses"].clone()
+        ),
+        (json!(1), json!(1))
+    );
+    for theme in ["light", "dark"] {
+        let h = choice_host_custom(
+            true,
+            Some("A{cursor}BC"),
+            Some("html"),
+            json!({"keyword":"x","theme":theme}),
+        );
+        fs::write(h.base.join("keyword-fail-board_partial"), b"").unwrap();
+        assert_eq!(typed(&h, "x"), vec![json!(false)]);
+        let data = analytics(&h);
+        assert_eq!(
+            (data["totalAttempts"].clone(), data["totalFailures"].clone()),
+            (json!(1), json!(1))
+        );
+        assert_eq!(
+            data["events"].as_array().unwrap().last().unwrap()["code"],
+            "action-failed"
+        );
+        let text = "Snippet insertion may be incomplete. Check the text before retrying.";
+        let notice = wait_notice(&h, text);
+        assert_eq!(notice["windowShown"], false);
+        assert_eq!(notice["nonactivating"], true);
+        assert_eq!(notice["ignoresMouse"], true);
+        assert_eq!(notice["timer"], true);
+        let render = h.probe("notice-screenshot", json!({}));
+        assert_eq!(render["text"], text);
+        assert_eq!(
+            render["appearance"],
+            if theme == "light" {
+                "NSAppearanceNameAqua"
+            } else {
+                "NSAppearanceNameDarkAqua"
+            }
+        );
+        if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+            let dir = PathBuf::from(folder)
+                .parent()
+                .unwrap()
+                .join("snippet-feedback");
+            fs::create_dir_all(&dir).unwrap();
+            fs::copy(
+                h.profile.join("native-notice-probe.png"),
+                dir.join(format!("partial-{theme}.png")),
+            )
+            .unwrap();
+            fs::write(
+                dir.join(format!("partial-{theme}.json")),
+                serde_json::to_vec_pretty(&render).unwrap(),
+            )
+            .unwrap();
+        }
+    }
 }
