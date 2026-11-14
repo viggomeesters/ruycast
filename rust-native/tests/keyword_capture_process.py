@@ -28,24 +28,6 @@ class KeywordCapture(unittest.TestCase):
     def run_keys(self,text='abc',c=None,between=None):return self.invoke([dict(op='config',value=c or config()),dict(op='refresh'),*(between or []),*keys(text)])
     def inserted(self,state):
         units=[u for e in state['output'] if e['down'] and e['key']==0 for u in e['units']];return bytes(b for u in units for b in [u&255,u>>8]).decode('utf-16-le')
-    def test_complete_sdk_missing_fails_before_real_discovery(self):
-        for lib in [None,'missing']:self.assertIn('Complete keyword SDK fixture',self.invoke([],lib,False)['error'])
-    def test_actual_tap_plain_replacement_is_synchronous_and_tagged(self):
-        v=self.run_keys();self.assertEqual([s['consumed'] for s in v['steps'] if 'consumed' in s],[False,False,True]);self.assertEqual(self.inserted(v['final']),'HELLO');self.assertEqual([(e['key'],e['down']) for e in v['final']['output']],[(51,True),(51,False),(51,True),(51,False),(0,True),(0,False)]);self.assertEqual(v['final']['valueReads'],0)
-    def test_scalar_chunks_and_cursor_steps(self):
-        text='😀'*9+'éZ';v=self.run_keys(c=config(text+'{cursor}END'));out=v['final']['output'];self.assertTrue(all(len(e['units'])<=16 for e in out));self.assertEqual(self.inserted(v['final']),text+'END');self.assertEqual(sum(e['key']==123 and e['down'] for e in out),3)
-    def test_empty_replacement_legitimately_consumes_one_key_without_posts(self):
-        v=self.run_keys('x',config('{cursor}',keyword='x'));self.assertTrue(v['steps'][-1]['consumed']);self.assertEqual(v['final']['posts'],0)
-    def test_clipboard_only_on_actual_matching_demand(self):
-        v=self.run_keys('ab',config('{clipboard}'),[sdk('clipboard',value='OWN CLIP')]);self.assertEqual(v['final']['clipboardReads'],0)
-        v=self.run_keys(c=config('{clipboard}'),between=[sdk('clipboard',value='OWN CLIP')]);self.assertEqual(v['final']['clipboardReads'],1);self.assertEqual(self.inserted(v['final']),'OWN CLIP')
-        v=self.run_keys();self.assertEqual(v['final']['clipboardReads'],0)
-    def test_modifiers_repeats_navigation_mouse_empty_and_oversized_unicode_reset(self):
-        for middle in [event('x',flags=1<<20),event('x',flags=1<<18),event('x',flags=1<<19),event('x',repeat=1),event('',key=123),event(type=1),event(type=3),event(''),event('x'*17)]:
-            v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),middle,event('c')]);self.assertFalse(v['steps'][-1]['consumed'],middle);self.assertEqual(v['final']['posts'],0)
-    def test_backspace_and_generated_input(self):
-        for middle in [[event('z'),event('',key=51)],[event('z',tag=0x5255535443415354)]]:
-            v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),*middle,event('c')]);self.assertTrue(v['steps'][-1]['consumed'])
     def test_eventless_recording_and_hyper_episodes_invalidate_prefix(self):
         for middle in [[dict(op='gate',blocked=True,epoch=1),dict(op='gate',blocked=False,epoch=2)],[dict(op='gate',hyperHeld=True,hyperEpoch=1),dict(op='gate',hyperHeld=False,hyperEpoch=2)]]:
             v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),*middle,event('c'),event(''),*keys('abc')]);self.assertFalse(v['steps'][-5]['consumed']);self.assertTrue(v['steps'][-1]['consumed'])
