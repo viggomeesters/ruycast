@@ -1,13 +1,19 @@
-//! Real owned headless system-search routes and synthetic effects.
+//! Real owned headless and hidden native system-search routes and synthetic effects.
 #![cfg(feature = "test-tools")]
 #[allow(dead_code)]
-#[path = "support/runtime_host.rs"]
-mod runtime_host;
-use runtime_host::{default_config, Config, Host};
+#[path = "support/native_actions.rs"]
+mod actions;
+use actions::{
+    action,
+    native_bridge::{
+        runtime_host::{default_config, Config, Host},
+        Bridge,
+    },
+    view,
+};
 use serde_json::{json, Value};
-use std::fs;
-fn host() -> Host {
-    let mut h = Host::new(Config::current(), false);
+use std::{fs, io::Write, time::Duration};
+fn configure(h: &mut Host) {
     h.env
         .insert("RUYCAST_NATIVE_TEST_SYSTEM_SEARCH".into(), "owned".into());
     h.env
@@ -18,8 +24,75 @@ fn host() -> Host {
     cfg["theme"] = json!("light");
     cfg["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.alias","title":"Local Exact Alias","kind":"url","target":"https://example.invalid/local","aliases":["owned"]}));
     h.replace(&cfg, None);
+}
+fn host() -> Host {
+    let mut h = Host::new(Config::current(), false);
+    configure(&mut h);
     h.start();
     h
+}
+fn gui_host() -> Bridge {
+    let mut h = Bridge::new(Config::current(), false);
+    configure(&mut h.host);
+    h.start();
+    h.settled(|_| true);
+    h
+}
+fn show_mode(h: &Bridge, mode: &str) {
+    assert_eq!(
+        h.rpc(&json!({"op":"show","mode":mode,"query":""}))["ok"],
+        true
+    );
+    h.settled(|s| s["nativeUI"]["visible"] == true && s["nativeUI"]["systemSearchBusy"] == false);
+    h.probe("read", json!({}));
+}
+#[test]
+fn native_shortcut_alias_override_and_reopen() {
+    let h = gui_host();
+    show_mode(&h, "shortcuts");
+    action(&h, "Set Alias");
+    view(&h, |v| v["formVisible"] == true);
+    h.probe("alias-input", json!({"text":"savedshort"}));
+    h.probe("save-editor", json!({}));
+    view(&h, |v| v["formVisible"] == false);
+    h.settled(|_| true);
+    let cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    let saved = cfg["commands"].as_array().unwrap().last().unwrap();
+    assert_eq!(
+        saved["id"],
+        "apple-shortcut.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    );
+    assert_eq!(saved["aliases"], json!(["savedshort"]));
+    assert_eq!(
+        search(&h, "shortcuts", "savedshort")["result"][0]["id"],
+        saved["id"]
+    );
+}
+#[test]
+fn superseded_discovery_config_change_and_cli_disconnect_cannot_publish() {
+    let h = gui_host();
+    fixture(&h, "delay", json!({"milliseconds":150}));
+    assert_eq!(h.rpc(&json!({"op":"show","mode":"windows"}))["ok"], true);
+    assert_eq!(
+        h.rpc(&json!({"op":"show","mode":"commands","query":"missing-owned-term"}))["ok"],
+        true
+    );
+    fixture(&h, "delay", json!({"milliseconds":0}));
+    h.settled(|s| s["nativeUI"]["systemSearchBusy"] == false);
+    assert_eq!(h.probe("read", json!({}))["rows"], 0);
+    fixture(&h, "delay", json!({"milliseconds":200}));
+    let mut stream = h.connect(Duration::from_secs(3));
+    stream
+        .write_all(b"{\"op\":\"search\",\"mode\":\"windows\"}\n")
+        .unwrap();
+    drop(stream);
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    cfg["theme"] = json!("dark");
+    h.replace(&cfg, None);
+    h.rpc(&json!({"op":"reload"}));
+    fixture(&h, "delay", json!({"milliseconds":0}));
+    assert_eq!(h.rpc(&json!({"op":"status"}))["ok"], true);
+    assert_eq!(effects(&h), json!([]));
 }
 fn search(h: &Host, mode: &str, q: &str) -> Value {
     let result = h.rpc(&json!({"op":"search","mode":mode,"query":q}));

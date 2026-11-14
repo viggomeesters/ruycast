@@ -68,18 +68,5 @@ class SystemSearch(unittest.TestCase):
         self.fixture(h,'trust',value=False);v=self.show(h,'windows');self.assertTrue(any('Accessibility' in s for s in v['screenText']));self.capture(h,'windows-permission')
         self.fixture(h,'trust',value=True);actions.ActionsProcesses.action(self,h,'Refresh');h.settled(lambda s:not s['nativeUI']['systemSearchBusy']);self.assertEqual(h.probe('read')['rows'],2)
         self.show(h,'tabs');self.fixture(h,'clear-effects');actions.ActionsProcesses.action(self,h,'Allow Safari Access');h.settled(lambda s:not s['nativeUI']['systemSearchBusy']);self.assertEqual(self.effects(h),['consent'])
-    def test_native_shortcut_alias_override_and_reopen(self):
-        h=self.host(True);self.show(h,'shortcuts');actions.ActionsProcesses.action(self,h,'Set Alias')
-        self.view(h,lambda v:v['formVisible']);h.probe('alias-input',text='savedshort');h.probe('save-editor');self.view(h,lambda v:not v['formVisible']);h.settled()
-        saved=json.loads(h.config.read_text())['commands'][-1];self.assertEqual(saved['id'],'apple-shortcut.aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');self.assertEqual(saved['aliases'],['savedshort'])
-        self.assertEqual(self.search(h,'shortcuts','savedshort')['result'][0]['id'],saved['id'])
-    def test_superseded_discovery_config_change_and_cli_disconnect_cannot_publish(self):
-        h=self.host(True);self.fixture(h,'delay',milliseconds=150);self.assertTrue(h.rpc(dict(op='show',mode='windows'))['ok'])
-        self.assertTrue(h.rpc(dict(op='show',mode='commands',query='missing-owned-term'))['ok']);self.fixture(h,'delay',milliseconds=0)
-        h.settled(lambda s:not s['nativeUI']['systemSearchBusy']);self.assertEqual(h.probe('read')['rows'],0)
-        self.fixture(h,'delay',milliseconds=200)
-        stream=h.connect();stream.sendall(b'{"op":"search","mode":"windows"}\n');stream.close()
-        config=json.loads(h.config.read_text());config['theme']='dark';h.replace(config);h.rpc(dict(op='reload'));self.fixture(h,'delay',milliseconds=0)
-        self.assertTrue(h.rpc(dict(op='status'))['ok']);self.assertEqual(self.effects(h),[])
 
 if __name__=='__main__':unittest.main()
