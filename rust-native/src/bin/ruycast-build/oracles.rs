@@ -663,6 +663,8 @@ const SETTINGS: &[SettingsGate] = &[
         "dashboard_presentation_process.Presentation.test_elapsed_utc_hours_unknown_calendar_start_retention_dst_and_year",
         "native_dashboard_process.Dashboard",
         "native_dashboard_dialog_process::owned_save_dialog_takes_current_data_and_cancel_writes_nothing",
+        "native_dashboard_dialog_process::standard_builtin_cli_native_sources_usage_logs_and_override",
+        "native_dashboard_dialog_process::builtin_input_validation_and_native_prompt_do_not_log_private_values",
         "native_dashboard_dialog_process::management_routing_controls_custom_retention_and_reset",
         "native_dashboard_dialog_process::repeated_confirmation_retires_old_queued_reset_callback",
         "native_dashboard_dialog_process::retired_controls_and_dialog_cannot_mutate_a_reopened_dashboard",
@@ -1220,7 +1222,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ),
         ],
         "--check-analytics" => &[
-            ("rust-native/tests/native_dashboard_dialog_process.rs", include_bytes!("../../../tests/native_dashboard_dialog_process.rs"), "ff4b519a0bc72a084092be9d7e5ebc29bda7f469a3dc9db697d24634198815f8"),
+            ("rust-native/tests/native_dashboard_dialog_process.rs", include_bytes!("../../../tests/native_dashboard_dialog_process.rs"), "b0b4ca37915cc0b82c380929b78b04b1023b4ff5b6bb74d13fce5bfd506ab812"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
@@ -1258,7 +1260,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/tests/native_dashboard_process.py",
                 include_bytes!("../../../tests/native_dashboard_process.py"),
-                "7c18cf0c520152f3a1a112e478d403abf7d1912eaa9cd75696243a0e029a53ac",
+                "14cfb5619af50720f3895f02127164d4e4c7ed0b908f9b4debeb1e9e1ac0e7e1",
             ),
             (
                 "rust-native/tests/dashboard_presentation_process.py",
@@ -1693,7 +1695,7 @@ mod tests {
         let dialog = entries.iter().find(|entry| entry.0=="rust-native/tests/native_dashboard_dialog_process.rs").unwrap();
         assert_eq!(format!("{:x}",sha2::Sha256::digest(dialog.1)),dialog.2);
         let dialog_source = std::str::from_utf8(dialog.1).unwrap();
-        for name in ["owned_save_dialog_takes_current_data_and_cancel_writes_nothing", "retired_controls_and_dialog_cannot_mutate_a_reopened_dashboard", "management_routing_controls_custom_retention_and_reset", "repeated_confirmation_retires_old_queued_reset_callback"] {
+        for name in ["owned_save_dialog_takes_current_data_and_cancel_writes_nothing", "retired_controls_and_dialog_cannot_mutate_a_reopened_dashboard", "management_routing_controls_custom_retention_and_reset", "repeated_confirmation_retires_old_queued_reset_callback", "standard_builtin_cli_native_sources_usage_logs_and_override", "builtin_input_validation_and_native_prompt_do_not_log_private_values"] {
             assert!(gate.native_cases.contains(&format!("native_dashboard_dialog_process::{name}").as_str()));
             assert!(dialog_source.contains(&format!("fn {name}()")));
         }
