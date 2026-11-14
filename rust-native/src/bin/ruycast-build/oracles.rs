@@ -714,7 +714,7 @@ const SETTINGS: &[SettingsGate] = &[
         "website_icons::tests::cache_special_files_and_close_are_bounded",
         "website_icons::tests::active_download_close_cancels_and_joins_without_cache_publication",
         "native_rows::check_cache",
-        "native_process.NativeProfiles.test_loaded_config_alias_unicode_disabled_and_native_labels",
+        "native_process::loaded_config_alias_unicode_disabled_and_native_labels",
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-command-log", original_source:"Sources/RuycastApp/CommandLogChecks.swift", required_native_steps:&["unit","private-results-process"], native_cases:&[
         "activity::tests::credential_patterns_input_and_home_are_redacted",
@@ -1313,6 +1313,11 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/fixtures/dashboard_presentation_reference.json", include_bytes!("../../../tests/fixtures/dashboard_presentation_reference.json"), "3e1bf1619960487cf831ad00001a7b575b1b434c89bb395522734e44a2cba283"),
         ],
         "--check-visual-assets" => &[
+            ("rust-native/tests/native_process.rs", include_bytes!("../../../tests/native_process.rs"), "f86e9575dbaee80d9c8e00471abfeece4c5b416c0852cfa6e426cd84352254c7"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
+            ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
             (
                 "rust-native/src/presentation.rs",
                 include_bytes!("../../presentation.rs"),
@@ -1641,6 +1646,20 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn native_profile_crosswalk_binds_actual_rust_case_and_inputs() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-visual-assets").unwrap();
+        assert!(gate.required_native_steps.contains(&"native-profile-process"));
+        assert!(gate.native_cases.contains(&"native_process::loaded_config_alias_unicode_disabled_and_native_labels"));
+        let inputs = settings_sources(gate.id);
+        for path in ["rust-native/tests/native_process.rs", "rust-native/tests/support/runtime_host.rs", "rust-native/tests/support/status_rpc.rs", "rust-native/tests/support/child_output.rs", "config/default.json"] {
+            let entries = inputs.iter().filter(|entry| entry.0 == path).collect::<Vec<_>>();
+            assert_eq!(entries.len(), 1, "{path}");
+            assert_eq!(format!("{:x}", Sha256::digest(entries[0].1)), entries[0].2, "{path}");
+        }
+        let test = std::str::from_utf8(inputs.iter().find(|entry| entry.0 == "rust-native/tests/native_process.rs").unwrap().1).unwrap();
+        assert!(test.contains("fn loaded_config_alias_unicode_disabled_and_native_labels("));
+    }
     #[test]
     fn script_result_basic_binds_current_sources_and_route() {
         use sha2::Digest;

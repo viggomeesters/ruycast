@@ -412,7 +412,7 @@ rust-native/tests/native_choice_host_process.rs
 rust-native/tests/native_dashboard_dialog_process.rs
 rust-native/tests/native_keyboard_process.rs
 rust-native/tests/native_open_basic_process.rs
-rust-native/tests/native_process.py
+rust-native/tests/native_process.rs
 rust-native/tests/native_snippet_choice_process.rs
 rust-native/tests/rich_process.rs
 rust-native/tests/runtime_process.py
