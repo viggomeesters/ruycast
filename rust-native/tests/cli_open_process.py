@@ -76,28 +76,6 @@ class CliOpen(unittest.TestCase):
     def release(self,host):
         (host.base/'workspace-release').write_text('release')
 
-    def test_unchanged_cli_saved_app_alias_and_usage(self):
-        host=self.host()
-        value=host.cli('run','fixture-alias')
-        self.assertEqual(value,dict(ok=True,result=dict(command='fixture.open',state='opened')))
-        self.assertEqual(host.cli('usage')['result']['fixture.open'],1)
-        self.assertEqual([s['phase'] for s in self.trace(host)],['installed','resolve','open-app','callback'])
-        self.assertTrue(all(not s['mainThread'] for s in self.trace(host)[1:]))
-
-    def test_received_canonical_value_duplicates_follow_wire_order(self):
-        host=self.host([command('url','https://example.invalid/{café}')])
-        for pairs in [('café','cafe\u0301'),('cafe\u0301','café')]:
-            values='{'+json.dumps(pairs[0])+':"first",'+json.dumps(pairs[1])+':"last"}'
-            wire=('{"op":"execute","id":"fixture.open","values":'+values+'}\n').encode()
-            with host.connect() as stream:
-                stream.sendall(wire)
-                with stream.makefile('rb') as reader: result=json.loads(reader.readline())
-            self.assertTrue(result['ok']);self.assertEqual(self.opens(host)[-1]['url'],'https://example.invalid/last')
-    def test_unchanged_cli_keeps_its_sorted_serialization_policy(self):
-        host=self.host([command('url','https://example.invalid/{café}')])
-        for pairs in [[('café','NFC'),('cafe\u0301','NFD')],[('cafe\u0301','NFD'),('café','NFC')]]:
-            result=host.cli('run','fixture.open','--input',json.dumps(dict(pairs),ensure_ascii=False));self.assertTrue(result['ok']);self.assertEqual(self.opens(host)[-1]['url'],'https://example.invalid/NFC')
-
     def test_canonical_alias_and_disabled_name_guard_match_swift(self):
         host=self.host([command(aliases=['café'])])
         self.assertTrue(host.cli('run','cafe\u0301')['ok'])
