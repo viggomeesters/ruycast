@@ -536,3 +536,91 @@ fn current_native_copy_and_recorder_error_renders_in_both_themes() {
         h.settled(|s| s["recordingShortcut"] == false);
     }
 }
+
+fn keyword_host(hyper: bool) -> Bridge {
+    let mut h = host(&[], false, true, true, None);
+    let mut config = default_config();
+    config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"HELLO", "keyword":"abc" }]);
+    config["snippetExpansionEnabled"] = json!(true);
+    if hyper {
+        config["hyperKeyEnabled"] = json!(true);
+    }
+    h.replace(&config, None);
+    h.start();
+    h.wait(|s| s["keywordGeneration"] == s["keyboardGeneration"] && s["snippetExpansion"] == "On");
+    h
+}
+fn keyword(h: &Bridge, control: &str, fields: Value) -> Value {
+    let mut fields = fields.as_object().unwrap().clone();
+    fields.insert("control".into(), json!(control));
+    h.probe("keyboard-keyword", Value::Object(fields))
+}
+fn keyword_type(h: &Bridge, text: &str) -> Vec<Value> {
+    text.chars()
+        .map(|c| keyword(h, "event", json!({"text":c.to_string()}))["consumed"].clone())
+        .collect()
+}
+fn keyword_reset(h: &Bridge) {
+    keyword(h, "event", json!({"text":""}));
+    keyword(h, "clear", json!({}));
+}
+#[test]
+fn native_keyword_adopts_catalog_and_emits_without_showing_window() {
+    let h = keyword_host(false);
+    assert_eq!(
+        keyword_type(&h, "abc"),
+        vec![json!(false), json!(false), json!(true)]
+    );
+    let state = keyword(&h, "state", json!({}));
+    let units: Vec<u16> = state["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["down"] == true && e["key"] == 0)
+        .flat_map(|e| {
+            e["units"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|u| u.as_u64().unwrap() as u16)
+        })
+        .collect();
+    assert_eq!(String::from_utf16(&units).unwrap(), "HELLO");
+    assert_eq!(state["valueReads"], 0);
+    assert_eq!(h.probe("read", json!({}))["windowShown"], false);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["snippetExpansionComplete"],
+        false
+    );
+}
+#[test]
+fn native_keyword_hyper_episode_clears_prefix() {
+    let h = keyword_host(true);
+    h.wait(|s| s["hyper"] == "On");
+    keyword_type(&h, "ab");
+    for (down, time) in [(true, 1.0), (false, 1.1)] {
+        h.probe(
+            "keyboard-hid",
+            json!({"control":"input","usage":57,"down":down,"time":time}),
+        );
+    }
+    assert_eq!(keyword_type(&h, "c"), vec![json!(false)]);
+    assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+}
+#[test]
+fn native_keyword_external_activation_roundtrip_clears_prefix() {
+    let h = keyword_host(false);
+    keyword_type(&h, "ab");
+    for _ in 0..2 {
+        h.probe(
+            "keyboard-hid",
+            json!({"control":"notification","name":"activate"}),
+        );
+    }
+    assert_eq!(keyword_type(&h, "c"), vec![json!(false)]);
+    assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+}
