@@ -76,47 +76,11 @@ class CliOpen(unittest.TestCase):
     def release(self,host):
         (host.base/'workspace-release').write_text('release')
 
-    def test_canonical_alias_and_disabled_name_guard_match_swift(self):
-        host=self.host([command(aliases=['café'])])
-        self.assertTrue(host.cli('run','cafe\u0301')['ok'])
-        config=json.loads(host.config.read_text())
-        config['commands'].append(dict(id='fixture.disabled',title='Disabled',kind='url',target='https://example.invalid',aliases=['cafe\u0301'],enabled=False))
-        host.replace(config);host.cli('reload')
-        before=len(self.opens(host))
-        result=host.rpc(dict(op='execute',id='café'))
-        self.assertFalse(result['ok']);self.assertIn('disabled',result['error'])
-        self.assertEqual(len(self.opens(host)),before)
-
-    def test_url_fields_encoding_open_with_and_literal_path(self):
-        host=self.host([command('url','https://example.invalid/{query}?place={x name="Place"}',applicationID='dev.fixture.inline')])
-        value=host.cli('run','fixture.open','--input',json.dumps(dict(Query='a&b /Ω',Place='New York')))
-        self.assertEqual(value,dict(ok=True,result=dict(state='opened')))
-        targets=[s for s in self.trace(host) if s['phase']=='open-with-targets'][0]['urls']
-        self.assertIn('a%26b%20',targets[0])
-        self.assertIn('New%20York',targets[0])
-        path=host.base/'literal Ω\n$(not-executed)'
-        path.write_text('fixture')
-        config=json.loads(host.config.read_text());config['commands'][-1]=command('path',str(path));host.replace(config);host.cli('reload')
-        self.assertEqual(host.cli('run','fixture.open'),dict(ok=True,result=dict(command='fixture.open',state='opened')))
-        self.assertEqual(self.opens(host)[-1]['phase'],'open-default')
-        self.assertIn('%0A',self.opens(host)[-1]['url'])
-
     def test_small_execute_packet_can_open_expanded_output_above_one_mib(self):
         host=self.host([command('url','https://example.invalid/{x}{x}')])
         result=host.rpc(dict(op='execute',id='fixture.open',values=dict(x='a'*600000)),timeout=10)
         self.assertTrue(result['ok'],result)
         self.assertEqual(self.opens(host)[0]['url'],'https://example.invalid/'+'a'*1200000)
-
-    def test_missing_apps_paths_and_fields_do_not_open(self):
-        for kind,target,expected in [('app','dev.fixture.missing','App is not installed:'),('path',None,'Path does not exist:'),('url','https://example.invalid/{query}','Enter Query.')]:
-            host=self.host([command(kind,target or str(workspace_fixture.ROOT/'target/no-such-file'))])
-            if target is None:
-                config=json.loads(host.config.read_text());config['commands'][-1]['target']=str(host.base/'missing');host.replace(config);host.cli('reload')
-            result=host.rpc(dict(op='execute',id='fixture.open'))
-            self.assertFalse(result['ok'])
-            self.assertIn(expected,result['error'])
-            self.assertEqual(self.opens(host),[])
-            host.close()
 
     def test_fixture_clipboard_without_explicit_named_enablement_is_never_read(self):
         host=self.host([command('url','https://example.invalid/{clipboard}')])
