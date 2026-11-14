@@ -70,7 +70,6 @@ snippet-choice-request-process|p|rust-native/tests/snippet_choice_request_proces
 native-choice-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example choice-fixture --locked
 native-snippet-choice-probe-build|b|native-snippet-choice-probe tools
 native-snippet-choice-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_snippet_choice_process --locked
-native-snippet-choice-process|p|rust-native/tests/native_snippet_choice_process.py
 keyword-probe-build|b|keyword-probe tools
 keyword-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_process --locked
 keyword-native-probe-build|b|keyword-native-probe tools
@@ -1784,7 +1783,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 133);
         let choice_sdk = steps.iter().position(|step|step.name=="native-choice-sdk-build").unwrap();
         let snippet_choice = steps.iter().position(|step|step.name=="native-snippet-choice-process-rust").unwrap();
         assert!(choice_sdk < snippet_choice);

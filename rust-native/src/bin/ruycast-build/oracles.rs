@@ -487,7 +487,7 @@ const SETTINGS: &[SettingsGate] = &[
         "snippet_process::invalid_long_url_does_not_repeat_legacy_exponential_match",
         "keyword_rich_process.KeywordRich",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","input-process-rust","native-choice-host-process","native-open-basic-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process","native-snippet-choice-process-rust","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
+    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","input-process-rust","native-choice-host-process","native-open-basic-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process-rust","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
         "bridge_process::show_search_and_local_native_query_share_the_owner",
         "bridge_process::rapid_arrows_and_click_on_other_row_keep_intended_identity",
         "input_process::expand_preserves_actual_field_editor_text_and_token_without_execution",
@@ -500,8 +500,8 @@ const SETTINGS: &[SettingsGate] = &[
         "native_choice_host_process::changed_anchor_and_secure_policy_fail_closed",
         "ui_completion::feedback_actions",
         "native_edit::check_snippet_replacement",
-        "native_snippet_choice_process.NativeSnippetChoice.test_option_selection_and_arrow_clamping_without_opening_os_menu",
-        "native_snippet_choice_process.NativeSnippetChoice.test_repeat_modifiers_and_marked_text_do_not_submit",
+        "native_snippet_choice_process::option_selection_and_arrow_clamping_without_os_menu",
+        "native_snippet_choice_process::repeat_modifiers_and_marked_text_do_not_submit",
         "native_snippet_choice_process::cancel_and_external_hide_have_distinct_restore_policy",
         "native_open_basic_process::new_show_after_sdk_entry_cannot_be_hidden_or_receive_old_failure",
     ], unproven_invariants:&[] },
@@ -885,8 +885,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/snippet_choice.rs", include_bytes!("../../snippet_choice.rs"), "d340d341185ef6000347355f8b88f68da6b34458730ecf646c5eb5541e2b95aa"),
             ("rust-native/src/snippet_choice_request.rs", include_bytes!("../../snippet_choice_request.rs"), "9f42eb8c27f93929e66a631de7dda8cc39630d2225459fa758d71195f391d6eb"),
             ("rust-native/src/bin/native_snippet_choice_probe.rs", include_bytes!("../native_snippet_choice_probe.rs"), "66f534623863df99f352a304bbb0a09669be6e609bfabb5db58699356f8ada03"),
-            ("rust-native/tests/native_snippet_choice_process.py", include_bytes!("../../../tests/native_snippet_choice_process.py"), "9e6fd46edb6716a1acc47c877995ed176c72f8e2cf595604c7cca9cc0c448cb9"),
-            ("rust-native/tests/native_snippet_choice_process.rs", include_bytes!("../../../tests/native_snippet_choice_process.rs"), "a0637d153fbd9ca231ad4fe8a36a88f9e1018c151c510c445988f270d7a57e64"),
+            ("rust-native/tests/native_snippet_choice_process.rs", include_bytes!("../../../tests/native_snippet_choice_process.rs"), "bba9e0fe768999a22ad103a9564df481ccb21f375198d80535e0f443b3d15a71"),
             ("rust-native/tests/fixtures/choice_board_sdk.rs", include_bytes!("../../../tests/fixtures/choice_board_sdk.rs"), "b2cf3257801da488997df127933a9f29a09d3b93abec66f2dd14ea6808a34450"),
             ("rust-native/tests/fixtures/choice_monitor_sdk.rs", include_bytes!("../../../tests/fixtures/choice_monitor_sdk.rs"), "7d83558c04fb39fcac4369de5dac244c5387962b896bb4653817d55327325e74"),
             ("rust-native/tests/fixtures/choice_fixture.rs", include_bytes!("../../../tests/fixtures/choice_fixture.rs"), "cf80241e31020b09f45243c22bd29df3682cb8e83bfe1b796a5c26b054f976d8"),
@@ -2282,7 +2281,6 @@ mod tests {
             ("file_search::tests::", "rust-native/src/file_search.rs"),
             ("system_search_cli_process::", "rust-native/tests/system_search_cli_process.rs"),
             ("native_edit::", "rust-native/src/native_edit.rs"),
-            ("native_snippet_choice_process.", "rust-native/tests/native_snippet_choice_process.py"),
             ("native_snippet_choice_process::", "rust-native/tests/native_snippet_choice_process.rs"),
             ("native_keyboard_process::", "rust-native/tests/native_keyboard_process.rs"),
             ("bridge_process::", "rust-native/tests/bridge_process.rs"),
@@ -2300,7 +2298,7 @@ mod tests {
             ("--check-polish", 10, 33, true),
             ("--check-feedback", 21, 39, true),
             ("--check-actions-menu", 11, 28, true),
-            ("--check-interactions", 16, 48, true),
+            ("--check-interactions", 16, 47, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.native_cases.len(), count);
