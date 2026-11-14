@@ -1585,3 +1585,149 @@ fn native_hid_source_callback_failure_keeps_cleanup_and_profile_until_recovered(
     assert_eq!(proof["state"]["allocated"], 0);
     assert_eq!(proof["state"]["caps"], 0);
 }
+
+#[test]
+fn native_hid_quit_hides_panels_and_recorders_before_held_sdk() {
+    for force in [true, false] {
+        let (mut h, _) = hid_host("right-cmd+a", true);
+        h.rpc(&json!({"op":"show","query":"finder"}));
+        h.settled(|_| true);
+        h.probe(
+            "key-event",
+            json!({"code":43,"flags":(1<<20)|(1<<17),"chars":","}),
+        );
+        actions::view(&h, |v| v["recording"] == true);
+        h.rpc(&json!({"op":"show","mode":"settings"}));
+        h.wait(|s| s["managementUI"]["visible"] == true);
+        h.rpc(&json!({"op":"native.test","surface":"settings","action":"inline-hotkey","id":"app.safari"}));
+        let until = std::time::Instant::now() + Duration::from_secs(4);
+        loop {
+            let left = until.saturating_duration_since(std::time::Instant::now());
+            assert!(!left.is_zero());
+            if h.rpc_timeout(
+                &json!({"op":"native.test","surface":"settings","action":"read"}),
+                left,
+            )["result"]["recording"]
+                == true
+            {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10).min(left));
+        }
+        let armed = h.probe("keyboard-shutdown-witness", json!({"forceVisible":force}));
+        assert_eq!(armed["panelsVisible"], json!([force, force]));
+        assert_eq!(armed["mainOrKey"], json!([false, false]));
+        if !force {
+            assert_eq!(armed["recordersActive"], json!([true, true]));
+        }
+        let hold = h.base.join("hid-hold-manager_close");
+        fs::write(&hold, b"").unwrap();
+        let cleanup = RemoveFault(hold);
+        assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+        wait_file(&h.base.join("hid-entered-manager_close"));
+        assert!(h.process.as_mut().unwrap().try_wait().unwrap().is_none());
+        let proof: Value =
+            serde_json::from_slice(&fs::read(h.base.join("shutdown-sdk-witness.json")).unwrap())
+                .unwrap();
+        if let Some(evidence) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+            let dir = std::path::PathBuf::from(evidence);
+            fs::create_dir_all(&dir).unwrap();
+            let suffix = if force { "True" } else { "False" };
+            fs::write(
+                dir.join(format!("quit-order-{suffix}.json")),
+                serde_json::to_vec_pretty(&json!({"armed":armed,"atSdk":proof})).unwrap(),
+            )
+            .unwrap();
+        }
+        assert_eq!(proof["pid"], h.process.as_ref().unwrap().id());
+        assert_eq!(proof["mainThread"], true);
+        assert_eq!(proof["running"], false);
+        assert_eq!(proof["recording"], false);
+        let panels = proof["panels"].as_array().unwrap();
+        assert_eq!(panels.len(), 2);
+        for panel in panels {
+            assert_eq!(panel["visible"], false);
+            assert_eq!(panel["modelVisible"], false);
+            assert_eq!(panel["recording"], false);
+            assert_eq!(panel["preparing"], false);
+            assert_eq!(panel["connectionStopped"], true);
+        }
+        drop(cleanup);
+        let output = h.wait_exit(Duration::from_secs(5), false);
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+#[test]
+fn native_hid_forwarded_event_revoked_during_recovery_carbon_preserved() {
+    for blocked in [2, 4, 8] {
+        let mut h = host(&[], false, true, true, None);
+        let hid_marker = h.base.join("stale-hid");
+        let carbon_marker = h.base.join("valid-carbon");
+        let mut config = default_config();
+        config["separateCommandKeys"] = json!(true);
+        let hid_command = script(
+            "hid.action",
+            "right-cmd+a",
+            "/usr/bin/touch",
+            &[hid_marker.to_str().unwrap().to_owned()],
+        );
+        let mut carbon = script(
+            "carbon.action",
+            "cmd+b",
+            "/usr/bin/touch",
+            &[carbon_marker.to_str().unwrap().to_owned()],
+        );
+        carbon["aliases"] = json!(["carbon-own"]);
+        config["commands"]
+            .as_array_mut()
+            .unwrap()
+            .extend([hid_command, carbon]);
+        h.replace(&config, None);
+        h.start();
+        h.wait(|s| s["hidStatus"] == "On");
+        let steps = json!([{ "after":0.02,"control":"event","type":10,"key":0,"flags":HID_CMD|16 },{"after":0.04,"control":"carbon","key":11,"modifiers":256},{"after":0.08,"control":"env","value":blocked},{"after":0.14,"control":"state"},{"after":0.18,"control":"env","value":0},{"after":0.24,"control":"state"},{"after":0.28,"control":"release-owner"}]);
+        h.probe("keyboard-schedule", json!({"steps":steps}));
+        let socket = h.socket();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let result = actions::native_bridge::runtime_host::status_rpc::request(
+                &socket,
+                &json!({"op":"native.delay","executionBarrier":true,"holdOwner":true}),
+                std::time::Instant::now() + Duration::from_secs(3),
+            );
+            let _ = tx.send(result);
+        });
+        let release = Release(h.profile.join("owner-delay-release"));
+        wait_file(&h.base.join("hid-schedule-6.json"));
+        drop(release);
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(3)).unwrap().unwrap()["ok"],
+            true
+        );
+        let proofs: Vec<Value> = (0..7)
+            .map(|i| {
+                serde_json::from_slice(
+                    &fs::read(h.base.join(format!("hid-schedule-{i}.json"))).unwrap(),
+                )
+                .unwrap()
+            })
+            .collect();
+        assert!(proofs
+            .iter()
+            .all(|p| p["ownerEntered"] == true && p["ownerStillHeld"] == true));
+        assert!(proofs[3]["forwarded"].as_u64().unwrap() >= 1);
+        assert_ne!(proofs[3]["health"]["status"], "On");
+        assert_eq!(proofs[5]["health"]["status"], "On");
+        assert!(
+            proofs[5]["hookEpoch"].as_u64().unwrap() > proofs[0]["hookEpoch"].as_u64().unwrap()
+        );
+        wait_file(&carbon_marker);
+        h.wait(|s| s["scriptsRunning"] == 0);
+        assert!(!hid_marker.exists());
+    }
+}
