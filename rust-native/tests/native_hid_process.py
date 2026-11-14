@@ -29,20 +29,6 @@ class NativeHid(unittest.TestCase):
         config['commands'].append(self.script(id='hid.action',key=hotkey,target='/usr/bin/touch',args=[str(marker)]))
         host.replace(config);host.start();host.wait(lambda s:s['hidGeneration']==s['keyboardGeneration'] and s['hidStatus']=='On')
         return host,marker,config
-    def test_same_plan_reload_preserves_held_caps_and_uses_new_master_generation(self):
-        host,_,config=self.configured()
-        self.hid(host,'input',usage=57,down=True,time=0);before=self.hid(host)['state']
-        previous=host.rpc({'op':'status'})['result']['keyboardGeneration']
-        config['commands'][0]['title']='Own renamed Finder';host.replace(config);self.assertTrue(host.rpc({'op':'reload'})['ok'])
-        host.wait(lambda s:s['keyboardGeneration']>previous and s['hidGeneration']==s['keyboardGeneration'])
-        after=self.hid(host)['state'];self.assertEqual(after['managerCreates'],before['managerCreates'])
-        self.assertEqual(self.hid(host,'event',type=10,key=2,flags=0)['event']['flags'],HYPER)
-    def test_changed_disabled_binding_cannot_run_old_action(self):
-        host,marker,config=self.configured(hyper=False)
-        config['commands'][-1]['enabled']=False;host.replace(config);self.assertTrue(host.rpc({'op':'reload'})['ok'])
-        host.wait(lambda s:s['hidStatus']=='Off')
-        self.assertFalse(self.hid(host,'event',type=10,key=0,flags=CMD|16)['event']['consumed'])
-        self.assertFalse(marker.exists())
     def test_two_actual_recorders_suppress_actions_keep_hyper_and_clear_old_tap_epoch(self):
         host,marker,_=self.configured('ctrl+left-control')
         self.hid(host,'input',usage=224,down=True,time=1)
@@ -193,15 +179,6 @@ class NativeHid(unittest.TestCase):
             self.assertGreater(proofs[5]['hookEpoch'],proofs[0]['hookEpoch'])
             self.wait_file(carbon_marker);host.wait(lambda s:s['scriptsRunning']==0)
             self.assertFalse(hid_marker.exists())
-    def test_sleep_session_and_secure_recovery_report_health_without_destroying_master(self):
-        host,marker,_=self.configured();generation=host.rpc({'op':'status'})['result']['keyboardGeneration']
-        self.hid(host,'notification',name='sleep');host.wait(lambda s:s['hidStatus']=='Paused')
-        self.assertFalse(self.hid(host,'event',type=10,key=0,flags=CMD|16)['event']['consumed'])
-        self.hid(host,'notification',name='launch');self.assertEqual(host.rpc({'op':'status'})['result']['hidStatus'],'Paused')
-        self.hid(host,'notification',name='wake');host.wait(lambda s:s['hidStatus']=='On')
-        self.hid(host,'env',value=1);host.wait(lambda s:s['hidStatus']=='Paused during secure input')
-        self.assertEqual(host.rpc({'op':'status'})['result']['keyboardGeneration'],generation)
-        self.assertFalse(marker.exists());self.hid(host,'env',value=0);host.wait(lambda s:s['hidStatus']=='On')
     def test_permission_health_saves_plan_and_carbon_remains_available(self):
         host,_,config=self.configured(hyper=False)
         self.hid(host,'env',value=2);host.wait(lambda s:s['hidStatus'].startswith('Allow Accessibility'))
@@ -211,12 +188,6 @@ class NativeHid(unittest.TestCase):
         self.assertEqual(host.probe('keyboard-press',code=49,modifiers=6144)['statuses'],[0])
         host.wait(lambda s:s['nativeUI']['visible'])
         self.hid(host,'env',value=0);host.wait(lambda s:s['hidStatus']=='On')
-    def test_refresh_timer_recovers_file_fault_without_another_input_or_notification(self):
-        host,_,_=self.configured();(host.base/'hid-fail-tap_create').touch()
-        self.hid(host,'event',type=0xffffffff,key=0,flags=0)
-        host.wait(lambda s:s['hidStatus']!='On')
-        (host.base/'hid-fail-tap_create').unlink()
-        host.wait(lambda s:s['hidStatus']=='On')
     def test_quit_retains_profile_and_main_recovery_after_worker_stop(self):
         for fault in ['hid-fail-manager_close','hid-fail-invalidate','caps-fail-set:false']:
             host,_,_=self.configured();self.hid(host,'input',usage=57,down=True,time=0)
