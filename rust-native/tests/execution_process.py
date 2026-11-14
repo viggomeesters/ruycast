@@ -65,17 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_expanded_arguments_reach_actual_os_limit_with_private_failure_logs(self):
-        command=self.command(inputPrompt='Text');command['arguments']=['{input}']*32
-        host=self.host(commands=[command])
-        result=host.rpc(dict(op='execute',id='runfixture',values={'input':'x'*65536}))
-        self.assertFalse(result['ok']);self.assertIn('Argument list too long',result['error'])
-        logs=host.rpc({'op':'logs'})['result']
-        self.assertEqual([entry['phase'] for entry in logs],['command.finish','command.start'])
-        self.assertFalse(logs[0]['success'])
-        self.assertNotIn('x'*100,json.dumps(logs))
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
     def test_status_and_configuration_remain_responsive_during_script(self):
         host=self.host()
         pid=host.base/'leader'
@@ -124,23 +113,6 @@ class Execution(unittest.TestCase):
         result=self.response(stream)
         self.assertFalse(result['ok']);self.assertTrue(result['actionCompleted'])
         self.assertEqual(counter.read_text(),'once');self.assertEqual(host.rpc({'op':'status'})['result']['scriptsRunning'],0)
-
-    def test_invalid_existing_log_is_preserved_until_confirmed_clear(self):
-        host=rt.Host(start=False);self.addCleanup(host.close)
-        original=b'invalid preserved log'
-        (host.profile/'command-log.json').write_bytes(original)
-        value=copy.deepcopy(rt.DEFAULT);value['commands'].append(self.command());host.replace(value);host.start()
-        self.assertTrue(host.cli('run','runfixture')['ok'])
-        self.assertEqual((host.profile/'command-log.json').read_bytes(),original)
-        self.assertIsNotNone(host.rpc({'op':'status'})['result']['commandLogError'])
-        self.assertFalse(host.rpc({'op':'logs.clear'})['ok'])
-        self.assertTrue(host.rpc({'op':'logs.clear','confirmed':True})['ok'])
-        self.assertEqual(json.loads((host.profile/'command-log.json').read_bytes())['entries'],[])
-
-    def test_cli_result_envelope_preserves_the_existing_provider_contract(self):
-        host=self.host(commands=[self.command('print(\'{"ok":true,"detail":"fixture detail"}\')')])
-        result=host.rpc(dict(op='execute',id='runfixture'))
-        self.assertTrue(result['ok']);self.assertEqual(result['detail'],'fixture detail');self.assertEqual(result['exitCode'],0)
 
     def test_saturated_scripts_leave_status_and_quit_admission(self):
         host=self.host();pids=host.base/'pids';pids.mkdir()

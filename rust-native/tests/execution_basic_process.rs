@@ -110,3 +110,75 @@ fn dry_run_disabled_and_missing_prompt_do_not_spawn_or_log() {
     assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
     assert!(!marker.exists());
 }
+
+#[test]
+fn expanded_arguments_reach_os_limit_with_private_failure_logs() {
+    let mut h = Host::new(Config::current(), false);
+    let args: Vec<Value> = (0..32).map(|_| json!("{input}")).collect();
+    let mut cmd = command("/usr/bin/true", json!(args));
+    cmd["inputPrompt"] = json!("Text");
+    let mut cfg = default_config();
+    cfg["commands"].as_array_mut().unwrap().push(cmd);
+    h.replace(&cfg, None);
+    h.start();
+    let result =
+        h.rpc(&json!({"op":"execute","id":"runfixture","values":{"input":"x".repeat(65_536)}}));
+    assert_eq!(result["ok"], false);
+    assert!(result["error"]
+        .as_str()
+        .unwrap()
+        .contains("Argument list too long"));
+    let logs = h.rpc(&json!({"op":"logs"}))["result"].clone();
+    assert_eq!(
+        logs.as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["phase"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["command.finish", "command.start"]
+    );
+    assert_eq!(logs[0]["success"], false);
+    assert!(!serde_json::to_string(&logs)
+        .unwrap()
+        .contains(&"x".repeat(100)));
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
+#[test]
+fn invalid_existing_log_is_preserved_until_confirmed_clear() {
+    let mut h = Host::new(Config::current(), false);
+    let original = b"invalid preserved log";
+    let log = h.profile.join("command-log.json");
+    fs::write(&log, original).unwrap();
+    let cmd = command("/usr/bin/printf", json!(["fixture result"]));
+    let mut cfg = default_config();
+    cfg["commands"].as_array_mut().unwrap().push(cmd);
+    h.replace(&cfg, None);
+    h.start();
+    assert_eq!(h.cli(&["run", "runfixture"])["ok"], true);
+    assert_eq!(fs::read(&log).unwrap(), original);
+    assert!(!h.rpc(&json!({"op":"status"}))["result"]["commandLogError"].is_null());
+    assert_eq!(h.rpc(&json!({"op":"logs.clear"}))["ok"], false);
+    assert_eq!(
+        h.rpc(&json!({"op":"logs.clear","confirmed":true}))["ok"],
+        true
+    );
+    let saved: Value = serde_json::from_slice(&fs::read(&log).unwrap()).unwrap();
+    assert_eq!(saved["entries"], json!([]));
+}
+#[test]
+fn cli_result_envelope_preserves_existing_provider_contract() {
+    let mut h = Host::new(Config::current(), false);
+    let marker = h.base.join("report-marker");
+    let cmd = command(
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["fake", "date-detail", marker, "fixture detail"]),
+    );
+    let mut cfg = default_config();
+    cfg["commands"].as_array_mut().unwrap().push(cmd);
+    h.replace(&cfg, None);
+    h.start();
+    let result = h.rpc(&json!({"op":"execute","id":"runfixture"}));
+    assert_eq!(result["ok"], true);
+    assert_eq!(result["detail"], "fixture detail");
+    assert_eq!(result["exitCode"], 0);
+}
