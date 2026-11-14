@@ -390,7 +390,6 @@ rust-native/tests/keyword_capture_process.py
 rust-native/tests/keyword_native_process.rs
 rust-native/tests/fixtures/keyword_notification.rs
 rust-native/tests/keyword_notification.rs
-rust-native/tests/keyword_process.py
 rust-native/tests/keyword_process.rs
 rust-native/tests/keyword_reference.json
 rust-native/tests/keyword_rich_process.py
@@ -429,7 +428,7 @@ rust-native/tests/snippet_board_process.rs
 rust-native/tests/fixtures/snippet_board_fixture.rs
 rust-native/tests/snippet_choice_process.rs
 rust-native/tests/snippet_choice_reference.json
-rust-native/tests/snippet_choice_request_process.py
+rust-native/tests/snippet_choice_request_process.rs
 rust-native/tests/snippet_effects_process.py
 rust-native/tests/fixtures/snippet_effects_sdk.rs
 rust-native/tests/fixtures/snippet_effects_fixture.rs
