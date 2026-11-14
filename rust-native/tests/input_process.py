@@ -44,21 +44,6 @@ class NativeInput(unittest.TestCase):
 
     def idle(self,host):host.wait(lambda s:s['scriptsRunning']==0)
 
-    def test_validation_literal_multiline_input_and_no_secret_logs(self):
-        host=self.host(native=True);out=host.base/'result'
-        code='import sys,pathlib;pathlib.Path(%r).write_text(sys.argv[1])'%str(out)
-        command=self.command(code,inputPrompt='Message');command['arguments']+=['{input}'];self.replace_command(host,command)
-        before=host.config.read_bytes();self.open(host)
-        self.key(host,36,'\r',CMD)
-        self.view(host,lambda v:any('Enter Message' in s for s in v['screenText']))
-        state=host.probe('run-input-read');self.assertTrue(state['editable'] and state['focused']);self.assertFalse(out.exists())
-        value='literal $(echo private) Ω\nsecond {uuid} https://private.invalid/token'
-        self.type(host,value);self.assertEqual(host.probe('run-input-read')['text'],value)
-        self.key(host,36,'\r',CMD);self.file(out);self.idle(host);self.view(host,lambda v:not v['formVisible'])
-        self.assertEqual(out.read_text(),value);self.assertEqual(host.config.read_bytes(),before)
-        self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
-        raw=(host.profile/'command-log.json').read_text();self.assertNotIn('private.invalid',raw);self.assertNotIn('literal $',raw)
-
     def test_failure_preserves_same_native_text_focus_typing_and_undo(self):
         host=self.host(native=True,commands=[self.command('import sys;print("failure",file=sys.stderr);raise SystemExit(7)',inputPrompt='Message')])
         token=self.open(host)['editorToken'];self.type(host,'Keep me')

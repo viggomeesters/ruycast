@@ -183,3 +183,50 @@ fn queued_cancel_never_starts_execution() {
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
     assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
 }
+#[test]
+fn validation_preserves_literal_multiline_input_and_private_logs() {
+    let host = host();
+    let out = host.base.join("result");
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    command["target"] = json!(env!("CARGO_BIN_EXE_private-results-fixture"));
+    command["arguments"] = json!(["execution-write", out, "{input}"]);
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    let before = fs::read(&host.config).unwrap();
+    open(&host);
+    key(&host, 36, "\r", actions::CMD);
+    view(&host, |v| actions::text_contains(v, "Enter Message"));
+    let state = actions::probe(&host, "run-input-read");
+    assert_eq!(state["editable"], true);
+    assert_eq!(state["focused"], true);
+    assert!(!out.exists());
+    let value = "literal $(echo private) Ω\nsecond {uuid} https://private.invalid/token";
+    input_type(&host, value);
+    assert_eq!(actions::probe(&host, "run-input-read")["text"], value);
+    key(&host, 36, "\r", actions::CMD);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while !out.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "output was not written"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    host.wait(|s| s["scriptsRunning"] == 0);
+    view(&host, |v| v["formVisible"] == false);
+    assert_eq!(fs::read_to_string(out).unwrap(), value);
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    assert_eq!(
+        host.rpc(&json!({"op":"usage"}))["result"]["script.fixture"],
+        1
+    );
+    let raw = fs::read_to_string(host.profile.join("command-log.json")).unwrap();
+    assert!(!raw.contains("private.invalid"));
+    assert!(!raw.contains("literal $"));
+}
