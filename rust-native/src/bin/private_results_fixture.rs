@@ -3,6 +3,13 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("execution-delay") if args.len() == 4 => {
+            let millis: u64 = args[2].parse().expect("owned delay milliseconds");
+            assert!(millis <= 10_000);
+            std::fs::write(&args[1], std::process::id().to_string()).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(millis));
+            println!("{}", args[3]);
+        }
         Some("script-streams") if args.len() == 2 => {
             match args[1].as_str() {
                 "exit7" => {
