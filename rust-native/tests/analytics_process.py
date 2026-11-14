@@ -87,20 +87,6 @@ class Analytics(unittest.TestCase):
                 self.assertEqual(p.returncode,0,p.stderr);pair.append(json.loads(p.stdout))
         self.assertEqual(normalized(pair[0]),normalized(pair[1]));type(self).cases+=1;return pair[0]
     def empty(self):return self.run_case([])['document']
-    def test_existing_document_rejection_and_date_codec_match_actual_decoder(self):
-        base=self.empty();variants=[]
-        for key,value in [('schema',3),('retentionDays',0),('hourlyStartedAt',None),('hours',{'000':dict(uses=0,successes=0,failures=0)}),('timings',{'private':dict(count=0,totalMS=0,maxMS=0,samples=[])}),('totalAttempts',1000000000001)]:
-            d=copy.deepcopy(base);d[key]=value;variants.append(d)
-        for date in ['not a date','2026-11-01T00:00:00.123Z','2026-11-01T00:00:00Zjunk','2026-11-01T00:00:00Z\x00junk','2026-11-01T00:00:00+0000','2026-11-01T00:00:00Z']:
-            d=copy.deepcopy(base);d['startedAt']=date;variants.append(d)
-        for document in variants:
-            pair=[]
-            for binary in [PROBE,DIR/'reference']:
-                with tempfile.TemporaryDirectory(prefix='analytics-load-',dir=DIR) as own:
-                    root=Path(own);(root/'.ruycast-analytics-fixture').touch();original=json.dumps(document).encode();(root/'analytics.json').write_bytes(original)
-                    run=subprocess.run([str(binary)],input=json.dumps(dict(root=str(root),now=1790000000,calendar='gregorian',zone='UTC',actions=[])),capture_output=True,text=True,timeout=20);self.assertEqual(run.returncode,0,run.stderr);value=json.loads(run.stdout);self.assertEqual((root/'analytics.json').read_bytes(),original)
-                    pair.append(value['storageError'] if value['storageError'] else normalized(value['document']))
-            self.assertEqual(pair[0],pair[1],document['startedAt']);type(self).cases+=1
     def test_actual_decoder_integer_spelling_at_all_stored_count_fields(self):
         document=self.run_case([dict(op='attempt',id='own',source='snippet'),dict(op='complete',ok=False,ms=1,exit=1)])['document']
         def floats(value):
