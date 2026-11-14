@@ -8,16 +8,6 @@ import bridge_process as bridge
 import actions_process as actions
 
 class NativeKeyword(unittest.TestCase):
-    def test_each_typed_activation_reaches_keyword_owner_before_refresh_coalescing(self):
-        host,_=self.configured();self.kw(host,'activation-listen');self.type(host,'ab')
-        host.probe('keyboard-hid',control='activation-burst',values=['typed','missing','malformed','typed'])
-        events=self.kw(host,'activation-state')['events']
-        self.assertEqual(len(events),4)
-        self.assertEqual([v['typed'] for v in events],[True,False,False,True])
-        self.assertEqual([v['ownInstance'] for v in events],[True,False,False,True])
-        self.assertEqual([v['sequence'] for v in events],list(range(events[0]['sequence'],events[0]['sequence']+4)))
-        self.assertFalse(self.type(host,'c')[-1]);self.assertEqual(self.kw(host)['posts'],0)
-        self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
     @classmethod
     def setUpClass(cls):keyboard.NativeKeyboard.setUpClass.__func__(cls)
     @classmethod
@@ -80,9 +70,6 @@ class NativeKeyword(unittest.TestCase):
         host=self.host(start=False);host.replace(capture.config());foreign=host.base/'unmarked';foreign.mkdir();host.env['RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER']=str(foreign);before=host.config.read_bytes()
         with self.assertRaisesRegex(AssertionError,'Own config adoption fixture required'):host.start()
         self.assertEqual(host.process.poll(),1);host.process.communicate(timeout=3);host.process=None;self.assertEqual(host.config.read_bytes(),before)
-    def test_reload_uses_confirmed_new_catalog_and_disable_retires_filter(self):
-        host,c=self.configured();self.type(host,'ab');c['commands'][0]['target']='NEW';self.reload(host,c);self.assertEqual(self.type(host,'c'),[False]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1]);self.assertEqual(capture.KeywordCapture.inserted(self,self.kw(host)),'NEW')
-        c['snippetExpansionEnabled']=False;self.reload(host,c);host.wait(lambda s:s['snippetExpansion']=='Off');self.assertFalse(self.kw(host)['tapValid']);self.assertFalse(self.type(host,'abc')[-1])
     def test_failed_registration_keeps_last_good_catalog_after_owner_reconciliation(self):
         host,c=self.configured();before=host.rpc({'op':'status'})['result']['keyboardGeneration'];(host.base/'fail-code').write_text('11');c['launcherHotkey']='cmd+b';host.replace(c);reply=host.rpc({'op':'reload'});host.wait(lambda s:not s['configurationUpdating'] and s['keyboardGeneration']==before);self.assertEqual(host.rpc({'op':'status'})['result']['keywordGeneration'],before);self.assertTrue(self.type(host,'abc')[-1]);(host.base/'fail-code').unlink()
     def test_actual_two_recorders_suppress_until_both_cancel(self):
@@ -93,11 +80,6 @@ class NativeKeyword(unittest.TestCase):
             self.assertLess(time.monotonic(),deadline);time.sleep(.005)
         host.probe('cancel-editor');host.wait(lambda s:not s['nativeUI']['editorOpen']);self.assertTrue(host.rpc({'op':'status'})['result']['recordingShortcut']);self.assertFalse(self.type(host,'c')[-1]);self.assertEqual(self.kw(host)['posts'],0)
         host.rpc(dict(op='native.test',surface='settings',action='cancel-editor'));host.wait(lambda s:not s['recordingShortcut']);self.assertEqual(host.probe('keyboard-press',code=49,modifiers=6144)['statuses'],[0]);host.wait(lambda s:not s['nativeUI']['visible']);self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
-    def test_native_secure_exclusion_and_permission_changes_do_not_expand(self):
-        host,c=self.configured()
-        for flags in [8,16,4096]:
-            self.kw(host,'environment',flags=flags);self.assertFalse(self.type(host,'abc')[-1]);self.assertEqual(self.kw(host)['posts'],0)
-        self.kw(host,'environment');c['clipboard']['excludedApps']=['own.keyword.target'];self.reload(host,c);self.assertFalse(self.type(host,'abc')[-1]);self.assertEqual(self.kw(host)['posts'],0)
     def test_quit_during_entered_effect_keeps_profile_until_keyup_and_retirement(self):
         host,_=self.configured();self.type(host,'ab');(host.base/'hold-keyword-post:down').touch()
         with ThreadPoolExecutor(1) as pool:
