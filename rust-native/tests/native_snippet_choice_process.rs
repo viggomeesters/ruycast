@@ -1,6 +1,9 @@
 //! Actual hidden native snippet choice window with owned clipboard guard.
 #![cfg(feature = "test-tools")]
-#![allow(clippy::duplicate_mod, reason = "Owned host and direct probe share bounded child support")]
+#![allow(
+    clippy::duplicate_mod,
+    reason = "Owned host and direct probe share bounded child support"
+)]
 #[path = "support/child_output.rs"]
 mod child_output;
 #[allow(dead_code)]
@@ -213,4 +216,166 @@ fn cancel_and_external_hide_have_distinct_restore_policy() {
         );
         assert_eq!(v["events"], json!([{"cancel":true,"restore":restore}]));
     }
+}
+#[test]
+fn field_controls_buttons_and_hidden_renders() {
+    for theme in ["light", "dark"] {
+        let v = invoke(
+            "{field name=\"name\" default=\"Own\"} {field name=\"kind\" options=\"One,Two\"}",
+            json!([{"op":"render"},{"op":"show"}]),
+            json!({"theme":theme}),
+            true,
+            Some(&format!("fields-{theme}")),
+        );
+        assert_eq!(v["width"].as_f64().unwrap(), 456.0);
+        assert_eq!(v["height"].as_f64().unwrap(), 270.0);
+        assert_eq!(
+            v["controls"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["label"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["name", "kind"]
+        );
+        assert_eq!(v["steps"], json!([{"show":false}]));
+    }
+}
+#[test]
+fn repeat_modifiers_and_marked_text_do_not_submit() {
+    for step in [
+        json!({"op":"key","code":36,"repeat":true}),
+        json!({"op":"route","code":36,"flags":1<<20}),
+    ] {
+        let v = invoke(DEFAULT, json!([step]), json!({}), true, None);
+        assert_eq!(v["events"], json!([]));
+    }
+    let v = invoke(
+        DEFAULT,
+        json!([{"op":"focus","field":0},{"op":"marked"},{"op":"equivalent","code":36}]),
+        json!({}),
+        true,
+        None,
+    );
+    assert_eq!(v["events"], json!([]));
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap(),
+        &json!({"handled":false})
+    );
+}
+#[test]
+fn option_selection_and_arrow_clamping_without_os_menu() {
+    let v = invoke(
+        "{field name=\"kind\" options=\"One,Two,Three\"}",
+        json!([{"op":"choose","field":0,"index":1},{"op":"route","code":125},{"op":"route","code":125},{"op":"insert"}]),
+        json!({}),
+        true,
+        None,
+    );
+    assert_eq!(v["events"], json!([{"submit":[["kind","Three"]]}]));
+}
+#[test]
+fn callback_panic_fails_closed() {
+    let v = invoke(
+        DEFAULT,
+        json!([{"op":"insert"},{"op":"insert"}]),
+        json!({"panic":true}),
+        true,
+        None,
+    );
+    assert_eq!(v["failed"], true);
+    assert_eq!(v["live"], false);
+    assert_eq!(v["events"].as_array().unwrap().len(), 1);
+}
+#[test]
+fn undo_redo_and_leaving_editor_submit_actual_values() {
+    for (operation, expected, leave) in [
+        (json!({"op":"undo"}), "Own", false),
+        (json!({"op":"edit-key"}), "Own", false),
+        (json!({"op":"edit-key","redo":true}), "OwnX", false),
+        (json!({"op":"undo"}), "Own", true),
+    ] {
+        let mut steps = vec![
+            json!({"op":"focus","field":0}),
+            json!({"op":"type","value":"X"}),
+        ];
+        if operation["redo"] == true {
+            steps.push(json!({"op":"undo"}));
+        }
+        steps.push(operation);
+        if leave {
+            steps.push(json!({"op":"focus","field":1}));
+        }
+        steps.push(json!({"op":"insert"}));
+        let v = invoke(
+            "{field name=\"name\" default=\"Own\"} {other default=\"Other\"}",
+            json!(steps),
+            json!({}),
+            true,
+            None,
+        );
+        assert_eq!(v["events"][0]["submit"][0], json!(["name", expected]));
+        assert_eq!(v["steps"][1]["canUndo"], true);
+    }
+}
+#[test]
+fn popup_tracking_is_contained_in_fixture() {
+    let v = invoke(
+        "{field name=\"kind\" options=\"One,Two\"}",
+        json!([{"op":"popup-track"}]),
+        json!({}),
+        true,
+        None,
+    );
+    assert_eq!(v["events"], json!([]));
+    assert!(v["controls"][0]["blockedTracking"].as_u64().unwrap() > 0);
+}
+#[test]
+fn callback_drops_last_window_during_actual_native_lifecycle() {
+    for phase in ["close", "hide", "resign"] {
+        invoke(DEFAULT, json!([]), json!({"dropDuring":phase}), true, None);
+    }
+}
+#[test]
+fn scrollable_long_fields_and_two_line_title() {
+    let mut text=String::from("{field name=\"A longer label that needs more than one line at the available field width to remain legible\" default=\"Own\"} ");
+    text.push_str(
+        &(0..8)
+            .map(|i| format!("{{field name=\"item{i}\" default=\"own{i}\"}}"))
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
+    for theme in ["light", "dark"] {
+        let v = invoke(
+            &text,
+            json!([{"op":"render"}]),
+            json!({"theme":theme,"title":"A longer snippet title that uses two lines while preserving the form and its actions"}),
+            true,
+            Some(&format!("long-{theme}")),
+        );
+        assert_eq!(v["height"].as_f64().unwrap(), 440.0);
+        assert_eq!(v["controls"].as_array().unwrap().len(), 9);
+    }
+}
+#[test]
+fn canonical_default_representation_is_preserved_on_submit() {
+    let v = invoke(
+        "{field name=\"name\" options=\"é,Other\" default=\"é\"}",
+        json!([{"op":"insert"}]),
+        json!({}),
+        true,
+        None,
+    );
+    assert_eq!(v["events"], json!([{"submit":[["name","é"]]}]));
+}
+#[test]
+fn undo_then_real_tab_keeps_restored_value() {
+    let v = invoke(
+        "{field name=\"name\" default=\"Own\"} {other}",
+        json!([{"op":"focus","field":0},{"op":"type","value":"X"},{"op":"undo"},{"op":"key","code":48},{"op":"set","field":1,"value":"Other"},{"op":"insert"}]),
+        json!({}),
+        true,
+        None,
+    );
+    assert_eq!(v["events"][0]["submit"][0], json!(["name", "Own"]));
 }
