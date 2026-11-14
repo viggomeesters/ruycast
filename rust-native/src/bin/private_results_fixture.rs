@@ -6,6 +6,11 @@ fn main() {
         Some("execution-write") if args.len() == 3 => {
             std::fs::write(&args[1], &args[2]).unwrap();
         }
+        Some("execution-query") if args.len() == 3 => {
+            std::fs::write(&args[1], "ready").unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            std::fs::write(&args[2], "done").unwrap();
+        }
         Some("execution-tree") if args.len() == 3 => {
             std::fs::write(&args[1], std::process::id().to_string()).unwrap();
             unsafe { libc::signal(libc::SIGTERM, libc::SIG_IGN); }

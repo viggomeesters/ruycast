@@ -155,3 +155,37 @@ fn click_runs_selected_script() {
     wait_marker(&host.base.join("clicked"), "clicked");
     host.wait(|s| s["scriptsRunning"] == 0);
 }
+#[test]
+fn query_change_keeps_new_results_visible_after_completion() {
+    let host = GracefulBridge(host("native"));
+    let ready = host.base.join("ready");
+    let done = host.base.join("done");
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|entry| entry["id"] == "script.fixture")
+        .unwrap();
+    command["arguments"] = json!(["execution-query", ready, done]);
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    actions::show(&host, "runfixture");
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&ready, "ready");
+    assert_eq!(host.rpc(&json!({"op":"show","query":"finder"}))["ok"], true);
+    host.settled(|s| s["nativeUI"]["selectedId"] == "app.finder");
+    wait_marker(&done, "done");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let status = host.rpc(&json!({"op":"status"}));
+    assert_eq!(status["result"]["nativeUI"]["visible"], true);
+    assert_eq!(status["result"]["nativeUI"]["selectedId"], "app.finder");
+    assert_eq!(actions::probe(&host, "read")["input"], "finder");
+}
+#[test]
+fn stale_completion_is_rejected_after_newer_local_intent() {
+    let host = host("native");
+    actions::probe(&host, "reject-stale-execution-view");
+    host.settled(|_| true);
+    assert_eq!(actions::probe(&host, "read")["actionsVisible"], true);
+}
