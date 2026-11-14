@@ -199,3 +199,53 @@ fn own_activation_keeps_form_but_away_and_back_stays_cancelled() {
     wait_choice(&h, "None");
     assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
 }
+
+#[test]
+fn extra_input_during_pending_capture_cancels_without_reuse() {
+    let h = choice_host();
+    assert_eq!(
+        kw(&h, "event-burst", json!({"text":"abcX"}))["consumed"],
+        json!([false, false, false, false])
+    );
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}
+#[test]
+fn changed_anchor_and_secure_policy_fail_closed() {
+    for field in [json!({"value":"changed"}), json!({"value":"abc","at":1})] {
+        let h = choice_host();
+        kw(&h, "text", field);
+        typed(&h, "abc");
+        wait_choice(&h, "None");
+        assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+    }
+    let h = visible();
+    kw(&h, "environment", json!({"flags":4096}));
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}
+#[test]
+fn global_external_click_cancels_without_activating_original() {
+    let h = visible();
+    assert_eq!(
+        kw(&h, "choice-monitors", json!({})),
+        json!({"created":1,"removed":0,"delivered":0,"active":1})
+    );
+    choice(&h, "click", json!({}));
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+    assert_eq!(
+        kw(&h, "choice-monitors", json!({})),
+        json!({"created":1,"removed":1,"delivered":1,"active":0})
+    );
+    assert_eq!(kw(&h, "state", json!({}))["activationRequests"], 0);
+}
+#[test]
+fn original_anchor_is_rechecked_after_confirmation() {
+    let h = visible();
+    kw(&h, "text", json!({"value":"different"}));
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}
