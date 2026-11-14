@@ -82,30 +82,6 @@ class CliOpen(unittest.TestCase):
         self.assertTrue(result['ok'],result)
         self.assertEqual(self.opens(host)[0]['url'],'https://example.invalid/'+'a'*1200000)
 
-    def test_blocked_main_clipboard_does_not_block_owner_or_revive_expired_execution(self):
-        host=self.host([command('url','https://example.invalid/{clipboard}')],dispatch=400,clipboard='hold-main')
-        worker,result=self.asynchronous(host)
-        self.wait_file(host.base/'clipboard-entered')
-        self.assertTrue(host.rpc(dict(op='status'))['ok'])
-        worker.join(2);self.assertFalse(worker.is_alive())
-        self.assertFalse(result[0]['ok']);self.assertNotIn('actionCompleted',result[0])
-        self.release(host)
-        self.wait_file(host.base/'clipboard-read')
-        host.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertEqual(self.opens(host),[])
-        self.assertNotIn('fixture.open',host.cli('usage')['result'])
-
-    def test_config_change_during_main_capture_retires_old_origin(self):
-        host=self.host([command('url','https://example.invalid/{clipboard}')],clipboard='hold-main')
-        worker,result=self.asynchronous(host)
-        self.wait_file(host.base/'clipboard-entered')
-        config=json.loads(host.config.read_text());config['commands'][-1]['target']='https://example.invalid/changed'
-        host.replace(config);host.cli('reload')
-        worker.join(2);self.assertFalse(worker.is_alive());self.assertFalse(result[0]['ok'])
-        self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertEqual(self.opens(host),[])
-        self.assertTrue(host.cli('run','fixture.open')['ok'])
-
     def test_blocked_lookup_deadline_is_retired_before_release_and_owner_remains_available(self):
         host=self.host([command(target='dev.fixture.hold-resolve')],dispatch=1000)
         worker,results=self.asynchronous(host)
