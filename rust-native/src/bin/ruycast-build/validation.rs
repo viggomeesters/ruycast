@@ -57,7 +57,6 @@ supervision-probe-build|b|supervision-probe tools
 workspace-probe-build|b|workspace-probe tools
 manager-workspace-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example workspace-fixture --locked
 workspace-open-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test workspace_open_process --locked
-workspace-process|p|rust-native/tests/workspace_process.py
 template-probe-build|b|template-probe tools
 template-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test template_process --locked
 snippet-probe-build|b|snippet-probe tools
@@ -1785,7 +1784,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 135);
+        assert_eq!(steps.len(), 134);
         let native_profile = steps.iter().find(|step|step.name=="native-profile-process").unwrap();
         assert!(native_profile.arguments.windows(2).any(|pair|pair==["--test","native_process"]));
         let keyboard_sdk = steps.iter().position(|step|step.name=="keyboard-sdk-build").unwrap();
@@ -1795,10 +1794,9 @@ mod tests {
         let snippet_choice = steps.iter().position(|step|step.name=="native-snippet-choice-process-rust").unwrap();
         assert!(choice_sdk < snippet_choice);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
-        for consumer in ["workspace-open-process", "workspace-process"] {
-            let index = steps.iter().position(|step| step.name == consumer).unwrap();
-            assert!(manager_sdk < index);
-        }
+        let workspace_open_index = steps.iter().position(|step| step.name == "workspace-open-process").unwrap();
+        assert!(manager_sdk < workspace_open_index);
+        assert!(!steps.iter().any(|step| step.name == "workspace-process"));
         let workspace_open = steps.iter().find(|step|step.name=="workspace-open-process").unwrap();
         assert!(workspace_open.arguments.windows(2).any(|pair|pair==["--test","workspace_open_process"]));
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
