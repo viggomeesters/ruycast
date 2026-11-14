@@ -194,3 +194,80 @@ fn stderr_cannot_block_helper_cleanup() {
     let (_home, result) = cleanup_probe("stderr-flood", false);
     assert_eq!(result["response"]["ok"], true);
 }
+
+#[test]
+fn cancel_deadline_and_panic_keep_independent_group_cleanup() {
+    let home = runtime_host::OwnedDir::new();
+    fs::write(
+        home.0.join(".ruycast-supervision-fixture"),
+        "owned-supervision-helper-v1",
+    )
+    .unwrap();
+    let cli = std::env::var_os("RUYCAST_TEST_CLI")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| runtime_host::root().join(".build/rust/release/ruycast"));
+    assert!(cli.is_absolute() && cli.is_file());
+    let fixture = env!("CARGO_BIN_EXE_supervision-probe");
+    let pid_file = home.0.join("script-pid");
+    let sentinel = home.0.join("descendant");
+    for option in ["cancelMs", "deadlineMs", "panicMs"] {
+        let mut input = json!({"helper":cli,"command":{"id":"script.fixture","title":"Fixture","kind":"script","target":fixture,"arguments":["__supervision-tree",home.0],"timeout":2},"home":home.0});
+        input[option] = json!(200);
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_supervision-probe"));
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        for key in [
+            "DYLD_INSERT_LIBRARIES",
+            "RUYCAST_HOME",
+            "RUSTCAST_HOME",
+            "RUYCAST_CONFIG_DIR",
+            "RUSTCAST_CONFIG_DIR",
+            "RUYCAST_SUPERVISION_WAIT_MARKER",
+            "RUYCAST_SUPERVISION_KILL_TRACE",
+            "RUYCAST_SUPERVISION_HELPER_MODE",
+            "RUYCAST_SUPERVISION_HELPER_HOME",
+        ] {
+            cmd.env_remove(key);
+        }
+        let mut child = cmd.spawn().unwrap();
+        let mut stdin = child.stdin.take().unwrap();
+        let bytes = serde_json::to_vec(&input).unwrap();
+        let writer = std::thread::spawn(move || stdin.write_all(&bytes));
+        let out = child_output::wait(child, Duration::from_secs(7));
+        writer.join().unwrap().unwrap();
+        assert!(
+            out.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&out.stderr),
+            String::from_utf8_lossy(&out.stdout)
+        );
+        let result: Value = serde_json::from_slice(&out.stdout).unwrap();
+        assert_eq!(result["noChildren"], true);
+        if option == "panicMs" {
+            assert_eq!(result["result"]["panicCaught"], true);
+        } else {
+            assert_eq!(result["result"]["response"]["ok"], false);
+        }
+        assert!(
+            pid_file.exists(),
+            "script did not start ({option}): {result}"
+        );
+        let pid: libc::pid_t = fs::read_to_string(&pid_file).unwrap().parse().unwrap();
+        assert!(pid > 0);
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+        let error = std::io::Error::last_os_error().raw_os_error().unwrap();
+        assert_eq!(error, libc::ESRCH);
+        std::thread::sleep(Duration::from_millis(850));
+        assert!(!sentinel.exists());
+        if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+            let folder = PathBuf::from(folder);
+            fs::create_dir_all(&folder).unwrap();
+            fs::write(folder.join(format!("supervision-tree-{option}.json")),serde_json::to_vec_pretty(&json!({"input":input,"result":result,"leaderPid":pid,"killZeroErrno":error,"sentinelAbsentAfter850ms":!sentinel.exists(),"fixtureSha256":format!("{:x}",Sha256::digest(fs::read(fixture).unwrap()))})).unwrap()).unwrap();
+        }
+        fs::remove_file(&pid_file).unwrap();
+        if sentinel.exists() {
+            fs::remove_file(&sentinel).unwrap();
+        }
+    }
+}
