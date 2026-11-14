@@ -45,7 +45,10 @@ impl Fixture {
             json!({}),
         )
     }
-    fn probe_cases(&mut self, name: &str, cases: Vec<Value>, mut input: Value) -> Value {
+    fn probe_cases(&mut self, name: &str, cases: Vec<Value>, input: Value) -> Value {
+        self.run_cases(name, cases, input, true)
+    }
+    fn run_cases(&mut self, name: &str, cases: Vec<Value>, mut input: Value, shim: bool) -> Value {
         let probe = PathBuf::from(env!("CARGO_BIN_EXE_workspace-probe"));
         let original = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
             .map(PathBuf::from)
@@ -77,10 +80,12 @@ impl Fixture {
         }
         cmd.env("HOME", &self.owned.0)
             .env("RUYCAST_WORKSPACE_FIXTURE_HOME", &self.owned.0)
-            .env("DYLD_INSERT_LIBRARIES", &copy)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        if shim {
+            cmd.env("DYLD_INSERT_LIBRARIES", &copy);
+        }
         let mut child = cmd.spawn().unwrap();
         let mut stdin = child.stdin.take().unwrap();
         input["cases"] = json!(cases);
@@ -108,14 +113,14 @@ impl Fixture {
         } else {
             vec![]
         };
-        if let Some(first) = self.trace.first() {
+        if let Some(first) = self.trace.first().filter(|_| shim) {
             assert_eq!(first["phase"], "installed");
             assert_eq!(first["selectors"], 4);
         }
         if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
             let folder = PathBuf::from(folder);
             fs::create_dir_all(&folder).unwrap();
-            fs::write(folder.join(format!("workspace-{name}.json")),serde_json::to_vec_pretty(&json!({"input":input,"result":result,"trace":self.trace,"sdkSha256":format!("{:x}",Sha256::digest(fs::read(&copy).unwrap()))})).unwrap()).unwrap();
+            fs::write(folder.join(format!("workspace-{name}.json")),serde_json::to_vec_pretty(&json!({"input":input,"result":result,"trace":self.trace,"sdkInjected":shim,"sdkSha256":format!("{:x}",Sha256::digest(fs::read(&copy).unwrap()))})).unwrap()).unwrap();
         }
         result
     }
@@ -375,4 +380,142 @@ fn panic_before_and_after_commit_preserves_truth_and_releases_callbacks() {
         f.trace.iter().filter(|e| e["phase"] == "open-app").count(),
         1
     );
+}
+
+#[test]
+fn precommit_rejection_has_no_open() {
+    let mut f = Fixture::new();
+    let d = f.probe_cases(
+        "precommit-rejected",
+        vec![json!({"request":request("app","dev.fixture.success"),"rejectBeforeCommit":true})],
+        json!({}),
+    );
+    assert_eq!(d["cases"][0]["beforeCommitCalls"], 1);
+    assert_eq!(d["cases"][0]["committed"], false);
+    assert!(f.opens().is_empty());
+}
+#[test]
+fn preexpired_request_does_not_even_resolve() {
+    let mut f = Fixture::new();
+    let d = f.probe_cases(
+        "preexpired",
+        vec![json!({"request":request("app","dev.fixture.success"),"timeoutMs":0})],
+        json!({}),
+    );
+    assert_eq!(d["cases"][0]["committed"], false);
+    assert_eq!(f.trace.len(), 1);
+}
+#[test]
+fn blocked_resolution_is_not_claimed_as_hard_deadline() {
+    let mut f = Fixture::new();
+    let d = f.probe_cases(
+        "blocked-resolution",
+        vec![json!({"request":request("app","dev.fixture.slow-resolve"),"timeoutMs":75})],
+        json!({}),
+    );
+    assert_eq!(d["cases"][0]["committed"], false);
+    assert_eq!(d["cases"][0]["beforeCommitCalls"], 0);
+    assert!(d["cases"][0]["seconds"].as_f64().unwrap() >= 0.15);
+    assert_eq!(
+        f.trace
+            .iter()
+            .map(|e| e["phase"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["installed", "resolve"]
+    );
+}
+#[test]
+fn missing_interposer_fails_closed() {
+    let mut f = Fixture::new();
+    let d = f.run_cases(
+        "missing-interposer",
+        vec![json!({"request":request("app","dev.fixture.success")})],
+        json!({}),
+        false,
+    );
+    assert_eq!(d["cases"][0]["committed"], false);
+    assert!(d["cases"][0]["response"]["error"]
+        .as_str()
+        .unwrap()
+        .contains("boundary"));
+    assert!(f.trace.is_empty());
+}
+#[test]
+fn invalid_marker_fails_closed() {
+    let mut f = Fixture::new();
+    fs::write(f.owned.0.join(".ruycast-test-fixture"), "wrong").unwrap();
+    let d = f.probe(
+        "invalid-marker",
+        vec![request("app", "dev.fixture.success")],
+    );
+    assert_eq!(d["cases"][0]["committed"], false);
+    assert!(f.trace.is_empty());
+}
+#[test]
+fn fixture_denies_real_targets_and_external_paths() {
+    let mut f = Fixture::new();
+    std::os::unix::fs::symlink("/Applications", f.owned.0.join("escape")).unwrap();
+    let d = f.probe(
+        "denied-targets",
+        vec![
+            request("app", "com.apple.finder"),
+            request("url", "https://apple.com"),
+            request("path", "/Applications"),
+            request(
+                "path",
+                f.owned.0.join("escape/Safari.app").to_str().unwrap(),
+            ),
+            request("path", f.owned.0.join("../outside").to_str().unwrap()),
+            request("url", "http://[bad"),
+        ],
+    );
+    assert!(d["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|c| c["committed"] == false && c["response"]["ok"] == false));
+    assert!(f.opens().is_empty());
+}
+#[test]
+fn nul_rejected_before_native_resolution() {
+    let mut f = Fixture::new();
+    let d = f.probe("nul", vec![request("app", "dev.fixture.\0bad")]);
+    assert_eq!(d["cases"][0]["committed"], false);
+    assert_eq!(f.trace.len(), 1);
+}
+// Match pathlib.Path.as_uri without canonicalizing the deliberately hostile .. path.
+fn file_uri(path: &std::path::Path) -> String {
+    assert!(path.is_absolute());
+    let mut url = String::from("file://");
+    for &byte in path.as_os_str().as_encoded_bytes() {
+        if byte.is_ascii_alphanumeric() || b"/_.-~".contains(&byte) {
+            url.push(char::from(byte));
+        } else {
+            use std::fmt::Write;
+            write!(url, "%{byte:02X}").unwrap();
+        }
+    }
+    url
+}
+#[test]
+fn file_url_and_resolved_app_urls_cannot_escape_fixture() {
+    let mut f = Fixture::new();
+    std::os::unix::fs::symlink("/Applications", f.owned.0.join("escape")).unwrap();
+    let mut open_with = request("url", "https://example.invalid");
+    open_with["applicationId"] = json!("dev.fixture.x/../../../outside");
+    let d = f.probe(
+        "denied-file-urls",
+        vec![
+            request("url", &file_uri(&f.owned.0.join("escape/Fake.app"))),
+            request("url", &file_uri(&f.owned.0.join("../outside"))),
+            request("app", "dev.fixture.x/../../../outside"),
+            open_with,
+        ],
+    );
+    assert!(d["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|c| c["committed"] == false && c["response"]["ok"] == false));
+    assert!(f.opens().is_empty());
 }
