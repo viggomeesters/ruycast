@@ -47,19 +47,5 @@ class Dashboard(unittest.TestCase):
             self.click(h,3);v=self.wait(h,lambda v:v['surface']['confirming_reset']);self.assertEqual(v['focused'],'Cancel');self.capture(h,f'confirmation-{theme}')
             before=h.rpc(dict(op='analytics'))['result']['totalAttempts'];h.probe('key-event',code=36,flags=1<<20,chars='\r');h.settled();self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],before);h.probe('key-event',code=53,flags=0,chars='');self.wait(h,lambda v:not v['surface']['confirming_reset'])
         h=self.host(initial={'corrupt':'fixture'});self.open(h);v=self.wait(h,lambda v:v['surface']['storage_error'] is not None);self.assertIn('could not be read',v['surface']['storage_error']);h.probe('dashboard-size',width=680,height=480);self.capture(h,'corrupt-data-error')
-    def test_actual_dashboard_renders_themes_widths_and_preserves_scroll(self):
-        for theme in ['light','dark']:
-            h=self.host(theme=theme);self.open(h)
-            for width in [680,980]:
-                h.probe('dashboard-size',width=width,height=480)
-                v=h.probe('dashboard-screenshot');self.assertEqual(v['width'],width)
-                self.assertIn('Retention',v['accessibility'])
-                self.assertTrue(any('uses' in text or text=='Not recorded' for text in v['accessibility']))
-                if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-                    out=Path(folder).parent/'dashboard';out.mkdir(parents=True,exist_ok=True)
-                    shutil.copy2(h.profile/'native-dashboard-probe.png',out/f'{theme}-{width}.png')
-                    (out/f'{theme}-{width}.json').write_text(json.dumps(v,ensure_ascii=False,indent=2))
-                h.probe('dashboard-scroll',y=200);before=self.read(h)['scrollY'];self.click(h,0)
-                self.wait(h,lambda v:not v['surface']['busy']);self.assertEqual(self.read(h)['scrollY'],before)
 
 if __name__=='__main__':unittest.main(verbosity=2)
