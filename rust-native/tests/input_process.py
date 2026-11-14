@@ -141,24 +141,6 @@ class NativeInput(unittest.TestCase):
         self.type(host,'new draft');time.sleep(.1);self.assertEqual(host.probe('run-input-read')['text'],'new draft')
         self.assertEqual(host.rpc({'op':'usage'})['result'],{})
 
-    def test_expired_submission_retains_text_and_releases_controls(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'expired draft')
-        host.probe('schedule-input-submit',expire=True)
-        stream=host.connect(timeout=4);self.addCleanup(stream.close);stream.sendall(b'{"op":"native.delay"}\n')
-        self.file(host.profile/'input-submit-fired')
-        with stream.makefile('rb') as reader:self.assertTrue(json.loads(reader.readline())['result']['newIntentDuringDelay'])
-        self.view(host,lambda v:any('expired' in s for s in v['screenText']))
-        state=host.probe('run-input-read');self.assertFalse(state['pending']);self.assertTrue(state['editable'] and state['focused']);self.assertEqual(state['text'],'expired draft')
-        self.type(host,' still editable');self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-
-    def test_cancel_queued_behind_busy_owner_never_starts(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'cancel before admission')
-        host.probe('schedule-input-submit',expire=False)
-        stream=host.connect(timeout=4);self.addCleanup(stream.close);stream.sendall(b'{"op":"native.delay"}\n')
-        self.file(host.profile/'input-submit-fired')
-        with stream.makefile('rb') as reader:self.assertTrue(json.loads(reader.readline())['result']['newIntentDuringDelay'])
-        self.view(host,lambda v:not v['formVisible']);self.assertEqual(host.rpc({'op':'logs'})['result'],[]);self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
     def test_light_dark_input_and_failure_capture(self):
         host=self.host(native=True,commands=[self.command(inputPrompt='Message')])
         for theme in ['light','dark']:

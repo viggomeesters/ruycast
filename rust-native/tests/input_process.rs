@@ -132,3 +132,54 @@ fn changed_command_preserves_old_input_draft() {
     assert_eq!(fs::read(&host.config).unwrap(), before);
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
+fn delayed_submit(host: &Bridge, expire: bool) -> Value {
+    use std::io::{BufRead, Write};
+    host.probe("schedule-input-submit", json!({"expire":expire}));
+    let mut stream = host.connect(std::time::Duration::from_secs(4));
+    stream.write_all(b"{\"op\":\"native.delay\"}\n").unwrap();
+    let path = host.profile.join("input-submit-fired");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while !path.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "input submission was not scheduled"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let mut line = String::new();
+    std::io::BufReader::new(stream)
+        .read_line(&mut line)
+        .unwrap();
+    serde_json::from_str(&line).unwrap()
+}
+#[test]
+fn expired_submission_keeps_editable_draft() {
+    let host = host();
+    open(&host);
+    input_type(&host, "expired draft");
+    assert_eq!(
+        delayed_submit(&host, true)["result"]["newIntentDuringDelay"],
+        true
+    );
+    view(&host, |v| actions::text_contains(v, "expired"));
+    let state = actions::probe(&host, "run-input-read");
+    assert_eq!(state["pending"], false);
+    assert_eq!(state["editable"], true);
+    assert_eq!(state["focused"], true);
+    assert_eq!(state["text"], "expired draft");
+    input_type(&host, " still editable");
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn queued_cancel_never_starts_execution() {
+    let host = host();
+    open(&host);
+    input_type(&host, "cancel before admission");
+    assert_eq!(
+        delayed_submit(&host, false)["result"]["newIntentDuringDelay"],
+        true
+    );
+    view(&host, |v| v["formVisible"] == false);
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
