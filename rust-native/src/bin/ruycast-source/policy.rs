@@ -397,14 +397,12 @@ rust-native/tests/fixtures/keyword_missing_value_type.rs
 rust-native/tests/fixtures/keyword_board.rs
 rust-native/tests/keyword_board.rs
 rust-native/tests/keyword_core.rs
-rust-native/tests/library_process.py
 rust-native/tests/library_checkbox_process.rs
 rust-native/tests/library_drafts_process.rs
 rust-native/tests/library_navigation_process.rs
 rust-native/tests/library_lifecycle_process.rs
 rust-native/tests/manager_process.rs
 rust-native/tests/native_choice_process.py
-rust-native/tests/native_dashboard_process.py
 rust-native/tests/native_dashboard_dialog_process.rs
 rust-native/tests/native_hid_process.py
 rust-native/tests/native_keyboard_process.py

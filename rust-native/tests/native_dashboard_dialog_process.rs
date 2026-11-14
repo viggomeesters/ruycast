@@ -19,7 +19,24 @@ fn host() -> Bridge {
     host_with_theme(None)
 }
 fn host_with_theme(theme: Option<&str>) -> Bridge {
+    host_with_data(theme, None, None)
+}
+fn host_with_data(theme: Option<&str>, initial: Option<Value>, counts: Option<Value>) -> Bridge {
     let mut h = Bridge::new(Config::current(), false);
+    if let Some(initial) = initial {
+        fs::write(
+            h.profile.join("analytics.json"),
+            serde_json::to_vec(&initial).unwrap(),
+        )
+        .unwrap();
+    }
+    if let Some(counts) = counts {
+        fs::write(
+            h.profile.join("usage.json"),
+            serde_json::to_vec(&counts).unwrap(),
+        )
+        .unwrap();
+    }
     let mut cfg = default_config();
     if let Some(theme) = theme {
         cfg["theme"] = json!(theme);
@@ -32,6 +49,93 @@ fn host_with_theme(theme: Option<&str>) -> Bridge {
     h.start();
     settled(&h, |_| true);
     h
+}
+fn capture(h: &Bridge, name: &str) {
+    let v = probe(h, "dashboard-screenshot", json!({}));
+    if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let folder = std::path::PathBuf::from(folder);
+        fs::create_dir_all(&folder).unwrap();
+        fs::copy(
+            h.profile.join("native-dashboard-probe.png"),
+            folder.join(format!("{name}.png")),
+        )
+        .unwrap();
+        fs::write(
+            folder.join(format!("{name}.json")),
+            serde_json::to_vec_pretty(&v).unwrap(),
+        )
+        .unwrap();
+    }
+}
+#[test]
+fn populated_paused_errors_confirmation_roles_values_and_local_key_loop() {
+    for theme in ["light", "dark"] {
+        let h = host_with_data(Some(theme), None, Some(json!({"analytics.fixture":42})));
+        open(&h);
+        assert_eq!(
+            h.rpc(&json!({"op":"execute","id":"analytics.fixture"}))["ok"],
+            true
+        );
+        assert_eq!(
+            h.rpc(&json!({"op":"execute","id":"analytics.failure"}))["ok"],
+            false
+        );
+        let v = wait(&h, |v| {
+            v["surface"]["commands"].as_array().unwrap().len() == 2
+                && v["surface"]["errors"].as_array().unwrap().len() == 1
+        });
+        assert_eq!(v["surface"]["prior_successes"], 42);
+        assert_eq!(v["surface"]["uses"], 44);
+        assert_eq!(v["buttons"][1]["role"], "AXCheckBox");
+        assert_eq!(v["buttons"][1]["axValue"], "1");
+        assert!(v["bars"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|b| b["role"] == "AXValueIndicator"));
+        for (width, height) in [(680, 480), (980, 680)] {
+            probe(&h, "dashboard-size", json!({"width":width,"height":height}));
+            capture(&h, &format!("populated-{theme}-{width}-{height}"));
+        }
+        probe(&h, "dashboard-focus", json!({"index":0}));
+        assert_eq!(read(&h)["focused"], "Refresh");
+        probe(&h, "dashboard-next-focus", json!({}));
+        assert_eq!(read(&h)["focused"], "Local analytics");
+        click(&h, 0);
+        wait(&h, |v| v["surface"]["busy"] == false);
+        assert_eq!(read(&h)["focused"], "Local analytics");
+        click(&h, 1);
+        wait(&h, |v| {
+            v["surface"]["busy"] == false && v["surface"]["enabled"] == false
+        });
+        capture(&h, &format!("paused-{theme}"));
+        click(&h, 3);
+        let v = wait(&h, |v| v["surface"]["confirming_reset"] == true);
+        assert_eq!(v["focused"], "Cancel");
+        capture(&h, &format!("confirmation-{theme}"));
+        let before = h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"].clone();
+        probe(
+            &h,
+            "key-event",
+            json!({"code":36,"flags":1 << 20,"chars":"\r"}),
+        );
+        settled(&h, |_| true);
+        assert_eq!(
+            h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"],
+            before
+        );
+        probe(&h, "key-event", json!({"code":53,"flags":0,"chars":""}));
+        wait(&h, |v| v["surface"]["confirming_reset"] == false);
+    }
+    let h = host_with_data(None, Some(json!({"corrupt":"fixture"})), None);
+    open(&h);
+    let v = wait(&h, |v| !v["surface"]["storage_error"].is_null());
+    assert!(v["surface"]["storage_error"]
+        .as_str()
+        .unwrap()
+        .contains("could not be read"));
+    probe(&h, "dashboard-size", json!({"width":680,"height":480}));
+    capture(&h, "corrupt-data-error");
 }
 #[test]
 fn actual_dashboard_renders_themes_widths_and_preserves_scroll() {
