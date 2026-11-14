@@ -3,6 +3,20 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("rich-special") if args.len() == 3 => {
+            let mode = &args[1];
+            let value = &args[2];
+            if mode == "empty" {
+                println!("{}", serde_json::json!({"ok":true,"choices":{"title":"","placeholder":"","items":[]}}));
+            } else if value.is_empty() {
+                println!("{}", serde_json::json!({"ok":true,"choices":{"title":"Projects","placeholder":"Find…","items":[{"id":"one","title":"Project","subtitle":"EX","value":"literal"}]}}));
+            } else if mode == "detail-failure" {
+                println!("{}", serde_json::json!({"ok":false,"error":"Provider failed","detail":"New failure report"}));
+            } else {
+                println!("ordinary failure text");
+                std::process::exit(7);
+            }
+        }
         Some("rich-provider") if args.len() == 4 => {
             let value = &args[1];
             let root = PathBuf::from(&args[2]);
