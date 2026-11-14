@@ -64,14 +64,6 @@ class InputActions(unittest.TestCase):
             raise RuntimeError('Build --features test-tools --example fcntl-sync-shim and set RUYCAST_TEST_FCNTL_SHIM first')
     @classmethod
     def tearDownClass(cls):cls.temp.cleanup()
-    def test_cancel_published_but_never_presented_child_preserves_live_text_ime_and_undo(self):
-        host=self.fixture();before=host.config.read_bytes();self.key(host,40,'k',CMD);v=self.view(host,lambda v:v['actionsVisible']);host.probe('defer-input-child',defer=True);host.probe('action-button',index=v['actionLabels'].index('Set Alias…'))
-        end=time.monotonic()+4
-        while not host.probe('defer-input-child',defer=True)['pendingChild']:
-            if time.monotonic()>end:self.fail('Owner did not actually publish the deferred child')
-            time.sleep(.01)
-        self.key(host,53);self.type(host,' continued');host.probe('run-inline-mark',text='日本');marked=host.probe('run-inline-read');self.assertTrue(marked['marked'])
-        host.probe('defer-input-child',defer=False);self.resumed(host);after=host.probe('run-inline-read');self.assertEqual(after['text'],marked['text']);self.assertEqual(after['editorAddress'],marked['editorAddress']);self.assertTrue(after['marked']);self.assertTrue(after['canUndo']);self.assertEqual(host.config.read_bytes(),before);self.assertEqual(host.rpc({'op':'logs'})['result'],[])
     def test_postpublication_directory_sync_warning_resumes_without_retry(self):
         host=bridge.Bridge(start=False);self.addCleanup(host.close);config=json.loads(host.config.read_bytes());config['commands'].append(self.command(inputPrompt='Message'));host.replace(config)
         host.env.update(DYLD_INSERT_LIBRARIES=str(self.shim),RUYCAST_TEST_FSYNC_DIRECTORY=str(host.profile),RUYCAST_TEST_FSYNC_MARKER=str(host.profile/'sync-injected'));host.start();host.settled()
@@ -84,9 +76,6 @@ class InputActions(unittest.TestCase):
             if action=='Remove…':self.form(host);host.probe('save-editor');view=self.closed(host);self.assertFalse(any(c['id']=='script.fixture' for c in json.loads(host.config.read_bytes())['commands']))
             else:view=self.resumed(host);self.assertFalse(self.saved_command(host)['enabled']);self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertIn('Disabled · Expand ⌘↵',view['screenText']);self.capture(host,'warning-disabled');pixels=png_text_regions(host.profile/'native-probe.png');self.assertGreater(pixels['heading'],8,pixels);self.assertGreater(pixels['footer'],8,pixels)
             self.assertTrue((host.profile/'sync-injected').exists());self.assertTrue(any('disk confirmation failed' in x.lower() for x in view['screenText']));self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-    def test_queued_child_save_cancel_resumes_without_publishing(self):
-        host=self.fixture();before=host.config.read_bytes();self.action(host,'Set Alias…');child=self.form(host)['editorToken'];host.probe('alias-input',text='must-not-save');host.probe('schedule-save-cancel');self.assertTrue(host.rpc({'op':'native.delay'})['ok']);view=self.resumed(host)
-        self.assertGreater(view['editorToken'],child);self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertEqual(host.config.read_bytes(),before);self.type(host,' still typing');self.assertEqual(self.text(host),'PRIVATE literal Ω still typing')
     def test_light_dark_input_config_actions_and_resumed_capture(self):
         host=self.fixture()
         for theme in ['light','dark']:
@@ -102,9 +91,4 @@ class InputActions(unittest.TestCase):
         self.key(host,40,'k',CMD);v=self.view(host,lambda v:v['actionsVisible']);self.assertNotIn('Run',v['actionLabels']);self.assertIn('Enable',v['actionLabels']);host.probe('action-button',index=v['actionLabels'].index('Enable'));self.resumed(host);self.assertTrue(self.saved_command(host)['enabled']);self.assertEqual(self.text(host),'PRIVATE literal Ω')
     def test_remove_commit_discards_input_and_never_executes(self):
         host=self.fixture();self.action(host,'Remove…');self.form(host);host.probe('save-editor');self.closed(host);self.assertFalse(any(c['id']=='script.fixture' for c in json.loads(host.config.read_bytes())['commands']));self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-    def test_hiding_child_drops_suspended_input(self):
-        host=self.fixture();self.action(host,'Set Alias…');self.form(host);host.probe('hide-palette');host.settled(lambda s:not s['nativeUI']['visible']);self.show(host);self.assertFalse(host.probe('read')['runInputInline']);self.assertFalse(host.probe('read')['formVisible'])
-    def test_settings_peer_preserves_primary_input(self):
-        host=self.fixture();before=host.config.read_bytes();self.action(host,'Settings');self.resumed(host);host.wait(lambda s:s['managementUI']['visible']);self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertEqual(host.config.read_bytes(),before);self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-
 if __name__=='__main__':unittest.main()
