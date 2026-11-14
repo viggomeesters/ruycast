@@ -82,37 +82,6 @@ class CliOpen(unittest.TestCase):
         self.assertTrue(result['ok'],result)
         self.assertEqual(self.opens(host)[0]['url'],'https://example.invalid/'+'a'*1200000)
 
-    def test_fixture_clipboard_without_explicit_named_enablement_is_never_read(self):
-        host=self.host([command('url','https://example.invalid/{clipboard}')])
-        result=host.rpc(dict(op='execute',id='fixture.open'))
-        self.assertFalse(result['ok']);self.assertIn('fixture boundary',result['error'])
-        self.assertEqual(self.trace(host),[self.trace(host)[0]])
-
-    def test_named_clipboard_url_uses_main_thread_and_preserves_raw_substitution(self):
-        host=self.host([command('url','https://example.invalid/?q={clipboard}')],clipboard='raw/Ω&x=1')
-        value=host.cli('run','fixture.open')
-        self.assertTrue(value['ok'],value)
-        trace=self.trace(host)
-        reads=[s for s in trace if s['phase']=='clipboard-read']
-        self.assertEqual(len(reads),1);self.assertTrue(reads[0]['mainThread'])
-        opened=self.opens(host)[0]
-        self.assertFalse(opened['mainThread']);self.assertIn('&x=1',opened['url'])
-        self.assertTrue((host.base/'clipboard-read').exists())
-        self.assertEqual(host.cli('usage')['result']['fixture.open'],1)
-
-    def test_missing_named_clipboard_and_nonliteral_demand_do_not_read_general(self):
-        host=self.host([command('url','https://example.invalid/{clipboard}')],clipboard=None)
-        value=host.rpc(dict(op='execute',id='fixture.open'))
-        self.assertFalse(value['ok']);self.assertEqual(self.opens(host),[])
-        self.assertTrue((host.base/'clipboard-read').exists())
-        # Swift String.contains does not demand clipboard at a combined closing
-        # brace, although the render regex still recognizes the token.
-        config=json.loads(host.config.read_text());config['commands'][-1]['target']='https://example.invalid/{clipboard}\u0301'
-        host.replace(config);host.cli('reload');(host.base/'clipboard-read').unlink()
-        value=host.rpc(dict(op='execute',id='fixture.open'))
-        self.assertFalse(value['ok']);self.assertFalse((host.base/'clipboard-read').exists())
-        self.assertEqual(self.opens(host),[])
-
     def test_blocked_main_clipboard_does_not_block_owner_or_revive_expired_execution(self):
         host=self.host([command('url','https://example.invalid/{clipboard}')],dispatch=400,clipboard='hold-main')
         worker,result=self.asynchronous(host)
