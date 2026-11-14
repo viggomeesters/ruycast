@@ -76,23 +76,6 @@ class CliOpen(unittest.TestCase):
     def release(self,host):
         (host.base/'workspace-release').write_text('release')
 
-    def test_changed_target_and_relocated_config_revoke_pending_before_commit(self):
-        for change in ['replace','relocate','invalid']:
-            host=self.host([command(target='dev.fixture.hold-resolve')])
-            worker,results=self.asynchronous(host)
-            self.wait_file(host.base/'resolve-entered')
-            if change=='replace':
-                config=json.loads(host.config.read_text());config['commands'][-1]['target']='dev.fixture.inline';host.replace(config);host.cli('reload')
-            elif change=='relocate':
-                self.assertTrue(host.rpc(dict(op='config.directory',directory=str(host.base/'portable')))['ok'])
-            else:
-                host.replace(b'broken configuration')
-                self.assertFalse(host.rpc(dict(op='reload'))['ok'])
-            worker.join(1);self.assertFalse(worker.is_alive());self.assertFalse(results[0]['ok']);self.assertNotIn('actionCompleted',results[0])
-            self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0)
-            self.assertEqual(self.opens(host),[])
-            host.close()
-
     def test_discovered_origin_is_revoked_when_saved_binding_suppresses_it(self):
         target='dev.fixture.hold-resolve.discovered'
         host=self.host(discovered=target)
@@ -105,24 +88,6 @@ class CliOpen(unittest.TestCase):
         self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0)
         self.assertEqual(self.opens(host),[])
         self.assertNotIn(identifier,host.cli('usage')['result'])
-
-    def test_postcommit_replacement_is_unknown_and_not_attributed_to_new_target(self):
-        host=self.host([command('url','ruycast-fixture://hold-sync/path')])
-        worker,results=self.asynchronous(host);self.wait_file(host.base/'open-started')
-        config=json.loads(host.config.read_text());config['commands'][-1]['target']='https://example.invalid/new'
-        host.replace(config);host.cli('reload');worker.join(1)
-        self.assertFalse(worker.is_alive());self.assertEqual(results[0]['code'],'open-outcome-unknown')
-        self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertNotIn('fixture.open',host.cli('usage')['result'])
-
-    def test_alias_rebinding_revokes_the_original_pending_selection(self):
-        host=self.host([command(target='dev.fixture.hold-resolve.alias')])
-        worker,results=self.asynchronous(host,'fixture-alias');self.wait_file(host.base/'resolve-entered')
-        config=json.loads(host.config.read_text());config['commands'][-1]['aliases']=[]
-        config['commands'].append(dict(id='fixture.other',title='Other',kind='url',target='https://example.invalid',aliases=['fixture-alias']))
-        host.replace(config);host.cli('reload');worker.join(1)
-        self.assertFalse(worker.is_alive());self.assertFalse(results[0]['ok']);self.assertNotIn('actionCompleted',results[0])
-        self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0);self.assertEqual(self.opens(host),[])
 
     def test_disconnect_and_quit_revoke_lookup_without_waiting_for_sdk(self):
         host=self.host([command(target='dev.fixture.hold-resolve')])

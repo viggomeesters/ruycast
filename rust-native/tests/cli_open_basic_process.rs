@@ -388,19 +388,24 @@ fn wait_file(path: &std::path::Path) {
         std::thread::sleep(Duration::from_millis(5));
     }
 }
-fn execute_async(h: &Host) -> std::sync::mpsc::Receiver<std::io::Result<Value>> {
+fn execute_named(h: &Host, id: &str) -> std::sync::mpsc::Receiver<std::io::Result<Value>> {
+    let id = id.to_owned();
     let socket = h.socket();
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let result = runtime_host::status_rpc::request(
             &socket,
-            &json!({"op":"execute","id":"fixture.open"}),
+            &json!({"op":"execute","id":id}),
             std::time::Instant::now() + Duration::from_secs(4),
         );
         let _ = tx.send(result);
     });
     rx
 }
+fn execute_async(h: &Host) -> std::sync::mpsc::Receiver<std::io::Result<Value>> {
+    execute_named(h, "fixture.open")
+}
+
 #[test]
 fn blocked_main_clipboard_does_not_block_owner_or_revive_expired_execution() {
     let h = host_options_with_dispatch(
@@ -520,4 +525,82 @@ fn blocked_default_open_deadline_reports_unknown_before_transport_closes() {
     release.release();
     h.wait(|s| s["liveExecutionWorkers"] == 0);
     assert!(h.cli(&["usage"])["result"].get("fixture.open").is_none());
+}
+
+#[test]
+fn changed_target_and_relocated_config_revoke_pending_before_commit() {
+    for change in ["replace", "relocate", "invalid"] {
+        let h = host(command("app", "dev.fixture.hold-resolve"));
+        let release = Release(h.base.join("workspace-release"));
+        let worker = execute_async(&h);
+        wait_file(&h.base.join("resolve-entered"));
+        match change {
+            "replace" => {
+                let mut cfg = config(&h);
+                cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+                    json!("dev.fixture.inline");
+                h.replace(&cfg, None);
+                h.cli(&["reload"]);
+            }
+            "relocate" => assert_eq!(
+                h.rpc(&json!({"op":"config.directory","directory":h.base.join("portable")}))["ok"],
+                true
+            ),
+            "invalid" => {
+                h.replace_bytes(b"broken configuration", None);
+                assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], false);
+            }
+            _ => unreachable!(),
+        }
+        let result = worker
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .unwrap();
+        assert_eq!(result["ok"], false);
+        assert!(result.get("actionCompleted").is_none());
+        release.release();
+        h.wait(|s| s["liveExecutionWorkers"] == 0);
+        assert!(opens(&h).is_empty());
+    }
+}
+#[test]
+fn postcommit_replacement_is_unknown_and_not_attributed_to_new_target() {
+    let h = host(command("url", "ruycast-fixture://hold-sync/path"));
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_async(&h);
+    wait_file(&h.base.join("open-started"));
+    let mut cfg = config(&h);
+    cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+        json!("https://example.invalid/new");
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    let result = worker
+        .recv_timeout(Duration::from_secs(1))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["code"], "open-outcome-unknown");
+    release.release();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(h.cli(&["usage"])["result"].get("fixture.open").is_none());
+}
+#[test]
+fn alias_rebinding_revokes_original_pending_selection() {
+    let h = host(command("app", "dev.fixture.hold-resolve.alias"));
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_named(&h, "fixture-alias");
+    wait_file(&h.base.join("resolve-entered"));
+    let mut cfg = config(&h);
+    cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["aliases"] = json!([]);
+    cfg["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.other","title":"Other","kind":"url","target":"https://example.invalid","aliases":["fixture-alias"]}));
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    let result = worker
+        .recv_timeout(Duration::from_secs(1))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["ok"], false);
+    assert!(result.get("actionCompleted").is_none());
+    release.release();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(opens(&h).is_empty());
 }
