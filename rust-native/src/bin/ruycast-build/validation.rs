@@ -80,7 +80,8 @@ keyword-capture-probe-build|b|keyword-capture-probe tools
 keyword-capture-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_capture_process --locked
 keyword-rich-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_rich_process --locked
 keyboard-probe-build|b|keyboard-probe tools
-keyboard-process|p|rust-native/tests/keyboard_process.py
+keyboard-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyboard-fixture --example keyboard-missing-parameter --locked
+keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyboard_process --locked
 hid-state-probe-build|b|hid-state-probe tools
 hid-state-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test hid_state_process --locked
 caps-probe-build|b|caps-probe tools
@@ -1783,7 +1784,10 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 133);
+        assert_eq!(steps.len(), 134);
+        let keyboard_sdk = steps.iter().position(|step|step.name=="keyboard-sdk-build").unwrap();
+        let keyboard_consumer = steps.iter().position(|step|step.name=="keyboard-process").unwrap();
+        assert!(keyboard_sdk < keyboard_consumer);
         let choice_sdk = steps.iter().position(|step|step.name=="native-choice-sdk-build").unwrap();
         let snippet_choice = steps.iter().position(|step|step.name=="native-snippet-choice-process-rust").unwrap();
         assert!(choice_sdk < snippet_choice);
