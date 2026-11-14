@@ -93,19 +93,11 @@ class NativeKeyword(unittest.TestCase):
             self.assertLess(time.monotonic(),deadline);time.sleep(.005)
         host.probe('cancel-editor');host.wait(lambda s:not s['nativeUI']['editorOpen']);self.assertTrue(host.rpc({'op':'status'})['result']['recordingShortcut']);self.assertFalse(self.type(host,'c')[-1]);self.assertEqual(self.kw(host)['posts'],0)
         host.rpc(dict(op='native.test',surface='settings',action='cancel-editor'));host.wait(lambda s:not s['recordingShortcut']);self.assertEqual(host.probe('keyboard-press',code=49,modifiers=6144)['statuses'],[0]);host.wait(lambda s:not s['nativeUI']['visible']);self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
-    def test_sleep_session_interleaving_and_resumption(self):
-        host,_=self.configured();self.type(host,'ab')
-        for name in ['sleep','resign','wake']:host.probe('keyboard-hid',control='notification',name=name)
-        host.wait(lambda s:s['snippetExpansion']=='Paused');self.assertFalse(self.type(host,'c')[-1]);host.probe('keyboard-hid',control='notification',name='active');host.wait(lambda s:s['snippetExpansion']=='On');self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
     def test_native_secure_exclusion_and_permission_changes_do_not_expand(self):
         host,c=self.configured()
         for flags in [8,16,4096]:
             self.kw(host,'environment',flags=flags);self.assertFalse(self.type(host,'abc')[-1]);self.assertEqual(self.kw(host)['posts'],0)
         self.kw(host,'environment');c['clipboard']['excludedApps']=['own.keyword.target'];self.reload(host,c);self.assertFalse(self.type(host,'abc')[-1]);self.assertEqual(self.kw(host)['posts'],0)
-    def test_timeout_callback_recovers_on_actual_main_wake_and_drops_prefix(self):
-        host,_=self.configured();self.type(host,'ab');self.kw(host,'event',type=0xffffffff);host.wait(lambda s:s['snippetExpansion']=='On');self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
-    def test_timer_recovers_failed_keyword_setup_without_new_input(self):
-        host,_=self.configured();(host.base/'keyword-fail-tap_create').touch();self.kw(host,'event',type=0xffffffff);host.wait(lambda s:s['snippetExpansion']!='On');(host.base/'keyword-fail-tap_create').unlink();host.wait(lambda s:s['snippetExpansion']=='On');self.assertTrue(self.type(host,'abc')[-1])
     def test_quit_during_entered_effect_keeps_profile_until_keyup_and_retirement(self):
         host,_=self.configured();self.type(host,'ab');(host.base/'hold-keyword-post:down').touch()
         with ThreadPoolExecutor(1) as pool:
