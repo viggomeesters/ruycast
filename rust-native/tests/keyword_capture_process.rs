@@ -406,3 +406,163 @@ fn stage_episode_not_seen_by_refresh_still_revokes_prefix() {
     );
     assert_eq!(v["final"]["tapCreates"], 1);
 }
+#[test]
+fn off_and_paused_short_circuit_permission_app_discovery() {
+    let mut disabled = config("HELLO", "abc");
+    disabled["snippetExpansionEnabled"] = json!(false);
+    for mut ops in [
+        vec![json!({"op":"config","value":disabled})],
+        vec![
+            json!({"op":"config","value":config("HELLO","abc")}),
+            json!({"op":"gate","running":false}),
+        ],
+    ] {
+        ops.extend([
+            sdk("environment", json!({"flags":8192|4096})),
+            json!({"op":"refresh"}),
+        ]);
+        let v = invoke(ops, Some("complete"), true);
+        assert_eq!(v["final"]["calls"], 0);
+        assert_eq!(v["final"]["tapCreates"], 0);
+    }
+}
+#[test]
+fn interactive_trigger_passes_without_synchronous_effects() {
+    let v = run_keys("abc", config("{name options=\"One, Two\"}", "abc"), vec![]);
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+        false
+    );
+    assert_eq!(v["final"]["posts"], 0);
+}
+#[test]
+fn allocation_failure_before_first_down_does_not_consume() {
+    for name in ["event:down", "event:up"] {
+        let v = run_keys(
+            "abc",
+            config("HELLO", "abc"),
+            vec![sdk("failure", json!({"name":name}))],
+        );
+        assert_eq!(
+            v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+            false
+        );
+        assert_eq!(v["final"]["posts"], 0);
+    }
+}
+#[test]
+fn secure_change_after_entered_down_balances_without_further_text() {
+    for flags in [8, 16, 4096] {
+        let v = run_keys(
+            "abc",
+            config("HELLO", "abc"),
+            vec![sdk("change", json!({"at":"post:down","flags":flags}))],
+        );
+        assert_eq!(
+            v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+            true
+        );
+        let out = v["final"]["output"].as_array().unwrap();
+        assert_eq!(out.len(), 2);
+        assert_eq!(out.last().unwrap()["units"], json!([]));
+        assert_eq!(out.last().unwrap()["down"], false);
+    }
+}
+#[test]
+fn last_policy_call_cannot_redirect_first_post_to_another_app() {
+    let mut ops = started();
+    ops.extend(keys("ab"));
+    ops.push(sdk("change", json!({"at":"copy:1","nth":4,"app":2})));
+    ops.push(event("c", json!({})));
+    let v = invoke(ops, Some("complete"), true);
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+        false
+    );
+    assert_eq!(v["final"]["posts"], 0);
+}
+#[test]
+fn recording_or_reentry_after_entered_down_cannot_lose_balance() {
+    for action in ["record", "reenter", "drop", "panic", "stop", "disable"] {
+        let v = run_keys(
+            "abc",
+            config("HELLO", "abc"),
+            vec![json!({"op":"hook","at":"post:down","action":action})],
+        );
+        assert_eq!(
+            v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+            true,
+            "{action}"
+        );
+        let out = v["final"]["output"].as_array().unwrap();
+        assert_eq!(out.len(), 2, "{action}");
+        assert_eq!(out.last().unwrap()["down"], false);
+        assert_eq!(out.last().unwrap()["units"], json!([]));
+    }
+}
+#[test]
+fn reentrant_disabled_config_never_reauthorizes_setup() {
+    for phase in [
+        "raycast",
+        "trusted",
+        "runloop",
+        "common",
+        "tap_create",
+        "source",
+        "add_source",
+        "tap_enable",
+        "tap_enabled",
+    ] {
+        let v = invoke(
+            vec![
+                json!({"op":"config","value":config("HELLO","abc")}),
+                json!({"op":"hook","at":phase,"action":"disable"}),
+                json!({"op":"refresh"}),
+                sdk("state", json!({})),
+            ],
+            Some("complete"),
+            true,
+        );
+        let s = v["steps"].as_array().unwrap();
+        assert_ne!(s[s.len() - 2].get("status").unwrap(), "On", "{phase}");
+        assert_eq!(s.last().unwrap()["tapValid"], false, "{phase}");
+    }
+}
+#[test]
+fn callback_timeout_revokes_and_refresh_recovers() {
+    let mut ops = started();
+    ops.extend(keys("ab"));
+    ops.extend([
+        event("", json!({"type":0xffff_ffffu64})),
+        event("c", json!({})),
+        json!({"op":"refresh"}),
+    ]);
+    ops.extend(keys("abc"));
+    let v = invoke(ops, Some("complete"), true);
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 5]["consumed"], false);
+    assert_eq!(s.last().unwrap()["consumed"], true);
+}
+#[test]
+fn failed_invalidation_retains_callback_until_recovery() {
+    let v = invoke(
+        vec![
+            json!({"op":"config","value":config("HELLO","abc")}),
+            json!({"op":"refresh"}),
+            sdk("failure", json!({"name":"invalidate"})),
+            json!({"op":"stop"}),
+            json!({"op":"drop"}),
+            sdk("state", json!({})),
+            sdk("failure", json!({})),
+            json!({"op":"recover"}),
+            sdk("state", json!({})),
+        ],
+        Some("complete"),
+        true,
+    );
+    assert_eq!(v["steps"][3]["retired"], false);
+    assert_eq!(v["steps"][5]["tapValid"], true);
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 2]["retired"], true);
+    assert_eq!(s.last().unwrap()["tapValid"], false);
+}
