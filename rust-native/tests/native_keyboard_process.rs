@@ -666,3 +666,111 @@ fn native_keyword_timer_recovers_failed_setup_without_new_input() {
     h.wait(|s| s["snippetExpansion"] == "On");
     assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
 }
+
+fn keyword_reload(h: &Bridge, config: &Value) {
+    let old = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"]
+        .as_u64()
+        .unwrap();
+    h.replace(config, None);
+    let reply = h.rpc(&json!({"op":"reload"}));
+    assert!(
+        reply["ok"] == true
+            || reply["error"]
+                .as_str()
+                .unwrap_or("")
+                .contains("being updated"),
+        "{reply}"
+    );
+    h.wait(|s| {
+        s["keyboardGeneration"].as_u64().unwrap_or(0) > old
+            && s["keywordGeneration"] == s["keyboardGeneration"]
+            && s["configurationUpdating"] == false
+    });
+}
+fn keyword_inserted(state: &Value) -> String {
+    let units: Vec<u16> = state["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["down"] == true && e["key"] == 0)
+        .flat_map(|e| {
+            e["units"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|u| u.as_u64().unwrap() as u16)
+        })
+        .collect();
+    String::from_utf16(&units).unwrap()
+}
+#[test]
+fn native_keyword_activation_burst_reaches_owner_before_coalescing() {
+    let h = keyword_host(false);
+    keyword(&h, "activation-listen", json!({}));
+    keyword_type(&h, "ab");
+    h.probe(
+        "keyboard-hid",
+        json!({"control":"activation-burst","values":["typed","missing","malformed","typed"]}),
+    );
+    let state = keyword(&h, "activation-state", json!({}));
+    let events = state["events"].as_array().unwrap();
+    assert_eq!(events.len(), 4);
+    assert_eq!(
+        events
+            .iter()
+            .map(|v| v["typed"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!(true), json!(false), json!(false), json!(true)]
+    );
+    assert_eq!(
+        events
+            .iter()
+            .map(|v| v["ownInstance"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!(true), json!(false), json!(false), json!(true)]
+    );
+    let first = events[0]["sequence"].as_u64().unwrap();
+    assert_eq!(
+        events
+            .iter()
+            .map(|v| v["sequence"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        (first..first + 4).collect::<Vec<_>>()
+    );
+    assert_eq!(keyword_type(&h, "c").last(), Some(&json!(false)));
+    assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+}
+#[test]
+fn native_keyword_reload_adopts_new_catalog_and_disable_retires_filter() {
+    let h = keyword_host(false);
+    let mut config = actions::config(&h);
+    keyword_type(&h, "ab");
+    config["commands"][0]["target"] = json!("NEW");
+    keyword_reload(&h, &config);
+    assert_eq!(keyword_type(&h, "c"), vec![json!(false)]);
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+    assert_eq!(keyword_inserted(&keyword(&h, "state", json!({}))), "NEW");
+    config["snippetExpansionEnabled"] = json!(false);
+    keyword_reload(&h, &config);
+    h.wait(|s| s["snippetExpansion"] == "Off");
+    assert_eq!(keyword(&h, "state", json!({}))["tapValid"], false);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(false)));
+}
+#[test]
+fn native_keyword_secure_exclusion_and_permission_changes_prevent_expansion() {
+    let h = keyword_host(false);
+    let mut config = actions::config(&h);
+    for flags in [8, 16, 4096] {
+        keyword(&h, "environment", json!({"flags":flags}));
+        assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(false)));
+        assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+    }
+    keyword(&h, "environment", json!({}));
+    config["clipboard"]["excludedApps"] = json!(["own.keyword.target"]);
+    keyword_reload(&h, &config);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(false)));
+    assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+}
