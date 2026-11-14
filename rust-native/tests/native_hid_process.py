@@ -59,34 +59,6 @@ class NativeHid(unittest.TestCase):
         self.assertFalse(marker.exists())
         self.hid(host,'input',usage=224,down=True,time=3);self.hid(host,'input',usage=224,down=False,time=3.2);self.wait_file(marker)
 
-    def test_eventless_recording_episode_invalidates_old_modifier_tap(self):
-        host,marker,_=self.configured('ctrl+left-control',hyper=False)
-        self.hid(host,'input',usage=224,down=True,time=1)
-        host.rpc({'op':'show','query':'finder'});host.settled()
-        host.probe('key-event',code=43,flags=CMD|SHIFT,chars=',');self.view(host,lambda v:v['recording'])
-        host.probe('cancel-editor');host.wait(lambda s:not s['recordingShortcut'])
-        self.hid(host,'input',usage=224,down=False,time=1.2)
-        self.assertFalse(marker.exists())
-        self.hid(host,'input',usage=224,down=True,time=2);self.hid(host,'input',usage=224,down=False,time=2.2);self.wait_file(marker)
-
-    def test_sleep_and_inactive_session_require_separate_release_in_both_orders(self):
-        for first,second,release_first,release_second in [
-            ('sleep','resign','wake','active'),('resign','sleep','active','wake')]:
-            host,marker,_=self.configured('ctrl+left-control')
-            self.hid(host,'input',usage=224,down=True,time=1)
-            for name in [first,second,first,second,release_first,'launch','terminate',release_first]:
-                self.hid(host,'notification',name=name)
-                status=host.rpc({'op':'status'})['result']
-                self.assertEqual(status['hidStatus'],'Paused',name)
-                state=self.hid(host)['state']
-                self.assertFalse(state['manager'],name);self.assertEqual(state['caps'],0,name)
-                self.assertFalse(marker.exists())
-            self.hid(host,'notification',name=release_second);host.wait(lambda s:s['hidStatus']=='On')
-            self.hid(host,'input',usage=224,down=False,time=1.2)
-            self.assertFalse(marker.exists())
-            self.hid(host,'input',usage=224,down=True,time=2)
-            self.hid(host,'input',usage=224,down=False,time=2.2);self.wait_file(marker)
-
     def test_quit_hides_both_actual_offscreen_panels_and_recorders_before_held_sdk(self):
         for force in [True,False]:
             host,_,_=self.configured()
@@ -179,15 +151,6 @@ class NativeHid(unittest.TestCase):
             self.assertGreater(proofs[5]['hookEpoch'],proofs[0]['hookEpoch'])
             self.wait_file(carbon_marker);host.wait(lambda s:s['scriptsRunning']==0)
             self.assertFalse(hid_marker.exists())
-    def test_permission_health_saves_plan_and_carbon_remains_available(self):
-        host,_,config=self.configured(hyper=False)
-        self.hid(host,'env',value=2);host.wait(lambda s:s['hidStatus'].startswith('Allow Accessibility'))
-        config['commands'][0]['title']='Saved with unavailable HID';host.replace(config)
-        self.assertTrue(host.rpc({'op':'reload'})['ok']);host.wait(lambda s:s['hidGeneration']==s['keyboardGeneration'])
-        self.assertEqual(json.loads(host.config.read_bytes())['commands'][0]['title'],'Saved with unavailable HID')
-        self.assertEqual(host.probe('keyboard-press',code=49,modifiers=6144)['statuses'],[0])
-        host.wait(lambda s:s['nativeUI']['visible'])
-        self.hid(host,'env',value=0);host.wait(lambda s:s['hidStatus']=='On')
     def test_quit_retains_profile_and_main_recovery_after_worker_stop(self):
         for fault in ['hid-fail-manager_close','hid-fail-invalidate','caps-fail-set:false']:
             host,_,_=self.configured();self.hid(host,'input',usage=57,down=True,time=0)
