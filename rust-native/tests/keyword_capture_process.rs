@@ -250,3 +250,159 @@ fn backspace_and_generated_input() {
         );
     }
 }
+fn started() -> Vec<Value> {
+    vec![
+        json!({"op":"config","value":config("HELLO","abc")}),
+        json!({"op":"refresh"}),
+    ]
+}
+fn after_prefix(middle: Vec<Value>) -> Value {
+    let mut ops = started();
+    ops.extend(keys("ab"));
+    ops.extend(middle);
+    ops.push(event("c", json!({})));
+    ops.push(event("", json!({})));
+    ops.extend(keys("abc"));
+    invoke(ops, Some("complete"), true)
+}
+#[test]
+fn eventless_recording_and_hyper_episodes_invalidate_prefix() {
+    for middle in [
+        vec![
+            json!({"op":"gate","blocked":true,"epoch":1}),
+            json!({"op":"gate","blocked":false,"epoch":2}),
+        ],
+        vec![
+            json!({"op":"gate","hyperHeld":true,"hyperEpoch":1}),
+            json!({"op":"gate","hyperHeld":false,"hyperEpoch":2}),
+        ],
+    ] {
+        let v = after_prefix(middle);
+        let s = v["steps"].as_array().unwrap();
+        assert_eq!(s[s.len() - 5]["consumed"], false);
+        assert_eq!(s.last().unwrap()["consumed"], true);
+    }
+}
+#[test]
+fn native_target_instance_switch_resets_even_when_pid_reused() {
+    let v = after_prefix(vec![sdk("environment", json!({"app":2}))]);
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 5]["consumed"], false);
+    assert_eq!(s.last().unwrap()["consumed"], true);
+}
+#[test]
+fn secure_permission_and_own_app_no_text_read_or_effect() {
+    for env in [
+        json!({"flags":8}),
+        json!({"flags":16}),
+        json!({"flags":4096}),
+        json!({"pid":"self"}),
+    ] {
+        let v = run_keys("abc", config("HELLO", "abc"), vec![sdk("environment", env)]);
+        assert_eq!(v["final"]["posts"], 0);
+        assert_eq!(v["final"]["valueReads"], 0);
+    }
+}
+#[test]
+fn canonical_excluded_app_bundle() {
+    let mut c = config("HELLO", "abc");
+    c["clipboard"]["excludedApps"] = json!(["own.é"]);
+    let v = run_keys("abc", c, vec![sdk("bundle", json!({"value":"own.é"}))]);
+    assert_eq!(v["final"]["posts"], 0);
+}
+#[test]
+fn generation_replacement_resets_and_uses_new_template() {
+    let v = after_prefix(vec![
+        json!({"op":"config","generation":2,"value":config("NEW","abc")}),
+        json!({"op":"refresh"}),
+    ]);
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 5]["consumed"], false);
+    assert_eq!(s.last().unwrap()["consumed"], true);
+    assert_eq!(inserted(&v["final"]), "NEW");
+}
+#[test]
+fn catalog_adoption_keeps_tap_but_revokes_old_prefix() {
+    let mut changed = config("NEW", "abc");
+    changed["theme"] = json!("dark");
+    let mut ops = started();
+    ops.extend(keys("ab"));
+    ops.extend([
+        json!({"op":"config","generation":2,"value":changed}),
+        sdk("state", json!({})),
+        event("c", json!({})),
+        json!({"op":"refresh"}),
+        event("", json!({})),
+    ]);
+    ops.extend(keys("abc"));
+    let v = invoke(ops, Some("complete"), true);
+    assert_eq!(v["steps"][5]["tapValid"], true);
+    assert_eq!(v["steps"][5]["tapEnabled"], true);
+    assert_eq!(v["steps"][6]["consumed"], false);
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+        true
+    );
+    assert_eq!(inserted(&v["final"]), "NEW");
+    assert_eq!(v["final"]["tapCreates"], 1);
+}
+#[test]
+fn pending_generation_keeps_tap_but_no_effects() {
+    let mut ops = started();
+    ops.extend(keys("ab"));
+    ops.extend([
+        json!({"op":"gate","generation":0}),
+        json!({"op":"refresh"}),
+        sdk("state", json!({})),
+    ]);
+    ops.extend(keys("abc"));
+    ops.extend([
+        json!({"op":"gate","generation":1}),
+        json!({"op":"refresh"}),
+        event("c", json!({})),
+        event("", json!({})),
+    ]);
+    ops.extend(keys("abc"));
+    let v = invoke(ops, Some("complete"), true);
+    assert_eq!(v["steps"][6]["tapValid"], true);
+    assert_eq!(v["steps"][6]["tapEnabled"], true);
+    assert!(!v["steps"].as_array().unwrap()[7..10]
+        .iter()
+        .any(|s| s["consumed"] == true));
+    assert_eq!(v["steps"][12]["consumed"], false);
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+        true
+    );
+    assert_eq!(v["final"]["tapCreates"], 1);
+}
+#[test]
+fn sampled_tap_loss_cannot_restore_old_prefix() {
+    let mut ops = started();
+    ops.extend(keys("ab"));
+    ops.extend([
+        sdk("failure", json!({"name":"tap_enabled"})),
+        json!({"op":"refresh"}),
+        sdk("failure", json!({})),
+        json!({"op":"refresh"}),
+        event("c", json!({})),
+        event("", json!({})),
+    ]);
+    ops.extend(keys("abc"));
+    let v = invoke(ops, Some("complete"), true);
+    assert_eq!(v["steps"][8]["consumed"], false);
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+        true
+    );
+}
+#[test]
+fn stage_episode_not_seen_by_refresh_still_revokes_prefix() {
+    let v = after_prefix(vec![json!({"op":"gate","stageEpoch":1})]);
+    assert_eq!(v["steps"][5]["consumed"], false);
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap()["consumed"],
+        true
+    );
+    assert_eq!(v["final"]["tapCreates"], 1);
+}

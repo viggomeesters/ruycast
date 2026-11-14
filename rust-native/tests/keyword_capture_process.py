@@ -28,30 +28,6 @@ class KeywordCapture(unittest.TestCase):
     def run_keys(self,text='abc',c=None,between=None):return self.invoke([dict(op='config',value=c or config()),dict(op='refresh'),*(between or []),*keys(text)])
     def inserted(self,state):
         units=[u for e in state['output'] if e['down'] and e['key']==0 for u in e['units']];return bytes(b for u in units for b in [u&255,u>>8]).decode('utf-16-le')
-    def test_eventless_recording_and_hyper_episodes_invalidate_prefix(self):
-        for middle in [[dict(op='gate',blocked=True,epoch=1),dict(op='gate',blocked=False,epoch=2)],[dict(op='gate',hyperHeld=True,hyperEpoch=1),dict(op='gate',hyperHeld=False,hyperEpoch=2)]]:
-            v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),*middle,event('c'),event(''),*keys('abc')]);self.assertFalse(v['steps'][-5]['consumed']);self.assertTrue(v['steps'][-1]['consumed'])
-    def test_native_target_instance_switch_resets_even_when_pid_reused(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),sdk('environment',app=2),event('c'),event(''),*keys('abc')]);self.assertFalse(v['steps'][-5]['consumed']);self.assertTrue(v['steps'][-1]['consumed'])
-    def test_secure_permission_and_own_app_no_text_read_or_effect(self):
-        for env in [dict(flags=8),dict(flags=16),dict(flags=4096),dict(pid='self')]:
-            v=self.run_keys(between=[sdk('environment',**env)]);self.assertEqual(v['final']['posts'],0);self.assertEqual(v['final']['valueReads'],0)
-    def test_canonical_excluded_app_bundle(self):
-        c=config();c['clipboard']['excludedApps']=['own.é']
-        v=self.run_keys(c=c,between=[sdk('bundle',value='own.é')]);self.assertEqual(v['final']['posts'],0)
-    def test_generation_replacement_resets_and_uses_new_prepared_template(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),dict(op='config',generation=2,value=config('NEW')),dict(op='refresh'),event('c'),event(''),*keys('abc')]);self.assertFalse(v['steps'][-5]['consumed']);self.assertTrue(v['steps'][-1]['consumed']);self.assertEqual(self.inserted(v['final']),'NEW')
-    def test_catalog_adoption_keeps_observation_tap_but_revokes_old_prefix(self):
-        changed=config('NEW');changed['theme']='dark'
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),dict(op='config',generation=2,value=changed),sdk(),event('c'),dict(op='refresh'),event(''),*keys('abc')])
-        self.assertTrue(v['steps'][5]['tapValid']);self.assertTrue(v['steps'][5]['tapEnabled'])
-        self.assertFalse(v['steps'][6]['consumed']);self.assertTrue(v['steps'][-1]['consumed']);self.assertEqual(self.inserted(v['final']),'NEW');self.assertEqual(v['final']['tapCreates'],1)
-    def test_pending_generation_keeps_existing_tap_but_no_effects(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),dict(op='gate',generation=0),dict(op='refresh'),sdk(),*keys('abc'),dict(op='gate',generation=1),dict(op='refresh'),event('c'),event(''),*keys('abc')]);self.assertTrue(v['steps'][6]['tapValid']);self.assertTrue(v['steps'][6]['tapEnabled']);self.assertFalse(any(x.get('consumed') for x in v['steps'][7:10]));self.assertFalse(v['steps'][12]['consumed']);self.assertTrue(v['steps'][-1]['consumed']);self.assertEqual(v['final']['tapCreates'],1)
-    def test_sampled_tap_loss_cannot_restore_old_prefix_after_recreate(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),sdk('failure',name='tap_enabled'),dict(op='refresh'),sdk('failure'),dict(op='refresh'),event('c'),event(''),*keys('abc')]);self.assertFalse(v['steps'][8]['consumed']);self.assertTrue(v['steps'][-1]['consumed'])
-    def test_stage_episode_not_seen_by_refresh_still_revokes_prefix(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),dict(op='gate',stageEpoch=1),event('c'),event(''),*keys('abc')]);self.assertFalse(v['steps'][5]['consumed']);self.assertTrue(v['steps'][-1]['consumed']);self.assertEqual(v['final']['tapCreates'],1)
     def test_off_and_paused_short_circuit_permission_app_discovery(self):
         for ops in [[dict(op='config',value={**config(),'snippetExpansionEnabled':False})],[dict(op='config',value=config()),dict(op='gate',running=False)]]:
             v=self.invoke([*ops,sdk('environment',flags=8192|4096),dict(op='refresh')]);self.assertEqual(v['final']['calls'],0);self.assertEqual(v['final']['tapCreates'],0)
