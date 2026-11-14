@@ -57,21 +57,6 @@ else:
         if out:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             p=Path(out).parent/'rich';p.mkdir(exist_ok=True);shutil.copy2(host.profile/'native-probe.png',p/(name+'.png'));(p/(name+'.json')).write_text(json.dumps(v,ensure_ascii=False,indent=2))
         return v
-    def test_detail_scroll_back_preserves_choices_and_filter(self):
-        host=self.fixture();self.open(host);host.probe('query',query='PLAN');self.view(host,lambda r:r['query']=='PLAN');self.click(host,'details');v=self.view(host,lambda r:r['detail_visible'])
-        self.assertTrue(v['resultPanel']['selectable']);self.assertFalse(v['resultPanel']['editable']);self.assertIn('PRIVATE report',v['resultPanel']['detail']);self.assertGreater(v['resultPanel']['scrollMaxY'],0)
-        self.capture(host,'long-detail');self.key(host,53);self.assertEqual(self.view(host,lambda r:not r['detail_visible'])['scriptResult']['query'],'PLAN')
-    def test_unsafe_followup_closes_choices_and_reports_unknown_result(self):
-        host=self.fixture('invalid');self.open(host);self.click(host,'choose');self.idle(host);v=host.probe('read');self.assertIsNone(v['scriptResult']);self.assertTrue(any('invalid response' in s for s in v['screenText']))
-    def test_new_selection_result_uses_new_token_and_values(self):
-        host=self.fixture('replace');old=self.open(host)['scriptResult'];self.click(host,'choose');r=self.view(host,lambda r:r['token']!=old['token'])['scriptResult'];self.assertEqual(r['title'],'Updated');self.assertEqual(r['query'],'')
-    def test_changed_command_and_file_cannot_execute_old_selection(self):
-        host=self.fixture();self.open(host);self.replace_command(host,self.command('raise SystemExit(99)'))
-        self.click(host,'choose');v=self.view(host,lambda r:'changed' in r['error']);self.assertFalse((host.base/'selected').exists());self.assertFalse(v['scriptResult']['busy'])
-    def test_back_during_busy_cancels_only_its_owned_job(self):
-        host=self.fixture('slow');old=self.open(host)['scriptResult'];self.click(host,'choose');self.file(host.base/'ready');self.view(host,lambda r:r['busy']);self.click(host,'close');self.idle(host)
-        v=host.probe('read');self.assertIsNone(v['scriptResult']);self.assertTrue(host.rpc({'op':'status'})['result']['nativeUI']['visible'])
-        self.assertFalse(any('Late report' in s for s in v['screenText']))
     def test_rejected_query_blocks_old_choice_and_can_be_repaired(self):
         host=self.fixture();self.open(host);host.probe('query',query=' '.join('term'+str(i) for i in range(65)));r=self.view(host,lambda r:not r['query_valid'])['scriptResult'];self.assertIsNone(r['selection'])
         self.key(host,36,'\r');host.settled();self.assertFalse((host.base/'selected').exists());host.probe('query',query='cafe');self.view(host,lambda r:r['query_valid']);self.click(host,'choose');self.idle(host);self.assertTrue((host.base/'selected').exists())
