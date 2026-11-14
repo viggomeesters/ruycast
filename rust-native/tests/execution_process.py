@@ -83,36 +83,6 @@ class Execution(unittest.TestCase):
         self.file(host.profile/'owner-delay-started')
         return host,gate,delay,stream
 
-    def test_harvested_cli_completion_is_delivered_and_recorded_before_native_stop(self):
-        host,gate,delay,stream=self.delayed_completion('stop',cli=True)
-        gate.write_text('go');self.file(host.profile/'execution-intent-fired')
-        evidence=self.response(delay)['result'];self.assertTrue(evidence['nativeStopDuringDelay'])
-        self.assertGreater(evidence['executionReady'],0)
-        self.assertTrue(self.response(stream)['ok'])
-        out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode())
-        logs=json.loads((host.profile/'command-log.json').read_bytes())['entries']
-        self.assertEqual([e['phase'] for e in logs],['command.start','command.finish'])
-        self.assertEqual(json.loads((host.profile/'usage.json').read_bytes())['script.fixture'],1)
-
-    def test_external_replacement_queued_with_completion_cannot_receive_usage(self):
-        host,gate,delay,stream=self.delayed_completion(cli=True)
-        replacement=self.command();replacement.update(target='/usr/bin/true',arguments=[])
-        value=json.loads(host.config.read_bytes());value['commands']=[c for c in value['commands'] if c['id']!='script.fixture']+[replacement]
-        host.replace(value) # no reload request; owner is deliberately occupied
-        gate.write_text('go');self.assertGreater(self.response(delay)['result']['executionReady'],0)
-        result=self.response(stream);self.assertTrue(result['ok']);self.assertIn('usageWarning',result)
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
-    def test_ready_cli_completion_survives_queued_rpc_quit(self):
-        host,gate,delay,stream=self.delayed_completion(cli=True)
-        gate.write_text('go')
-        quit_stream=host.connect(timeout=5);self.addCleanup(quit_stream.close)
-        quit_stream.sendall(b'{"op":"quit"}\n')
-        self.assertGreater(self.response(delay)['result']['executionReady'],0)
-        self.assertTrue(self.response(stream)['ok']);self.assertTrue(self.response(quit_stream)['ok'])
-        out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode())
-        self.assertEqual(json.loads((host.profile/'usage.json').read_bytes())['script.fixture'],1)
-
     def test_native_config_replacement_and_error_do_not_leave_running_label(self):
         for invalid in [False,True]:
             with self.subTest(invalid=invalid):

@@ -45,6 +45,11 @@ impl std::ops::Deref for GracefulBridge {
         &self.0
     }
 }
+impl std::ops::DerefMut for GracefulBridge {
+    fn deref_mut(&mut self) -> &mut Bridge {
+        &mut self.0
+    }
+}
 impl Drop for GracefulBridge {
     fn drop(&mut self) {
         if std::thread::panicking() {
@@ -255,4 +260,140 @@ fn pending_local_intents_survive_ready_completion() {
             _ => unreachable!(),
         }
     }
+}
+
+fn pending_cli(
+    mode: Option<&str>,
+) -> (
+    GracefulBridge,
+    std::path::PathBuf,
+    std::os::unix::net::UnixStream,
+    std::os::unix::net::UnixStream,
+) {
+    use std::io::Write;
+    let mut bridge = Bridge::new(Config::current(), false);
+    let ready = bridge.base.join("ready");
+    let gate = bridge.base.join("gate");
+    let marker = bridge.base.join("marker");
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),"arguments":["fake","gated",ready,gate,marker,"completed"],"timeout":3}));
+    bridge.replace(&config, None);
+    bridge.start();
+    let host = GracefulBridge(bridge);
+    host.settled(|_| true);
+    let mut execution = host.connect(Duration::from_secs(6));
+    execution
+        .write_all(b"{\"op\":\"execute\",\"id\":\"runfixture\"}\n")
+        .unwrap();
+    wait_marker(&ready, "ready");
+    if let Some(mode) = mode {
+        host.probe("schedule-execution-intent", json!({"mode":mode}));
+    }
+    let mut delay = host.connect(Duration::from_secs(5));
+    delay
+        .write_all(b"{\"op\":\"native.delay\",\"executionBarrier\":true}\n")
+        .unwrap();
+    wait_exists(&host.profile.join("owner-delay-started"));
+    (host, gate, delay, execution)
+}
+fn wait_exists(path: &Path) {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !path.exists() {
+        assert!(
+            Instant::now() < deadline,
+            "fixture did not publish {}",
+            path.display()
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+fn response(stream: std::os::unix::net::UnixStream) -> Value {
+    use std::io::BufRead;
+    let mut line = String::new();
+    std::io::BufReader::new(stream)
+        .read_line(&mut line)
+        .unwrap();
+    serde_json::from_str(&line).unwrap()
+}
+#[test]
+fn cli_completion_delivered_and_recorded_before_native_stop() {
+    let (mut host, gate, delay, execution) = pending_cli(Some("stop"));
+    fs::write(gate, "go").unwrap();
+    wait_exists(&host.profile.join("execution-intent-fired"));
+    let evidence = response(delay);
+    assert_eq!(evidence["result"]["nativeStopDuringDelay"], true);
+    assert!(evidence["result"]["executionReady"].as_u64().unwrap() > 0);
+    assert_eq!(response(execution)["ok"], true);
+    let output = host.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let logs: Value =
+        serde_json::from_slice(&fs::read(host.profile.join("command-log.json")).unwrap()).unwrap();
+    assert_eq!(
+        logs["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["phase"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["command.start", "command.finish"]
+    );
+    let usage: Value =
+        serde_json::from_slice(&fs::read(host.profile.join("usage.json")).unwrap()).unwrap();
+    assert_eq!(usage["script.fixture"], 1);
+}
+#[test]
+fn external_replacement_cannot_receive_completed_command_usage() {
+    let (host, gate, delay, execution) = pending_cli(None);
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    command["target"] = json!("/usr/bin/true");
+    command["arguments"] = json!([]);
+    host.replace(&config, None);
+    fs::write(gate, "go").unwrap();
+    assert!(
+        response(delay)["result"]["executionReady"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    let result = response(execution);
+    assert_eq!(result["ok"], true);
+    assert!(result.get("usageWarning").is_some());
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
+#[test]
+fn ready_cli_completion_survives_queued_rpc_quit() {
+    use std::io::Write;
+    let (mut host, gate, delay, execution) = pending_cli(None);
+    fs::write(gate, "go").unwrap();
+    let mut quit = host.connect(Duration::from_secs(5));
+    quit.write_all(b"{\"op\":\"quit\"}\n").unwrap();
+    assert!(
+        response(delay)["result"]["executionReady"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+    assert_eq!(response(execution)["ok"], true);
+    assert_eq!(response(quit)["ok"], true);
+    let output = host.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let usage: Value =
+        serde_json::from_slice(&fs::read(host.profile.join("usage.json")).unwrap()).unwrap();
+    assert_eq!(usage["script.fixture"], 1);
 }
