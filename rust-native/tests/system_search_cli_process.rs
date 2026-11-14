@@ -14,14 +14,17 @@ use actions::{
 use serde_json::{json, Value};
 use std::{fs, io::Write, time::Duration};
 fn configure(h: &mut Host) {
+    configure_with(h, "light", 760);
+}
+fn configure_with(h: &mut Host, theme: &str, width: u32) {
     h.env
         .insert("RUYCAST_NATIVE_TEST_SYSTEM_SEARCH".into(), "owned".into());
     h.env
         .insert("RUYCAST_NATIVE_TEST_MAIN_TABS".into(), "1".into());
     h.env
-        .insert("RUYCAST_NATIVE_TEST_WIDTH".into(), "760".into());
+        .insert("RUYCAST_NATIVE_TEST_WIDTH".into(), width.to_string().into());
     let mut cfg = default_config();
-    cfg["theme"] = json!("light");
+    cfg["theme"] = json!(theme);
     cfg["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.alias","title":"Local Exact Alias","kind":"url","target":"https://example.invalid/local","aliases":["owned"]}));
     h.replace(&cfg, None);
 }
@@ -32,19 +35,119 @@ fn host() -> Host {
     h
 }
 fn gui_host() -> Bridge {
+    gui_host_with("light", 760)
+}
+fn gui_host_with(theme: &str, width: u32) -> Bridge {
     let mut h = Bridge::new(Config::current(), false);
-    configure(&mut h.host);
+    configure_with(&mut h.host, theme, width);
     h.start();
     h.settled(|_| true);
     h
 }
-fn show_mode(h: &Bridge, mode: &str) {
+fn show_mode(h: &Bridge, mode: &str) -> Value {
     assert_eq!(
         h.rpc(&json!({"op":"show","mode":mode,"query":""}))["ok"],
         true
     );
     h.settled(|s| s["nativeUI"]["visible"] == true && s["nativeUI"]["systemSearchBusy"] == false);
-    h.probe("read", json!({}));
+    h.probe("read", json!({}))
+}
+fn capture(h: &Bridge, name: &str) -> Value {
+    h.probe("screenshot", json!({}));
+    let out = actions::native_bridge::runtime_host::root()
+        .join("rust-native/target/system-search-evidence");
+    fs::create_dir_all(&out).unwrap();
+    fs::copy(
+        h.profile.join("native-probe.png"),
+        out.join(format!("{name}.png")),
+    )
+    .unwrap();
+    let v = h.probe("read", json!({}));
+    fs::write(
+        out.join(format!("{name}.json")),
+        serde_json::to_vec_pretty(&v).unwrap(),
+    )
+    .unwrap();
+    v
+}
+#[test]
+fn native_modes_return_and_hidden_renders() {
+    for theme in ["light", "dark"] {
+        for width in [600, 760] {
+            let h = gui_host_with(theme, width);
+            for (scope, expected, source) in [
+                (
+                    "tabs",
+                    "Search Safari tabs…",
+                    "https://example.invalid/owned",
+                ),
+                ("windows", "Search windows…", "Owned Editor"),
+                ("menus", "Search app menu…", "Owned Editor › File"),
+                ("shortcuts", "Search Apple Shortcuts…", "eeeeeeee"),
+            ] {
+                let v = show_mode(&h, scope);
+                assert_eq!(v["windowShown"], false);
+                assert!(v["accessibilityText"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&json!(expected)));
+                assert!(
+                    v["screenText"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.as_str().unwrap().contains(source)),
+                    "{}",
+                    v["screenText"]
+                );
+                if scope == "menus" {
+                    assert!(v["accessibilityText"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.as_str().unwrap().contains("Command + O")));
+                }
+                capture(&h, &format!("{scope}-{theme}-{width}"));
+            }
+        }
+    }
+}
+#[test]
+fn native_return_and_refresh_permission_recovery() {
+    let h = gui_host();
+    for (scope, expected) in [
+        ("windows", json!(["activate", "AXRaise"])),
+        ("menus", json!(["activate", "AXPress"])),
+        ("tabs", json!(["select-tab", "front-window", "activate"])),
+        (
+            "shortcuts",
+            json!(["shortcut:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]),
+        ),
+    ] {
+        fixture(&h, "clear-effects", json!({}));
+        show_mode(&h, scope);
+        h.probe("key-event", json!({"code":36,"chars":"\r","flags":0}));
+        h.wait(|s| s["nativeUI"]["visible"] == false && s["nativeUI"]["systemSearchBusy"] == false);
+        assert_eq!(effects(&h), expected);
+        assert_eq!(h.probe("read", json!({}))["windowShown"], false);
+    }
+    fixture(&h, "trust", json!({"value":false}));
+    let v = show_mode(&h, "windows");
+    assert!(v["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s.as_str().unwrap().contains("Accessibility")));
+    capture(&h, "windows-permission");
+    fixture(&h, "trust", json!({"value":true}));
+    action(&h, "Refresh");
+    h.settled(|s| s["nativeUI"]["systemSearchBusy"] == false);
+    assert_eq!(h.probe("read", json!({}))["rows"], 2);
+    show_mode(&h, "tabs");
+    fixture(&h, "clear-effects", json!({}));
+    action(&h, "Allow Safari Access");
+    h.settled(|s| s["nativeUI"]["systemSearchBusy"] == false);
+    assert_eq!(effects(&h), json!(["consent"]));
 }
 #[test]
 fn native_shortcut_alias_override_and_reopen() {
