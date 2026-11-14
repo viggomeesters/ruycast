@@ -13,7 +13,8 @@ use std::{
 fn command(kind: &str, target: &str) -> Value {
     json!({"id":"fixture.open","title":"Fixture","kind":kind,"target":target,"aliases":["fixture-alias"]})
 }
-fn host_options(
+fn host_options_with_dispatch(
+    dispatch: u32,
     commands: Vec<Value>,
     named: bool,
     clipboard: Option<&str>,
@@ -40,8 +41,10 @@ fn host_options(
     h.replace(&config, None);
     let home = h.base.as_os_str().to_owned();
     h.env.insert("RUYCAST_WORKSPACE_FIXTURE_HOME".into(), home);
-    h.env
-        .insert("RUYCAST_NATIVE_TEST_DISPATCH_MS".into(), "2000".into());
+    h.env.insert(
+        "RUYCAST_NATIVE_TEST_DISPATCH_MS".into(),
+        dispatch.to_string().into(),
+    );
     h.env
         .insert("RUYCAST_NATIVE_TEST_CLIPBOARD_GUARD".into(), "1".into());
     if named {
@@ -70,6 +73,16 @@ fn host_options(
     }
     h
 }
+fn host_options(
+    commands: Vec<Value>,
+    named: bool,
+    clipboard: Option<&str>,
+    use_shim: bool,
+    discovered: bool,
+) -> Host {
+    host_options_with_dispatch(2000, commands, named, clipboard, use_shim, discovered)
+}
+
 fn host_clipboard(command: Value, named: bool, clipboard: Option<&str>) -> Host {
     host_options(vec![command], named, clipboard, true, false)
 }
@@ -352,4 +365,90 @@ fn missing_interposition_fails_closed_in_headless_fixture() {
         .unwrap()
         .contains("fixture boundary"));
     assert!(trace(&h).is_empty());
+}
+
+struct Release(std::path::PathBuf);
+impl Release {
+    fn release(self) {
+        fs::write(&self.0, b"release").unwrap();
+    }
+}
+impl Drop for Release {
+    fn drop(&mut self) {
+        let _ = fs::write(&self.0, b"release");
+    }
+}
+fn wait_file(path: &std::path::Path) {
+    let end = std::time::Instant::now() + Duration::from_secs(3);
+    while !path.exists() {
+        assert!(
+            std::time::Instant::now() < end,
+            "Own SDK fixture did not enter"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+fn execute_async(h: &Host) -> std::sync::mpsc::Receiver<std::io::Result<Value>> {
+    let socket = h.socket();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = runtime_host::status_rpc::request(
+            &socket,
+            &json!({"op":"execute","id":"fixture.open"}),
+            std::time::Instant::now() + Duration::from_secs(4),
+        );
+        let _ = tx.send(result);
+    });
+    rx
+}
+#[test]
+fn blocked_main_clipboard_does_not_block_owner_or_revive_expired_execution() {
+    let h = host_options_with_dispatch(
+        400,
+        vec![command("url", "https://example.invalid/{clipboard}")],
+        true,
+        Some("hold-main"),
+        true,
+        false,
+    );
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_async(&h);
+    wait_file(&h.base.join("clipboard-entered"));
+    assert_eq!(h.rpc(&json!({"op":"status"}))["ok"], true);
+    let result = worker
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["ok"], false);
+    assert!(result.get("actionCompleted").is_none());
+    release.release();
+    wait_file(&h.base.join("clipboard-read"));
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(opens(&h).is_empty());
+    assert!(h.cli(&["usage"])["result"].get("fixture.open").is_none());
+}
+#[test]
+fn config_change_during_main_capture_retires_old_origin() {
+    let h = host_clipboard(
+        command("url", "https://example.invalid/{clipboard}"),
+        true,
+        Some("hold-main"),
+    );
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_async(&h);
+    wait_file(&h.base.join("clipboard-entered"));
+    let mut cfg = config(&h);
+    cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+        json!("https://example.invalid/changed");
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    let result = worker
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["ok"], false);
+    release.release();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(opens(&h).is_empty());
+    assert_eq!(h.cli(&["run", "fixture.open"])["ok"], true);
 }
