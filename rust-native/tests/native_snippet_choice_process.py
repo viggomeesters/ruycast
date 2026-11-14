@@ -32,18 +32,9 @@ class NativeSnippetChoice(unittest.TestCase):
         if name and (folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR')):
             out=Path(folder).parent/'native-snippet-choice';out.mkdir(parents=True,exist_ok=True);shutil.copy2(base/'choice.png',out/(name+'.png'));(out/(name+'.json')).write_text(json.dumps(v,ensure_ascii=False,indent=2))
         return v
-    def test_fixture_requires_complete_guard(self):self.assertIn('Complete owned clipboard substitute',self.invoke(lib=False)['error'])
-    def test_required_field_does_not_read_clipboard_until_eligible(self):
-        v=self.invoke('{name} {clipboard}',[dict(op='key',code=36)],clipboard='OWN CLIP');self.assertEqual(v['clipboardReads'],0);self.assertEqual(v['events'],[]);self.assertTrue(v['live'])
-        v=self.invoke('{name} {clipboard}',[dict(op='set',field=0,value='Own'),dict(op='key',code=36)],clipboard='OWN CLIP');self.assertEqual(v['clipboardReads'],1);self.assertEqual(v['events'],[dict(submit=[['name','Own']])]);self.assertFalse(v['live'])
     def test_field_controls_buttons_and_hidden_renders(self):
         for theme in ['light','dark']:
             v=self.invoke('{field name="name" default="Own"} {field name="kind" options="One,Two"}',[dict(op='render'),dict(op='show')],theme=theme,name='fields-'+theme);self.assertEqual(v['width'],456);self.assertEqual(v['height'],270);self.assertEqual([c['label'] for c in v['controls']],['name','kind']);self.assertEqual(v['steps'],[dict(show=False)])
-    def test_real_buttons_single_use_and_callback_reentry(self):
-        v=self.invoke(steps=[dict(op='insert'),dict(op='insert'),dict(op='cancel')],reenter=True);self.assertEqual(v['events'],[dict(submit=[['name','Own']])]);self.assertFalse(v['failed'])
-    def test_cancel_and_external_hide_have_distinct_restore_policy(self):
-        for step,restore in [(dict(op='cancel'),True),(dict(op='key',code=53),True),(dict(op='hide'),False),(dict(op='resign'),False)]:
-            v=self.invoke(steps=[step,dict(op='insert')]);self.assertEqual(v['events'],[dict(cancel=True,restore=restore)])
     def test_repeat_modifiers_and_marked_text_do_not_submit(self):
         for key in [dict(op='key',code=36,repeat=True),dict(op='route',code=36,flags=1<<20)]:
             v=self.invoke(steps=[key]);self.assertEqual(v['events'],[])

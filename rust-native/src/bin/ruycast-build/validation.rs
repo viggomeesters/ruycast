@@ -67,7 +67,9 @@ snippet-board-process|c|test --manifest-path rust-native/Cargo.toml --features t
 snippet-choice-probe-build|b|snippet-choice-probe tools
 snippet-choice-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_choice_process --locked
 snippet-choice-request-process|p|rust-native/tests/snippet_choice_request_process.py
+native-choice-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example choice-fixture --locked
 native-snippet-choice-probe-build|b|native-snippet-choice-probe tools
+native-snippet-choice-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_snippet_choice_process --locked
 native-snippet-choice-process|p|rust-native/tests/native_snippet_choice_process.py
 keyword-probe-build|b|keyword-probe tools
 keyword-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_process --locked
@@ -107,7 +109,6 @@ native-keyboard-sdk-build|c|build --manifest-path rust-native/Cargo.toml --featu
 settings-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test settings_keyboard_process --locked
 clipboard-text-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_text_process --locked
 native-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_keyboard_process --locked
-native-choice-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example choice-fixture --locked
 native-choice-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_choice_host_process --locked
 snippet-effects-process|p|rust-native/tests/snippet_effects_process.py
 native-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_open_basic_process --locked
@@ -1783,7 +1784,10 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 133);
+        assert_eq!(steps.len(), 134);
+        let choice_sdk = steps.iter().position(|step|step.name=="native-choice-sdk-build").unwrap();
+        let snippet_choice = steps.iter().position(|step|step.name=="native-snippet-choice-process-rust").unwrap();
+        assert!(choice_sdk < snippet_choice);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
