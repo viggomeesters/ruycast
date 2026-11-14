@@ -57,9 +57,6 @@ else:
         if out:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             p=Path(out).parent/'rich';p.mkdir(exist_ok=True);shutil.copy2(host.profile/'native-probe.png',p/(name+'.png'));(p/(name+'.json')).write_text(json.dumps(v,ensure_ascii=False,indent=2))
         return v
-    def test_rejected_query_blocks_old_choice_and_can_be_repaired(self):
-        host=self.fixture();self.open(host);host.probe('query',query=' '.join('term'+str(i) for i in range(65)));r=self.view(host,lambda r:not r['query_valid'])['scriptResult'];self.assertIsNone(r['selection'])
-        self.key(host,36,'\r');host.settled();self.assertFalse((host.base/'selected').exists());host.probe('query',query='cafe');self.view(host,lambda r:r['query_valid']);self.click(host,'choose');self.idle(host);self.assertTrue((host.base/'selected').exists())
     def test_failure_report_back_retains_ordinary_input_draft(self):
         payload=dict(ok=False,error='Provider failed',detail='Failure report')
         host=self.host(native=True,commands=[self.command('print(%r)'%json.dumps(payload),inputPrompt='Message')]);token=inputs.NativeInput().open(host)['editorToken'];self.type(host,'PRIVATE input');host.probe('save-editor');self.idle(host)
@@ -68,13 +65,9 @@ else:
         for theme in ['light','dark']:
             host=self.fixture(width=600);cfg=json.loads(host.config.read_bytes());cfg['theme']=theme;host.replace(cfg);host.rpc({'op':'reload'});self.open(host);self.capture(host,'choices-'+theme)
             host.probe('query',query='no result');self.view(host,lambda r:not r['rows']);v=self.capture(host,'empty-'+theme);self.assertIn('No results',v['screenText']);host.close()
-    def test_retained_old_detail_text_cannot_close_replacement(self):
-        host=self.fixture();self.open(host);self.click(host,'details');self.view(host,lambda r:r['detail_visible']);host.probe('retain-result-text');self.click(host,'choices');old=self.view(host)['scriptResult'];self.click(host,'reload');new=self.view(host,lambda r:r['token']!=old['token'])['scriptResult'];self.click(host,'details');self.view(host,lambda r:r['detail_visible']);host.probe('stale-result-text');host.settled();self.assertEqual(self.view(host)['scriptResult']['token'],new['token'])
     def test_close_during_busy_owner_rejects_its_old_published_view(self):
         host=self.fixture('slow');self.open(host);self.click(host,'choose');self.file(host.base/'ready');self.view(host,lambda r:r['busy']);host.probe('schedule-result-close')
         delay=host.rpc(dict(op='native.delay',executionBarrier=True));self.assertTrue(delay['result']['newIntentDuringDelay']);proof=json.loads(self.file(host.profile/'result-close-barrier.json'));self.assertTrue(proof['rejected']);self.assertFalse(proof['windowShown']);self.idle(host);host.settled();self.assertIsNone(host.probe('read')['scriptResult'])
-    def test_post_effect_usage_warning_keeps_valid_reloaded_choices(self):
-        host=self.fixture();old=self.open(host)['scriptResult'];usage=host.profile/'usage.json';usage.unlink();usage.mkdir();self.click(host,'reload');r=self.view(host,lambda r:r['token']!=old['token'])['scriptResult'];self.assertTrue(r['rows']);self.assertIn('usage could not be saved',r['error']);self.assertFalse(r['busy'])
     def test_config_change_after_admission_keeps_concrete_usage_warning(self):
         host=self.fixture('slow');self.open(host);self.click(host,'choose');self.file(host.base/'ready');self.replace_command(host,self.command('print("changed")'));(host.base/'release').write_text('go');r=self.view(host,lambda r:r['detail_visible'])['scriptResult'];self.assertIn('configuration',r['error']);self.assertEqual(r['detail'],'Late report')
 
@@ -112,9 +105,6 @@ else:
     def test_empty_choices_and_blank_provider_labels_keep_functional_accessibility(self):
         command=self.command('print(\'{"ok":true,"choices":{"title":"","placeholder":"","items":[]}}\')')
         host=self.host(native=True,commands=[command]);v=self.open(host);r=v['scriptResult'];self.assertEqual(r['title'],'Execution Fixture');self.assertIn('Search choices',v['accessibilityText']);self.assertEqual(r['rows'],[]);self.assertIsNone(r['selection']);self.assertIn('No results',v['screenText']);old=r['token'];self.key(host,36,'\r');host.settled();self.assertEqual(self.view(host)['scriptResult']['token'],old);self.click(host,'reload');self.assertNotEqual(self.view(host,lambda r:r['token']!=old)['scriptResult']['token'],old);self.capture(host,'blank-empty-labels')
-
-    def test_query_queued_before_close_cannot_put_an_error_on_restored_search(self):
-        host=self.fixture();self.open(host);host.probe('schedule-result-close',queryBeforeClose=True);delay=host.rpc(dict(op='native.delay',executionBarrier=True));self.assertTrue(delay['result']['newIntentDuringDelay']);proof=json.loads(self.file(host.profile/'result-close-barrier.json'));self.assertTrue(proof['queryBeforeClose'] and proof['queryEpochAdvanced']);host.settled();v=host.probe('read');self.assertIsNone(v['scriptResult']);self.assertFalse(any('no longer open' in t for t in v['screenText']));self.assertFalse((host.base/'selected').exists())
 
     def test_actual_process_failure_without_envelope_keeps_real_error_and_choices(self):
         initial=dict(ok=True,choices=dict(title='Projects',placeholder='Find…',items=[dict(id='one',title='Project',subtitle='EX',value='literal')]))

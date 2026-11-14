@@ -265,3 +265,88 @@ fn back_during_busy_cancels_only_owned_job() {
         .iter()
         .any(|s| s.as_str().unwrap().contains("Late report")));
 }
+#[test]
+fn rejected_query_blocks_old_choice_and_can_be_repaired() {
+    let host = host("close");
+    open(&host);
+    let query = (0..65)
+        .map(|n| format!("term{n}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    host.probe("query", json!({"query":query}));
+    let v = view(&host, |r| r["query_valid"] == false);
+    assert!(v["scriptResult"].get("selection").unwrap().is_null());
+    actions::key(&host, 36, 0, "\r", false);
+    host.settled(|_| true);
+    assert!(!host.base.join("selected").exists());
+    host.probe("query", json!({"query":"cafe"}));
+    view(&host, |r| r["query_valid"] == true);
+    click(&host, "choose");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert!(host.base.join("selected").exists());
+}
+#[test]
+fn retained_old_detail_text_cannot_close_replacement() {
+    let host = host("close");
+    open(&host);
+    click(&host, "details");
+    view(&host, |r| r["detail_visible"] == true);
+    actions::probe(&host, "retain-result-text");
+    click(&host, "choices");
+    let old = view(&host, |_| true)["scriptResult"]
+        .get("token")
+        .unwrap()
+        .clone();
+    click(&host, "reload");
+    let new = view(&host, |r| r.get("token").unwrap() != &old)["scriptResult"]
+        .get("token")
+        .unwrap()
+        .clone();
+    click(&host, "details");
+    view(&host, |r| r["detail_visible"] == true);
+    actions::probe(&host, "stale-result-text");
+    host.settled(|_| true);
+    assert_eq!(
+        view(&host, |_| true)["scriptResult"].get("token").unwrap(),
+        &new
+    );
+}
+#[test]
+fn post_effect_usage_warning_keeps_reloaded_choices() {
+    let host = host("close");
+    let old = open(&host)["scriptResult"].get("token").unwrap().clone();
+    let usage = host.profile.join("usage.json");
+    fs::remove_file(&usage).unwrap();
+    fs::create_dir(&usage).unwrap();
+    click(&host, "reload");
+    let v = view(&host, |r| r.get("token").unwrap() != &old);
+    let r = &v["scriptResult"];
+    assert!(!r["rows"].as_array().unwrap().is_empty());
+    assert!(r["error"]
+        .as_str()
+        .unwrap()
+        .contains("usage could not be saved"));
+    assert_eq!(r["busy"], false);
+}
+#[test]
+fn queued_query_before_close_cannot_error_on_restored_search() {
+    let host = host("close");
+    open(&host);
+    host.probe("schedule-result-close", json!({"queryBeforeClose":true}));
+    let delay = host.rpc(&json!({"op":"native.delay","executionBarrier":true}));
+    assert_eq!(delay["result"]["newIntentDuringDelay"], true);
+    let path = host.profile.join("result-close-barrier.json");
+    wait_exists(&path);
+    let proof: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(proof["queryBeforeClose"], true);
+    assert_eq!(proof["queryEpochAdvanced"], true);
+    host.settled(|_| true);
+    let v = actions::probe(&host, "read");
+    assert!(v.get("scriptResult").unwrap().is_null());
+    assert!(!v["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s.as_str().unwrap().contains("no longer open")));
+    assert!(!host.base.join("selected").exists());
+}
