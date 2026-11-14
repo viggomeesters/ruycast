@@ -512,3 +512,54 @@ fn changed_command_after_effect_closes_input_with_warning() {
     });
     assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
 }
+#[test]
+fn cancel_running_input_does_not_close_new_draft() {
+    let host = RunningHost(host());
+    let pidfile = host.base.join("leader");
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-delay", pidfile, "2000", ""]),
+        3.0,
+    );
+    let old = open(&host)["editorToken"].clone();
+    input_type(&host, "cancel me");
+    actions::probe(&host, "save-editor");
+    wait_exists(&pidfile);
+    actions::probe(&host, "cancel-editor");
+    view(&host, |v| v["formVisible"] == false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let pid: i32 = fs::read_to_string(&pidfile).unwrap().parse().unwrap();
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ESRCH)
+    );
+    let new = open(&host)["editorToken"].clone();
+    assert_ne!(old, new);
+    input_type(&host, "new draft");
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert_eq!(actions::probe(&host, "run-input-read")["text"], "new draft");
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
+#[test]
+fn light_dark_input_and_validation_capture() {
+    let host = host();
+    for theme in ["light", "dark"] {
+        let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+        config["theme"] = json!(theme);
+        host.replace(&config, None);
+        assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+        open(&host);
+        actions::probe(&host, "save-editor");
+        view(&host, |v| actions::text_contains(v, "Enter Message"));
+        host.capture(&format!("input-validation-{theme}"));
+        actions::probe(&host, "cancel-editor");
+        view(&host, |v| v["formVisible"] == false);
+        open(&host);
+        input_type(&host, "Unicode büro 日本語\nSecond line");
+        host.capture(&format!("input-{theme}"));
+        actions::probe(&host, "cancel-editor");
+        view(&host, |v| v["formVisible"] == false);
+    }
+}
