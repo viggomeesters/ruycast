@@ -681,7 +681,10 @@ fn expand_preserves_actual_field_editor_text_and_token_without_execution() {
     let state = view(&host, |v| {
         v["formVisible"] == true && v["runInputInline"] == false
     });
-    assert_eq!(state.get("editorToken").unwrap(), before.get("token").unwrap());
+    assert_eq!(
+        state.get("editorToken").unwrap(),
+        before.get("token").unwrap()
+    );
     assert_eq!(
         actions::probe(&host, "run-input-read")["text"],
         before["text"]
@@ -705,5 +708,68 @@ fn empty_run_validation_retains_inline_focus_and_typing() {
         actions::probe(&host, "run-inline-read")["text"],
         "still editable"
     );
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn inline_menu_escape_keeps_text_and_keyboard_expand_uses_selection() {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "menu value");
+    key(&host, 40, "k", actions::CMD);
+    let menu = view(&host, |v| v["actionsVisible"] == true);
+    assert_eq!(
+        menu["actionLabels"],
+        json!([
+            "Run",
+            "Expand Input…",
+            "Cancel Input",
+            "Edit…",
+            "Set Alias…",
+            "Set Hotkey…",
+            "Disable",
+            "Remove…",
+            "Settings"
+        ])
+    );
+    key(&host, 53, "", 0);
+    view(&host, |v| v["actionsVisible"] == false);
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "menu value"
+    );
+    inline_type(&host, " retained");
+    key(&host, 40, "k", actions::CMD);
+    view(&host, |v| v["actionsVisible"] == true);
+    key(&host, 125, "", 0);
+    key(&host, 36, "\r", 0);
+    view(&host, |v| {
+        v["formVisible"] == true && v["runInputInline"] == false
+    });
+    assert_eq!(
+        actions::probe(&host, "run-input-read")["text"],
+        "menu value retained"
+    );
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn inline_menu_clicked_expand_and_cancel() {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "clicked");
+    key(&host, 40, "k", actions::CMD);
+    view(&host, |v| v["actionsVisible"] == true);
+    host.probe("action-button", json!({"index":1}));
+    view(&host, |v| {
+        v["formVisible"] == true && v["runInputInline"] == false
+    });
+    assert_eq!(actions::probe(&host, "run-input-read")["text"], "clicked");
+    actions::probe(&host, "cancel-editor");
+    inline_closed(&host);
+    inline_open(&host, false);
+    inline_type(&host, "discard");
+    key(&host, 40, "k", actions::CMD);
+    view(&host, |v| v["actionsVisible"] == true);
+    host.probe("action-button", json!({"index":2}));
+    inline_closed(&host);
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }

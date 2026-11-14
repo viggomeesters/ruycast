@@ -28,20 +28,6 @@ class InlineInput(unittest.TestCase):
         host.probe('run-inline-ime-guards');self.assertEqual(len(host.rpc({'op':'logs'})['result']),2)
         host.probe('run-inline-unmark');self.type(host,' continued');self.assertTrue(self.text(host).endswith(' continued'))
 
-    def test_input_menu_escape_keeps_text_and_keyboard_expand_uses_owner_selection(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'menu value')
-        self.key(host,40,'k',CMD);view=self.view(host,lambda v:v['actionsVisible']);self.assertEqual(view['actionLabels'],['Run','Expand Input…','Cancel Input','Edit…','Set Alias…','Set Hotkey…','Disable','Remove…','Settings'])
-        self.key(host,53);self.view(host,lambda v:not v['actionsVisible']);self.assertEqual(self.text(host),'menu value');self.type(host,' retained')
-        self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);self.key(host,125,'');self.key(host,36,'\r');self.expanded(host)
-        self.assertEqual(host.probe('run-input-read')['text'],'menu value retained');self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-
-    def test_input_menu_clicked_expand_and_cancel(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'clicked')
-        self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);host.probe('action-button',index=1);self.expanded(host);self.assertEqual(host.probe('run-input-read')['text'],'clicked')
-        host.probe('cancel-editor');self.closed(host);self.open(host);self.type(host,'discard')
-        self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);host.probe('action-button',index=2);self.closed(host)
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-
     def delayed_control(self,host,**options):
         host.probe('schedule-inline-control',**options)
         stream=host.connect(timeout=4);self.addCleanup(stream.close);stream.sendall(b'{"op":"native.delay"}\n')
