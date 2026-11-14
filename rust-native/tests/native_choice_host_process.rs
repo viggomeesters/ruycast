@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn choice_host() -> Bridge {
+fn choice_host_with_guard(use_guard: bool) -> Bridge {
     let mut h = host(&[], false, true, true, None);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_ruycast-native"));
     let artifact = std::env::var_os("RUYCAST_TEST_CHOICE_SDK")
@@ -69,16 +69,18 @@ fn choice_host() -> Bridge {
             .into_owned();
         fs::write(out.join("native-choice-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":{name:format!("{:x}",Sha256::digest(fs::read(&copy).unwrap()))}})).unwrap()).unwrap();
     }
-    let keyboard = h
-        .env
-        .get(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"))
-        .unwrap()
-        .clone();
-    let paths = std::env::split_paths(&keyboard).chain(std::iter::once(guard));
-    h.env.insert(
-        "DYLD_INSERT_LIBRARIES".into(),
-        std::env::join_paths(paths).unwrap(),
-    );
+    if use_guard {
+        let keyboard = h
+            .env
+            .get(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"))
+            .unwrap()
+            .clone();
+        let paths = std::env::split_paths(&keyboard).chain(std::iter::once(guard));
+        h.env.insert(
+            "DYLD_INSERT_LIBRARIES".into(),
+            std::env::join_paths(paths).unwrap(),
+        );
+    }
     let mut config = default_config();
     config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"Hello {field name=\"name\" default=\"World\"}{field name=\"kind\" options=\"!,?\" default=\"!\"}", "keyword":"abc" }]);
     config["snippetExpansionEnabled"] = json!(true);
@@ -88,6 +90,10 @@ fn choice_host() -> Bridge {
     kw(&h, "text", json!({"value":"abc"}));
     h
 }
+fn choice_host() -> Bridge {
+    choice_host_with_guard(true)
+}
+
 fn kw(h: &Bridge, control: &str, fields: Value) -> Value {
     let mut fields = fields.as_object().unwrap().clone();
     fields.insert("control".into(), json!(control));
@@ -248,4 +254,45 @@ fn original_anchor_is_rechecked_after_confirmation() {
     choice(&h, "insert", json!({}));
     wait_choice(&h, "None");
     assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}
+
+#[test]
+fn missing_complete_clipboard_substitute_refuses_before_ui() {
+    let h = choice_host_with_guard(false);
+    typed(&h, "abc");
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}
+#[test]
+fn malformed_known_ax_value_cannot_authorize_live_choice() {
+    let h = choice_host();
+    kw(&h, "text", json!({"units":[0xd800,97,98,99],"at":4}));
+    typed(&h, "abc");
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+    let h = visible();
+    kw(&h, "text", json!({"units":[97,98,99,0xd801],"at":3}));
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}
+#[test]
+fn lost_observation_and_shutdown_retire_native_request() {
+    let h = visible();
+    kw(&h, "event", json!({"type":u32::MAX}));
+    wait_choice(&h, "None");
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+    let mut h = visible();
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!h.profile.join("control.sock").exists());
+    let proof: Value =
+        serde_json::from_slice(&fs::read(h.base.join("keyword-retired.json")).unwrap()).unwrap();
+    assert_eq!(proof["state"]["allocated"], 0);
 }
