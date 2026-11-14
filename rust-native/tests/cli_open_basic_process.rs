@@ -13,13 +13,13 @@ use std::{
 fn command(kind: &str, target: &str) -> Value {
     json!({"id":"fixture.open","title":"Fixture","kind":kind,"target":target,"aliases":["fixture-alias"]})
 }
-fn host_options_with_dispatch(
+fn host_options_with_target(
     dispatch: u32,
     commands: Vec<Value>,
     named: bool,
     clipboard: Option<&str>,
     use_shim: bool,
-    discovered: bool,
+    discovered: Option<&str>,
 ) -> Host {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
@@ -59,20 +59,38 @@ fn host_options_with_dispatch(
         h.env
             .insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
     }
-    if discovered {
+    if let Some(identifier) = discovered {
         let contents = h.applications.join("Fixture.app/Contents");
         fs::create_dir_all(&contents).unwrap();
-        fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.discovered</string><key>CFBundleName</key><string>Fixture Discovered</string></dict></plist>").unwrap();
+        fs::write(contents.join("Info.plist"), format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>{identifier}</string><key>CFBundleName</key><string>Fixture Discovered</string></dict></plist>")).unwrap();
     }
     h.start();
     h.env.remove(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"));
     h.env
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
-    if discovered {
+    if discovered.is_some() {
         h.wait(|s| s["appDiscoveryPending"] == false);
     }
     h
 }
+fn host_options_with_dispatch(
+    dispatch: u32,
+    commands: Vec<Value>,
+    named: bool,
+    clipboard: Option<&str>,
+    use_shim: bool,
+    discovered: bool,
+) -> Host {
+    host_options_with_target(
+        dispatch,
+        commands,
+        named,
+        clipboard,
+        use_shim,
+        discovered.then_some("dev.fixture.discovered"),
+    )
+}
+
 fn host_options(
     commands: Vec<Value>,
     named: bool,
@@ -592,6 +610,60 @@ fn alias_rebinding_revokes_original_pending_selection() {
     let mut cfg = config(&h);
     cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["aliases"] = json!([]);
     cfg["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.other","title":"Other","kind":"url","target":"https://example.invalid","aliases":["fixture-alias"]}));
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    let result = worker
+        .recv_timeout(Duration::from_secs(1))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["ok"], false);
+    assert!(result.get("actionCompleted").is_none());
+    release.release();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(opens(&h).is_empty());
+}
+
+#[test]
+fn discovered_origin_is_revoked_when_saved_binding_suppresses_it() {
+    let target = "dev.fixture.hold-resolve.discovered";
+    let id = format!("discovered.{target}");
+    let h = host_options_with_target(
+        2000,
+        vec![command("app", "dev.fixture.inline")],
+        false,
+        None,
+        true,
+        Some(target),
+    );
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_named(&h, &id);
+    wait_file(&h.base.join("resolve-entered"));
+    let mut cfg = config(&h);
+    cfg["commands"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":"fixture.saved","title":"Saved","kind":"app","target":target}));
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    let result = worker
+        .recv_timeout(Duration::from_secs(1))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["ok"], false);
+    assert!(result.get("actionCompleted").is_none());
+    release.release();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(opens(&h).is_empty());
+    assert!(h.cli(&["usage"])["result"].get(&id).is_none());
+}
+#[test]
+fn new_disabled_canonical_target_revokes_unchanged_saved_command() {
+    let h = host(command("app", "dev.fixture.hold-resolve.é"));
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_async(&h);
+    wait_file(&h.base.join("resolve-entered"));
+    let mut cfg = config(&h);
+    cfg["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.block","title":"Block","kind":"app","target":"dev.fixture.hold-resolve.e\u{301}","enabled":false}));
     h.replace(&cfg, None);
     h.cli(&["reload"]);
     let result = worker

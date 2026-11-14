@@ -76,19 +76,6 @@ class CliOpen(unittest.TestCase):
     def release(self,host):
         (host.base/'workspace-release').write_text('release')
 
-    def test_discovered_origin_is_revoked_when_saved_binding_suppresses_it(self):
-        target='dev.fixture.hold-resolve.discovered'
-        host=self.host(discovered=target)
-        identifier='discovered.'+target
-        worker,results=self.asynchronous(host,identifier)
-        self.wait_file(host.base/'resolve-entered')
-        config=json.loads(host.config.read_text());config['commands'].append(dict(id='fixture.saved',title='Saved',kind='app',target=target))
-        host.replace(config);host.cli('reload');worker.join(1)
-        self.assertFalse(worker.is_alive());self.assertFalse(results[0]['ok']);self.assertNotIn('actionCompleted',results[0])
-        self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertEqual(self.opens(host),[])
-        self.assertNotIn(identifier,host.cli('usage')['result'])
-
     def test_disconnect_and_quit_revoke_lookup_without_waiting_for_sdk(self):
         host=self.host([command(target='dev.fixture.hold-resolve')])
         stream=host.connect();stream.sendall(json.dumps(dict(op='execute',id='fixture.open')).encode()+b'\n')
@@ -97,19 +84,6 @@ class CliOpen(unittest.TestCase):
         self.assertEqual(host.cli('status')['result']['liveExecutionWorkers'],1)
         host.rpc(dict(op='quit'));out,err=host.process.communicate(timeout=2)
         self.assertEqual(host.process.returncode,0,err.decode());self.assertEqual(self.opens(host),[])
-
-    def test_new_disabled_canonical_target_revokes_unchanged_saved_command(self):
-        host=self.host([command(target='dev.fixture.hold-resolve.é')])
-        worker,results=self.asynchronous(host)
-        self.wait_file(host.base/'resolve-entered')
-        config=json.loads(host.config.read_text())
-        config['commands'].append(dict(id='fixture.block',title='Block',kind='app',target='dev.fixture.hold-resolve.e\u0301',enabled=False))
-        host.replace(config);host.cli('reload')
-        worker.join(1)
-        self.assertFalse(worker.is_alive(),'Disabled target did not revoke the original pending command')
-        self.assertFalse(results[0]['ok']);self.assertNotIn('actionCompleted',results[0])
-        self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertEqual(self.opens(host),[])
 
     def test_transport_timeout_retains_native_dispatch_truth_while_owner_busy(self):
         for mode,kind,barrier,committed in [('dev.fixture.hold-resolve','app','resolve-entered',False),('ruycast-fixture://hold-sync/path','url','open-started',True)]:
