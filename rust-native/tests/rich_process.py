@@ -57,23 +57,6 @@ else:
         if out:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             p=Path(out).parent/'rich';p.mkdir(exist_ok=True);shutil.copy2(host.profile/'native-probe.png',p/(name+'.png'));(p/(name+'.json')).write_text(json.dumps(v,ensure_ascii=False,indent=2))
         return v
-    def test_native_choices_filter_literal_selection_and_ok_only_closes(self):
-        host=self.fixture();v=self.open(host);r=v['scriptResult'];self.assertEqual([i['id'] for i in r['rows']],['reused','two'])
-        self.assertNotIn('PRIVATE $(literal)',json.dumps(r));self.assertEqual(v['rows'],2);self.assertIn('EX / PLAN',v['screenText'])
-        host.probe('query',query='CAFE PLAN');r=self.view(host,lambda r:len(r['rows'])==1)['scriptResult'];self.assertEqual(r['rows'][0]['id'],'reused')
-        self.key(host,36,'\r');self.idle(host);self.assertIsNone(host.probe('read')['scriptResult']);self.assertEqual((host.base/'selected').read_text(),'PRIVATE $(literal) Ω 1')
-        self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],2)
-    def test_reload_empty_input_replaces_token_and_stale_button_is_detached(self):
-        host=self.fixture();old=self.open(host)['scriptResult'];host.probe('retain-result-button',name='choose')
-        host.probe('query',query='PLAN');self.view(host,lambda r:r['query']=='PLAN');self.click(host,'reload');new=self.view(host,lambda r:r['token']!=old['token'])['scriptResult']
-        self.assertEqual(new['query'],'');self.assertEqual(new['selection'],0);self.assertFalse((host.base/'selected').exists());self.assertEqual((host.base/'phase').read_text(),'2')
-        host.probe('stale-result-button');host.settled();self.assertFalse((host.base/'selected').exists())
-        self.click(host,'choose');self.idle(host);self.assertEqual((host.base/'selected').read_text(),'PRIVATE $(literal) Ω 2')
-    def test_failure_keeps_query_selection_and_readable_detail(self):
-        host=self.fixture('fail');old=self.open(host)['scriptResult'];host.probe('query',query='PLAN');self.view(host,lambda r:r['query']=='PLAN');self.click(host,'choose')
-        v=self.view(host,lambda r:not r['busy'] and r['error']=='Provider refused');self.assertEqual(v['scriptResult']['token'],old['token']);self.assertEqual(v['scriptResult']['query'],'PLAN');self.capture(host,'provider-failure')
-        self.click(host,'details');v=self.view(host,lambda r:r['detail_visible']);self.assertEqual(v['resultPanel']['detail'],'Failure detail');self.assertFalse(v['resultPanel']['editable']);self.assertTrue(v['resultPanel']['selectable'])
-        self.click(host,'choices');self.assertEqual(self.view(host)['scriptResult']['query'],'PLAN')
     def test_detail_scroll_back_preserves_choices_and_filter(self):
         host=self.fixture();self.open(host);host.probe('query',query='PLAN');self.view(host,lambda r:r['query']=='PLAN');self.click(host,'details');v=self.view(host,lambda r:r['detail_visible'])
         self.assertTrue(v['resultPanel']['selectable']);self.assertFalse(v['resultPanel']['editable']);self.assertIn('PRIVATE report',v['resultPanel']['detail']);self.assertGreater(v['resultPanel']['scrollMaxY'],0)

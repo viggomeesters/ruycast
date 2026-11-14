@@ -3,6 +3,27 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("rich-provider") if args.len() == 4 => {
+            let value = &args[1];
+            let root = PathBuf::from(&args[2]);
+            let mode = &args[3];
+            if value.is_empty() {
+                let phase = root.join("phase");
+                let n = std::fs::read_to_string(&phase).ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(0) + 1;
+                std::fs::write(phase, n.to_string()).unwrap();
+                println!("{}", serde_json::json!({"ok":true,"choices":{"title":"Project Koppelen","placeholder":"Zoek project…","items":[{"id":"reused","title":"Café Project","subtitle":"EX / PLAN","value":format!("PRIVATE $(literal) Ω {n}")},{"id":"two","title":"Another","subtitle":"Elsewhere","value":"SECOND"}]},"detail":format!("PRIVATE report Ω\n{}", "Detail line\n".repeat(100))}));
+            } else {
+                std::fs::write(root.join("selected"), value).unwrap();
+                match mode.as_str() {
+                    "fail" => { println!("{}", serde_json::json!({"ok":false,"error":"Provider refused","detail":"Failure detail"})); std::process::exit(7); }
+                    "replace" => println!("{}", serde_json::json!({"ok":true,"choices":{"title":"Updated","placeholder":"Find…","items":[{"id":"reused","title":"Updated project","subtitle":"New","value":"REPLACED"}]}})),
+                    "detail" => println!("{}", serde_json::json!({"ok":true,"detail":"Final report"})),
+                    "slow" => { std::fs::write(root.join("ready"), "ready").unwrap(); let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5); while !root.join("release").exists() { assert!(std::time::Instant::now() < deadline, "rich gate timed out"); std::thread::sleep(std::time::Duration::from_millis(10)); } println!("{}", serde_json::json!({"ok":true,"detail":"Late report"})); }
+                    "invalid" => println!("ordinary text"),
+                    _ => println!("{}", serde_json::json!({"ok":true})),
+                }
+            }
+        }
         Some("execution-fail") if args.len() == 1 => {
             eprintln!("failure");
             std::process::exit(7);
