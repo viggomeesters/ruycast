@@ -1178,3 +1178,73 @@ fn native_keyword_quit_during_rich_effect_retains_profile_until_cleanup() {
 fn native_keyword_quit_during_entered_effect_balances_keyup_and_retires() {
     keyword_quit_during_effect("post:down", false);
 }
+
+const HID_CMD: u32 = 1 << 20;
+const HID_HYPER: u32 = (1 << 20) | (1 << 18) | (1 << 17) | (1 << 19);
+fn hid(h: &Bridge, control: &str, fields: Value) -> Value {
+    let mut fields = fields.as_object().unwrap().clone();
+    fields.insert("control".into(), json!(control));
+    h.probe("keyboard-hid", Value::Object(fields))
+}
+fn hid_host(key: &str, hyper: bool) -> (Bridge, std::path::PathBuf) {
+    let mut h = host(&[], false, true, true, None);
+    let marker = h.base.join("hid-action");
+    let mut config = default_config();
+    config["hyperKeyEnabled"] = json!(hyper);
+    config["separateCommandKeys"] = json!(true);
+    config["commands"].as_array_mut().unwrap().push(script(
+        "hid.action",
+        key,
+        "/usr/bin/touch",
+        &[marker.to_str().unwrap().to_owned()],
+    ));
+    h.replace(&config, None);
+    h.start();
+    h.wait(|s| s["hidGeneration"] == s["keyboardGeneration"] && s["hidStatus"] == "On");
+    (h, marker)
+}
+#[test]
+fn native_hid_sided_callback_routes_exact_item_without_showing_window() {
+    let (h, marker) = hid_host("right-cmd+a", false);
+    assert_eq!(
+        hid(&h, "event", json!({"type":10,"key":0,"flags":HID_CMD|16}))["event"]["consumed"],
+        true
+    );
+    wait_file(&marker);
+    h.wait(|s| s["scriptsRunning"] == 0);
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"]["hid.action"], 1);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+        false
+    );
+    assert!(h.rpc(&json!({"op":"logs"}))["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|row| row["source"] == "hotkey" && row["commandID"] == "hid.action"));
+    assert_eq!(
+        hid(&h, "event", json!({"type":11,"key":0,"flags":HID_CMD|16}))["event"]["consumed"],
+        true
+    );
+}
+#[test]
+fn native_hid_physical_hyper_reaches_carbon_route_and_balances_caps() {
+    let (h, marker) = hid_host("ctrl+alt+shift+cmd+a", true);
+    let down = hid(&h, "input", json!({"usage":57,"down":true,"time":0}));
+    assert_eq!(down["state"]["lastFlags"], HID_HYPER);
+    let event = hid(&h, "event", json!({"type":10,"key":0,"flags":1<<16}));
+    assert_eq!(event["event"], json!({"consumed":false,"flags":HID_HYPER}));
+    wait_file(&marker);
+    let up = hid(&h, "input", json!({"usage":57,"down":false,"time":0.2}));
+    assert_eq!(up["state"]["lastDown"], false);
+    assert_eq!(up["state"]["lastFlags"], 0);
+}
+#[test]
+fn native_hid_modifier_tap_uses_same_saved_route() {
+    let (h, marker) = hid_host("ctrl+left-control", false);
+    hid(&h, "input", json!({"usage":224,"down":true,"time":1}));
+    hid(&h, "input", json!({"usage":224,"down":false,"time":1.5}));
+    wait_file(&marker);
+    h.wait(|s| s["scriptsRunning"] == 0);
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"]["hid.action"], 1);
+}

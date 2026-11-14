@@ -29,30 +29,6 @@ class NativeHid(unittest.TestCase):
         config['commands'].append(self.script(id='hid.action',key=hotkey,target='/usr/bin/touch',args=[str(marker)]))
         host.replace(config);host.start();host.wait(lambda s:s['hidGeneration']==s['keyboardGeneration'] and s['hidStatus']=='On')
         return host,marker,config
-    def test_sided_callback_routes_exact_item_logs_hotkey_and_does_not_show(self):
-        host,marker,_=self.configured(hyper=False)
-        result=self.hid(host,'event',type=10,key=0,flags=CMD|16)
-        self.assertTrue(result['event']['consumed']);self.wait_file(marker)
-        host.wait(lambda s:s['scriptsRunning']==0)
-        self.assertEqual(host.rpc({'op':'usage'})['result'].get('hid.action'),1)
-        self.assertFalse(host.rpc({'op':'status'})['result']['nativeUI']['visible'])
-        self.assertTrue(any(row.get('source')=='hotkey' and row.get('commandID')=='hid.action' for row in host.rpc({'op':'logs'})['result']))
-        self.assertTrue(self.hid(host,'event',type=11,key=0,flags=CMD|16)['event']['consumed'])
-    def test_physical_hyper_rewrite_reaches_carbon_route_and_caps_balances(self):
-        host,marker,_=self.configured('ctrl+alt+shift+cmd+a')
-        down=self.hid(host,'input',usage=57,down=True,time=0)
-        self.assertEqual(down['state']['lastFlags'],HYPER)
-        result=self.hid(host,'event',type=10,key=0,flags=1<<16)
-        self.assertEqual(result['event'],dict(consumed=False,flags=HYPER))
-        self.wait_file(marker)
-        up=self.hid(host,'input',usage=57,down=False,time=.2)
-        self.assertFalse(up['state']['lastDown']);self.assertEqual(up['state']['lastFlags'],0)
-    def test_modifier_tap_uses_same_saved_route(self):
-        host,marker,_=self.configured('ctrl+left-control',hyper=False)
-        self.hid(host,'input',usage=224,down=True,time=1)
-        self.hid(host,'input',usage=224,down=False,time=1.5)
-        self.wait_file(marker);host.wait(lambda s:s['scriptsRunning']==0)
-        self.assertEqual(host.rpc({'op':'usage'})['result'].get('hid.action'),1)
     def test_same_plan_reload_preserves_held_caps_and_uses_new_master_generation(self):
         host,_,config=self.configured()
         self.hid(host,'input',usage=57,down=True,time=0);before=self.hid(host)['state']
