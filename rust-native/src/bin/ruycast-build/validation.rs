@@ -100,7 +100,7 @@ script-fault-process|c|test --manifest-path rust-native/Cargo.toml --features te
 runtime-writer-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example fcntl-sync-shim --locked
 foundation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test foundation_process --locked
 runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked
-native-profile-process|p|rust-native/tests/native_process.py
+native-profile-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_process --locked
 bridge-tools-build|b|ruycast-native native
 native-dashboard-dialog-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_dashboard_dialog_process --locked
 dashboard-export-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test dashboard_export_process --locked
@@ -1785,6 +1785,8 @@ mod tests {
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
         assert_eq!(steps.len(), 134);
+        let native_profile = steps.iter().find(|step|step.name=="native-profile-process").unwrap();
+        assert!(native_profile.arguments.windows(2).any(|pair|pair==["--test","native_process"]));
         let keyboard_sdk = steps.iter().position(|step|step.name=="keyboard-sdk-build").unwrap();
         let keyboard_consumer = steps.iter().position(|step|step.name=="keyboard-process").unwrap();
         assert!(keyboard_sdk < keyboard_consumer);
