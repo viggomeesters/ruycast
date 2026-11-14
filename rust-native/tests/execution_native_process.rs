@@ -189,3 +189,70 @@ fn stale_completion_is_rejected_after_newer_local_intent() {
     host.settled(|_| true);
     assert_eq!(actions::probe(&host, "read")["actionsVisible"], true);
 }
+
+#[test]
+fn pending_local_intents_survive_ready_completion() {
+    use std::io::{BufRead, Write};
+    for mode in ["query", "menu", "editor", "selection"] {
+        let mut bridge = Bridge::new(Config::current(), false);
+        let ready = bridge.base.join("ready");
+        let gate = bridge.base.join("gate");
+        let marker = bridge.base.join("marker");
+        let mut config = default_config();
+        let commands = config["commands"].as_array_mut().unwrap();
+        commands.push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),"arguments":["fake","gated",ready,gate,marker,"completed"],"timeout":3}));
+        commands.push(json!({"id":"script.other","title":"Execution Fixture Other","aliases":["otherfixture"],"kind":"script","target":"/usr/bin/true","arguments":[],"timeout":3}));
+        bridge.replace(&config, None);
+        bridge.start();
+        let host = GracefulBridge(bridge);
+        host.settled(|_| true);
+        actions::show(
+            &host,
+            if mode == "selection" {
+                "fixture"
+            } else {
+                "runfixture"
+            },
+        );
+        assert_eq!(
+            host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["selectedId"],
+            "script.fixture"
+        );
+        actions::key(&host, 36, 0, "\r", false);
+        wait_marker(&ready, "ready");
+        host.probe("schedule-execution-intent", json!({"mode":mode}));
+        let mut delay = host.connect(Duration::from_secs(5));
+        delay
+            .write_all(b"{\"op\":\"native.delay\",\"executionBarrier\":true}\n")
+            .unwrap();
+        let started = host.profile.join("owner-delay-started");
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !started.exists() {
+            assert!(Instant::now() < deadline, "owner delay did not start");
+            thread::sleep(Duration::from_millis(10));
+        }
+        fs::write(&gate, "go").unwrap();
+        let fired = host.profile.join("execution-intent-fired");
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while !fired.exists() {
+            assert!(Instant::now() < deadline, "scheduled intent did not fire");
+            thread::sleep(Duration::from_millis(10));
+        }
+        let mut line = String::new();
+        std::io::BufReader::new(delay).read_line(&mut line).unwrap();
+        let evidence: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(evidence["result"]["newIntentDuringDelay"], true);
+        assert!(evidence["result"]["executionReady"].as_u64().unwrap() > 0);
+        host.wait(|s| s["scriptsRunning"] == 0);
+        let view = actions::probe(&host, "read");
+        let status = host.rpc(&json!({"op":"status"}));
+        assert_eq!(status["result"]["nativeUI"]["visible"], true);
+        match mode {
+            "query" => assert_eq!(view["input"], "finder"),
+            "menu" => assert_eq!(view["actionsVisible"], true),
+            "editor" => assert_eq!(view["formVisible"], true),
+            "selection" => assert_eq!(status["result"]["nativeUI"]["selectedId"], "script.other"),
+            _ => unreachable!(),
+        }
+    }
+}

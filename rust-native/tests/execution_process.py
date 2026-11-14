@@ -83,22 +83,6 @@ class Execution(unittest.TestCase):
         self.file(host.profile/'owner-delay-started')
         return host,gate,delay,stream
 
-    def test_pending_query_menu_editor_and_selection_survive_ready_completion(self):
-        for mode in ['query','menu','editor','selection']:
-            with self.subTest(mode=mode):
-                host,gate,delay,_=self.delayed_completion(mode)
-                gate.write_text('go');self.file(host.profile/'execution-intent-fired')
-                evidence=self.response(delay)['result']
-                self.assertTrue(evidence['newIntentDuringDelay']);self.assertGreater(evidence['executionReady'],0)
-                host.wait(lambda s:s['scriptsRunning']==0)
-                view=host.probe('read');status=host.rpc({'op':'status'})['result']['nativeUI']
-                self.assertTrue(status['visible'])
-                if mode=='query':self.assertEqual(view['input'],'finder')
-                if mode=='menu':self.assertTrue(view['actionsVisible'])
-                if mode=='editor':self.assertTrue(view['formVisible'])
-                if mode=='selection':self.assertEqual(status['selectedId'],'script.other')
-                host.close()
-
     def test_harvested_cli_completion_is_delivered_and_recorded_before_native_stop(self):
         host,gate,delay,stream=self.delayed_completion('stop',cli=True)
         gate.write_text('go');self.file(host.profile/'execution-intent-fired')
