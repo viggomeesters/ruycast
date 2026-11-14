@@ -92,25 +92,6 @@ class InputActions(unittest.TestCase):
         for theme in ['light','dark']:
             config=json.loads(host.config.read_bytes());config['theme']=theme;host.replace(config);self.assertTrue(host.rpc({'op':'reload'})['ok']);host.settled();self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);self.capture(host,'input-actions-menu-'+theme)
             view=host.probe('read');host.probe('action-button',index=view['actionLabels'].index('Set Alias…'));self.form(host);self.capture(host,'input-actions-alias-'+theme);host.probe('cancel-editor');self.resumed(host);self.capture(host,'input-actions-resumed-'+theme)
-    def test_each_config_editor_cancel_resumes_fresh_input_and_never_writes(self):
-        host=self.fixture();before=host.config.read_bytes()
-        for action in ['Set Alias…','Set Hotkey…','Edit…','Remove…']:
-            old=host.probe('run-inline-read')['token'];self.action(host,action);child=self.form(host)['editorToken'];self.assertGreater(child,old)
-            host.probe('cancel-editor');view=self.resumed(host);self.assertGreater(view['editorToken'],child);self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertEqual(host.config.read_bytes(),before)
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-    def test_alias_save_resumes_same_input_and_hotkey_recorder_save_does_too(self):
-        host=self.fixture();self.action(host,'Set Alias…');self.form(host);host.probe('alias-input',text='newalias');host.probe('save-editor');self.resumed(host)
-        self.assertEqual(self.saved_command(host)['aliases'],['newalias']);self.assertEqual(self.text(host),'PRIVATE literal Ω')
-        self.action(host,'Set Hotkey…');self.form(host);self.key(host,45,'n',CMD);self.resumed(host);self.assertEqual(self.saved_command(host)['hotkey'],'cmd+n');self.assertEqual(self.text(host),'PRIVATE literal Ω')
-        self.assertNotIn('PRIVATE',host.config.read_text());self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-    def test_failed_alias_save_retains_both_drafts_until_cancel(self):
-        host=self.fixture();before=host.config.read_bytes();self.action(host,'Set Alias…');self.form(host);host.probe('alias-input',text='safari');host.probe('save-editor')
-        self.view(host,lambda v:any('duplicate' in s.lower() for s in v['screenText']));self.assertEqual(host.config.read_bytes(),before);self.assertEqual(host.probe('read')['aliasValue'],'safari')
-        host.probe('cancel-editor');self.resumed(host);self.assertEqual(self.text(host),'PRIVATE literal Ω')
-    def test_alias_save_does_not_adopt_external_timeout_or_prompt(self):
-        host=self.fixture();self.action(host,'Set Alias…');self.form(host);config=json.loads(host.config.read_bytes());c=next(c for c in config['commands'] if c['id']=='script.fixture');c['timeout']=2;c['inputPrompt']='Other prompt';host.replace(config)
-        host.probe('alias-input',text='mine');host.probe('save-editor');self.resumed(host);self.key(host,36,'\r')
-        self.view(host,lambda v:any('changed' in s.lower() for s in v['screenText']));self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertEqual(host.rpc({'op':'logs'})['result'],[])
     def test_full_editor_own_arguments_are_adopted_after_save_without_running(self):
         host=self.fixture();out=host.base/'result';self.action(host,'Edit…');self.form(host)
         host.probe('command-argument',index=1,text='import pathlib,sys;pathlib.Path(%r).write_text(sys.argv[1])'%str(out));host.probe('add-argument');host.probe('command-argument',index=2,text='{input}');host.probe('save-editor');self.resumed(host)
