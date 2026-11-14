@@ -13,10 +13,17 @@ use std::{
     time::{Duration, Instant},
 };
 fn host(mode: &str) -> Bridge {
+    host_width(mode, None)
+}
+fn host_width(mode: &str, width: Option<&str>) -> Bridge {
     let mut host = Bridge::new(Config::current(), false);
     let mut config = default_config();
     config["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),"arguments":["rich-provider","{input}",host.base,mode],"timeout":3}));
     host.replace(&config, None);
+    if let Some(width) = width {
+        host.env
+            .insert("RUYCAST_NATIVE_TEST_WIDTH".into(), width.into());
+    }
     host.start();
     host.settled(|_| true);
     host
@@ -455,5 +462,72 @@ fn retired_result_actions_are_effectless_after_close_and_replacement() {
             }
             assert!(!host.base.join("selected").exists());
         }
+    }
+}
+#[test]
+fn close_during_busy_owner_rejects_old_published_view() {
+    let host = GracefulBridge(host("slow"));
+    open(&host);
+    click(&host, "choose");
+    wait_exists(&host.base.join("ready"));
+    view(&host, |r| r["busy"] == true);
+    actions::probe(&host, "schedule-result-close");
+    let delay = host.rpc(&json!({"op":"native.delay","executionBarrier":true}));
+    assert_eq!(delay["result"]["newIntentDuringDelay"], true);
+    let path = host.profile.join("result-close-barrier.json");
+    wait_exists(&path);
+    let proof: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    assert_eq!(proof["rejected"], true);
+    assert_eq!(proof["windowShown"], false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    host.settled(|_| true);
+    assert!(actions::probe(&host, "read")
+        .get("scriptResult")
+        .unwrap()
+        .is_null());
+}
+#[test]
+fn config_change_after_admission_keeps_concrete_usage_warning() {
+    let host = GracefulBridge(host("slow"));
+    open(&host);
+    click(&host, "choose");
+    wait_exists(&host.base.join("ready"));
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    command["target"] = json!("/usr/bin/printf");
+    command["arguments"] = json!(["changed"]);
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    fs::write(host.base.join("release"), "go").unwrap();
+    let v = view(&host, |r| r["detail_visible"] == true);
+    assert!(v["scriptResult"]["error"]
+        .as_str()
+        .unwrap()
+        .contains("configuration"));
+    assert_eq!(v["scriptResult"]["detail"], "Late report");
+}
+#[test]
+fn light_dark_empty_and_long_labels_render() {
+    for theme in ["light", "dark"] {
+        let host = host_width("close", Some("600"));
+        let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+        config["theme"] = json!(theme);
+        host.replace(&config, None);
+        host.rpc(&json!({"op":"reload"}));
+        open(&host);
+        capture(&host, &format!("choices-{theme}"));
+        host.probe("query", json!({"query":"no result"}));
+        view(&host, |r| r["rows"].as_array().unwrap().is_empty());
+        let v = capture(&host, &format!("empty-{theme}"));
+        assert!(v["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s == "No results"));
     }
 }
