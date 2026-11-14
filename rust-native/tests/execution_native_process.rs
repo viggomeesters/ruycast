@@ -466,3 +466,54 @@ fn config_replacement_and_invalid_config_clear_running_label() {
         assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
     }
 }
+
+#[test]
+fn running_and_failure_copy_in_both_themes() {
+    for theme in ["light", "dark"] {
+        let mut bridge = Bridge::new(Config::current(), false);
+        let gate = bridge.base.join("gate");
+        let ready = bridge.base.join("ready");
+        let marker = bridge.base.join("unused");
+        let mut config = default_config();
+        config["theme"] = json!(theme);
+        config["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),"arguments":["fake","gated-fail",ready,gate,marker,""],"timeout":3}));
+        bridge.replace(&config, None);
+        bridge.start();
+        let host = GracefulBridge(bridge);
+        host.settled(|_| true);
+        actions::show(&host, "runfixture");
+        actions::key(&host, 36, 0, "\r", false);
+        wait_marker(&ready, "ready");
+        for state in ["running", "failure"] {
+            if state == "failure" {
+                fs::write(&gate, "go").unwrap();
+                host.wait(|s| s["scriptsRunning"] == 0);
+            }
+            let view = host.probe("screenshot", json!({}));
+            let texts = view["screenText"].as_array().unwrap();
+            if state == "running" {
+                assert!(texts.iter().any(|text| text == "Running…"));
+            } else {
+                assert!(texts
+                    .iter()
+                    .any(|text| text.as_str().unwrap().contains("status 7")));
+            }
+            if let Some(evidence) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+                let evidence = std::path::PathBuf::from(evidence);
+                let folder = evidence.parent().unwrap().join("execution");
+                fs::create_dir_all(&folder).unwrap();
+                fs::copy(
+                    host.profile.join("native-probe.png"),
+                    folder.join(format!("{state}-{theme}.png")),
+                )
+                .unwrap();
+                fs::write(
+                    folder.join(format!("{state}-{theme}.json")),
+                    serde_json::to_vec_pretty(&view).unwrap(),
+                )
+                .unwrap();
+            }
+            assert_eq!(view["windowShown"], false);
+        }
+    }
+}

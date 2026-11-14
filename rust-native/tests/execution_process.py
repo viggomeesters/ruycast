@@ -83,23 +83,6 @@ class Execution(unittest.TestCase):
         self.file(host.profile/'owner-delay-started')
         return host,gate,delay,stream
 
-    def test_running_and_failure_copy_in_both_themes(self):
-        for theme in ['light','dark']:
-            host=self.host(native=True);value=json.loads(host.config.read_bytes());value['theme']=theme;host.replace(value);host.rpc({'op':'reload'})
-            gate=host.base/'gate';ready=host.base/'ready'
-            code='import pathlib,time;pathlib.Path(%r).write_text("ready");gate=pathlib.Path(%r)\nwhile not gate.exists():time.sleep(.01)\nraise SystemExit(7)'%(str(ready),str(gate))
-            self.replace_command(host,self.command(code));self.show(host);self.key(host,36,'\r');self.file(ready)
-            states=[]
-            for state in ['running','failure']:
-                if state=='failure':gate.write_text('go');host.wait(lambda s:s['scriptsRunning']==0)
-                view=host.probe('screenshot');states.append(view)
-                if state=='running':self.assertIn('Running…',view['screenText'])
-                else:self.assertTrue(any('status 7' in text for text in view['screenText']))
-                if evidence:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-                    folder=Path(evidence).parent/'execution';folder.mkdir(exist_ok=True)
-                    shutil.copy2(host.profile/'native-probe.png',folder/(state+'-'+theme+'.png'))
-                    (folder/(state+'-'+theme+'.json')).write_text(json.dumps(view,ensure_ascii=False,indent=2))
-            self.assertFalse(any(v['windowShown'] for v in states));host.close()
 
 
 if __name__=='__main__':unittest.main()
