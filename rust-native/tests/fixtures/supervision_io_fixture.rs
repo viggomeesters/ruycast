@@ -28,7 +28,7 @@ fn main() {
     }
 }
 
-// Real subprocess endpoints for deliberately invalid helper protocol variants.
+// Real child endpoints for protocol refusal and pipe cleanup checks.
 fn helper_protocol() {
     use std::io::BufRead;
     let mode =
@@ -54,7 +54,8 @@ fn helper_protocol() {
             std::thread::sleep(std::time::Duration::from_secs(1));
             return;
         }
-        "partial" | "malformed" | "missing-capture" | "wrong-exit" | "oversized-final" => {}
+        "partial" | "malformed" | "missing-capture" | "wrong-exit" | "oversized-final"
+        | "parent-panic" | "stderr-flood" => {}
         _ => panic!("Unknown owned helper protocol mode"),
     }
     println!("{}", serde_json::json!({"scriptSupervisor":3,"ready":true}));
@@ -62,6 +63,35 @@ fn helper_protocol() {
     let mut header = String::new();
     std::io::stdin().lock().read_line(&mut header).unwrap();
     match mode.as_str() {
+        "parent-panic" => {
+            assert!(header.ends_with('\n'));
+            let home = std::path::PathBuf::from(
+                std::env::var_os("RUYCAST_SUPERVISION_HELPER_HOME")
+                    .expect("Explicit own helper home"),
+            );
+            assert!(home.is_absolute() && home.is_dir());
+            assert_eq!(home.canonicalize().unwrap(), home);
+            assert_eq!(
+                std::fs::read(home.join(".ruycast-supervision-fixture")).unwrap(),
+                b"owned-supervision-helper-v1"
+            );
+            std::fs::write(home.join("helper-committed"), "committed").unwrap();
+            let mut rest = vec![];
+            std::io::stdin().read_to_end(&mut rest).unwrap();
+            if let Err(error) = std::io::stdout().write_all(&vec![b'x'; 1000000]) {
+                assert_eq!(error.kind(), std::io::ErrorKind::BrokenPipe);
+            }
+            std::fs::write(home.join("helper-cleaned"), "closed").unwrap();
+            // Like os._exit, do not retry a buffered stdout flush after parent closure.
+            std::process::exit(0);
+        }
+        "stderr-flood" => {
+            std::io::stderr().write_all(&vec![b'x'; 1000000]).unwrap();
+            println!(
+                "{}",
+                serde_json::json!({"ok":true,"scriptSupervisor":3,"response":{"ok":true,"result":{"exitCode":0,"stdout":"","stderr":""}},"capture":{"stdout":{"truncated":false,"eof":true,"validUtf8":true},"stderr":{"truncated":false,"eof":true,"validUtf8":true}}})
+            );
+        }
         "partial" => print!("partial"),
         "malformed" => println!("not json"),
         "missing-capture" => println!(
