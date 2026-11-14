@@ -65,24 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_status_and_configuration_remain_responsive_during_script(self):
-        host=self.host()
-        pid=host.base/'leader'
-        command=self.command('import os,time,pathlib;pathlib.Path(%r).write_text(str(os.getpid()));time.sleep(.5);print("done")'%str(pid))
-        self.replace_command(host,command)
-        stream=self.pending(host);self.file(pid)
-        start=time.monotonic();self.assertEqual(host.rpc({'op':'status'})['result']['scriptsRunning'],1)
-        self.assertLess(time.monotonic()-start,.5)
-        self.assertTrue(host.rpc({'op':'reload'})['ok'])
-        self.assertTrue(self.response(stream)['ok']);self.dead(pid.read_text())
-        host.wait(lambda s:s['scriptsRunning']==0)
-
-    def test_half_closed_client_receives_result(self):
-        host=self.host(commands=[self.command('import time;time.sleep(.15);print("half-close")')])
-        stream=self.pending(host);stream.shutdown(socket.SHUT_WR)
-        self.assertEqual(self.response(stream)['result']['stdout'],'half-close\n')
-        self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
-
     def test_disconnect_cancels_process_group_and_recovers_capacity(self):
         host=self.host();pid=host.base/'leader';sentinel=host.base/'orphan'
         child='import signal,time,pathlib;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(.8);pathlib.Path(%r).write_text("bad")'%str(sentinel)
@@ -93,16 +75,6 @@ class Execution(unittest.TestCase):
         time.sleep(.85);self.assertFalse(sentinel.exists())
         self.assertEqual(host.rpc({'op':'usage'})['result'],{})
         logs=host.rpc({'op':'logs'})['result'];self.assertFalse(logs[0]['success'])
-
-    def test_old_command_completion_is_not_attributed_to_replacement(self):
-        host=self.host();pid=host.base/'leader'
-        self.replace_command(host,self.command('import time,pathlib;pathlib.Path(%r).write_text("ready");time.sleep(.4);print("original")'%str(pid)))
-        stream=self.pending(host);self.file(pid)
-        replacement=self.command();replacement.update(target='/usr/bin/true',arguments=[])
-        self.replace_command(host,replacement)
-        result=self.response(stream)
-        self.assertTrue(result['ok']);self.assertEqual(result['result']['stdout'],'original\n')
-        self.assertIn('usageWarning',result);self.assertEqual(host.rpc({'op':'usage'})['result'],{})
 
     def test_usage_failure_reports_completed_action_without_retry(self):
         host=self.host();gate=host.base/'gate';ready=host.base/'ready';counter=host.base/'counter'

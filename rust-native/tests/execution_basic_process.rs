@@ -182,3 +182,95 @@ fn cli_result_envelope_preserves_existing_provider_contract() {
     assert_eq!(result["detail"], "fixture detail");
     assert_eq!(result["exitCode"], 0);
 }
+
+fn delayed(h: &Host, millis: u32, text: &str) -> (Value, std::path::PathBuf) {
+    let marker = h.base.join("leader");
+    let cmd = command(
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-delay", marker, millis.to_string(), text]),
+    );
+    (cmd, marker)
+}
+fn pending(h: &Host) -> std::os::unix::net::UnixStream {
+    use std::io::Write;
+    let mut stream = h.connect(std::time::Duration::from_secs(6));
+    stream
+        .write_all(b"{\"op\": \"execute\", \"id\": \"runfixture\"}\n")
+        .unwrap();
+    stream
+}
+fn response(stream: std::os::unix::net::UnixStream) -> Value {
+    use std::io::BufRead;
+    let mut line = String::new();
+    std::io::BufReader::new(stream)
+        .read_line(&mut line)
+        .unwrap();
+    serde_json::from_str(&line).unwrap()
+}
+fn wait_file(path: &std::path::Path) -> String {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    loop {
+        if path.exists() {
+            return fs::read_to_string(path).unwrap();
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "Own fixture did not publish {}",
+            path.display()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+fn assert_dead(pid: &str) {
+    let pid: libc::pid_t = pid.parse().unwrap();
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ESRCH)
+    );
+}
+#[test]
+fn status_and_configuration_remain_responsive_during_script() {
+    let h = host(command("/usr/bin/printf", json!(["fixture result"])));
+    let (cmd, pid) = delayed(&h, 500, "done");
+    replace_command(&h, cmd);
+    let stream = pending(&h);
+    wait_file(&pid);
+    let start = std::time::Instant::now();
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["scriptsRunning"],
+        1
+    );
+    assert!(start.elapsed() < std::time::Duration::from_millis(500));
+    assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+    assert_eq!(response(stream)["ok"], true);
+    assert_dead(&fs::read_to_string(&pid).unwrap());
+    h.wait(|s| s["scriptsRunning"] == 0);
+}
+#[test]
+fn half_closed_client_receives_result() {
+    let mut h = Host::new(Config::current(), false);
+    let (cmd, _) = delayed(&h, 150, "half-close");
+    let mut cfg = default_config();
+    cfg["commands"].as_array_mut().unwrap().push(cmd);
+    h.replace(&cfg, None);
+    h.start();
+    let stream = pending(&h);
+    stream.shutdown(std::net::Shutdown::Write).unwrap();
+    assert_eq!(response(stream)["result"]["stdout"], "half-close\n");
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"]["script.fixture"], 1);
+}
+#[test]
+fn old_command_completion_is_not_attributed_to_replacement() {
+    let h = host(command("/usr/bin/printf", json!(["fixture result"])));
+    let (cmd, marker) = delayed(&h, 400, "original");
+    replace_command(&h, cmd);
+    let stream = pending(&h);
+    wait_file(&marker);
+    replace_command(&h, command("/usr/bin/true", json!([])));
+    let result = response(stream);
+    assert_eq!(result["ok"], true);
+    assert_eq!(result["result"]["stdout"], "original\n");
+    assert!(result.get("usageWarning").is_some());
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
