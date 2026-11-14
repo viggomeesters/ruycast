@@ -274,3 +274,48 @@ fn old_command_completion_is_not_attributed_to_replacement() {
     assert!(result.get("usageWarning").is_some());
     assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
 }
+
+#[test]
+fn disconnect_cancels_process_group_and_recovers_capacity() {
+    let h = host(command("/usr/bin/printf", json!(["fixture result"])));
+    let pid = h.base.join("leader");
+    let sentinel = h.base.join("orphan");
+    let cmd = command(
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-tree", pid, sentinel]),
+    );
+    replace_command(&h, cmd);
+    let stream = pending(&h);
+    wait_file(&pid);
+    drop(stream);
+    h.wait(|s| s["scriptsRunning"] == 0);
+    assert_dead(&fs::read_to_string(&pid).unwrap());
+    std::thread::sleep(std::time::Duration::from_millis(850));
+    assert!(!sentinel.exists());
+    assert_eq!(h.rpc(&json!({"op":"usage"}))["result"], json!({}));
+    assert_eq!(h.rpc(&json!({"op":"logs"}))["result"][0]["success"], false);
+}
+#[test]
+fn usage_failure_reports_completed_action_without_retry() {
+    let h = host(command("/usr/bin/printf", json!(["fixture result"])));
+    let gate = h.base.join("gate");
+    let ready = h.base.join("ready");
+    let counter = h.base.join("counter");
+    let cmd = command(
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["fake", "gated", ready, gate, counter, ""]),
+    );
+    replace_command(&h, cmd);
+    let stream = pending(&h);
+    wait_file(&ready);
+    fs::create_dir(h.profile.join("usage.json")).unwrap();
+    fs::write(&gate, "go").unwrap();
+    let result = response(stream);
+    assert_eq!(result["ok"], false);
+    assert_eq!(result["actionCompleted"], true);
+    assert_eq!(fs::read_to_string(&counter).unwrap(), "once");
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["scriptsRunning"],
+        0
+    );
+}
