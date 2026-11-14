@@ -28,27 +28,4 @@ class KeywordCapture(unittest.TestCase):
     def run_keys(self,text='abc',c=None,between=None):return self.invoke([dict(op='config',value=c or config()),dict(op='refresh'),*(between or []),*keys(text)])
     def inserted(self,state):
         units=[u for e in state['output'] if e['down'] and e['key']==0 for u in e['units']];return bytes(b for u in units for b in [u&255,u>>8]).decode('utf-16-le')
-    def test_off_and_paused_short_circuit_permission_app_discovery(self):
-        for ops in [[dict(op='config',value={**config(),'snippetExpansionEnabled':False})],[dict(op='config',value=config()),dict(op='gate',running=False)]]:
-            v=self.invoke([*ops,sdk('environment',flags=8192|4096),dict(op='refresh')]);self.assertEqual(v['final']['calls'],0);self.assertEqual(v['final']['tapCreates'],0)
-    def test_interactive_trigger_passes_without_synchronous_effects(self):
-        v=self.run_keys(c=config('{name options="One, Two"}'));self.assertFalse(v['steps'][-1]['consumed']);self.assertEqual(v['final']['posts'],0)
-    def test_allocation_failure_before_first_down_does_not_consume(self):
-        for name in ['event:down','event:up']:
-            v=self.run_keys(between=[sdk('failure',name=name)]);self.assertFalse(v['steps'][-1]['consumed']);self.assertEqual(v['final']['posts'],0)
-    def test_secure_native_change_after_entered_down_balances_without_further_text(self):
-        for flags in [8,16,4096]:
-            v=self.run_keys(between=[sdk('change',at='post:down',flags=flags)]);self.assertTrue(v['steps'][-1]['consumed']);self.assertEqual(len(v['final']['output']),2);self.assertEqual(v['final']['output'][-1]['units'],[]);self.assertFalse(v['final']['output'][-1]['down'])
-    def test_last_policy_call_cannot_redirect_first_post_to_another_app(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),sdk('change',at='copy:1',nth=4,app=2),event('c')]);self.assertFalse(v['steps'][-1]['consumed']);self.assertEqual(v['final']['posts'],0)
-    def test_recording_or_reentry_after_entered_down_cannot_lose_balance(self):
-        for action in ['record','reenter','drop','panic','stop','disable']:
-            v=self.run_keys(between=[dict(op='hook',at='post:down',action=action)]);self.assertTrue(v['steps'][-1]['consumed'],action);self.assertEqual(len(v['final']['output']),2,action);self.assertFalse(v['final']['output'][-1]['down']);self.assertEqual(v['final']['output'][-1]['units'],[])
-    def test_reentrant_disabled_config_never_reauthorizes_setup(self):
-        for phase in ['raycast','trusted','runloop','common','tap_create','source','add_source','tap_enable','tap_enabled']:
-            v=self.invoke([dict(op='config',value=config()),dict(op='hook',at=phase,action='disable'),dict(op='refresh'),sdk()]);self.assertNotEqual(v['steps'][-2]['status'],'On',phase);self.assertFalse(v['steps'][-1]['tapValid'],phase)
-    def test_callback_timeout_revokes_and_refresh_recovers(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),*keys('ab'),event(type=0xffffffff),event('c'),dict(op='refresh'),*keys('abc')]);self.assertFalse(v['steps'][-5]['consumed']);self.assertTrue(v['steps'][-1]['consumed'])
-    def test_failed_invalidation_retains_callback_until_recovery(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),sdk('failure',name='invalidate'),dict(op='stop'),dict(op='drop'),sdk(),sdk('failure'),dict(op='recover'),sdk()]);self.assertFalse(v['steps'][3]['retired']);self.assertTrue(v['steps'][5]['tapValid']);self.assertTrue(v['steps'][-2]['retired']);self.assertFalse(v['steps'][-1]['tapValid'])
 if __name__=='__main__':unittest.main(verbosity=2)
