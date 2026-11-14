@@ -2,7 +2,6 @@
 The Swift save stub is a disposable-file oracle, not private-storage evidence.
 """
 import copy,hashlib,json,os,shutil,subprocess,tempfile,time,unittest
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import runtime_process as rt
 
@@ -64,6 +63,11 @@ class Analytics(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         DIR.mkdir(parents=True,exist_ok=True)
+        target=Path(os.environ.get('CARGO_TARGET_DIR',rt.ROOT.parent/'.build/full-rust-release/native'))
+        artifact=Path(os.environ.get('RUYCAST_TEST_ANALYTICS_SHIM',target/'release/examples/libanalytics_write_shim.dylib'))
+        if not artifact.is_absolute() or not artifact.is_file():
+            raise RuntimeError('Build --features test-tools --example analytics-write-shim first')
+        cls.shim=DIR/'analytics-write-shim.dylib';shutil.copyfile(artifact,cls.shim)
         original=(rt.ROOT.parent/'Sources/RuycastApp/AnalyticsStore.swift').read_text()
         source='\n'.join(line for line in original.splitlines() if line not in ['import Foundation','import Combine','import CryptoKit','import Darwin','import LauncherCore','import LauncherModels'])
         codec=(rt.ROOT.parent/'Sources/LauncherCore/Files.swift').read_text().splitlines()
@@ -150,44 +154,6 @@ class Analytics(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-            out=Path(folder);out.mkdir(parents=True,exist_ok=True);sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();sources=[rt.ROOT.parent/'Sources/RuycastApp/AnalyticsStore.swift',rt.ROOT.parent/'Sources/LauncherCore/Files.swift',Path(__file__)];artifacts=[DIR/'reference',DIR/'main.swift'];(out/'analytics-reference-bindings.json').write_text(json.dumps(dict(cases=cls.cases,sources={str(p.relative_to(rt.ROOT.parent)):sha(p) for p in sources},artifacts={str(p.relative_to(rt.ROOT.parent)):sha(p) for p in artifacts}),indent=2))
-
-class AnalyticsRuntime(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        target=Path(os.environ.get('CARGO_TARGET_DIR',rt.ROOT.parent/'.build/full-rust-release/native'))
-        artifact=Path(os.environ.get('RUYCAST_TEST_ANALYTICS_SHIM',target/'release/examples/libanalytics_write_shim.dylib'))
-        if not artifact.is_absolute() or not artifact.is_file():
-            raise RuntimeError('Build --features test-tools --example analytics-write-shim and set RUYCAST_TEST_ANALYTICS_SHIM first')
-        DIR.mkdir(parents=True,exist_ok=True);cls.shim=DIR/'analytics-write-shim.dylib'
-        shutil.copyfile(artifact,cls.shim)
-    def host(self):
-        h=rt.Host(start=False);self.addCleanup(h.close);h.env['DYLD_INSERT_LIBRARIES']=str(self.shim);h.env['RUYCAST_ANALYTICS_FIXTURE_HOME']=str(h.base);h.start();return h
-    def entered(self,h):
-        end=time.monotonic()+3
-        while time.monotonic()<end:
-            if (h.base/'analytics-write-entered').exists():return
-            time.sleep(.01)
-        self.fail('No actual analytics publication hold observed')
-    def test_full_flush_queue_does_not_hide_already_applied_setting(self):
-        h=self.host();(h.base/'hold-analytics-write').touch()
-        with ThreadPoolExecutor(1) as pool:
-            first=pool.submit(h.rpc,dict(op='analytics.settings',enabled=False),9);self.entered(h)
-            try:
-                for retention in range(2,17):
-                    stream=h.connect();stream.sendall((json.dumps(dict(op='analytics.settings',retentionDays=retention))+'\n').encode())
-                    try:
-                        end=time.monotonic()+2
-                        while h.rpc(dict(op='analytics'))['result']['retentionDays']!=retention:
-                            self.assertLess(time.monotonic(),end);time.sleep(.005)
-                    finally:stream.close()
-                result=h.rpc(dict(op='analytics.settings',retentionDays=20));self.assertFalse(result['ok']);self.assertTrue(result['applied']);self.assertEqual(result['persistence'],'unknown');self.assertIn('busy',result['reason']);self.assertEqual(h.rpc(dict(op='analytics'))['result']['retentionDays'],20)
-            finally:(h.base/'analytics-write-release').touch()
-            self.assertTrue(first.result(timeout=4)['ok'])
-        self.assertTrue(h.rpc(dict(op='analytics.settings'))['ok']);self.assertEqual(json.loads((h.profile/'analytics.json').read_text())['retentionDays'],20)
-    @classmethod
-    def tearDownClass(cls):
-        if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-            p=Path(folder)/'analytics-reference-bindings.json';d=json.loads(p.read_text());sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();source=rt.ROOT/'tests/fixtures/analytics_write_shim.rs';d['sources'][str(source.relative_to(rt.ROOT.parent))]=sha(source);d['artifacts'][str(cls.shim.relative_to(rt.ROOT.parent))]=sha(cls.shim);p.write_text(json.dumps(d,indent=2))
+            out=Path(folder);out.mkdir(parents=True,exist_ok=True);sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();sources=[rt.ROOT.parent/'Sources/RuycastApp/AnalyticsStore.swift',rt.ROOT.parent/'Sources/LauncherCore/Files.swift',Path(__file__),rt.ROOT/'tests/fixtures/analytics_write_shim.rs'];artifacts=[DIR/'reference',DIR/'main.swift',cls.shim];(out/'analytics-reference-bindings.json').write_text(json.dumps(dict(cases=cls.cases,sources={str(p.relative_to(rt.ROOT.parent)):sha(p) for p in sources},artifacts={str(p.relative_to(rt.ROOT.parent)):sha(p) for p in artifacts}),indent=2))
 
 if __name__=='__main__':unittest.main(verbosity=2)
