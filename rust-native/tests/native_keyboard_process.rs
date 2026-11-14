@@ -1248,3 +1248,84 @@ fn native_hid_modifier_tap_uses_same_saved_route() {
     h.wait(|s| s["scriptsRunning"] == 0);
     assert_eq!(h.rpc(&json!({"op":"usage"}))["result"]["hid.action"], 1);
 }
+
+#[test]
+fn native_hid_same_plan_reload_preserves_caps_and_uses_new_generation() {
+    let (h, _) = hid_host("right-cmd+a", true);
+    let mut config = actions::config(&h);
+    hid(&h, "input", json!({"usage":57,"down":true,"time":0}));
+    let before = hid(&h, "state", json!({}))["state"].clone();
+    let previous = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"]
+        .as_u64()
+        .unwrap();
+    config["commands"][0]["title"] = json!("Own renamed Finder");
+    h.replace(&config, None);
+    assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+    h.wait(|s| {
+        s["keyboardGeneration"].as_u64().unwrap_or(0) > previous
+            && s["hidGeneration"] == s["keyboardGeneration"]
+    });
+    assert_eq!(
+        hid(&h, "state", json!({}))["state"]["managerCreates"],
+        before["managerCreates"]
+    );
+    assert_eq!(
+        hid(&h, "event", json!({"type":10,"key":2,"flags":0}))["event"]["flags"],
+        HID_HYPER
+    );
+}
+#[test]
+fn native_hid_disabled_binding_cannot_run_old_action() {
+    let (h, marker) = hid_host("right-cmd+a", false);
+    let mut config = actions::config(&h);
+    config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .last_mut()
+        .unwrap()["enabled"] = json!(false);
+    h.replace(&config, None);
+    assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+    h.wait(|s| s["hidStatus"] == "Off");
+    assert_eq!(
+        hid(&h, "event", json!({"type":10,"key":0,"flags":HID_CMD|16}))["event"]["consumed"],
+        false
+    );
+    assert!(!marker.exists());
+}
+#[test]
+fn native_hid_sleep_and_secure_recovery_preserve_master_generation() {
+    let (h, marker) = hid_host("right-cmd+a", true);
+    let generation = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"].clone();
+    hid(&h, "notification", json!({"name":"sleep"}));
+    h.wait(|s| s["hidStatus"] == "Paused");
+    assert_eq!(
+        hid(&h, "event", json!({"type":10,"key":0,"flags":HID_CMD|16}))["event"]["consumed"],
+        false
+    );
+    hid(&h, "notification", json!({"name":"launch"}));
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["hidStatus"],
+        "Paused"
+    );
+    hid(&h, "notification", json!({"name":"wake"}));
+    h.wait(|s| s["hidStatus"] == "On");
+    hid(&h, "env", json!({"value":1}));
+    h.wait(|s| s["hidStatus"] == "Paused during secure input");
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"],
+        generation
+    );
+    assert!(!marker.exists());
+    hid(&h, "env", json!({"value":0}));
+    h.wait(|s| s["hidStatus"] == "On");
+}
+#[test]
+fn native_hid_refresh_timer_recovers_file_fault_without_new_input() {
+    let (h, _) = hid_host("right-cmd+a", true);
+    let fault = h.base.join("hid-fail-tap_create");
+    fs::write(&fault, b"").unwrap();
+    hid(&h, "event", json!({"type":u32::MAX,"key":0,"flags":0}));
+    h.wait(|s| s["hidStatus"] != "On");
+    fs::remove_file(fault).unwrap();
+    h.wait(|s| s["hidStatus"] == "On");
+}
