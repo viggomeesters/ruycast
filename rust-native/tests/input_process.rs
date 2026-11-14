@@ -639,3 +639,71 @@ fn composing_alias_does_not_capture_until_commit() {
     assert_eq!(actions::probe(&host, "run-inline-read")["text"], "日本語");
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
+#[test]
+fn alias_tail_preserves_literal_whitespace_and_arguments() {
+    let host = host();
+    let out = host.base.join("result");
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-write", out, "{input}"]),
+        3.0,
+    );
+    let tail = " Ω\t$(echo literal)  end";
+    assert_eq!(
+        host.rpc(&json!({"op":"show","query":format!("runfixture {tail}")}))["ok"],
+        true
+    );
+    host.settled(|s| s["nativeUI"]["visible"] == true);
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+    view(&host, |v| v["runInputInline"] == true);
+    assert_eq!(actions::probe(&host, "run-inline-read")["text"], tail);
+    key(&host, 36, "\r", 0);
+    wait_exists(&out);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    inline_closed(&host);
+    assert_eq!(fs::read_to_string(out).unwrap(), tail);
+    assert_eq!(
+        host.rpc(&json!({"op":"usage"}))["result"]["script.fixture"],
+        1
+    );
+    assert!(!fs::read_to_string(host.profile.join("command-log.json"))
+        .unwrap()
+        .contains("literal"));
+}
+#[test]
+fn expand_preserves_actual_field_editor_text_and_token_without_execution() {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "Unicode büro 日本語 $(literal)");
+    let before = actions::probe(&host, "run-inline-read");
+    key(&host, 36, "\r", actions::CMD);
+    let state = view(&host, |v| {
+        v["formVisible"] == true && v["runInputInline"] == false
+    });
+    assert_eq!(state.get("editorToken").unwrap(), before.get("token").unwrap());
+    assert_eq!(
+        actions::probe(&host, "run-input-read")["text"],
+        before["text"]
+    );
+    assert_eq!(actions::probe(&host, "run-input-read")["focused"], true);
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+    host.probe("run-input-type", json!({"text":"\nSecond line"}));
+    assert!(actions::probe(&host, "run-input-read")["text"]
+        .as_str()
+        .unwrap()
+        .ends_with("\nSecond line"));
+}
+#[test]
+fn empty_run_validation_retains_inline_focus_and_typing() {
+    let host = host();
+    inline_open(&host, false);
+    key(&host, 36, "\r", 0);
+    view(&host, |v| actions::text_contains(v, "Enter Message"));
+    inline_type(&host, "still editable");
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "still editable"
+    );
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}

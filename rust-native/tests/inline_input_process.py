@@ -16,15 +16,6 @@ class InlineInput(unittest.TestCase):
     def expanded(self,host):return self.view(host,lambda v:v['formVisible'] and not v['runInputInline'])
     def closed(self,host):return self.view(host,lambda v:not v['runInputInline'] and not v['formVisible'])
 
-    def test_alias_tail_preserves_spaces_tabs_unicode_and_literal_arguments(self):
-        host=self.host(native=True);out=host.base/'result'
-        command=self.command('import pathlib,sys;pathlib.Path(%r).write_text(sys.argv[1])'%str(out),inputPrompt='Message');command['arguments']+=['{input}'];self.replace_command(host,command)
-        tail=' Ω\t$(echo literal)  end'
-        self.show(host,'runfixture '+tail);self.view(host,lambda v:v['runInputInline']);self.assertEqual(self.text(host),tail)
-        self.key(host,36,'\r');self.file(out);self.idle(host);self.closed(host);self.assertEqual(out.read_text(),tail)
-        self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
-        self.assertNotIn('literal', (host.profile/'command-log.json').read_text())
-
     def test_same_token_reload_usage_and_theme_keep_text_editor_undo_and_composition(self):
         host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'before')
         initial=host.probe('run-inline-read');self.assertTrue(initial['canUndo'])
@@ -36,17 +27,6 @@ class InlineInput(unittest.TestCase):
         after=host.probe('run-inline-read');self.assertTrue(after['marked']);self.assertEqual(after['text'],marked['text']);self.assertEqual(after['editorAddress'],marked['editorAddress']);self.assertEqual(after['selectedLocation'],marked['selectedLocation'])
         host.probe('run-inline-ime-guards');self.assertEqual(len(host.rpc({'op':'logs'})['result']),2)
         host.probe('run-inline-unmark');self.type(host,' continued');self.assertTrue(self.text(host).endswith(' continued'))
-
-    def test_expand_preserves_actual_field_editor_text_and_token_without_execution(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'Unicode büro 日本語 $(literal)')
-        before=host.probe('run-inline-read');self.key(host,36,'\r',CMD);view=self.expanded(host)
-        self.assertEqual(view['editorToken'],before['token']);self.assertEqual(host.probe('run-input-read')['text'],before['text']);self.assertTrue(host.probe('run-input-read')['focused'])
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[]);host.probe('run-input-type',text='\nSecond line');self.assertTrue(host.probe('run-input-read')['text'].endswith('\nSecond line'))
-
-    def test_empty_run_validation_retains_inline_focus_and_typing(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.key(host,36,'\r')
-        self.view(host,lambda v:any('Enter Message' in x for x in v['screenText']));self.type(host,'still editable');self.assertEqual(self.text(host),'still editable')
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
 
     def test_input_menu_escape_keeps_text_and_keyboard_expand_uses_owner_selection(self):
         host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'menu value')
