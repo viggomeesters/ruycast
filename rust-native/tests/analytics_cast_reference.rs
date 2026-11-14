@@ -289,3 +289,59 @@ fn decoder_integer_spelling_at_all_stored_count_fields() {
         );
     }
 }
+
+fn limits_reference(name: &str, actions: Value) -> Value {
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/analytics_limits_reference.json")).unwrap();
+    let case = fixture["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["name"] == name)
+        .unwrap();
+    let result = integer_probe(&actions, None, Duration::from_secs(30));
+    let mut normalized = result.clone();
+    normalize(&mut normalized);
+    assert!(
+        equivalent(&normalized, &case["expected"]),
+        "{name} differs from Swift reference"
+    );
+    result
+}
+#[test]
+fn sample_caps_error_whitelist_and_hashed_raw_utf8_identity() {
+    let mut actions = Vec::new();
+    for i in 0..270 {
+        actions.push(
+            json!({"op":"attempt","id":if i%2==0 {"e\u{301}"} else {"é"},"source":"snippet"}),
+        );
+        actions.push(json!({"op":"complete","ok":i%3==0,"ms":i,"code":if i%2==0 {"raw private text"} else {"timeout"},"exit":-1}));
+    }
+    actions.extend([
+        json!({"op":"timing","name":"not-allowed","ms":2}),
+        json!({"op":"error","category":"not-allowed","code":"io"}),
+        json!({"op":"error","category":"runtime","code":"raw message"}),
+        json!({"op":"snapshot"}),
+        json!({"op":"export"}),
+    ]);
+    let out = limits_reference("samples", json!(actions));
+    assert_eq!(
+        out["document"]["timings"]["command.execute"]["samples"]
+            .as_array()
+            .unwrap()
+            .len(),
+        256
+    );
+    assert_eq!(out["document"]["events"].as_array().unwrap().len(), 181);
+    assert_eq!(out["document"]["commands"].as_object().unwrap().len(), 2);
+}
+#[test]
+fn legacy_import_caps_and_second_import_does_not_duplicate() {
+    let counts: serde_json::Map<String, Value> =
+        (-1..2051).map(|i| (format!("own-{i}"), json!(i))).collect();
+    let out = limits_reference(
+        "legacy",
+        json!([{"op":"import","counts":counts},{"op":"import","counts":{"ignored":999}},{"op":"export"}]),
+    );
+    assert_eq!(out["document"]["commands"].as_object().unwrap().len(), 2048);
+}

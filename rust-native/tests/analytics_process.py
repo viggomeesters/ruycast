@@ -1,7 +1,7 @@
 """Actual AnalyticsStore Swift model/JSON codec versus Rust; disposable files only.
 The Swift save stub is a disposable-file oracle, not private-storage evidence.
 """
-import copy,hashlib,json,os,shutil,subprocess,tempfile,time,unittest
+import json,os,subprocess
 from pathlib import Path
 import runtime_process as rt
 
@@ -58,47 +58,3 @@ def normalized(v):
     if isinstance(v,list):return [normalized(x) for x in v]
     if isinstance(v,dict):return {k:normalized(x) for k,x in v.items() if k!='id'}
     return v
-
-class Analytics(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        DIR.mkdir(parents=True,exist_ok=True)
-        target=Path(os.environ.get('CARGO_TARGET_DIR',rt.ROOT.parent/'.build/full-rust-release/native'))
-        artifact=Path(os.environ.get('RUYCAST_TEST_ANALYTICS_SHIM',target/'release/examples/libanalytics_write_shim.dylib'))
-        if not artifact.is_absolute() or not artifact.is_file():
-            raise RuntimeError('Build --features test-tools --example analytics-write-shim first')
-        cls.shim=DIR/'analytics-write-shim.dylib';shutil.copyfile(artifact,cls.shim)
-        original=(rt.ROOT.parent/'Sources/RuycastApp/AnalyticsStore.swift').read_text()
-        source='\n'.join(line for line in original.splitlines() if line not in ['import Foundation','import Combine','import CryptoKit','import Darwin','import LauncherCore','import LauncherModels'])
-        codec=(rt.ROOT.parent/'Sources/LauncherCore/Files.swift').read_text().splitlines()
-        encode=next(x.strip().replace('public static','static',1) for x in codec if 'public static func encode<' in x)
-        decode=next(x.strip().replace('public static','static',1) for x in codec if 'public static func decode<' in x)
-        (DIR/'main.swift').write_text(SWIFT.replace('__ACTUAL_SOURCE__',source).replace('__ENCODE__',encode).replace('__DECODE__',decode))
-        subprocess.run(['swiftc',str(DIR/'main.swift'),'-o',str(DIR/'reference')],check=True,capture_output=True)
-        cls.cases=0
-    def run_case(self,actions,initial=None,now=1790000000,zone='UTC',calendar='gregorian'):
-        pair=[]
-        for binary in [PROBE,DIR/'reference']:
-            with tempfile.TemporaryDirectory(prefix='ruycast-analytics-',dir=DIR) as home:
-                root=Path(home);(root/'.ruycast-analytics-fixture').touch()
-                if initial is not None:(root/'analytics.json').write_text(json.dumps(initial))
-                request=dict(root=str(root),now=now,zone=zone,calendar=calendar,actions=actions)
-                p=subprocess.run([str(binary)],input=json.dumps(request),capture_output=True,text=True,timeout=30)
-                self.assertEqual(p.returncode,0,p.stderr);pair.append(json.loads(p.stdout))
-        self.assertEqual(normalized(pair[0]),normalized(pair[1]));type(self).cases+=1;return pair[0]
-    def empty(self):return self.run_case([])['document']
-    def test_sample_caps_error_whitelist_and_hashed_raw_utf8_identity(self):
-        actions=[]
-        for i in range(270):actions += [dict(op='attempt',id='é' if i%2 else 'e\u0301',source='snippet'),dict(op='complete',ok=i%3==0,ms=i,code='timeout' if i%2 else 'raw private text',exit=-1)]
-        actions += [dict(op='timing',name='not-allowed',ms=2),dict(op='error',category='not-allowed',code='io'),dict(op='error',category='runtime',code='raw message'),dict(op='snapshot'),dict(op='export')]
-        out=self.run_case(actions);self.assertEqual(len(out['document']['timings']['command.execute']['samples']),256);self.assertEqual(len(out['document']['events']),181)
-        self.assertEqual(len(out['document']['commands']),2)
-    def test_legacy_import_caps_and_second_import_do_not_duplicate(self):
-        counts={f'own-{i}':i for i in range(-1,2051)}
-        out=self.run_case([dict(op='import',counts=counts),dict(op='import',counts={'ignored':999}),dict(op='export')]);self.assertEqual(len(out['document']['commands']),2048)
-    @classmethod
-    def tearDownClass(cls):
-        if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
-            out=Path(folder);out.mkdir(parents=True,exist_ok=True);sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest();sources=[rt.ROOT.parent/'Sources/RuycastApp/AnalyticsStore.swift',rt.ROOT.parent/'Sources/LauncherCore/Files.swift',Path(__file__),rt.ROOT/'tests/fixtures/analytics_write_shim.rs'];artifacts=[DIR/'reference',DIR/'main.swift',cls.shim];(out/'analytics-reference-bindings.json').write_text(json.dumps(dict(cases=cls.cases,sources={str(p.relative_to(rt.ROOT.parent)):sha(p) for p in sources},artifacts={str(p.relative_to(rt.ROOT.parent)):sha(p) for p in artifacts}),indent=2))
-
-if __name__=='__main__':unittest.main(verbosity=2)
