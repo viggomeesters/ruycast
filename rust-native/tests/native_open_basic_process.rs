@@ -390,6 +390,66 @@ fn template_form(h: &Bridge) {
     key(h, 36, 0, "\r", false);
     template_fields(h, |v| !v["fields"].is_null());
 }
+fn large_probe(h: &Bridge, action: &str, mut fields: Value) -> Value {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let request = fields.as_object_mut().unwrap();
+    request.insert("op".into(), json!("native.test"));
+    request.insert("action".into(), json!(action));
+    let mut socket = h.connect(Duration::from_secs(3));
+    serde_json::to_writer(&mut socket, &fields).unwrap();
+    socket.write_all(b"\n").unwrap();
+    let mut line = Vec::new();
+    BufReader::new(socket)
+        .take(4 * 1024 * 1024 + 1)
+        .read_until(b'\n', &mut line)
+        .unwrap();
+    assert!(
+        line.len() <= 4 * 1024 * 1024 && line.ends_with(b"\n"),
+        "large fixture response exceeds bound or is incomplete"
+    );
+    let value: Value = serde_json::from_slice(&line).unwrap();
+    assert_eq!(value["ok"], true);
+    value["result"].clone()
+}
+#[test]
+fn native_form_can_open_expanded_output_above_one_mib() {
+    let h = host(command(
+        "url",
+        "https://example.invalid/{x}{x}{y default=\"Z\"}",
+    ));
+    show(&h, "nativeopen");
+    key(&h, 36, 0, "\r", false);
+    template_fields(&h, |v| v["fields"] == 2);
+    let chunk = "a".repeat(600_000);
+    large_probe(&h, "template-type", json!({"index":0,"text":chunk}));
+    large_probe(
+        &h,
+        "template-type",
+        json!({"index":0,"text":chunk,"append":true}),
+    );
+    large_probe(&h, "save-editor", json!({}));
+    done(&h);
+    assert_eq!(
+        opens(&h)[0]["url"],
+        format!("https://example.invalid/{}Z", "a".repeat(2_400_000))
+    );
+}
+#[test]
+fn native_inline_can_submit_complete_input_above_one_mib() {
+    let h = host(command("url", "https://example.invalid/{x}"));
+    show(&h, "nativeopen");
+    key(&h, 36, 0, "\r", false);
+    let chunk = "a".repeat(600_000);
+    large_probe(&h, "run-inline-type", json!({"text":chunk}));
+    large_probe(&h, "run-inline-type", json!({"text":chunk}));
+    large_probe(&h, "key-event", json!({"code":36,"flags":0,"chars":"\r"}));
+    h.settled(|_| true);
+    done(&h);
+    assert_eq!(
+        opens(&h)[0]["url"],
+        format!("https://example.invalid/{}", "a".repeat(1_200_000))
+    );
+}
 fn wait_template_entered(h: &Bridge) {
     let marker = h.base.join("template-fields-entered");
     let end = Instant::now() + Duration::from_secs(4);
