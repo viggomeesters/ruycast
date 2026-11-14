@@ -1062,3 +1062,119 @@ fn native_keyword_two_recorders_suppress_until_both_cancel() {
     keyword_reset(&h);
     assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
 }
+
+#[test]
+fn native_keyword_adoption_barrier_requires_exact_owned_fixture_home() {
+    let mut h = host(&[], false, true, true, None);
+    let mut config = default_config();
+    config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"HELLO", "keyword":"abc" }]);
+    config["snippetExpansionEnabled"] = json!(true);
+    h.replace(&config, None);
+    let foreign = h.base.join("unmarked");
+    fs::create_dir(&foreign).unwrap();
+    h.env.insert(
+        "RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER".into(),
+        foreign.into_os_string(),
+    );
+    let before = fs::read(&h.config).unwrap();
+    let child = h
+        .command(&h.settings.host)
+        .arg("--native-hidden")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let output = child_output::wait(child, Duration::from_secs(3));
+    assert_eq!(output.status.code(), Some(1));
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        combined.contains("Own config adoption fixture required"),
+        "{combined}"
+    );
+    assert_eq!(fs::read(&h.config).unwrap(), before);
+}
+
+fn keyword_quit_during_effect(phase: &str, rich: bool) {
+    let mut h = if rich {
+        rich_keyword_host()
+    } else {
+        keyword_host(false)
+    };
+    if !rich {
+        keyword_type(&h, "ab");
+    }
+    fs::write(h.base.join(format!("hold-keyword-{phase}")), b"").unwrap();
+    let release = Release(h.base.join(format!("keyword-{phase}-release")));
+    let socket = h.socket();
+    let text = if rich { "x" } else { "c" };
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let reply = actions::native_bridge::runtime_host::status_rpc::request(
+            &socket,
+            &json!({"op":"native.test","action":"keyboard-keyword","control":"event","text":text}),
+            std::time::Instant::now() + Duration::from_secs(3),
+        );
+        let _ = sender.send(reply);
+    });
+    wait_file(&h.base.join(format!("keyword-{phase}-entered")));
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    let child = h
+        .command(&h.settings.host)
+        .arg("--native-hidden")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let second = child_output::wait(child, Duration::from_secs(3));
+    assert!(!second.status.success());
+    assert!(String::from_utf8_lossy(&second.stdout).contains("already running"));
+    assert!(h.process.as_mut().unwrap().try_wait().unwrap().is_none());
+    drop(release);
+    match receiver.recv_timeout(Duration::from_secs(5)).unwrap() {
+        Ok(reply) => assert_eq!(reply["ok"], true, "{reply}"),
+        Err(error) => assert_eq!(error.kind(), std::io::ErrorKind::UnexpectedEof, "{error}"),
+    }
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let proof: Value =
+        serde_json::from_slice(&fs::read(h.base.join("keyword-retired.json")).unwrap()).unwrap();
+    let state = &proof["state"];
+    assert_eq!(state["allocated"], 0);
+    let events = state["output"].as_array().unwrap();
+    if rich {
+        assert_eq!(proof["ownActive"], false);
+        if phase == "post:down" {
+            assert_eq!(events.len(), 2);
+            assert_eq!(events[0]["key"], 9);
+            assert_eq!(events[1]["units"], json!([]));
+            assert_eq!(events[1]["flags"], 0);
+            assert_eq!(events[1]["down"], false);
+        } else {
+            assert!(events.is_empty());
+        }
+    } else {
+        assert_eq!(state["apps"], 0);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[1]["down"], false);
+        assert_eq!(events[1]["units"], json!([]));
+    }
+}
+#[test]
+fn native_keyword_quit_during_rich_effect_retains_profile_until_cleanup() {
+    for phase in ["board_clear", "board_write", "post:down"] {
+        keyword_quit_during_effect(phase, true);
+    }
+}
+#[test]
+fn native_keyword_quit_during_entered_effect_balances_keyup_and_retires() {
+    keyword_quit_during_effect("post:down", false);
+}
