@@ -93,6 +93,7 @@ hid-process|p|rust-native/tests/hid_process.py
 manager-probe-build|b|manager-probe tools
 manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test manager_process --locked
 cli-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test cli_open_basic_process --locked
+supervision-framing-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_framing_process --locked
 supervision-process|p|rust-native/tests/supervision_process.py
 script-fault-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example script-fault-shim --locked
 script-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked
@@ -1784,7 +1785,11 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 135);
+        let supervision_probe = steps.iter().position(|step|step.name=="supervision-probe-build").unwrap();
+        let supervision_framing = steps.iter().position(|step|step.name=="supervision-framing-process").unwrap();
+        assert!(supervision_probe < supervision_framing);
+        assert!(steps[supervision_framing].arguments.windows(2).any(|pair|pair==["--test","supervision_framing_process"]));
         let native_profile = steps.iter().find(|step|step.name=="native-profile-process").unwrap();
         assert!(native_profile.arguments.windows(2).any(|pair|pair==["--test","native_process"]));
         let keyboard_sdk = steps.iter().position(|step|step.name=="keyboard-sdk-build").unwrap();

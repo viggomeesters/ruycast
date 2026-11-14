@@ -147,22 +147,6 @@ class Supervision(unittest.TestCase):
         result=self.probe(helper=self.fake('print("old runner",flush=True);time.sleep(.1)'),fault=True)
         self.assertIn('error',result);self.assertEqual((self.base/'wait-injected').read_text(),'injected')
 
-    def test_failed_helper_start_has_no_transient_child(self):
-        for _ in range(8):self.assertIn('error',self.probe(helper=self.base/'missing'))
-
-    def test_partial_header_eof_and_invalid_header_cannot_launch(self):
-        marker=self.base/'must-not-launch'
-        command=self.command('import pathlib;pathlib.Path(%r).write_text("bad")'%str(marker))
-        header=json.dumps(dict(command=command,homeBytes=list(os.fsencode(self.base)))).encode()
-        for payload in [header,header[:30],b'{invalid}\n',header+b'\nextra']:
-            result=self.direct(payload);self.assertFalse(result['ok']);self.assertFalse(marker.exists())
-
-    def test_oversized_header_and_invalid_home_fail_before_launch(self):
-        self.assertFalse(self.direct(b'x'*(8*1024*1024+1)+b'\n')['ok'])
-        for home in [[],list(b'relative'),list(b'/bad\0home')]:
-            result=self.direct(json.dumps(dict(command=self.command(),homeBytes=home)).encode()+b'\n')
-            self.assertFalse(result['ok']);self.assertIn('home',result['error'])
-
     def test_uncommitted_header_has_independent_startup_deadline(self):
         child=subprocess.Popen([str(CLI),'__run-script-supervised'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=self.env)
         try:
