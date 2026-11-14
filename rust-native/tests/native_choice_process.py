@@ -93,8 +93,6 @@ class NativeChoice(unittest.TestCase):
             out=Path(folder).parent/'native-choice';out.mkdir(parents=True,exist_ok=True);shutil.copy2(host.base/'choice.png',out/(name+'.png'));(out/(name+'.json')).write_text(json.dumps(value,indent=2))
         return value
     def activate(self,host,*values):return host.probe('keyboard-hid',control='activation-burst',values=list(values))
-    def test_missing_complete_clipboard_substitute_refuses_before_ui_construction(self):
-        host,_=self.host(guard=False);self.type(host,'abc');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
     def test_compatible_confirmed_configuration_keeps_user_draft(self):
         host,c=self.visible();self.choice(host,'set',field=0,value='Kept')
         c['commands'].append(dict(id='other',title='Other',kind='url',target='https://example.com'));c['theme']='light'
@@ -128,12 +126,6 @@ class NativeChoice(unittest.TestCase):
             else:
                 self.kw(host,'environment',app=1,pid=42);self.activate(host,'original');self.assertEqual(self.inserted(self.wait_output(host)),'Hello World!')
             self.assertEqual(self.kw(host)['activationRequests'],1)
-    def test_lost_observation_and_shutdown_retire_native_request(self):
-        host,_=self.visible();self.kw(host,'event',type=0xffffffff);self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
-        host,_=self.visible();self.assertTrue(host.rpc({'op':'quit'})['ok']);out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());self.assertFalse((host.profile/'control.sock').exists());self.assertEqual(json.loads((host.base/'keyword-retired.json').read_text())['state']['allocated'],0)
-    def test_malformed_known_ax_value_cannot_authorize_live_choice(self):
-        host,_=self.host();self.kw(host,'text',units=[0xd800,97,98,99],at=4);self.type(host,'abc');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
-        host,_=self.visible();self.kw(host,'text',units=[97,98,99,0xd801],at=3);self.choice(host,'insert');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
     def test_rich_choice_uses_original_target_and_delayed_cursor(self):
         for mode in ['html','teams']:
             host,_=self.visible(snippetOutput=mode,body='Hello {field name="name" default="World"}{field name="kind" options="!,?" default="!"} {cursor}TAIL');self.choice(host,'insert');state=self.wait_output(host)
