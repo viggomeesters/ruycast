@@ -67,13 +67,11 @@ pub fn invoke(ops: Vec<Value>, library: Option<&str>, ok: bool) -> Value {
         cmd.env("DYLD_INSERT_LIBRARIES", copy);
     }
     let mut child = cmd.spawn().unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(&serde_json::to_vec(&ops).unwrap())
-        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let bytes = serde_json::to_vec(&ops).unwrap();
+    let writer = std::thread::spawn(move || stdin.write_all(&bytes));
     let out = child_output::wait(child, Duration::from_secs(10));
+    writer.join().unwrap().unwrap();
     assert!(
         out.status.success(),
         "{}",

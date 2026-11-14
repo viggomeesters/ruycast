@@ -6,7 +6,7 @@
 )]
 #[path = "support/keyword_capture.rs"]
 mod capture;
-use capture::{config, invoke, keys, sdk};
+use capture::{config, event, invoke, keys, sdk};
 use serde_json::{json, Value};
 fn rich(text: &str, mode: &str, keyword: &str, before: Vec<Value>, after: Vec<Value>) -> Value {
     let mut c = config(text, keyword);
@@ -226,4 +226,146 @@ fn entered_paste_down_retains_cleared_up_on_revoke_and_panic() {
         assert_eq!(out.last().unwrap()["units"], json!([]));
         assert_eq!(out.last().unwrap()["flags"], 0);
     }
+}
+fn cursor_down(v: &Value) -> usize {
+    v["final"]["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["key"] == 123 && e["down"] == true)
+        .count()
+}
+#[test]
+fn rich_cursor_is_delayed_and_not_sent_with_paste() {
+    let v = rich(
+        "A{cursor}BC",
+        "html",
+        "abc",
+        vec![],
+        vec![
+            json!({"op":"status"}),
+            json!({"op":"wait","ms":100}),
+            json!({"op":"pump"}),
+        ],
+    );
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 4]["cursor"], true);
+    assert_eq!(s[s.len() - 2]["pendingCursor"], false);
+    assert_eq!(cursor_down(&v), 2);
+}
+#[test]
+fn cursor_cancelled_by_input_record_hyper_activation_generation_and_target() {
+    for change in [
+        event("z", json!({})),
+        json!({"op":"gate","epoch":1}),
+        json!({"op":"gate","hyperEpoch":1}),
+        json!({"op":"gate","activationEpoch":1}),
+        json!({"op":"gate","generation":2}),
+        json!({"op":"gate","stageEpoch":1}),
+        sdk("environment", json!({"app":2})),
+        sdk("environment", json!({"flags":8})),
+        sdk("environment", json!({"flags":16})),
+        sdk("environment", json!({"flags":4096})),
+        json!({"op":"stop"}),
+    ] {
+        let v = rich(
+            "A{cursor}BC",
+            "html",
+            "abc",
+            vec![],
+            vec![
+                change.clone(),
+                json!({"op":"wait","ms":100}),
+                json!({"op":"pump"}),
+            ],
+        );
+        assert_eq!(cursor_down(&v), 0, "{change}");
+    }
+}
+#[test]
+fn sampled_loss_or_pending_rollback_never_revives_old_cursor() {
+    for mut changes in [
+        vec![
+            sdk("failure", json!({"name":"tap_enabled"})),
+            json!({"op":"refresh"}),
+            sdk("failure", json!({})),
+            json!({"op":"refresh"}),
+        ],
+        vec![
+            json!({"op":"gate","generation":0}),
+            json!({"op":"refresh"}),
+            json!({"op":"gate","generation":1}),
+            json!({"op":"refresh"}),
+        ],
+        vec![json!({"op":"gate","stageEpoch":1})],
+    ] {
+        changes.extend([json!({"op":"wait","ms":100}), json!({"op":"pump"})]);
+        let v = rich("A{cursor}BC", "html", "abc", vec![], changes);
+        assert_eq!(cursor_down(&v), 0);
+    }
+}
+#[test]
+fn own_generated_input_and_unrelated_copy_do_not_cancel_paste_cursor() {
+    for change in [
+        event("z", json!({"tag":0x5255535443415354u64})),
+        sdk("board-external", json!({"value":"LATER COPY"})),
+    ] {
+        let v = rich(
+            "A{cursor}BC",
+            "html",
+            "abc",
+            vec![],
+            vec![
+                change.clone(),
+                json!({"op":"wait","ms":100}),
+                json!({"op":"pump"}),
+            ],
+        );
+        assert_eq!(cursor_down(&v), 2, "{change}");
+    }
+}
+#[test]
+fn large_cursor_runs_bounded_batches_and_allows_cancellation() {
+    let v = rich(
+        &format!("{{cursor}}{}", "x".repeat(20000)),
+        "html",
+        "x",
+        vec![],
+        vec![
+            json!({"op":"wait","ms":100}),
+            json!({"op":"pump"}),
+            event("z", json!({})),
+            json!({"op":"pump"}),
+        ],
+    );
+    let arrows = cursor_down(&v);
+    assert!(arrows > 0 && arrows <= 32);
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 2]["pendingCursor"], false);
+}
+#[test]
+fn cursor_panic_balances_keyup_and_poison_only_keyword_component() {
+    let v = rich(
+        "A{cursor}BC",
+        "html",
+        "abc",
+        vec![],
+        vec![
+            json!({"op":"hook","at":"post:down","action":"panic"}),
+            json!({"op":"wait","ms":100}),
+            json!({"op":"pump"}),
+        ],
+    );
+    let out = v["final"]["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["key"] == 123)
+        .collect::<Vec<_>>();
+    assert_eq!(out.len(), 2);
+    assert_eq!(out.last().unwrap()["down"], false);
+    assert_eq!(
+        v["steps"].as_array().unwrap().last().unwrap()["status"],
+        "Keyword callback failed"
+    );
 }
