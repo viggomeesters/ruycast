@@ -1,0 +1,156 @@
+//! Hidden Settings dashboard with an owned save-dialog fixture.
+#![cfg(feature = "test-tools")]
+#[allow(dead_code)]
+#[path = "support/native_bridge.rs"]
+mod native_bridge;
+use native_bridge::{
+    runtime_host::{default_config, Config},
+    Bridge,
+};
+use serde_json::{json, Value};
+use std::{
+    collections::BTreeSet,
+    fs,
+    os::unix::fs::PermissionsExt,
+    thread,
+    time::{Duration, Instant},
+};
+fn host() -> Bridge {
+    let mut h = Bridge::new(Config::current(), false);
+    let mut cfg = default_config();
+    cfg["commands"].as_array_mut().unwrap().extend([
+        json!({"id":"analytics.fixture","title":"Own analytics fixture","kind":"script","target":"/usr/bin/true"}),
+        json!({"id":"analytics.failure","title":"Own failure fixture","kind":"script","target":"/usr/bin/false"}),
+    ]);
+    h.replace(&cfg, None);
+    h.start();
+    settled(&h, |_| true);
+    h
+}
+fn settled(h: &Bridge, predicate: impl Fn(&Value) -> bool) {
+    h.wait(|s| {
+        s["configurationUpdating"] != true
+            && s["managementUI"]["revision"].as_u64().unwrap_or(0) > 0
+            && s["managementUI"]["revision"] == s["managementUI"]["appliedRevision"]
+            && predicate(s)
+    });
+}
+fn probe(h: &Bridge, action: &str, mut fields: Value) -> Value {
+    let request = fields.as_object_mut().unwrap();
+    request.insert("op".into(), json!("native.test"));
+    request.insert("surface".into(), json!("settings"));
+    request.insert("action".into(), json!(action));
+    let response = h.rpc(&fields);
+    assert_eq!(response["ok"], true, "{response}");
+    response["result"].clone()
+}
+fn read(h: &Bridge) -> Value {
+    probe(h, "dashboard-read", json!({}))
+}
+fn open(h: &Bridge) -> Value {
+    assert_eq!(h.rpc(&json!({"op":"show","mode":"analytics"}))["ok"], true);
+    settled(h, |s| {
+        s["managementUI"]["visible"] == true && s["managementUI"]["tab"] == "dashboard"
+    });
+    read(h)
+}
+fn click(h: &Bridge, index: u32) {
+    probe(h, "dashboard-control", json!({"index":index}));
+}
+fn wait(h: &Bridge, predicate: impl Fn(&Value) -> bool) -> Value {
+    let end = Instant::now() + Duration::from_secs(5);
+    loop {
+        let v = read(h);
+        if predicate(&v) {
+            return v;
+        }
+        assert!(Instant::now() < end, "dashboard did not settle: {v}");
+        thread::sleep(Duration::from_millis(20));
+    }
+}
+fn entries(path: &std::path::Path) -> BTreeSet<std::ffi::OsString> {
+    fs::read_dir(path)
+        .unwrap()
+        .map(|v| v.unwrap().file_name())
+        .collect()
+}
+#[test]
+fn owned_save_dialog_takes_current_data_and_cancel_writes_nothing() {
+    let h = host();
+    open(&h);
+    click(&h, 2);
+    let d = read(&h);
+    assert_eq!(d["fixtureDialog"], true);
+    assert_eq!(d["dialogOpen"], true);
+    let before = entries(&h.base);
+    assert_eq!(
+        probe(
+            &h,
+            "dashboard-dialog-complete",
+            json!({"serial":d["dialogSerial"],"token":d["surface"]["token"],"accepted":false})
+        )["accepted"],
+        true
+    );
+    assert_eq!(entries(&h.base), before);
+    click(&h, 2);
+    let d = read(&h);
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics.reset","confirmed":true}))["ok"],
+        true
+    );
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics.settings","retentionDays":14}))["ok"],
+        true
+    );
+    assert_eq!(
+        h.rpc(&json!({"op":"execute","id":"analytics.fixture"}))["ok"],
+        true
+    );
+    assert_eq!(read(&h)["dialogOpen"], true);
+    let output = h.base.join("diagnostics.json");
+    assert_eq!(
+        probe(
+            &h,
+            "dashboard-dialog-complete",
+            json!({"serial":d["dialogSerial"],"token":d["surface"]["token"],"accepted":true,"path":output})
+        )["accepted"],
+        true
+    );
+    wait(&h, |v| {
+        v["surface"]["busy"] == false && v["surface"]["message"] == "Diagnostics exported"
+    });
+    let raw = fs::read_to_string(&output).unwrap();
+    let result: Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(result["attempts"], 1);
+    assert_eq!(result["successes"], 1);
+    assert_eq!(
+        fs::metadata(&output).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert!(!raw.contains(h.base.to_str().unwrap()));
+}
+#[test]
+fn retired_controls_and_dialog_cannot_mutate_a_reopened_dashboard() {
+    let h = host();
+    let token = open(&h)["surface"]["token"].clone();
+    probe(&h, "dashboard-retain", json!({"index":1}));
+    click(&h, 2);
+    let d = read(&h);
+    probe(&h, "library-tab", json!({"tab":"commands"}));
+    settled(&h, |s| s["managementUI"]["tab"] == "commands");
+    assert_eq!(read(&h)["dialogOpen"], false);
+    assert_ne!(open(&h)["surface"]["token"], token);
+    let before = h.rpc(&json!({"op":"analytics"}))["result"].clone();
+    probe(&h, "dashboard-stale", json!({}));
+    let output = h.base.join("stale-export.json");
+    assert_eq!(
+        probe(
+            &h,
+            "dashboard-dialog-complete",
+            json!({"serial":d["dialogSerial"],"token":token,"accepted":true,"path":output})
+        )["accepted"],
+        false
+    );
+    assert_eq!(h.rpc(&json!({"op":"analytics"}))["result"], before);
+    assert!(!output.exists());
+}

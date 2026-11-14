@@ -99,6 +99,7 @@ runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 native-profile-process|p|rust-native/tests/native_process.py
 bridge-tools-build|b|ruycast-native native
 native-dashboard-process|p|rust-native/tests/native_dashboard_process.py
+native-dashboard-dialog-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_dashboard_dialog_process --locked
 dashboard-export-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test dashboard_export_process --locked
 settings-preferences-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test settings_preferences_process --locked
 native-keyboard-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example keyboard-host --locked
@@ -1876,7 +1877,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 133);
+        assert_eq!(steps.len(), 134);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
