@@ -648,7 +648,7 @@ const SETTINGS: &[SettingsGate] = &[
         "clipboard_history_process.ClipboardHistory.test_native_text_image_empty_error_busy_light_dark_narrow_wide",
         "clipboard_rich_paste::file_and_image_paste_complete_owned_ticket_without_recapture",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-process","dashboard-presentation-process","native-dashboard-process","dashboard-export-process","startup-process"], native_cases:&[
+    SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-process","dashboard-presentation-process","native-dashboard-process","native-dashboard-dialog-process","dashboard-export-process","startup-process"], native_cases:&[
         "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention",
         "analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export",
         "analytics::tests::invalid_known_file_is_not_overwritten_until_explicit_reset",
@@ -662,6 +662,8 @@ const SETTINGS: &[SettingsGate] = &[
         "dashboard_presentation_process.Presentation.test_populated_top30_hash_ties_last_wins_disabled_names_samples_errors_and_legacy",
         "dashboard_presentation_process.Presentation.test_elapsed_utc_hours_unknown_calendar_start_retention_dst_and_year",
         "native_dashboard_process.Dashboard",
+        "native_dashboard_dialog_process::owned_save_dialog_takes_current_data_and_cancel_writes_nothing",
+        "native_dashboard_dialog_process::retired_controls_and_dialog_cannot_mutate_a_reopened_dashboard",
         "dashboard_export_process::positive_held_export_global_reset_order_and_parent_mode",
         "dashboard_export_process::file_sync_and_rename_failure_preserve_prior_destination",
         "dashboard_export_process::postrename_parent_sync_failure_reports_published_outcome",
@@ -1216,6 +1218,10 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ),
         ],
         "--check-analytics" => &[
+            ("rust-native/tests/native_dashboard_dialog_process.rs", include_bytes!("../../../tests/native_dashboard_dialog_process.rs"), "f4752caa00270134c1ede1a3032afb18926b29f0361860cfdec1c8aca71b1f42"),
+            ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
             (
                 "rust-native/src/analytics.rs",
@@ -1250,7 +1256,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/tests/native_dashboard_process.py",
                 include_bytes!("../../../tests/native_dashboard_process.py"),
-                "980122480c8392cce92c49e948addc339f882be3718ca84de04c3e10c8710ba0",
+                "b484e8193c42e24fadef3ae8adf948ad945ba00e1aab8b588a0dcbbb43021c75",
             ),
             (
                 "rust-native/tests/dashboard_presentation_process.py",
@@ -1680,7 +1686,15 @@ mod tests {
         use sha2::Digest;
         let gate = super::SETTINGS.iter().find(|gate|gate.id=="--check-analytics").unwrap();
         assert!(gate.required_native_steps.contains(&"dashboard-export-process"));
+        assert!(gate.required_native_steps.contains(&"native-dashboard-dialog-process"));
         let entries=super::settings_sources(gate.id);
+        let dialog = entries.iter().find(|entry| entry.0=="rust-native/tests/native_dashboard_dialog_process.rs").unwrap();
+        assert_eq!(format!("{:x}",sha2::Sha256::digest(dialog.1)),dialog.2);
+        let dialog_source = std::str::from_utf8(dialog.1).unwrap();
+        for name in ["owned_save_dialog_takes_current_data_and_cancel_writes_nothing", "retired_controls_and_dialog_cannot_mutate_a_reopened_dashboard"] {
+            assert!(gate.native_cases.contains(&format!("native_dashboard_dialog_process::{name}").as_str()));
+            assert!(dialog_source.contains(&format!("fn {name}()")));
+        }
         assert!(!entries.iter().any(|entry|entry.0=="rust-native/tests/dashboard_export_process.py"));
         let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();
         assert_eq!(sources.len(),1);

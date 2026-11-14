@@ -43,30 +43,6 @@ class Dashboard(unittest.TestCase):
         self.click(h,3);self.wait(h,lambda v:v['surface']['confirming_reset']);self.click(h,4)
         self.wait(h,lambda v:not v['surface']['busy'] and not v['surface']['confirming_reset'])
         self.assertEqual(h.config.read_bytes(),before)
-    def test_owned_save_dialog_takes_current_data_and_cancel_writes_nothing(self):
-        h=self.host();v=self.open(h);self.click(h,2);d=self.read(h);self.assertTrue(d['fixtureDialog']);self.assertTrue(d['dialogOpen'])
-        before=set(h.base.iterdir())
-        self.assertTrue(h.probe('dashboard-dialog-complete',serial=d['dialogSerial'],token=d['surface']['token'],accepted=False)['accepted'])
-        self.assertEqual(before,set(h.base.iterdir()))
-        self.click(h,2);d=self.read(h)
-        self.assertTrue(h.rpc(dict(op='analytics.reset',confirmed=True))['ok'])
-        self.assertTrue(h.rpc(dict(op='analytics.settings',retentionDays=14))['ok'])
-        self.assertTrue(h.rpc(dict(op='execute',id='analytics.fixture'))['ok'])
-        self.assertTrue(self.read(h)['dialogOpen'])
-        output=h.base/'diagnostics.json'
-        self.assertTrue(h.probe('dashboard-dialog-complete',serial=d['dialogSerial'],token=d['surface']['token'],accepted=True,path=str(output))['accepted'])
-        self.wait(h,lambda v:not v['surface']['busy'] and v['surface']['message']=='Diagnostics exported')
-        result=json.loads(output.read_text());self.assertEqual(result['attempts'],1);self.assertEqual(result['successes'],1)
-        self.assertEqual(output.stat().st_mode&0o777,0o600)
-        self.assertNotIn(str(h.base),output.read_text())
-    def test_retired_controls_and_dialog_cannot_mutate_a_reopened_dashboard(self):
-        h=self.host();v=self.open(h);token=v['surface']['token'];h.probe('dashboard-retain',index=1)
-        self.click(h,2);d=self.read(h);h.probe('library-tab',tab='commands');h.settled(lambda s:s['managementUI']['tab']=='commands')
-        self.assertFalse(self.read(h)['dialogOpen']);v=self.open(h);self.assertNotEqual(token,v['surface']['token'])
-        before=h.rpc(dict(op='analytics'))['result'];h.probe('dashboard-stale')
-        output=h.base/'stale-export.json'
-        self.assertFalse(h.probe('dashboard-dialog-complete',serial=d['dialogSerial'],token=token,accepted=True,path=str(output))['accepted'])
-        self.assertEqual(h.rpc(dict(op='analytics'))['result'],before);self.assertFalse(output.exists())
     def test_standard_builtin_cli_native_sources_usage_logs_and_override(self):
         from library_process import Palette
         h=self.host();p=Palette(h)
