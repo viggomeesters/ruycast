@@ -198,3 +198,119 @@ fn oversized_header_and_invalid_home_fail_before_launch() {
         assert!(!marker.exists());
     }
 }
+
+fn finish_live(mut child: Child, timeout: Duration) {
+    // Closing stdin only after the response proves live-header handling, not EOF parsing.
+    drop(child.stdin.take());
+    let out = child_output::wait(child, timeout);
+    assert!(
+        out.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&out.stderr),
+        String::from_utf8_lossy(&out.stdout)
+    );
+}
+#[test]
+fn large_encoded_header_preserves_payload_or_reports_os_limit() {
+    let home = runtime_host::OwnedDir::new();
+    let c = json!({"id":"script.fixture","title":"Fixture","kind":"script","target":"/usr/bin/printf","arguments":["%s","\u{1}".repeat(400000)],"timeout":2});
+    let request = json!({"helper":cli(),"command":c,"home":home.0});
+    let input = serde_json::to_vec(&request).unwrap();
+    let result = finish(
+        spawn(Path::new(env!("CARGO_BIN_EXE_supervision-probe")), &[]),
+        input.clone(),
+        Duration::from_secs(7),
+    );
+    assert_eq!(result["noChildren"], true);
+    let response = result["result"].get("response").unwrap();
+    if response.get("ok").unwrap().as_bool().unwrap() {
+        assert_eq!(response["result"]["stdout"], "\u{1}".repeat(65536));
+    } else {
+        assert!(response["error"]
+            .as_str()
+            .unwrap()
+            .contains("Argument list too long"));
+    }
+    evidence("large-encoded-header", &input, &result);
+}
+#[test]
+fn non_utf8_home_is_expanded_as_raw_path_bytes() {
+    use std::os::unix::ffi::OsStringExt;
+    let home = runtime_host::OwnedDir::new();
+    let mut raw_home = home.0.as_os_str().as_encoded_bytes().to_vec();
+    raw_home.extend_from_slice(b"/raw-\xff");
+    let mut raw_target = raw_home.clone();
+    raw_target.extend_from_slice(b"/fixture");
+    let expected_errno = match Command::new(std::ffi::OsString::from_vec(raw_target)).output() {
+        Err(error) => error.raw_os_error().unwrap(),
+        Ok(_) => panic!("Nonexistent own fixture unexpectedly executed"),
+    };
+    let mut c = command(&home.0.join("unused"));
+    c["target"] = json!("~/fixture");
+    c["arguments"] = json!([]);
+    let header = json!({"command":c,"homeBytes":raw_home});
+    let mut payload = serde_json::to_vec(&header).unwrap();
+    payload.push(b'\n');
+    let mut child = PendingChild(Some(spawn(&cli(), &["__run-script-supervised"])));
+    let _: Value = serde_json::from_slice(&ready_line(child.0.as_mut().unwrap()).unwrap()).unwrap();
+    child
+        .0
+        .as_mut()
+        .unwrap()
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(&payload)
+        .unwrap();
+    child
+        .0
+        .as_mut()
+        .unwrap()
+        .stdin
+        .as_mut()
+        .unwrap()
+        .flush()
+        .unwrap();
+    let result: Value =
+        serde_json::from_slice(&ready_line(child.0.as_mut().unwrap()).unwrap()).unwrap();
+    finish_live(child.0.take().unwrap(), Duration::from_secs(3));
+    let response = result.get("response").unwrap();
+    assert_eq!(response["ok"], false);
+    assert!(response["error"]
+        .as_str()
+        .unwrap()
+        .contains(&format!("os error {expected_errno}")));
+    evidence("raw-home", &payload, &result);
+}
+#[test]
+fn uncommitted_header_has_independent_startup_deadline() {
+    let mut child = PendingChild(Some(spawn(&cli(), &["__run-script-supervised"])));
+    let _: Value = serde_json::from_slice(&ready_line(child.0.as_mut().unwrap()).unwrap()).unwrap();
+    child
+        .0
+        .as_mut()
+        .unwrap()
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(b"{")
+        .unwrap();
+    child
+        .0
+        .as_mut()
+        .unwrap()
+        .stdin
+        .as_mut()
+        .unwrap()
+        .flush()
+        .unwrap();
+    let result: Value =
+        serde_json::from_slice(&ready_line(child.0.as_mut().unwrap()).unwrap()).unwrap();
+    assert_eq!(result["response"]["ok"], false);
+    assert!(result["response"]["error"]
+        .as_str()
+        .unwrap()
+        .contains("timed out"));
+    finish_live(child.0.take().unwrap(), Duration::from_secs(2));
+    evidence("uncommitted-header", b"{", &result);
+}

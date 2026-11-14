@@ -3,7 +3,6 @@ import json
 import os
 from pathlib import Path
 import signal
-import select
 import subprocess
 import tempfile
 import time
@@ -51,36 +50,6 @@ class Supervision(unittest.TestCase):
         path.chmod(0o700)
         return path
 
-    def direct(self,payload):
-        child=subprocess.Popen([str(CLI),'__run-script-supervised'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=self.env)
-        try:
-            self.assertEqual(json.loads(self.line(child)),{'scriptSupervisor':3,'ready':True})
-            out,err=child.communicate(payload,timeout=6)
-            self.assertEqual(child.returncode,0,err.decode())
-            envelope=json.loads(out);self.assertEqual(envelope['scriptSupervisor'],3);self.assertTrue(envelope['ok'])
-            return envelope['response']
-        finally:
-            if child.poll() is None:child.kill();child.communicate()
-
-    def direct_live(self,header):
-        child=subprocess.Popen([str(CLI),'__run-script-supervised'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=self.env)
-        try:
-            json.loads(self.line(child));child.stdin.write(json.dumps(header).encode()+b'\n');child.stdin.flush()
-            result=json.loads(self.line(child));child.stdin.close();child.stdin=None;child.communicate(timeout=3)
-            self.assertEqual(child.returncode,0);return result['response']
-        finally:
-            if child.poll() is None:child.kill();child.communicate()
-
-    def line(self,child,timeout=5):
-        deadline=time.monotonic()+timeout;data=b''
-        while time.monotonic()<deadline:
-            if not select.select([child.stdout],[],[],max(0,deadline-time.monotonic()))[0]:break
-            byte=os.read(child.stdout.fileno(),1)
-            if not byte:return data
-            data+=byte
-            if byte==b'\n':return data
-        raise AssertionError('Own helper protocol line timed out')
-
     def tree(self):
         pid=self.base/'script-pid';sentinel=self.base/'descendant'
         child='import time,signal,pathlib;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(.8);pathlib.Path(%r).write_text("bad")'%str(sentinel)
@@ -104,29 +73,11 @@ class Supervision(unittest.TestCase):
         command=self.command();command.update(target='~/fixture',arguments=['$(literal) Ω\nline'])
         self.assertEqual(self.probe(command)['response']['result']['stdout'],'1|$(literal) Ω\nline')
 
-    def test_non_utf8_home_is_expanded_as_raw_path_bytes(self):
-        home=os.fsencode(self.base)+b'/raw-\xff'
-        try:
-            subprocess.run([home+b'/fixture'],check=True,capture_output=True)
-        except OSError as error:
-            expected_errno=error.errno
-        else:
-            raise AssertionError('Nonexistent own fixture unexpectedly executed')
-        command=self.command();command.update(target='~/fixture',arguments=[])
-        result=self.direct_live(dict(command=command,homeBytes=list(home)))
-        self.assertFalse(result['ok']);self.assertIn('os error '+str(expected_errno),result['error'])
-
     def test_output_bounds_survive_json_replacement_and_escaping(self):
         command=self.command('import os;os.write(1,bytes([255])*100000);os.write(2,bytes([0])*100000)')
         result=self.probe(command)['response']['result']
         self.assertEqual(len(result['stdout']),65536);self.assertEqual(len(result['stderr']),65536)
         self.assertEqual(set(result['stdout']),{'�'});self.assertEqual(set(result['stderr']),{'\0'})
-
-    def test_large_encoded_header_preserves_payload_or_reports_os_limit(self):
-        command=self.command();command.update(target='/usr/bin/printf',arguments=['%s','\x01'*400000])
-        result=self.probe(command)['response']
-        if result['ok']:self.assertEqual(result['result']['stdout'],'\x01'*65536)
-        else:self.assertIn('Argument list too long',result['error'])
 
     def test_cancel_deadline_and_panic_keep_independent_group_cleanup(self):
         for option in ['cancelMs','deadlineMs','panicMs']:
@@ -146,16 +97,6 @@ class Supervision(unittest.TestCase):
     def test_precommit_cleanup_wait_error_is_retried(self):
         result=self.probe(helper=self.fake('print("old runner",flush=True);time.sleep(.1)'),fault=True)
         self.assertIn('error',result);self.assertEqual((self.base/'wait-injected').read_text(),'injected')
-
-    def test_uncommitted_header_has_independent_startup_deadline(self):
-        child=subprocess.Popen([str(CLI),'__run-script-supervised'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=self.env)
-        try:
-            json.loads(self.line(child));child.stdin.write(b'{');child.stdin.flush()
-            result=json.loads(self.line(child));self.assertFalse(result['response']['ok'])
-            self.assertIn('timed out',result['response']['error'])
-            child.stdin.close();child.stdin=None;child.communicate(timeout=2)
-        finally:
-            if child.poll() is None:child.kill();child.communicate()
 
     def test_bad_ready_or_no_ready_never_receives_a_command(self):
         for body in ['print("old runner",flush=True)','print(json.dumps({"scriptSupervisor":1,"ready":True}),flush=True)','time.sleep(1)']:
