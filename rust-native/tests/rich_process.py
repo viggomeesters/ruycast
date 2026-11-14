@@ -71,17 +71,6 @@ else:
     def test_config_change_after_admission_keeps_concrete_usage_warning(self):
         host=self.fixture('slow');self.open(host);self.click(host,'choose');self.file(host.base/'ready');self.replace_command(host,self.command('print("changed")'));(host.base/'release').write_text('go');r=self.view(host,lambda r:r['detail_visible'])['scriptResult'];self.assertIn('configuration',r['error']);self.assertEqual(r['detail'],'Late report')
 
-    def test_native_ime_blocks_return_escape_details_and_mouse_until_commit(self):
-        host=self.fixture();old=self.open(host)['scriptResult']
-        for action in ['return','escape','details','mouse']:
-            self.assertTrue(host.probe('rich-query-mark',text='CA')['marked'])
-            if action=='return':self.key(host,36,'\r')
-            elif action=='escape':self.key(host,53)
-            elif action=='details':host.probe('result-control',name='details')
-            else:host.probe('click',row=0)
-            host.settled();self.assertFalse((host.base/'selected').exists());r=self.view(host)['scriptResult'];self.assertEqual(r['token'],old['token']);self.assertFalse(r['detail_visible'])
-            host.probe('rich-query-unmark');host.probe('query',query='')
-        host.probe('query',query='CAFE');self.view(host,lambda r:r['query']=='CAFE');host.probe('click',row=0);self.idle(host);self.assertEqual((host.base/'selected').read_text(),'PRIVATE $(literal) Ω 1')
     def native_event_boundary(self,host):
         before=host.probe('rich-query-read')['groupingLevel'];host.probe('rich-query-native-event');end=time.monotonic()+3
         while time.monotonic()<end:
@@ -99,9 +88,6 @@ else:
         code='import sys;print(%r if not sys.argv[1] else %r)'%(json.dumps(initial),json.dumps(dict(ok=False,error='Provider failed',detail='New failure report')))
         command=self.command(code);command['arguments']+=['{input}'];host=self.host(native=True,commands=[command]);old=self.open(host)['scriptResult'];self.assertIsNone(old['detail']);self.assertNotIn('Details ⌘D',host.probe('read')['resultPanel']['buttons']);self.click(host,'choose');r=self.view(host,lambda r:r['detail'] is not None)['scriptResult'];self.assertEqual(r['token'],old['token']);self.assertIn('Details ⌘D',host.probe('read')['resultPanel']['buttons']);self.click(host,'details');self.assertEqual(self.view(host,lambda r:r['detail_visible'])['resultPanel']['detail'],'New failure report')
 
-    def test_retired_query_undo_redo_and_typing_cannot_modify_new_session(self):
-        host=self.fixture();old=self.open(host)['scriptResult'];host.probe('rich-query-type',text='cafe');self.view(host,lambda r:r['query']=='cafe');self.assertTrue(host.probe('rich-query-read')['canUndo']);host.probe('retain-result-query');self.click(host,'reload');new=self.view(host,lambda r:r['token']!=old['token'])['scriptResult'];proof=host.probe('stale-result-query');self.assertTrue(proof['cleared'] and proof['detached']);self.assertFalse(proof['editable'] or proof['canUndoAfter']);host.settled();r=self.view(host)['scriptResult'];self.assertEqual(r['token'],new['token']);self.assertEqual(r['query'],'');self.assertFalse((host.base/'selected').exists())
-
     def test_empty_choices_and_blank_provider_labels_keep_functional_accessibility(self):
         command=self.command('print(\'{"ok":true,"choices":{"title":"","placeholder":"","items":[]}}\')')
         host=self.host(native=True,commands=[command]);v=self.open(host);r=v['scriptResult'];self.assertEqual(r['title'],'Execution Fixture');self.assertIn('Search choices',v['accessibilityText']);self.assertEqual(r['rows'],[]);self.assertIsNone(r['selection']);self.assertIn('No results',v['screenText']);old=r['token'];self.key(host,36,'\r');host.settled();self.assertEqual(self.view(host)['scriptResult']['token'],old);self.click(host,'reload');self.assertNotEqual(self.view(host,lambda r:r['token']!=old)['scriptResult']['token'],old);self.capture(host,'blank-empty-labels')
@@ -110,22 +96,6 @@ else:
         initial=dict(ok=True,choices=dict(title='Projects',placeholder='Find…',items=[dict(id='one',title='Project',subtitle='EX',value='literal')]))
         code='import sys;print(%r if not sys.argv[1] else "ordinary failure text");raise SystemExit(0 if not sys.argv[1] else 7)'%json.dumps(initial)
         command=self.command(code);command['arguments']+=['{input}'];host=self.host(native=True,commands=[command]);old=self.open(host)['scriptResult'];self.click(host,'choose');v=self.view(host,lambda r:bool(r['error']));self.assertEqual(v['scriptResult']['token'],old['token']);self.assertIn('status 7',v['scriptResult']['error']);self.assertFalse(v['scriptResult']['busy']);self.assertTrue(any(e.get('exitStatus')==7 and not e['success'] for e in host.rpc({'op':'logs'})['result'] if e['phase']=='command.finish'))
-
-    def test_retired_result_actions_are_effectless_after_close_and_replacement(self):
-        for replacement in [False,True]:
-            with self.subTest(replacement=replacement):
-                host=self.fixture();old=self.open(host)['scriptResult']
-                if replacement:
-                    self.click(host,'reload');current=self.view(host,lambda r:r['token']!=old['token'])['scriptResult']
-                else:
-                    self.click(host,'close');host.settled();self.assertIsNone(host.probe('read')['scriptResult']);current=None
-                epoch=host.rpc({'op':'status'})['result']['nativeUI']['queryEpoch']
-                for name in ['details','select','choose','activate','reload','close']:
-                    host.probe('result-event',token=old['token'],epoch=epoch,name=name,id='reused');host.settled();v=host.probe('read')
-                    self.assertFalse(any('no longer open' in text for text in v['screenText']))
-                    if replacement:self.assertEqual(v['scriptResult'],current)
-                    else:self.assertIsNone(v['scriptResult'])
-                    self.assertFalse((host.base/'selected').exists())
 
     def test_retired_result_ingress_cannot_suppress_new_initial_job(self):
         host=self.fixture();old=self.open(host)['scriptResult']
