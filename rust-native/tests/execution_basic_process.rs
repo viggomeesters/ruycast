@@ -319,3 +319,71 @@ fn usage_failure_reports_completed_action_without_retry() {
         0
     );
 }
+
+struct GracefulHost(Host);
+impl std::ops::Deref for GracefulHost {
+    type Target = Host;
+    fn deref(&self) -> &Host {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for GracefulHost {
+    fn deref_mut(&mut self) -> &mut Host {
+        &mut self.0
+    }
+}
+impl Drop for GracefulHost {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.0.stop(true)));
+        }
+    }
+}
+#[test]
+fn saturated_scripts_leave_status_and_quit_admission() {
+    use std::io::Write;
+    let mut h = GracefulHost(host(command("/usr/bin/printf", json!(["fixture result"]))));
+    let pids = h.base.join("pids");
+    fs::create_dir(&pids).unwrap();
+    let mut cmd = command(
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-delay", "{input}", "10000", ""]),
+    );
+    cmd["timeout"] = json!(15);
+    replace_command(&h, cmd);
+    let mut streams = Vec::new();
+    for i in 0..15 {
+        let mut stream = h.connect(std::time::Duration::from_secs(6));
+        serde_json::to_writer(
+            &mut stream,
+            &json!({"op":"execute","id":"runfixture","values":{"input":pids.join(i.to_string())}}),
+        )
+        .unwrap();
+        stream.write_all(b"\n").unwrap();
+        streams.push(stream);
+    }
+    h.wait(|s| s["scriptsRunning"] == 15);
+    for i in 0..15 {
+        wait_file(&pids.join(i.to_string()));
+    }
+    let busy =
+        h.rpc(&json!({"op":"execute","id":"runfixture","values":{"input":pids.join("extra")}}));
+    assert_eq!(busy["ok"], false);
+    assert!(busy["error"].as_str().unwrap().contains("busy"));
+    let start = std::time::Instant::now();
+    assert_eq!(h.rpc(&json!({"op":"status"}))["ok"], true);
+    assert!(start.elapsed() < std::time::Duration::from_millis(500));
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    let output = h.wait_exit(std::time::Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for entry in fs::read_dir(&pids).unwrap() {
+        assert_dead(&fs::read_to_string(entry.unwrap().path()).unwrap());
+    }
+    assert!(!h.profile.join("control.sock").exists());
+    drop(streams);
+}
