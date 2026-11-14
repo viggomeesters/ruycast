@@ -50,7 +50,6 @@ analytics-probe-build|b|analytics-probe tools
 analytics-write-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example analytics-write-shim --locked
 analytics-runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test analytics_runtime_process --locked
 analytics-cast-reference|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test analytics_cast_reference --locked
-analytics-process|p|rust-native/tests/analytics_process.py
 dashboard-presentation-process|p|rust-native/tests/dashboard_presentation_process.py
 probe-build|b|foundation-probe tools
 script-probe-build|b|script-probe tools
@@ -192,7 +191,6 @@ const REFERENCES: &[(&str, &str)] = &[
     ),
     ("nativeSnippetChoice", "native-snippet-choice-bindings.json"),
     ("nativeChoiceHost", "native-choice-bindings.json"),
-    ("analyticsReference", "analytics-reference-bindings.json"),
     (
         "dashboardPresentation",
         "dashboard-presentation-bindings.json",
@@ -1878,7 +1876,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 135);
+        assert_eq!(steps.len(), 134);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
@@ -2068,7 +2066,7 @@ mod tests {
         let actions = steps.iter().find(|step|step.name=="actions-menu-process").unwrap();
         assert_eq!(actions.arguments.last().unwrap(),"--actions-menu-only");
         assert_eq!(steps.iter().find(|step|step.name=="item-binding-original-process").unwrap().arguments.last().unwrap(),"--item-binding-original-only");
-        assert_eq!(REFERENCES.len(), 13);
+        assert_eq!(REFERENCES.len(), 12);
         assert!(matrix("unsupported").is_err());
     }
     #[test]

@@ -311,6 +311,7 @@ rust-native/tests/fixtures/analytics_lifecycle_reference.json
 rust-native/tests/fixtures/analytics_retention_reference.json
 rust-native/tests/fixtures/analytics_decoder_reference.json
 rust-native/tests/fixtures/analytics_integer_reference.json
+rust-native/tests/fixtures/analytics_limits_reference.json
 rust-native/tests/fixtures/analytics_write_shim.rs
 rust-native/tests/app_picker_identity_process.rs
 rust-native/tests/applications_discovery_process.rs

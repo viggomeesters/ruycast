@@ -648,7 +648,7 @@ const SETTINGS: &[SettingsGate] = &[
         "clipboard_history_process.ClipboardHistory.test_native_text_image_empty_error_busy_light_dark_narrow_wide",
         "clipboard_rich_paste::file_and_image_paste_complete_owned_ticket_without_recapture",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-process","analytics-runtime-process","analytics-cast-reference","dashboard-presentation-process","native-dashboard-dialog-process","dashboard-export-process","startup-process"], native_cases:&[
+    SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-runtime-process","analytics-cast-reference","dashboard-presentation-process","native-dashboard-dialog-process","dashboard-export-process","startup-process"], native_cases:&[
         "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention",
         "analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export",
         "analytics::tests::invalid_known_file_is_not_overwritten_until_explicit_reset",
@@ -657,7 +657,7 @@ const SETTINGS: &[SettingsGate] = &[
         "analytics::tests::hourly_retention_accepts_2161_prunes_on_advance_and_never_resurrects",
         "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch",
         "startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback",
-        "analytics_process.Analytics.test_sample_caps_error_whitelist_and_hashed_raw_utf8_identity",
+        "analytics_cast_reference::sample_caps_error_whitelist_and_hashed_raw_utf8_identity",
         "analytics_cast_reference::existing_document_rejection_and_date_codec_match_foundation",
         "dashboard_presentation_process.Presentation.test_populated_top30_hash_ties_last_wins_disabled_names_samples_errors_and_legacy",
         "dashboard_presentation_process.Presentation.test_elapsed_utc_hours_unknown_calendar_start_retention_dst_and_year",
@@ -1304,12 +1304,13 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ),
             ("rust-native/tests/analytics_runtime_process.rs", include_bytes!("../../../tests/analytics_runtime_process.rs"), "8ef18a852c782df0a469ea5ca4f22e2e4d2c9f0392f1edad6103389adedd871b"),
             ("rust-native/tests/fixtures/analytics_write_shim.rs", include_bytes!("../../../tests/fixtures/analytics_write_shim.rs"), "9e2add20464e7336d854171083e3861f79a4dbe6d49f67ecf723cf72f98b790c"),
-            ("rust-native/tests/analytics_cast_reference.rs", include_bytes!("../../../tests/analytics_cast_reference.rs"), "bc40cb3fe7f1fd286d32bade1f2bbf8299a9e41edfd5a497685300bc74250cb4"),
+            ("rust-native/tests/analytics_cast_reference.rs", include_bytes!("../../../tests/analytics_cast_reference.rs"), "9af609d17784a42a1847feec74d5e70ceccf84efc83be03c5a9578e3aac482c3"),
             ("rust-native/tests/fixtures/analytics_cast_reference.json", include_bytes!("../../../tests/fixtures/analytics_cast_reference.json"), "6bd89546d290d6e3f634c185af4cf322b4d141a0426f77eb034ff115bc8df9cb"),
             ("rust-native/tests/fixtures/analytics_lifecycle_reference.json", include_bytes!("../../../tests/fixtures/analytics_lifecycle_reference.json"), "cd0b799d618f950147b3f318c698bd29aaf1e7790d785c597b3643639eeeaac9"),
             ("rust-native/tests/fixtures/analytics_retention_reference.json", include_bytes!("../../../tests/fixtures/analytics_retention_reference.json"), "ddaea60e8771a91a4a51332b14e2e1a0d58f3b361155759eaa6919da1397f7e6"),
             ("rust-native/tests/fixtures/analytics_decoder_reference.json", include_bytes!("../../../tests/fixtures/analytics_decoder_reference.json"), "22a3ec58d6f51df2173d686b2f98770a3b0d39ce015af85eaa674327a15b32cc"),
             ("rust-native/tests/fixtures/analytics_integer_reference.json", include_bytes!("../../../tests/fixtures/analytics_integer_reference.json"), "3c0fed3cabad017dc90b7d2396b27b455c57489eba80d58ef19682d524befc4c"),
+            ("rust-native/tests/fixtures/analytics_limits_reference.json", include_bytes!("../../../tests/fixtures/analytics_limits_reference.json"), "e58f134fddec3a7ecb65a6c9fa341dca1feee40dde9abd7c3b03e11bc2563bfb"),
         ],
         "--check-visual-assets" => &[
             (
