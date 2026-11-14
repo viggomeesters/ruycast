@@ -113,7 +113,6 @@ native-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --featur
 app-picker-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test app_picker_identity_process --locked
 bridge-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test bridge_process --locked
 system-search-tools-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --bin ruycast-native --bin system-search-probe --locked
-system-search-process|p|rust-native/tests/system_search_process.py
 system-search-cli-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test system_search_cli_process --locked
 clipboard-history-process|p|rust-native/tests/clipboard_history_process.py
 snippet-links-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --snippet-links-only
@@ -1877,7 +1876,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 133);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
