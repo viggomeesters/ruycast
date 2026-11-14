@@ -350,3 +350,110 @@ fn queued_query_before_close_cannot_error_on_restored_search() {
         .any(|s| s.as_str().unwrap().contains("no longer open")));
     assert!(!host.base.join("selected").exists());
 }
+#[test]
+fn native_ime_blocks_return_escape_details_and_mouse_until_commit() {
+    let host = host("close");
+    let old = open(&host)["scriptResult"].get("token").unwrap().clone();
+    for action in ["return", "escape", "details", "mouse"] {
+        assert_eq!(
+            host.probe("rich-query-mark", json!({"text":"CA"}))["marked"],
+            true
+        );
+        match action {
+            "return" => {
+                actions::key(&host, 36, 0, "\r", false);
+            }
+            "escape" => {
+                actions::key(&host, 53, 0, "", false);
+            }
+            "details" => {
+                host.probe("result-control", json!({"name":"details"}));
+            }
+            "mouse" => {
+                host.probe("click", json!({"row":0}));
+            }
+            _ => unreachable!(),
+        }
+        host.settled(|_| true);
+        assert!(!host.base.join("selected").exists());
+        let v = view(&host, |_| true);
+        assert_eq!(v["scriptResult"].get("token").unwrap(), &old);
+        assert_eq!(v["scriptResult"]["detail_visible"], false);
+        actions::probe(&host, "rich-query-unmark");
+        host.probe("query", json!({"query":""}));
+    }
+    host.probe("query", json!({"query":"CAFE"}));
+    view(&host, |r| r["query"] == "CAFE");
+    host.probe("click", json!({"row":0}));
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert_eq!(
+        fs::read_to_string(host.base.join("selected")).unwrap(),
+        "PRIVATE $(literal) Ω 1"
+    );
+}
+#[test]
+fn retired_query_undo_redo_and_typing_cannot_modify_new_session() {
+    let host = host("close");
+    let old = open(&host)["scriptResult"].get("token").unwrap().clone();
+    host.probe("rich-query-type", json!({"text":"cafe"}));
+    view(&host, |r| r["query"] == "cafe");
+    assert_eq!(actions::probe(&host, "rich-query-read")["canUndo"], true);
+    actions::probe(&host, "retain-result-query");
+    click(&host, "reload");
+    let new = view(&host, |r| r.get("token").unwrap() != &old)["scriptResult"]
+        .get("token")
+        .unwrap()
+        .clone();
+    let proof = actions::probe(&host, "stale-result-query");
+    assert_eq!(proof["cleared"], true);
+    assert_eq!(proof["detached"], true);
+    assert_eq!(proof["editable"], false);
+    assert_eq!(proof["canUndoAfter"], false);
+    host.settled(|_| true);
+    let v = view(&host, |_| true);
+    assert_eq!(v["scriptResult"].get("token").unwrap(), &new);
+    assert_eq!(v["scriptResult"]["query"], "");
+    assert!(!host.base.join("selected").exists());
+}
+#[test]
+fn retired_result_actions_are_effectless_after_close_and_replacement() {
+    for replacement in [false, true] {
+        let host = host("close");
+        let old = open(&host)["scriptResult"].get("token").unwrap().clone();
+        let current = if replacement {
+            click(&host, "reload");
+            Some(view(&host, |r| r.get("token").unwrap() != &old)["scriptResult"].clone())
+        } else {
+            click(&host, "close");
+            host.settled(|_| true);
+            assert!(actions::probe(&host, "read")
+                .get("scriptResult")
+                .unwrap()
+                .is_null());
+            None
+        };
+        let epoch = host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]
+            .get("queryEpoch")
+            .unwrap()
+            .clone();
+        for name in ["details", "select", "choose", "activate", "reload", "close"] {
+            host.probe(
+                "result-event",
+                json!({"token":old,"epoch":epoch,"name":name,"id":"reused"}),
+            );
+            host.settled(|_| true);
+            let v = actions::probe(&host, "read");
+            assert!(!v["screenText"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|s| s.as_str().unwrap().contains("no longer open")));
+            if let Some(current) = &current {
+                assert_eq!(v.get("scriptResult").unwrap(), current);
+            } else {
+                assert!(v.get("scriptResult").unwrap().is_null());
+            }
+            assert!(!host.base.join("selected").exists());
+        }
+    }
+}
