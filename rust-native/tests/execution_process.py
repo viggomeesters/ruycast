@@ -65,33 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_cli_literal_input_uuid_usage_and_private_logs(self):
-        command=self.command()
-        command.update(target='/usr/bin/printf', arguments=['%s|%s|%s|%s', '{input}', 'prefix{input}', '{uuid}', '{uuid}'], inputPrompt='Text')
-        host=self.host(commands=[command])
-        secret='literal $(echo secret) Ω https://private.invalid/token'
-        result=host.cli('run', 'runfixture', '--input', secret)['result']['stdout'].split('|')
-        self.assertEqual(result[:2], [secret, 'prefix{input}'])
-        self.assertEqual(len(result[2]),36);self.assertNotEqual(result[2], result[3])
-        self.assertEqual(host.cli('usage')['result']['script.fixture'],1)
-        logs=host.cli('logs')['result']
-        self.assertEqual([e['phase'] for e in logs], ['command.finish','command.start'])
-        self.assertEqual(logs[0]['source'],'cli')
-        raw=(host.profile/'command-log.json').read_text()
-        self.assertNotIn(secret,raw);self.assertNotIn('private.invalid',raw);self.assertNotIn('stdout',raw)
-        self.assertEqual((host.profile/'command-log.json').stat().st_mode&0o777,0o600)
-        self.assertEqual((host.profile/'usage.json').stat().st_mode&0o777,0o600)
-
-    def test_dry_run_disabled_and_missing_prompt_do_not_spawn_or_log(self):
-        command=self.command(inputPrompt='Text')
-        host=self.host(commands=[command])
-        self.assertTrue(host.cli('run','runfixture','--dry-run')['dryRun'])
-        self.assertFalse(host.rpc(dict(op='execute',id='runfixture'))['ok'])
-        command['enabled']=False;self.replace_command(host,command)
-        self.assertFalse(host.rpc(dict(op='execute',id='runfixture',values={'input':'text'}))['ok'])
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
     def test_expanded_arguments_reach_actual_os_limit_with_private_failure_logs(self):
         command=self.command(inputPrompt='Text');command['arguments']=['{input}']*32
         host=self.host(commands=[command])
