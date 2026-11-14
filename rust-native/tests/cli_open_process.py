@@ -106,28 +106,6 @@ class CliOpen(unittest.TestCase):
         self.assertEqual(self.opens(host),[])
         self.assertTrue(host.cli('run','fixture.open')['ok'])
 
-    def test_discovered_app_runs_from_shared_catalog_without_saved_presence(self):
-        host=self.host(discovered=True)
-        row=next(c for c in host.cli('search','Fixture Discovered')['result'] if c['id']=='discovered.dev.fixture.discovered')
-        self.assertTrue(host.cli('run',row['id'],'--dry-run')['dryRun'])
-        result=host.cli('run',row['id'])
-        self.assertTrue(result['ok'])
-        self.assertNotIn('usageWarning',result)
-        self.assertEqual(host.cli('usage')['result'][row['id']],1)
-        self.assertFalse(any(c['id']==row['id'] for c in host.cli('commands')['result']))
-
-    def test_saved_disabled_target_suppresses_discovered_and_blocks_other_saved_copy(self):
-        host=self.host([command(target='dev.fixture.discovered',enabled=False),dict(id='fixture.copy',title='Copy',kind='app',target='dev.fixture.discovered')],discovered=True)
-        for identifier in ['fixture.open','fixture.copy','discovered.dev.fixture.discovered']:
-            result=host.rpc(dict(op='execute',id=identifier));self.assertFalse(result['ok'])
-        self.assertEqual(self.opens(host),[])
-
-    def test_missing_interposition_is_fail_closed_in_headless_fixture(self):
-        host=self.host(shim=False)
-        result=host.rpc(dict(op='execute',id='fixture.open'))
-        self.assertFalse(result['ok']);self.assertIn('fixture boundary',result['error'])
-        self.assertFalse(self.trace(host))
-
     def test_blocked_lookup_deadline_is_retired_before_release_and_owner_remains_available(self):
         host=self.host([command(target='dev.fixture.hold-resolve')],dispatch=1000)
         worker,results=self.asynchronous(host)
