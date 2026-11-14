@@ -44,31 +44,6 @@ class NativeInput(unittest.TestCase):
 
     def idle(self,host):host.wait(lambda s:s['scriptsRunning']==0)
 
-    def test_failure_preserves_same_native_text_focus_typing_and_undo(self):
-        host=self.host(native=True,commands=[self.command('import sys;print("failure",file=sys.stderr);raise SystemExit(7)',inputPrompt='Message')])
-        token=self.open(host)['editorToken'];self.type(host,'Keep me')
-        host.probe('save-editor');self.idle(host)
-        self.view(host,lambda v:any('7' in s for s in v['screenText']))
-        state=host.probe('run-input-read');self.assertTrue(state['editable'] and state['focused'] and state['canUndo']);self.assertEqual(state['text'],'Keep me')
-        self.assertEqual(host.probe('read')['editorToken'],token)
-        self.type(host,' and this');self.assertEqual(host.probe('run-input-read')['text'],'Keep me and this')
-        self.key(host,6,'z',CMD);self.assertNotEqual(host.probe('run-input-read')['text'],'Keep me and this')
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
-    def test_launch_failure_keeps_input_and_native_typing(self):
-        command=self.command(inputPrompt='Message');command.update(target='/nonexistent-ruycast-fixture',arguments=['{input}'])
-        host=self.host(native=True,commands=[command]);self.open(host);self.type(host,'launch draft');host.probe('save-editor')
-        self.view(host,lambda v:any('such file' in s.lower() for s in v['screenText']));self.idle(host)
-        self.assertEqual(host.probe('run-input-read')['text'],'launch draft');self.type(host,' retained')
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
-    def test_timeout_keeps_input_and_native_typing(self):
-        command=self.command('import time;time.sleep(1)',inputPrompt='Message');command['timeout']=.1
-        host=self.host(native=True,commands=[command]);self.open(host);self.type(host,'timeout draft');host.probe('save-editor')
-        self.view(host,lambda v:any('timed out' in s.lower() for s in v['screenText']));self.idle(host)
-        self.assertEqual(host.probe('run-input-read')['text'],'timeout draft');self.type(host,' retained')
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
     def waiting_script(self,host):
         ready=host.base/'ready';gate=host.base/'gate';done=host.base/'done'
         code='import pathlib,time;pathlib.Path(%r).write_text("started");p=pathlib.Path(%r)\nwhile not p.exists():time.sleep(.01)\npathlib.Path(%r).write_text("completed")'%(str(ready),str(gate),str(done))

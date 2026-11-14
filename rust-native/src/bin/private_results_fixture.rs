@@ -3,6 +3,10 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("execution-fail") if args.len() == 1 => {
+            eprintln!("failure");
+            std::process::exit(7);
+        }
         Some("execution-write") if args.len() == 3 => {
             std::fs::write(&args[1], &args[2]).unwrap();
         }
