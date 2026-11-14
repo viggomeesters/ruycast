@@ -66,7 +66,7 @@ snippet-board-sdk-build|c|build --manifest-path rust-native/Cargo.toml --feature
 snippet-board-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_board_process --locked
 snippet-choice-probe-build|b|snippet-choice-probe tools
 snippet-choice-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_choice_process --locked
-snippet-choice-request-process|p|rust-native/tests/snippet_choice_request_process.py
+snippet-choice-request-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_choice_request_process --locked
 native-choice-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example choice-fixture --locked
 native-snippet-choice-probe-build|b|native-snippet-choice-probe tools
 native-snippet-choice-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_snippet_choice_process --locked
