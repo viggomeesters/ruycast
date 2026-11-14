@@ -78,13 +78,16 @@ fn main() {
         }
         Some("fake") => {
             let mode = &args[1];
-            if mode == "gated" {
+            if mode == "gated" || mode == "gated-fail" {
                 assert_eq!(args.len(), 6);
                 std::fs::write(&args[2], "ready").unwrap();
                 let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
                 while !std::path::Path::new(&args[3]).exists() {
                     assert!(std::time::Instant::now() < deadline, "owned gate timed out");
                     std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                if mode == "gated-fail" {
+                    std::process::exit(7);
                 }
                 let mut output = std::fs::OpenOptions::new().create(true).append(true).open(&args[4]).unwrap();
                 output.write_all(b"once").unwrap();
