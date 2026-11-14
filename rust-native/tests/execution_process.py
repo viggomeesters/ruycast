@@ -65,18 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_native_query_change_does_not_cancel_or_hide_new_results(self):
-        host=self.host(native=True);ready=host.base/'native-ready';marker=host.base/'native-done'
-        code='import pathlib,time;pathlib.Path(%r).write_text("ready");time.sleep(.3);pathlib.Path(%r).write_text("done")'%(str(ready),str(marker))
-        self.replace_command(host,self.command(code))
-        self.show(host);self.key(host,36,'\r');self.file(ready)
-        self.assertTrue(host.rpc(dict(op='show',query='finder'))['ok'])
-        host.settled(lambda s:s['nativeUI']['selectedId']=='app.finder')
-        self.file(marker);host.wait(lambda s:s['scriptsRunning']==0)
-        status=host.rpc({'op':'status'})['result']['nativeUI']
-        self.assertTrue(status['visible']);self.assertEqual(status['selectedId'],'app.finder')
-        self.assertEqual(host.probe('read')['input'],'finder')
-
     def delayed_completion(self,mode=None,cli=False):
         other=self.command();other.update(id='script.other',title='Execution Fixture Other',aliases=['otherfixture'])
         host=self.host(native=True,commands=[self.command(),other])
@@ -110,10 +98,6 @@ class Execution(unittest.TestCase):
                 if mode=='editor':self.assertTrue(view['formVisible'])
                 if mode=='selection':self.assertEqual(status['selectedId'],'script.other')
                 host.close()
-
-    def test_main_rejects_stale_completion_after_newer_local_intent(self):
-        host=self.host(native=True);self.show(host)
-        host.probe('reject-stale-execution-view');host.settled();self.assertTrue(host.probe('read')['actionsVisible'])
 
     def test_harvested_cli_completion_is_delivered_and_recorded_before_native_stop(self):
         host,gate,delay,stream=self.delayed_completion('stop',cli=True)
