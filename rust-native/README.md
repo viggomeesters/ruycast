@@ -194,7 +194,7 @@ Inline text stays in its actual main-owned native field editor until an explicit
 
 InputActions offers Run, Expand Input and Cancel Input for its pinned draft. Fresh native buttons belong to each menu lifetime; removed buttons have no target/action. Keyboard selection is resolved on the worker. Closing or rejecting the menu restores the actual native selection and typing focus. A pending menu opening has an atomic attempt cancellation barrier, separate from cancelling the input draft; both worker admission and late native publication honor it. Expired transitions acknowledge the attempt and retain text. The configuration/item actions while input is suspended are connected as described below. Provider-specific capture/date/Shortcuts/private handling remains pending.
 
-`tests/inline_input_process.py` uses actual hidden field editors, composition, Undo, keyboard/click menus, alias whitespace/Unicode/literal tails, same-token reload and usage refresh, expanded transitions, mandatory owner-delay/cancellation/expiry witnesses and retained old buttons. The hidden/synthetic panel refuses public window ordering; normal production-mode panels retain normal ordering. All fixtures start outside the visible display and use activation-prohibited apps; a positive own-order witness verifies the fixture prohibition. These tests do not accept physical focus, Spaces or display placement.
+`tests/input_process.rs` exercises actual hidden field editors, composition, Undo, keyboard/click menus, alias whitespace/Unicode/literal tails, same-token reload and usage refresh, expanded transitions, mandatory owner-delay/cancellation/expiry witnesses and retained old buttons. The hidden/synthetic panel refuses public window ordering; normal production-mode panels retain normal ordering. All fixtures start outside the visible display and use activation-prohibited apps; a positive own-order witness verifies the fixture prohibition. These tests do not accept physical focus, Spaces or display placement.
 
 
 ## Item actions during ordinary-script input
@@ -211,7 +211,7 @@ Only execution fields deliberately changed in the own published Edit receipt bec
 
 `tests/settings_preferences_process.rs` covers the four General, Advanced and menu bar preference scenarios with hidden Settings probes, owned profiles, fake folder dialogs and their nine existing captures.
 
-`tests/input_actions_process.py` covers native editor return, actual saves/recording, field ownership, conflicts, relocation/removal, disabled input, queued cancellation, genuine directory-sync faults and the Settings peer. This remains development parity for ordinary saved scripts; provider-specific capture/date/Shortcuts/private handlers, remaining twelve-block migration acceptance, production packaging and release/install/readback remain pending.
+`tests/input_process.rs` covers native editor return, actual saves/recording, field ownership, conflicts, relocation/removal, disabled input, queued cancellation, genuine directory-sync faults and the Settings peer. This remains development parity for ordinary saved scripts; provider-specific capture/date/Shortcuts/private handlers, remaining twelve-block migration acceptance, production packaging and release/install/readback remain pending.
 
 
 ## Script result contract and choice ownership

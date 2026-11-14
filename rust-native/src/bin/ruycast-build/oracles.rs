@@ -505,7 +505,7 @@ const SETTINGS: &[SettingsGate] = &[
         "native_snippet_choice_process.NativeSnippetChoice.test_cancel_and_external_hide_have_distinct_restore_policy",
         "native_open_basic_process::new_show_after_sdk_entry_cannot_be_hidden_or_receive_old_failure",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-actions-menu", original_source:"Sources/RuycastApp/ActionMenuChecks.swift", required_native_steps:&["actions-process","actions-menu-process","input-actions-process","feedback-actions-process","snippet-hotkey-process","native-keyboard-process","polish-original-process","item-binding-original-process"], native_cases:&[
+    SettingsGate { id:"--check-actions-menu", original_source:"Sources/RuycastApp/ActionMenuChecks.swift", required_native_steps:&["actions-process","actions-menu-process","input-process-rust","feedback-actions-process","snippet-hotkey-process","native-keyboard-process","polish-original-process","item-binding-original-process"], native_cases:&[
         "ui_completion::actions_menu",
         "ui_completion::feedback_actions",
         "ui_completion::snippet_hotkey",
@@ -514,7 +514,7 @@ const SETTINGS: &[SettingsGate] = &[
         "actions_process::hotkey_sides_hyper_delete_and_repeat",
         "actions_process::hotkey_conflict_and_solo_modifiers",
         "actions_process::recorder_stops_on_window_app_resign_unfocus_hide_and_cancel",
-        "input_actions_process.InputActions.test_alias_save_resumes_same_input_and_hotkey_recorder_save_does_too",
+        "input_process::alias_and_hotkey_saves_resume_same_input",
         "native_keyboard_process::pending_recorder_consumes_save_keys_and_cancels_during_positive_physical_hold",
         "ui_completion::item_binding_original",
     ], unproven_invariants:&[] },
@@ -607,13 +607,13 @@ const SETTINGS: &[SettingsGate] = &[
     SettingsGate { id:"--check-render-updates", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["render-updates-process"], native_cases:&[
         "ui_completion::render_updates",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-feedback", original_source:"Sources/RuycastApp/FeedbackChecks.swift", required_native_steps:&["unit","creation-process","input-process-rust","input-actions-process","actions-process","feedback-actions-process","utility-process","polish-original-process","system-search-cli-process","remaining-macos-process"], native_cases:&[
+    SettingsGate { id:"--check-feedback", original_source:"Sources/RuycastApp/FeedbackChecks.swift", required_native_steps:&["unit","creation-process","input-process-rust","actions-process","feedback-actions-process","utility-process","polish-original-process","system-search-cli-process","remaining-macos-process"], native_cases:&[
         "ui_completion::feedback_actions",
         "ui_completion::polish_original",
         "utility_process::quick_capture_ids_use_native_return_shift_return_ime_and_single_submission_in_both_entries",
         "actions::tests::binding_save_preserves_external_execution_definition",
         "actions_process::remove_confirmation_cancel_then_commit_and_disable",
-        "input_actions_process.InputActions.test_alias_save_resumes_same_input_and_hotkey_recorder_save_does_too",
+        "input_process::alias_and_hotkey_saves_resume_same_input",
         "processes::tests::matching_self_and_foreign_uid_identities_refuse_before_termination",
         "system_search::providers::gate_tests::cross_kind_and_missing_opaque_tokens_refuse_before_native_reads_or_effects",
         "ui_completion::closed_creation",
@@ -787,9 +787,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.py", include_bytes!("../../../tests/input_process.py"), "470741c414e43fae6bf68e5a2880c9d61c7483d47cfdc562564ed5d8ffec7f56"),
-            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "d16a1327a16f497b57d93a88efa0cdd3d602e4eb82ca6d3b46dc2e3d2b096fbb"),
-            ("rust-native/tests/inline_input_process.py", include_bytes!("../../../tests/inline_input_process.py"), "a00830b227dc292a912adf987e5b12760cdfa19a5f9918f43dd69f208b3e1141"),
-            ("rust-native/tests/input_actions_process.py", include_bytes!("../../../tests/input_actions_process.py"), "70ffa37052185ac01d306c7fae0f64af457c4a9de587268386134430080519af"),
+            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "5669c69dbab3032e16d6e5788fed43e4e930e77b71706c436878f27547c993d5"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
             ("rust-native/tests/library_drafts_process.rs", include_bytes!("../../../tests/library_drafts_process.rs"), "27676806949e31bb4679db9f2acfcf068fe7229d6deb51d2d6b6f3af2b4ec7b2"),
             ("rust-native/tests/library_navigation_process.rs", include_bytes!("../../../tests/library_navigation_process.rs"), "5c9ae7c66d226e7cb0178c047d36cfabee111b6f4dfd0097f9d39e06b1635186"),
@@ -836,9 +834,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.py", include_bytes!("../../../tests/input_process.py"), "470741c414e43fae6bf68e5a2880c9d61c7483d47cfdc562564ed5d8ffec7f56"),
-            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "d16a1327a16f497b57d93a88efa0cdd3d602e4eb82ca6d3b46dc2e3d2b096fbb"),
-            ("rust-native/tests/inline_input_process.py", include_bytes!("../../../tests/inline_input_process.py"), "a00830b227dc292a912adf987e5b12760cdfa19a5f9918f43dd69f208b3e1141"),
-            ("rust-native/tests/input_actions_process.py", include_bytes!("../../../tests/input_actions_process.py"), "70ffa37052185ac01d306c7fae0f64af457c4a9de587268386134430080519af"),
+            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "5669c69dbab3032e16d6e5788fed43e4e930e77b71706c436878f27547c993d5"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
             ("rust-native/tests/library_drafts_process.rs", include_bytes!("../../../tests/library_drafts_process.rs"), "27676806949e31bb4679db9f2acfcf068fe7229d6deb51d2d6b6f3af2b4ec7b2"),
             ("rust-native/tests/library_navigation_process.rs", include_bytes!("../../../tests/library_navigation_process.rs"), "5c9ae7c66d226e7cb0178c047d36cfabee111b6f4dfd0097f9d39e06b1635186"),
@@ -867,9 +863,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.py", include_bytes!("../../../tests/input_process.py"), "470741c414e43fae6bf68e5a2880c9d61c7483d47cfdc562564ed5d8ffec7f56"),
-            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "d16a1327a16f497b57d93a88efa0cdd3d602e4eb82ca6d3b46dc2e3d2b096fbb"),
-            ("rust-native/tests/inline_input_process.py", include_bytes!("../../../tests/inline_input_process.py"), "a00830b227dc292a912adf987e5b12760cdfa19a5f9918f43dd69f208b3e1141"),
-            ("rust-native/tests/input_actions_process.py", include_bytes!("../../../tests/input_actions_process.py"), "70ffa37052185ac01d306c7fae0f64af457c4a9de587268386134430080519af"),
+            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "5669c69dbab3032e16d6e5788fed43e4e930e77b71706c436878f27547c993d5"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
             ("rust-native/tests/library_drafts_process.rs", include_bytes!("../../../tests/library_drafts_process.rs"), "27676806949e31bb4679db9f2acfcf068fe7229d6deb51d2d6b6f3af2b4ec7b2"),
             ("rust-native/tests/library_navigation_process.rs", include_bytes!("../../../tests/library_navigation_process.rs"), "5c9ae7c66d226e7cb0178c047d36cfabee111b6f4dfd0097f9d39e06b1635186"),
@@ -2289,12 +2283,10 @@ mod tests {
             ("system_actions::tests::", "rust-native/src/system_actions.rs"),
             ("file_search::tests::", "rust-native/src/file_search.rs"),
             ("system_search_cli_process::", "rust-native/tests/system_search_cli_process.rs"),
-            ("input_actions_process.", "rust-native/tests/input_actions_process.py"),
             ("native_edit::", "rust-native/src/native_edit.rs"),
             ("native_snippet_choice_process.", "rust-native/tests/native_snippet_choice_process.py"),
             ("native_keyboard_process::", "rust-native/tests/native_keyboard_process.rs"),
             ("bridge_process::", "rust-native/tests/bridge_process.rs"),
-            ("inline_input_process.", "rust-native/tests/inline_input_process.py"),
             ("input_process.", "rust-native/tests/input_process.py"),
             ("input_process::", "rust-native/tests/input_process.rs"),
             ("native_open_basic_process::", "rust-native/tests/native_open_basic_process.rs"),
@@ -2308,9 +2300,9 @@ mod tests {
         ];
         for (id, count, input_count, complete) in [
             ("--check-polish", 10, 33, true),
-            ("--check-feedback", 21, 42, true),
-            ("--check-actions-menu", 11, 31, true),
-            ("--check-interactions", 16, 50, true),
+            ("--check-feedback", 21, 40, true),
+            ("--check-actions-menu", 11, 29, true),
+            ("--check-interactions", 16, 48, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.native_cases.len(), count);
