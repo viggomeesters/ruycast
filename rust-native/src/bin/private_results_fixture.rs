@@ -3,6 +3,20 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("rich-input-failure") if args.len() == 1 => {
+            println!("{}", serde_json::json!({"ok":false,"error":"Provider failed","detail":"Failure report"}));
+        }
+        Some("rich-new-job") if args.len() == 2 => {
+            let root = PathBuf::from(&args[1]);
+            std::fs::write(root.join("new-ready"), "ready").unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            while !root.join("new-release").exists() {
+                assert!(std::time::Instant::now() < deadline, "new job gate timed out");
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            std::fs::write(root.join("new-effect"), "done").unwrap();
+            println!("{}", serde_json::json!({"ok":true,"detail":"NEW JOB REPORT"}));
+        }
         Some("rich-special") if args.len() == 3 => {
             let mode = &args[1];
             let value = &args[2];

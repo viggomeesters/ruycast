@@ -356,7 +356,6 @@ rust-native/tests/dashboard_export_process.rs
 rust-native/tests/fixtures/dashboard_export_shim.rs
 rust-native/tests/fixtures/fcntl_abi.rs
 rust-native/tests/editor_process.rs
-rust-native/tests/execution_process.py
 rust-native/tests/execution_basic_process.rs
 rust-native/tests/execution_native_process.rs
 rust-native/tests/fixtures/fcntl_sync_shim.rs
@@ -379,7 +378,6 @@ rust-native/tests/inline_composition_process.rs
 rust-native/tests/inline_transition_process.rs
 rust-native/tests/inline_focus_process.rs
 rust-native/tests/inline_sync_process.rs
-rust-native/tests/input_process.py
 rust-native/tests/input_process.rs
 rust-native/tests/keyboard_process.py
 rust-native/tests/fixtures/keyboard_sdk.rs
@@ -416,7 +414,6 @@ rust-native/tests/native_keyboard_process.rs
 rust-native/tests/native_open_basic_process.rs
 rust-native/tests/native_process.py
 rust-native/tests/native_snippet_choice_process.py
-rust-native/tests/rich_process.py
 rust-native/tests/rich_process.rs
 rust-native/tests/runtime_process.py
 rust-native/tests/runtime_process.rs

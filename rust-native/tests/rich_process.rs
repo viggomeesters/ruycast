@@ -628,3 +628,165 @@ fn actual_process_failure_without_envelope_keeps_error_and_choices() {
         .filter(|e| e["phase"] == "command.finish")
         .any(|e| e["exitStatus"] == 7 && e["success"] == false));
 }
+fn replace_args(host: &Bridge, args: Value, prompt: Option<&str>) {
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    command["arguments"] = args;
+    if let Some(prompt) = prompt {
+        command["inputPrompt"] = json!(prompt);
+    }
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+}
+#[test]
+fn failure_report_back_retains_ordinary_input_draft() {
+    let host = host("close");
+    replace_args(&host, json!(["rich-input-failure"]), Some("Message"));
+    actions::show(&host, "runfixture");
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+    actions::key(&host, 36, 0, "\r", false);
+    actions::view(&host, |v| v["runInputInline"] == true);
+    actions::key(&host, 36, actions::CMD, "\r", false);
+    let editor = actions::view(&host, |v| {
+        v["formVisible"] == true
+            && v["screenText"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|s| s == "Run ⌘↵")
+    });
+    let token = editor.get("editorToken").unwrap().clone();
+    host.probe("run-input-type", json!({"text":"PRIVATE input"}));
+    actions::probe(&host, "save-editor");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let v = view(&host, |r| r["detail_visible"] == true);
+    assert_eq!(v.get("editorToken").unwrap(), &token);
+    capture(&host, "input-failure-report");
+    click(&host, "close");
+    host.settled(|_| true);
+    let v = actions::probe(&host, "read");
+    assert_eq!(v.get("editorToken").unwrap(), &token);
+    assert!(v["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s == "PRIVATE input"));
+    capture(&host, "input-restored");
+    let state = actions::probe(&host, "run-input-read");
+    assert_eq!(state["focused"], true);
+    assert_eq!(state["canUndo"], true);
+    host.probe("run-input-type", json!({"text":" continued"}));
+    actions::key(&host, 6, actions::CMD, "z", false);
+    assert_eq!(
+        actions::probe(&host, "run-input-read")["text"],
+        "PRIVATE input"
+    );
+}
+fn native_event_boundary(host: &Bridge) -> Value {
+    let before = actions::probe(host, "rich-query-read")
+        .get("groupingLevel")
+        .unwrap()
+        .clone();
+    actions::probe(host, "rich-query-native-event");
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        let after = actions::probe(host, "rich-query-read")
+            .get("groupingLevel")
+            .unwrap()
+            .clone();
+        if after == 0 {
+            return json!({"before":before,"after":after});
+        }
+        assert!(
+            Instant::now() < deadline,
+            "AppKit event did not close undo group"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+#[test]
+fn native_query_undo_survives_detail_and_back() {
+    use sha2::{Digest, Sha256};
+    let host = host("close");
+    open(&host);
+    host.probe("rich-query-type", json!({"text":"cafe"}));
+    view(&host, |r| r["query"] == "cafe");
+    let first = native_event_boundary(&host);
+    assert_eq!(actions::probe(&host, "rich-query-read")["canUndo"], true);
+    actions::key(&host, 2, actions::CMD, "d", false);
+    let details = view(&host, |r| r["detail_visible"] == true);
+    actions::key(&host, 53, 0, "", false);
+    view(&host, |r| r["detail_visible"] == false);
+    assert_eq!(actions::probe(&host, "rich-query-read")["canUndo"], true);
+    host.probe("rich-query-type", json!({"text":" PLAN"}));
+    view(&host, |r| r["query"] == "cafe PLAN");
+    let second = native_event_boundary(&host);
+    actions::key(&host, 6, actions::CMD, "z", false);
+    view(&host, |r| r["query"] == "cafe");
+    actions::key(&host, 6, actions::CMD, "z", false);
+    view(&host, |r| r["query"] == "");
+    actions::key(&host, 6, actions::CMD | actions::SHIFT, "z", false);
+    view(&host, |r| r["query"] == "cafe");
+    assert!(!host.base.join("selected").exists());
+    if let Some(output) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let folder = std::path::PathBuf::from(output)
+            .parent()
+            .unwrap()
+            .join("rich");
+        fs::create_dir_all(&folder).unwrap();
+        let digest = format!(
+            "{:x}",
+            Sha256::digest(fs::read(&host.settings.host).unwrap())
+        );
+        let evidence = json!({"first":first,"second":second,"roleGroupBefore":details["resultPanel"].get("queryGroupBeforeRole").unwrap(),"roleGroupAfter":details["resultPanel"].get("queryGroupAfterRole").unwrap(),"undo1":"cafe","undo2":"","redo":"cafe","binarySHA256":digest});
+        fs::write(
+            folder.join("query-undo-event-boundaries.json"),
+            serde_json::to_vec_pretty(&evidence).unwrap(),
+        )
+        .unwrap();
+    }
+}
+#[test]
+fn retired_result_ingress_cannot_suppress_new_initial_job() {
+    let host = GracefulBridge(host("close"));
+    let old = open(&host)["scriptResult"].get("token").unwrap().clone();
+    replace_args(&host, json!(["rich-new-job", host.base]), None);
+    actions::show(&host, "runfixture");
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+    actions::key(&host, 36, 0, "\r", false);
+    wait_exists(&host.base.join("new-ready"));
+    let epoch = host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]
+        .get("queryEpoch")
+        .unwrap()
+        .clone();
+    for name in ["details", "close", "choose"] {
+        host.probe(
+            "result-event",
+            json!({"token":old,"epoch":epoch,"name":name,"id":"reused"}),
+        );
+    }
+    host.probe(
+        "result-query-event",
+        json!({"token":old,"query":"retired query"}),
+    );
+    assert_eq!(
+        host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]
+            .get("queryEpoch")
+            .unwrap(),
+        &epoch
+    );
+    fs::write(host.base.join("new-release"), "go").unwrap();
+    wait_exists(&host.base.join("new-effect"));
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let v = view(&host, |r| r["detail"] == "NEW JOB REPORT");
+    assert_eq!(v["scriptResult"]["detail_visible"], true);
+    assert_eq!(
+        host.rpc(&json!({"op":"usage"}))["result"]["script.fixture"],
+        2
+    );
+}
