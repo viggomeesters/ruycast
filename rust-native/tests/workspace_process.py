@@ -63,20 +63,6 @@ class Workspace(unittest.TestCase):
     def opens(self):
         return [entry for entry in self.trace if entry['phase'].startswith('open-')]
 
-    def unknown(self, value):
-        self.assertTrue(value['committed'])
-        self.assertFalse(value['response']['ok'])
-        self.assertTrue(value['response']['actionCompleted'])
-        self.assertEqual(value['response']['code'], 'open-outcome-unknown')
-
-    def test_nil_callback_result_is_unknown(self):
-        self.unknown(self.one(request(target='dev.fixture.nil-result')))
-
-    def test_reentrant_and_duplicate_first_callback_wins(self):
-        data = self.probe([dict(request=request(target='dev.fixture.' + mode)) for mode in ['inline', 'duplicate']])
-        self.assertTrue(all(v['response']['ok'] for v in data['cases']))
-        self.assertEqual(len([e for e in self.trace if e['phase'] == 'callback']), 3)
-
     def test_precommit_rejection_has_no_open(self):
         value = self.one(rejectBeforeCommit=True)
         self.assertEqual(value['beforeCommitCalls'], 1)
@@ -94,32 +80,6 @@ class Workspace(unittest.TestCase):
         self.assertEqual(value['beforeCommitCalls'], 0)
         self.assertGreaterEqual(value['seconds'], .15)
         self.assertEqual([e['phase'] for e in self.trace], ['installed', 'resolve'])
-
-    def test_cancellation_after_sdk_entry_retires_late_completion(self):
-        data = self.probe([dict(request=request(target='dev.fixture.slow'), cancelAfterOpen=True)], settleMs=300)
-        self.unknown(data['cases'][0])
-        self.assertEqual(data['afterRelease'], 0)
-        self.assertEqual([e['phase'] for e in self.trace], ['installed', 'resolve', 'open-app', 'callback'])
-
-    def test_callback_timeout_retires_late_completion(self):
-        # Warm NSWorkspace in this same process to isolate the callback deadline.
-        data = self.probe([dict(request=request()), dict(request=request(target='dev.fixture.slow'), timeoutMs=75)], settleMs=300)
-        self.assertTrue(data['cases'][0]['response']['ok'])
-        self.unknown(data['cases'][1])
-        self.assertEqual(data['afterRelease'], 0)
-
-    def test_retained_callbacks_bound_capacity_until_sdk_releases(self):
-        cases = [dict(request=request())] + [dict(request=request(target='dev.fixture.hold'), timeoutMs=20) for _ in range(17)]
-        data = self.probe(cases, releaseCallbacks=True)
-        for value in data['cases'][1:17]:
-            self.unknown(value)
-        blocked = data['cases'][17]
-        self.assertFalse(blocked['committed'])
-        self.assertEqual(blocked['beforeCommitCalls'], 0)
-        self.assertIn('busy', blocked['response']['error'])
-        self.assertEqual(data['beforeRelease'], 16)
-        self.assertEqual(data['afterRelease'], 0)
-        self.assertEqual(len([e for e in self.trace if e['phase'] == 'open-app']), 17)
 
     def test_missing_interposer_fails_closed(self):
         data = self.probe([dict(request=request())], shim=False)
@@ -156,14 +116,6 @@ class Workspace(unittest.TestCase):
         data = self.probe([dict(request=r) for r in cases])
         self.assertTrue(all(not c['committed'] and not c['response']['ok'] for c in data['cases']))
         self.assertEqual(self.opens(), [])
-
-    def test_panic_before_and_after_commit_preserves_truth_and_releases_callbacks(self):
-        data = self.probe([dict(request=request(), panicBeforeCommit=True),
-                           dict(request=request(target='dev.fixture.slow'), panicAfterOpen=True)], settleMs=300)
-        self.assertFalse(data['cases'][0]['committed'])
-        self.unknown(data['cases'][1])
-        self.assertEqual(data['afterRelease'], 0)
-        self.assertEqual(len([e for e in self.trace if e['phase'] == 'open-app']), 1)
 
 
 if __name__ == '__main__':

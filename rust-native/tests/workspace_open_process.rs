@@ -39,6 +39,13 @@ impl Fixture {
         }
     }
     fn probe(&mut self, name: &str, requests: Vec<Value>) -> Value {
+        self.probe_cases(
+            name,
+            requests.into_iter().map(|r| json!({"request":r})).collect(),
+            json!({}),
+        )
+    }
+    fn probe_cases(&mut self, name: &str, cases: Vec<Value>, mut input: Value) -> Value {
         let probe = PathBuf::from(env!("CARGO_BIN_EXE_workspace-probe"));
         let original = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
             .map(PathBuf::from)
@@ -76,8 +83,7 @@ impl Fixture {
             .stderr(Stdio::piped());
         let mut child = cmd.spawn().unwrap();
         let mut stdin = child.stdin.take().unwrap();
-        let input =
-            json!({"cases":requests.into_iter().map(|r|json!({"request":r})).collect::<Vec<_>>()});
+        input["cases"] = json!(cases);
         let bytes = serde_json::to_vec(&input).unwrap();
         let writer = std::thread::spawn(move || stdin.write_all(&bytes));
         let out = child_output::wait(child, Duration::from_secs(12));
@@ -258,4 +264,115 @@ fn native_error_and_bounded_large_error() {
     let error = d["cases"][1]["response"]["error"].as_str().unwrap();
     assert!(error.len() < 65536);
     assert!(error.ends_with('…'));
+}
+
+fn unknown(value: &Value) {
+    assert_eq!(value["committed"], true);
+    assert_eq!(value["response"]["ok"], false);
+    assert_eq!(value["response"]["actionCompleted"], true);
+    assert_eq!(value["response"]["code"], "open-outcome-unknown");
+}
+#[test]
+fn nil_callback_result_is_unknown() {
+    let mut f = Fixture::new();
+    let d = f.probe("nil-result", vec![request("app", "dev.fixture.nil-result")]);
+    unknown(&d["cases"][0]);
+}
+#[test]
+fn reentrant_and_duplicate_first_callback_wins() {
+    let mut f = Fixture::new();
+    let d = f.probe(
+        "duplicate",
+        ["inline", "duplicate"]
+            .into_iter()
+            .map(|mode| request("app", &format!("dev.fixture.{mode}")))
+            .collect(),
+    );
+    assert!(d["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|v| v["response"]["ok"] == true));
+    assert_eq!(
+        f.trace.iter().filter(|e| e["phase"] == "callback").count(),
+        3
+    );
+}
+#[test]
+fn cancellation_after_sdk_entry_retires_late_completion() {
+    let mut f = Fixture::new();
+    let d = f.probe_cases(
+        "callback-cancel",
+        vec![json!({"request":request("app","dev.fixture.slow"),"cancelAfterOpen":true})],
+        json!({"settleMs":300}),
+    );
+    unknown(&d["cases"][0]);
+    assert_eq!(d["afterRelease"], 0);
+    assert_eq!(
+        f.trace
+            .iter()
+            .map(|e| e["phase"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["installed", "resolve", "open-app", "callback"]
+    );
+}
+#[test]
+fn callback_timeout_retires_late_completion() {
+    let mut f = Fixture::new();
+    // Warm NSWorkspace in the same process before measuring the callback deadline.
+    let d = f.probe_cases(
+        "callback-timeout",
+        vec![
+            json!({"request":request("app","dev.fixture.success")}),
+            json!({"request":request("app","dev.fixture.slow"),"timeoutMs":75}),
+        ],
+        json!({"settleMs":300}),
+    );
+    assert_eq!(d["cases"][0]["response"]["ok"], true);
+    unknown(&d["cases"][1]);
+    assert_eq!(d["afterRelease"], 0);
+}
+#[test]
+fn retained_callbacks_bound_capacity_until_sdk_releases() {
+    let mut f = Fixture::new();
+    let mut cases = vec![json!({"request":request("app","dev.fixture.success")})];
+    cases.extend(
+        (0..17).map(|_| json!({"request":request("app","dev.fixture.hold"),"timeoutMs":20})),
+    );
+    let d = f.probe_cases("callback-capacity", cases, json!({"releaseCallbacks":true}));
+    for v in &d["cases"].as_array().unwrap()[1..17] {
+        unknown(v);
+    }
+    let blocked = &d["cases"][17];
+    assert_eq!(blocked["committed"], false);
+    assert_eq!(blocked["beforeCommitCalls"], 0);
+    assert!(blocked["response"]["error"]
+        .as_str()
+        .unwrap()
+        .contains("busy"));
+    assert_eq!(d["beforeRelease"], 16);
+    assert_eq!(d["afterRelease"], 0);
+    assert_eq!(
+        f.trace.iter().filter(|e| e["phase"] == "open-app").count(),
+        17
+    );
+}
+#[test]
+fn panic_before_and_after_commit_preserves_truth_and_releases_callbacks() {
+    let mut f = Fixture::new();
+    let d = f.probe_cases(
+        "callback-panic",
+        vec![
+            json!({"request":request("app","dev.fixture.success"),"panicBeforeCommit":true}),
+            json!({"request":request("app","dev.fixture.slow"),"panicAfterOpen":true}),
+        ],
+        json!({"settleMs":300}),
+    );
+    assert_eq!(d["cases"][0]["committed"], false);
+    unknown(&d["cases"][1]);
+    assert_eq!(d["afterRelease"], 0);
+    assert_eq!(
+        f.trace.iter().filter(|e| e["phase"] == "open-app").count(),
+        1
+    );
 }
