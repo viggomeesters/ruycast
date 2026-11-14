@@ -305,6 +305,8 @@ rust-native/swift-reference-lock.json
 rust-native/tests/actions_process.rs
 rust-native/tests/analytics_process.py
 rust-native/tests/analytics_runtime_process.rs
+rust-native/tests/analytics_cast_reference.rs
+rust-native/tests/fixtures/analytics_cast_reference.json
 rust-native/tests/fixtures/analytics_write_shim.rs
 rust-native/tests/app_picker_identity_process.rs
 rust-native/tests/applications_discovery_process.rs

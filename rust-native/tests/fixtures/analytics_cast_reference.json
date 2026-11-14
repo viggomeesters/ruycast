@@ -1,0 +1,255 @@
+{
+  "provenance": {
+    "source_sha256": {
+      "Sources/RuycastApp/AnalyticsStore.swift": "43461d33394436195f3c7d7cbcaa66d1407ac53049bed3e8a2f91562d140ca7d",
+      "Sources/LauncherCore/Files.swift": "055d650d00848ffbb739381034bdc52f977b23eb3476ec0596524614d033338d",
+      "rust-native/tests/analytics_process.py": "dce492bf9682a74c87a5e7c5376ef89b44c7b75f6bf06876d3a74c825366a04a"
+    },
+    "now": 1790000000,
+    "zone": "UTC",
+    "calendar": "gregorian",
+    "origin": "Actual Swift AnalyticsStore and Foundation JSON codec, generated 2026-11-14"
+  },
+  "cases": [
+    {
+      "name": "private_serde_magic_keys",
+      "actions": [
+        {
+          "op": "casts",
+          "value": {
+            "$serde_json::private::RawValue": "true"
+          }
+        },
+        {
+          "op": "casts",
+          "value": {
+            "$serde_json::private::RawValue": "42"
+          }
+        },
+        {
+          "op": "casts",
+          "value": {
+            "$serde_json::private::RawValue": "null"
+          }
+        },
+        {
+          "op": "casts",
+          "value": {
+            "$serde_json::private::RawValue": "\"literal\""
+          }
+        },
+        {
+          "op": "casts",
+          "value": {
+            "$serde_json::private::RawValue": "{\"enabled\":false}"
+          }
+        },
+        {
+          "op": "casts",
+          "value": {
+            "$serde_json::private::Number": "1"
+          }
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {},
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          }
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "foundation_request_casts",
+      "actions": [
+        {
+          "op": "casts",
+          "value": true
+        },
+        {
+          "op": "casts",
+          "value": false
+        },
+        {
+          "op": "casts",
+          "value": 0
+        },
+        {
+          "op": "casts",
+          "value": 1
+        },
+        {
+          "op": "casts",
+          "value": 2
+        },
+        {
+          "op": "casts",
+          "value": -1
+        },
+        {
+          "op": "casts",
+          "value": 0.0
+        },
+        {
+          "op": "casts",
+          "value": 1.0
+        },
+        {
+          "op": "casts",
+          "value": 1.5
+        },
+        {
+          "op": "casts",
+          "value": "1"
+        },
+        {
+          "op": "casts",
+          "value": null
+        },
+        {
+          "op": "casts",
+          "value": 9223372036854775807
+        },
+        {
+          "op": "casts",
+          "value": -9223372036854775808
+        },
+        {
+          "op": "casts",
+          "value": 9223372036854775808
+        },
+        {
+          "op": "casts",
+          "value": 1e+19
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {},
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "bool": true,
+            "int": 1
+          },
+          {
+            "bool": false,
+            "int": 0
+          },
+          {
+            "bool": false,
+            "int": 0
+          },
+          {
+            "bool": true,
+            "int": 1
+          },
+          {
+            "bool": null,
+            "int": 2
+          },
+          {
+            "bool": null,
+            "int": -1
+          },
+          {
+            "bool": false,
+            "int": 0
+          },
+          {
+            "bool": true,
+            "int": 1
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": 9223372036854775807
+          },
+          {
+            "bool": null,
+            "int": -9223372036854775808
+          },
+          {
+            "bool": null,
+            "int": null
+          },
+          {
+            "bool": null,
+            "int": null
+          }
+        ],
+        "storageError": null
+      }
+    }
+  ]
+}

@@ -87,12 +87,6 @@ class Analytics(unittest.TestCase):
                 self.assertEqual(p.returncode,0,p.stderr);pair.append(json.loads(p.stdout))
         self.assertEqual(normalized(pair[0]),normalized(pair[1]));type(self).cases+=1;return pair[0]
     def empty(self):return self.run_case([])['document']
-    def test_private_serde_magic_keys_remain_literal_objects(self):
-        objects=[{'$serde_json::private::RawValue':value} for value in ['true','42','null','"literal"','{"enabled":false}']]+[{'$serde_json::private::Number':'1'}]
-        result=self.run_case([dict(op='casts',value=v) for v in objects]);self.assertEqual(result['results'],[{'bool':None,'int':None}]*len(objects))
-    def test_actual_foundation_request_casts_are_scoped_to_analytics(self):
-        values=[True,False,0,1,2,-1,0.0,1.0,1.5,'1',None,9223372036854775807,-9223372036854775808,9223372036854775808,1e19]
-        self.run_case([dict(op='casts',value=v) for v in values])
     def test_attempt_completion_pause_reset_and_private_export(self):
         actions=[dict(op='attempt',id='own private URL token',source='snippet',ticket='a'),dict(op='configure',enabled=False),dict(op='attempt',id='ignored',ticket='ignored'),dict(op='complete',ticket='a',ok=True,ms=12),dict(op='snapshot'),dict(op='configure',enabled=True),dict(op='attempt',id='old',ticket='old'),dict(op='reset'),dict(op='complete',ticket='old',ok=False,ms=999),dict(op='attempt',id='e\u0301',source='unexpected'),dict(op='complete',ok=False,ms=3,code='private raw failure',exit=999),dict(op='snapshot'),dict(op='export')]
         out=self.run_case(actions);self.assertNotIn('own private URL token',json.dumps(out));self.assertEqual(out['document']['totalFailures'],1)

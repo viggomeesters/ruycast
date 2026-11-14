@@ -648,7 +648,7 @@ const SETTINGS: &[SettingsGate] = &[
         "clipboard_history_process.ClipboardHistory.test_native_text_image_empty_error_busy_light_dark_narrow_wide",
         "clipboard_rich_paste::file_and_image_paste_complete_owned_ticket_without_recapture",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-process","analytics-runtime-process","dashboard-presentation-process","native-dashboard-dialog-process","dashboard-export-process","startup-process"], native_cases:&[
+    SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-process","analytics-runtime-process","analytics-cast-reference","dashboard-presentation-process","native-dashboard-dialog-process","dashboard-export-process","startup-process"], native_cases:&[
         "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention",
         "analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export",
         "analytics::tests::invalid_known_file_is_not_overwritten_until_explicit_reset",
@@ -1304,6 +1304,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ),
             ("rust-native/tests/analytics_runtime_process.rs", include_bytes!("../../../tests/analytics_runtime_process.rs"), "8ef18a852c782df0a469ea5ca4f22e2e4d2c9f0392f1edad6103389adedd871b"),
             ("rust-native/tests/fixtures/analytics_write_shim.rs", include_bytes!("../../../tests/fixtures/analytics_write_shim.rs"), "9e2add20464e7336d854171083e3861f79a4dbe6d49f67ecf723cf72f98b790c"),
+            ("rust-native/tests/analytics_cast_reference.rs", include_bytes!("../../../tests/analytics_cast_reference.rs"), "1fc74e989d3f512df35770871c8f44179754e1dc575640cc47b052b8ebb78eee"),
+            ("rust-native/tests/fixtures/analytics_cast_reference.json", include_bytes!("../../../tests/fixtures/analytics_cast_reference.json"), "6bd89546d290d6e3f634c185af4cf322b4d141a0426f77eb034ff115bc8df9cb"),
         ],
         "--check-visual-assets" => &[
             (
