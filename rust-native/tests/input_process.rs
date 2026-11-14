@@ -325,3 +325,71 @@ fn timeout_keeps_input_and_typing() {
     input_type(&host, " retained");
     assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
 }
+#[test]
+fn completed_detail_replaces_input_without_reoffering() {
+    let host = host();
+    let marker = host.base.join("detail-marker");
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["fake", "date-detail", marker, "own fixture detail"]),
+        3.0,
+    );
+    open(&host);
+    input_type(&host, "own fixture input");
+    actions::probe(&host, "save-editor");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let state = view(&host, |v| {
+        v["formVisible"] == false && !v["scriptResult"].is_null()
+    });
+    assert!(state.get("editorToken").unwrap().is_null());
+    assert_eq!(state["resultPanel"]["detailVisible"], true);
+    assert_eq!(state["resultPanel"]["editable"], false);
+    assert_eq!(state["resultPanel"]["detail"], "own fixture detail");
+    assert_eq!(
+        host.rpc(&json!({"op":"usage"}))["result"]["script.fixture"],
+        1
+    );
+    host.probe("result-control", json!({"name":"close"}));
+    host.settled(|_| true);
+    let state = actions::probe(&host, "read");
+    assert!(state.get("editorToken").unwrap().is_null());
+    assert_eq!(state["formVisible"], false);
+    assert!(state.get("scriptResult").unwrap().is_null());
+}
+#[test]
+fn usage_write_failure_never_reoffers_completed_action() {
+    let host = host();
+    let counter = host.base.join("counter");
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-write", counter, "once"]),
+        3.0,
+    );
+    open(&host);
+    input_type(&host, "own fixture input");
+    fs::create_dir(host.profile.join("usage.json")).unwrap();
+    actions::probe(&host, "save-editor");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while !counter.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "fixture did not execute"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    host.wait(|s| s["scriptsRunning"] == 0);
+    view(&host, |v| {
+        v["formVisible"] == false && actions::text_contains(v, "Action completed")
+    });
+    actions::probe(&host, "save-editor");
+    assert_eq!(fs::read_to_string(counter).unwrap(), "once");
+    assert_eq!(
+        host.rpc(&json!({"op":"logs"}))["result"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}

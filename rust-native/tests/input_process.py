@@ -70,11 +70,6 @@ class NativeInput(unittest.TestCase):
         view=self.view(host,lambda v:not v['formVisible']);self.assertEqual(view['input'],'finder');self.assertTrue(host.rpc({'op':'status'})['result']['nativeUI']['visible'])
         self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
 
-    def test_completed_detail_replaces_input_without_reoffering_it(self):
-        command=self.command('print(\'{"ok":true,"detail":"own fixture detail"}\')',inputPrompt='Message')
-        host=self.host(native=True,commands=[command]);self.open(host);self.type(host,'own fixture input');host.probe('save-editor');self.idle(host)
-        view=self.view(host,lambda v:not v['formVisible'] and v.get('scriptResult') is not None);self.assertIsNone(view['editorToken']);self.assertTrue(view['resultPanel']['detailVisible']);self.assertFalse(view['resultPanel']['editable']);self.assertEqual(view['resultPanel']['detail'],'own fixture detail');self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1);host.probe('result-control',name='close');host.settled();view=host.probe('read');self.assertIsNone(view['editorToken']);self.assertFalse(view['formVisible']);self.assertIsNone(view['scriptResult'])
-
     def test_changed_command_after_completed_effect_closes_input_with_honest_warning(self):
         host=self.host(native=True);command,ready,gate,done=self.waiting_script(host);self.replace_command(host,command)
         self.open(host);self.type(host,'own fixture input');host.probe('save-editor');self.file(ready)
@@ -82,14 +77,6 @@ class NativeInput(unittest.TestCase):
         gate.write_text('go');self.file(done);self.idle(host)
         self.view(host,lambda v:not v['formVisible'] and any('Action completed' in s for s in v['screenText']))
         self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
-    def test_usage_write_failure_does_not_offer_completed_input_again(self):
-        host=self.host(native=True);counter=host.base/'counter'
-        code='import pathlib;pathlib.Path(%r).write_text("once")'%str(counter)
-        self.replace_command(host,self.command(code,inputPrompt='Message'));self.open(host);self.type(host,'own fixture input')
-        (host.profile/'usage.json').mkdir();host.probe('save-editor');self.file(counter);self.idle(host)
-        self.view(host,lambda v:not v['formVisible'] and any('Action completed' in s for s in v['screenText']))
-        host.probe('save-editor');self.assertEqual(counter.read_text(),'once');self.assertEqual(len(host.rpc({'op':'logs'})['result']),2)
 
     def test_cancel_running_input_does_not_close_a_new_draft(self):
         host=self.host(native=True);pid=host.base/'leader'
