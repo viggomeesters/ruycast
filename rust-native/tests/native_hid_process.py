@@ -62,41 +62,6 @@ class NativeHid(unittest.TestCase):
                 out,err=host.process.communicate(timeout=5);code=host.process.returncode;host.process=None
                 self.assertEqual(code,0,out.decode()+err.decode())
 
-    def test_status_is_not_on_while_main_is_positively_held_in_sdk_teardown(self):
-        host,_,config=self.configured()
-        hold=host.base/'hid-hold-manager_close';hold.touch()
-        try:
-            config['commands'][-1]['hotkey']='right-cmd+b';host.replace(config)
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                pending=pool.submit(host.rpc,dict(op='reload'))
-                try:
-                    self.wait_file(host.base/'hid-entered-manager_close')
-                    status=host.rpc({'op':'status'})['result']
-                    self.assertNotEqual(status['hidStatus'],'On')
-                    self.assertNotEqual(status['hyper'],'On')
-                    self.assertNotEqual(status['sidedShortcuts'],'On')
-                    self.assertTrue(status['hidRecoveryPending'])
-                finally:hold.unlink(missing_ok=True)
-                self.assertTrue(pending.result()['ok'])
-            host.wait(lambda s:s['hidStatus']=='On' and s['hidGeneration']==s['keyboardGeneration'])
-        finally:hold.unlink(missing_ok=True)
-
-    def test_source_callback_failure_keeps_native_cleanup_and_profile_until_recovered(self):
-        host,_,_=self.configured();self.hid(host,'input',usage=57,down=True,time=0)
-        fault=host.base/'hid-fail-manager_close';fault.touch()
-        try:
-            try:host.probe('keyboard-source-failure')
-            except (OSError,ValueError):pass
-            time.sleep(.15);self.assertIsNone(host.process.poll())
-            second=subprocess.run([str(bridge.TOOLS),'--native-hidden'],env=host.env,capture_output=True,text=True,timeout=3)
-            self.assertNotEqual(second.returncode,0);self.assertIn('already running',second.stdout)
-        finally:fault.unlink(missing_ok=True)
-        expected_pid=host.process.pid
-        out,err=host.process.communicate(timeout=5);code=host.process.returncode;host.process=None;self.assertNotEqual(code,0)
-        self.assertIn('owned source callback failure',err.decode())
-        proof=json.loads((host.base/'keyboard-retired.json').read_text());self.assertEqual(proof['pid'],expected_pid)
-        witness=proof['state'];self.assertEqual(witness['allocated'],0);self.assertEqual(witness['caps'],0)
-
     def test_forwarded_hid_is_revoked_across_health_recovery_while_carbon_is_preserved(self):
         for blocked in [2,4,8]:
             host=self.host(start=False);hid_marker=host.base/'stale-hid';carbon_marker=host.base/'valid-carbon'

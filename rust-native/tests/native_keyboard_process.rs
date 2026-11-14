@@ -1511,3 +1511,77 @@ fn native_hid_quit_retains_profile_and_recovers_after_worker_stop() {
         assert_eq!(proof["state"]["caps"], 0);
     }
 }
+
+#[test]
+fn native_hid_status_not_on_while_sdk_teardown_is_held() {
+    let (h, _) = hid_host("right-cmd+a", true);
+    let mut config = actions::config(&h);
+    let hold = h.base.join("hid-hold-manager_close");
+    fs::write(&hold, b"").unwrap();
+    let cleanup = RemoveFault(hold);
+    config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .last_mut()
+        .unwrap()["hotkey"] = json!("right-cmd+b");
+    h.replace(&config, None);
+    let socket = h.socket();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = actions::native_bridge::runtime_host::status_rpc::request(
+            &socket,
+            &json!({"op":"reload"}),
+            std::time::Instant::now() + Duration::from_secs(3),
+        );
+        let _ = tx.send(result);
+    });
+    wait_file(&h.base.join("hid-entered-manager_close"));
+    let status = h.rpc(&json!({"op":"status"}))["result"].clone();
+    assert_ne!(status["hidStatus"], "On");
+    assert_ne!(status["hyper"], "On");
+    assert_ne!(status["sidedShortcuts"], "On");
+    assert_eq!(status["hidRecoveryPending"], true);
+    drop(cleanup);
+    assert_eq!(
+        rx.recv_timeout(Duration::from_secs(3)).unwrap().unwrap()["ok"],
+        true
+    );
+    h.wait(|s| s["hidStatus"] == "On" && s["hidGeneration"] == s["keyboardGeneration"]);
+}
+#[test]
+fn native_hid_source_callback_failure_keeps_cleanup_and_profile_until_recovered() {
+    let (mut h, _) = hid_host("right-cmd+a", true);
+    hid(&h, "input", json!({"usage":57,"down":true,"time":0}));
+    let fault = h.base.join("hid-fail-manager_close");
+    fs::write(&fault, b"").unwrap();
+    let cleanup = RemoveFault(fault);
+    if let Ok(reply) = actions::native_bridge::runtime_host::status_rpc::request(
+        &h.socket(),
+        &json!({"op":"native.test","action":"keyboard-source-failure"}),
+        std::time::Instant::now() + Duration::from_secs(3),
+    ) {
+        assert_eq!(reply["ok"], true, "{reply}");
+    }
+    std::thread::sleep(Duration::from_millis(150));
+    assert!(h.process.as_mut().unwrap().try_wait().unwrap().is_none());
+    let child = h
+        .command(&h.settings.host)
+        .arg("--native-hidden")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let second = child_output::wait(child, Duration::from_secs(3));
+    assert!(!second.status.success());
+    assert!(String::from_utf8_lossy(&second.stdout).contains("already running"));
+    drop(cleanup);
+    let pid = h.process.as_ref().unwrap().id();
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("owned source callback failure"));
+    let proof: Value =
+        serde_json::from_slice(&fs::read(h.base.join("keyboard-retired.json")).unwrap()).unwrap();
+    assert_eq!(proof["pid"], pid);
+    assert_eq!(proof["state"]["allocated"], 0);
+    assert_eq!(proof["state"]["caps"], 0);
+}
