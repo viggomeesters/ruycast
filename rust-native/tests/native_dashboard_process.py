@@ -28,21 +28,6 @@ class Dashboard(unittest.TestCase):
             time.sleep(.02)
         self.fail(v)
     def click(self,h,index):h.probe('dashboard-control',index=index)
-    def test_management_routing_controls_custom_retention_and_reset(self):
-        h=self.host();v=self.open(h);self.assertTrue(v['visible']);self.assertEqual(len(v['surface']['hours']),24)
-        self.assertIn('Dashboard',v['text']);self.assertFalse(h.probe('read')['windowShown'])
-        self.click(h,1);self.wait(h,lambda v:not v['surface']['busy'] and not v['surface']['enabled'])
-        self.assertFalse(h.rpc(dict(op='analytics'))['result']['enabled'])
-        self.assertTrue(h.rpc(dict(op='analytics.settings',retentionDays=14))['ok'])
-        self.assertTrue(h.rpc(dict(op='execute',id='analytics.fixture'))['ok'])
-        v=self.wait(h,lambda v:v['surface']['retention_days']==14)
-        self.assertIn('14 days',v['text'])
-        h.probe('dashboard-retention',days=7);self.wait(h,lambda v:not v['surface']['busy'] and v['surface']['retention_days']==7)
-        before=h.config.read_bytes();self.click(h,3);self.wait(h,lambda v:v['surface']['confirming_reset'])
-        self.click(h,5);self.wait(h,lambda v:not v['surface']['confirming_reset'])
-        self.click(h,3);self.wait(h,lambda v:v['surface']['confirming_reset']);self.click(h,4)
-        self.wait(h,lambda v:not v['surface']['busy'] and not v['surface']['confirming_reset'])
-        self.assertEqual(h.config.read_bytes(),before)
     def test_standard_builtin_cli_native_sources_usage_logs_and_override(self):
         from library_process import Palette
         h=self.host();p=Palette(h)
@@ -66,12 +51,6 @@ class Dashboard(unittest.TestCase):
         self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],0)
         h.rpc(dict(op='show',query='promptactivity'));h.wait(lambda s:s['nativeUI']['visible']);p.probe('key-event',code=36,flags=0,chars='\r');h.wait(lambda s:s['nativeUI']['editorOpen']);self.assertTrue(p.probe('read')['runInputInline']);self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],0)
         p.probe('run-inline-type',text='PRIVATE dashboard reason');p.probe('key-event',code=36,flags=0,chars='\r');h.settled(lambda s:s['managementUI']['tab']=='dashboard' and not s['nativeUI']['visible']);self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],1);self.assertNotIn('PRIVATE',json.dumps(h.rpc(dict(op='logs'))))
-    def test_repeated_confirmation_retires_old_queued_reset_callback(self):
-        h=self.host();self.open(h);self.assertTrue(h.rpc(dict(op='execute',id='analytics.fixture'))['ok'])
-        self.click(h,3);first=self.wait(h,lambda v:v['surface']['confirming_reset']);h.probe('dashboard-retain',index=4);self.click(h,5)
-        self.wait(h,lambda v:not v['surface']['confirming_reset']);self.click(h,3);second=self.wait(h,lambda v:v['surface']['confirming_reset']);self.assertNotEqual(first['surface']['confirmation_token'],second['surface']['confirmation_token'])
-        before=h.rpc(dict(op='analytics'))['result']['totalAttempts'];h.probe('dashboard-stale');self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],before);self.assertTrue(self.read(h)['surface']['confirming_reset'])
-        self.click(h,4);self.wait(h,lambda v:not v['surface']['busy'] and not v['surface']['confirming_reset']);self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],0)
     def capture(self,h,name):
         v=h.probe('dashboard-screenshot')
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):

@@ -75,6 +75,84 @@ fn entries(path: &std::path::Path) -> BTreeSet<std::ffi::OsString> {
         .collect()
 }
 #[test]
+fn management_routing_controls_custom_retention_and_reset() {
+    let h = host();
+    let v = open(&h);
+    assert_eq!(v["visible"], true);
+    assert_eq!(v["surface"]["hours"].as_array().unwrap().len(), 24);
+    assert!(v["text"].as_array().unwrap().contains(&json!("Dashboard")));
+    assert_eq!(probe(&h, "read", json!({}))["windowShown"], false);
+    click(&h, 1);
+    wait(&h, |v| {
+        v["surface"]["busy"] == false && v["surface"]["enabled"] == false
+    });
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["enabled"],
+        false
+    );
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics.settings","retentionDays":14}))["ok"],
+        true
+    );
+    assert_eq!(
+        h.rpc(&json!({"op":"execute","id":"analytics.fixture"}))["ok"],
+        true
+    );
+    let v = wait(&h, |v| v["surface"]["retention_days"] == 14);
+    assert!(v["text"].as_array().unwrap().contains(&json!("14 days")));
+    probe(&h, "dashboard-retention", json!({"days":7}));
+    wait(&h, |v| {
+        v["surface"]["busy"] == false && v["surface"]["retention_days"] == 7
+    });
+    let before = fs::read(&h.config).unwrap();
+    click(&h, 3);
+    wait(&h, |v| v["surface"]["confirming_reset"] == true);
+    click(&h, 5);
+    wait(&h, |v| v["surface"]["confirming_reset"] == false);
+    click(&h, 3);
+    wait(&h, |v| v["surface"]["confirming_reset"] == true);
+    click(&h, 4);
+    wait(&h, |v| {
+        v["surface"]["busy"] == false && v["surface"]["confirming_reset"] == false
+    });
+    assert_eq!(fs::read(&h.config).unwrap(), before);
+}
+#[test]
+fn repeated_confirmation_retires_old_queued_reset_callback() {
+    let h = host();
+    open(&h);
+    assert_eq!(
+        h.rpc(&json!({"op":"execute","id":"analytics.fixture"}))["ok"],
+        true
+    );
+    click(&h, 3);
+    let first = wait(&h, |v| v["surface"]["confirming_reset"] == true);
+    probe(&h, "dashboard-retain", json!({"index":4}));
+    click(&h, 5);
+    wait(&h, |v| v["surface"]["confirming_reset"] == false);
+    click(&h, 3);
+    let second = wait(&h, |v| v["surface"]["confirming_reset"] == true);
+    assert_ne!(
+        first["surface"]["confirmation_token"],
+        second["surface"]["confirmation_token"]
+    );
+    let before = h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"].clone();
+    probe(&h, "dashboard-stale", json!({}));
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"],
+        before
+    );
+    assert_eq!(read(&h)["surface"]["confirming_reset"], true);
+    click(&h, 4);
+    wait(&h, |v| {
+        v["surface"]["busy"] == false && v["surface"]["confirming_reset"] == false
+    });
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"],
+        0
+    );
+}
+#[test]
 fn owned_save_dialog_takes_current_data_and_cancel_writes_nothing() {
     let h = host();
     open(&h);
