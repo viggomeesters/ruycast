@@ -393,3 +393,122 @@ fn usage_write_failure_never_reoffers_completed_action() {
         2
     );
 }
+struct RunningHost(Bridge);
+impl std::ops::Deref for RunningHost {
+    type Target = Bridge;
+    fn deref(&self) -> &Bridge {
+        &self.0
+    }
+}
+impl Drop for RunningHost {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            let _ =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.0.host.stop(true)));
+        }
+    }
+}
+fn wait_exists(path: &std::path::Path) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while !path.exists() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "fixture did not publish {}",
+            path.display()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+fn waiting_input() -> (
+    RunningHost,
+    std::path::PathBuf,
+    std::path::PathBuf,
+    std::path::PathBuf,
+) {
+    let host = RunningHost(host());
+    let ready = host.base.join("ready");
+    let gate = host.base.join("gate");
+    let done = host.base.join("done");
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["fake", "gated", ready, gate, done, "completed"]),
+        3.0,
+    );
+    (host, ready, gate, done)
+}
+fn start_waiting_input(host: &Bridge, ready: &std::path::Path) {
+    open(host);
+    input_type(host, "own fixture input");
+    actions::probe(host, "save-editor");
+    wait_exists(ready);
+}
+fn finish_waiting_input(host: &Bridge, gate: &std::path::Path, done: &std::path::Path) {
+    fs::write(gate, "go").unwrap();
+    wait_exists(done);
+    host.wait(|s| s["scriptsRunning"] == 0);
+}
+#[test]
+fn unrelated_cli_and_config_refresh_do_not_strand_completion() {
+    for mode in ["usage", "config"] {
+        let (host, ready, gate, done) = waiting_input();
+        let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+        config["commands"].as_array_mut().unwrap().push(json!({"id":"script.other","title":"Other fixture","kind":"script","target":"/usr/bin/true","arguments":[]}));
+        host.replace(&config, None);
+        assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+        start_waiting_input(&host, &ready);
+        if mode == "usage" {
+            assert_eq!(
+                host.rpc(&json!({"op":"execute","id":"script.other"}))["ok"],
+                true
+            );
+            assert_eq!(
+                host.rpc(&json!({"op":"usage"}))["result"]["script.other"],
+                1
+            );
+        } else {
+            config["commands"]
+                .as_array_mut()
+                .unwrap()
+                .last_mut()
+                .unwrap()["title"] = json!("Changed unrelated title");
+            host.replace(&config, None);
+            assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+        }
+        finish_waiting_input(&host, &gate, &done);
+        view(&host, |v| v["formVisible"] == false);
+        assert_eq!(
+            host.rpc(&json!({"op":"usage"}))["result"]["script.fixture"],
+            1
+        );
+    }
+}
+#[test]
+fn newer_query_preserves_palette_and_finishes_owned_input() {
+    let (host, ready, gate, done) = waiting_input();
+    start_waiting_input(&host, &ready);
+    host.probe("run-input-new-query", json!({"query":"finder"}));
+    host.settled(|_| true);
+    finish_waiting_input(&host, &gate, &done);
+    let state = view(&host, |v| v["formVisible"] == false);
+    assert_eq!(state["input"], "finder");
+    assert_eq!(
+        host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+        true
+    );
+    assert_eq!(
+        host.rpc(&json!({"op":"usage"}))["result"]["script.fixture"],
+        1
+    );
+}
+#[test]
+fn changed_command_after_effect_closes_input_with_warning() {
+    let (host, ready, gate, done) = waiting_input();
+    start_waiting_input(&host, &ready);
+    set_execution(&host, "/usr/bin/true", json!([]), 3.0);
+    finish_waiting_input(&host, &gate, &done);
+    view(&host, |v| {
+        v["formVisible"] == false && actions::text_contains(v, "Action completed")
+    });
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
