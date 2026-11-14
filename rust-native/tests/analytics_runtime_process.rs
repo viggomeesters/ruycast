@@ -1,5 +1,6 @@
 //! Owned analytics runtime and source-built write shim.
 #![cfg(feature = "test-tools")]
+#![allow(clippy::duplicate_mod, reason = "Bounded second-instance probe shares owned host support")]
 #[allow(dead_code)]
 #[path = "support/runtime_host.rs"]
 mod runtime_host;
@@ -85,4 +86,117 @@ fn raw_analytics_request_casts_match_foundation_without_config_coercion() {
         h.rpc(&json!({"op":"analytics.reset","confirmed":1}))["ok"],
         true
     );
+}
+
+#[path = "support/child_output.rs"]
+mod child_output;
+struct Release(PathBuf);
+impl Drop for Release {
+    fn drop(&mut self) {
+        let _ = fs::write(&self.0, b"");
+    }
+}
+fn entered(h: &Host) {
+    let end = Instant::now() + Duration::from_secs(3);
+    loop {
+        if h.base.join("analytics-write-entered").exists() {
+            return;
+        }
+        assert!(
+            Instant::now() < end,
+            "No actual analytics publication hold observed"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+fn pending_setting(
+    h: &Host,
+    timeout: Duration,
+) -> std::sync::mpsc::Receiver<std::io::Result<Value>> {
+    let socket = h.socket();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = runtime_host::status_rpc::request(
+            &socket,
+            &json!({"op":"analytics.settings","enabled":false}),
+            Instant::now() + timeout,
+        );
+        let _ = tx.send(result);
+    });
+    rx
+}
+#[test]
+fn held_io_keeps_owner_responsive_and_reports_failed_flush() {
+    let h = host();
+    fs::write(h.base.join("hold-analytics-write"), b"").unwrap();
+    let fault = h.base.join("fail-analytics-write");
+    fs::write(&fault, b"").unwrap();
+    let release = Release(h.base.join("analytics-write-release"));
+    let pending = pending_setting(&h, Duration::from_secs(6));
+    entered(&h);
+    assert!(matches!(
+        pending.try_recv(),
+        Err(std::sync::mpsc::TryRecvError::Empty)
+    ));
+    assert_eq!(h.rpc(&json!({"op":"status"}))["ok"], true);
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["enabled"],
+        false
+    );
+    drop(release);
+    let result = pending
+        .recv_timeout(Duration::from_secs(4))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["ok"], false);
+    assert!(result["storageError"]
+        .as_str()
+        .unwrap()
+        .contains("could not be saved"));
+    assert!(h.base.join("analytics-write-failed").exists());
+    fs::remove_file(fault).unwrap();
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics.settings","enabled":true}))["ok"],
+        true
+    );
+    let stored: Value =
+        serde_json::from_slice(&fs::read(h.profile.join("analytics.json")).unwrap()).unwrap();
+    assert_eq!(stored["enabled"], true);
+}
+#[test]
+fn shutdown_does_not_confirm_a_flush_that_is_still_held() {
+    let mut h = host();
+    fs::write(h.base.join("hold-analytics-write"), b"").unwrap();
+    fs::write(h.base.join("fail-analytics-write"), b"").unwrap();
+    let release = Release(h.base.join("analytics-write-release"));
+    let pending = pending_setting(&h, Duration::from_secs(9));
+    entered(&h);
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    let result = pending
+        .recv_timeout(Duration::from_secs(5))
+        .unwrap()
+        .unwrap();
+    assert_eq!(result["ok"], false);
+    assert_eq!(result["applied"], true);
+    assert_eq!(result["persistence"], "unknown");
+    assert!(h.process.as_mut().unwrap().try_wait().unwrap().is_none());
+    let child = h
+        .command(&h.settings.host)
+        .arg("--headless-test")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let second = child_output::wait(child, Duration::from_secs(3));
+    assert!(!second.status.success());
+    assert!(String::from_utf8_lossy(&second.stdout).contains("already running"));
+    drop(release);
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(h.base.join("analytics-write-failed").exists());
 }

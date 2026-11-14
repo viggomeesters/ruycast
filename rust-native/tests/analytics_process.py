@@ -169,15 +169,6 @@ class AnalyticsRuntime(unittest.TestCase):
             if (h.base/'analytics-write-entered').exists():return
             time.sleep(.01)
         self.fail('No actual analytics publication hold observed')
-    def test_actual_held_io_keeps_owner_responsive_and_reports_failed_flush(self):
-        h=self.host();(h.base/'hold-analytics-write').touch();(h.base/'fail-analytics-write').touch()
-        with ThreadPoolExecutor(1) as pool:
-            pending=pool.submit(h.rpc,dict(op='analytics.settings',enabled=False),6);self.entered(h)
-            try:
-                self.assertFalse(pending.done());self.assertTrue(h.rpc(dict(op='status'))['ok']);self.assertFalse(h.rpc(dict(op='analytics'))['result']['enabled'])
-            finally:(h.base/'analytics-write-release').touch()
-            result=pending.result(timeout=4)
-        self.assertFalse(result['ok']);self.assertIn('could not be saved',result['storageError']);self.assertTrue((h.base/'analytics-write-failed').exists());(h.base/'fail-analytics-write').unlink();result=h.rpc(dict(op='analytics.settings',enabled=True));self.assertTrue(result['ok']);self.assertTrue(json.loads((h.profile/'analytics.json').read_text())['enabled'])
     def test_full_flush_queue_does_not_hide_already_applied_setting(self):
         h=self.host();(h.base/'hold-analytics-write').touch()
         with ThreadPoolExecutor(1) as pool:
@@ -194,14 +185,6 @@ class AnalyticsRuntime(unittest.TestCase):
             finally:(h.base/'analytics-write-release').touch()
             self.assertTrue(first.result(timeout=4)['ok'])
         self.assertTrue(h.rpc(dict(op='analytics.settings'))['ok']);self.assertEqual(json.loads((h.profile/'analytics.json').read_text())['retentionDays'],20)
-    def test_shutdown_does_not_confirm_a_flush_that_is_still_held(self):
-        h=self.host();(h.base/'hold-analytics-write').touch();(h.base/'fail-analytics-write').touch()
-        with ThreadPoolExecutor(1) as pool:
-            pending=pool.submit(h.rpc,dict(op='analytics.settings',enabled=False),9);self.entered(h)
-            try:
-                self.assertTrue(h.rpc(dict(op='quit'))['ok']);result=pending.result(timeout=5);self.assertFalse(result['ok']);self.assertTrue(result['applied']);self.assertEqual(result['persistence'],'unknown');self.assertIsNone(h.process.poll());second=subprocess.run([str(rt.HOST),'--headless-test'],env=h.env,capture_output=True,text=True,timeout=3);self.assertNotEqual(second.returncode,0);self.assertIn('already running',second.stdout)
-            finally:(h.base/'analytics-write-release').touch()
-        out,err=h.process.communicate(timeout=5);self.assertEqual(h.process.returncode,0,out.decode()+err.decode());self.assertTrue((h.base/'analytics-write-failed').exists())
     @classmethod
     def tearDownClass(cls):
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
