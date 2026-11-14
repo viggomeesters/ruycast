@@ -1,0 +1,1182 @@
+{
+  "provenance": {
+    "source_sha256": {
+      "Sources/RuycastApp/AnalyticsStore.swift": "43461d33394436195f3c7d7cbcaa66d1407ac53049bed3e8a2f91562d140ca7d",
+      "Sources/LauncherCore/Files.swift": "055d650d00848ffbb739381034bdc52f977b23eb3476ec0596524614d033338d",
+      "rust-native/tests/analytics_process.py": "c06beaa71d7638ec8d5e95a07f23603092916877d5d49ffde8b8f374f2afedeb"
+    },
+    "origin": "Actual Swift AnalyticsStore and Foundation JSON codec, generated 2026-11-14"
+  },
+  "cases": [
+    {
+      "name": "attempt_completion_pause_reset_private_export",
+      "now": 1790000000,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "attempt",
+          "id": "own private URL token",
+          "source": "snippet",
+          "ticket": "a"
+        },
+        {
+          "op": "configure",
+          "enabled": false
+        },
+        {
+          "op": "attempt",
+          "id": "ignored",
+          "ticket": "ignored"
+        },
+        {
+          "op": "complete",
+          "ticket": "a",
+          "ok": true,
+          "ms": 12
+        },
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "configure",
+          "enabled": true
+        },
+        {
+          "op": "attempt",
+          "id": "old",
+          "ticket": "old"
+        },
+        {
+          "op": "reset"
+        },
+        {
+          "op": "complete",
+          "ticket": "old",
+          "ok": false,
+          "ms": 999
+        },
+        {
+          "op": "attempt",
+          "id": "é",
+          "source": "unexpected"
+        },
+        {
+          "op": "complete",
+          "ok": false,
+          "ms": 3,
+          "code": "private raw failure",
+          "exit": 999
+        },
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "export"
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {
+            "b5c76565d79906606465ea4ab61026d87e88cb599d66290f462dd218b7a8e814": {
+              "attempts": 1,
+              "failures": 1,
+              "lastUsed": "2026-09-21T14:13:20Z",
+              "priorSuccesses": 0,
+              "sources": {
+                "cli": 1
+              },
+              "successes": 0,
+              "timing": {
+                "count": 1,
+                "maxMS": 3,
+                "samples": [
+                  3
+                ],
+                "totalMS": 3
+              }
+            }
+          },
+          "days": {
+            "2026-09-21": {
+              "failures": 1,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "enabled": true,
+          "events": [
+            {
+              "category": "command",
+              "code": "action-failed",
+              "commandID": "b5c76565d79906606465ea4ab61026d87e88cb599d66290f462dd218b7a8e814",
+              "date": "2026-09-21T14:13:20Z"
+            }
+          ],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1789999200": {
+              "failures": 1,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "legacyImported": true,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {
+            "command.execute": {
+              "count": 1,
+              "maxMS": 3,
+              "samples": [
+                3
+              ],
+              "totalMS": 3
+            }
+          },
+          "totalAttempts": 1,
+          "totalFailures": 1,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {
+                "c93256dacb94410deb319e67dd2a1c1b29eb6386c805df295ca1540524b15a17": {
+                  "attempts": 1,
+                  "failures": 0,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "snippet": 1
+                  },
+                  "successes": 1,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 12,
+                    "samples": [
+                      12
+                    ],
+                    "totalMS": 12
+                  }
+                }
+              },
+              "days": {
+                "2026-09-21": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "enabled": false,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 12,
+                  "samples": [
+                    12
+                  ],
+                  "totalMS": 12
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 0,
+              "totalSuccesses": 1,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          {
+            "document": {
+              "commands": {
+                "b5c76565d79906606465ea4ab61026d87e88cb599d66290f462dd218b7a8e814": {
+                  "attempts": 1,
+                  "failures": 1,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "cli": 1
+                  },
+                  "successes": 0,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 3,
+                    "samples": [
+                      3
+                    ],
+                    "totalMS": 3
+                  }
+                }
+              },
+              "days": {
+                "2026-09-21": {
+                  "failures": 1,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "enabled": true,
+              "events": [
+                {
+                  "category": "command",
+                  "code": "action-failed",
+                  "commandID": "b5c76565d79906606465ea4ab61026d87e88cb599d66290f462dd218b7a8e814",
+                  "date": "2026-09-21T14:13:20Z"
+                }
+              ],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 1,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "legacyImported": true,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 3,
+                  "samples": [
+                    3
+                  ],
+                  "totalMS": 3
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 1,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          {
+            "attempts": 1,
+            "errors": {
+              "command:action-failed": 1
+            },
+            "failures": 1,
+            "legacySuccesses": 0,
+            "privacy": "No command IDs, input, queries, URLs, arguments or clipboard contents",
+            "schema": 1,
+            "successes": 0,
+            "timings": {
+              "command.execute": {
+                "count": 1,
+                "maxMS": 3,
+                "samples": [
+                  3
+                ],
+                "totalMS": 3
+              }
+            },
+            "uses": 1,
+            "version": "fixture"
+          }
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "calendar_gregorian_UTC",
+      "now": 1790000000,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "attempt"
+        },
+        {
+          "op": "complete",
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "op": "snapshot"
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {
+            "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+              "attempts": 1,
+              "failures": 0,
+              "lastUsed": "2026-09-21T14:13:20Z",
+              "priorSuccesses": 0,
+              "sources": {
+                "cli": 1
+              },
+              "successes": 1,
+              "timing": {
+                "count": 1,
+                "maxMS": 1,
+                "samples": [
+                  1
+                ],
+                "totalMS": 1
+              }
+            }
+          },
+          "days": {
+            "2026-09-21": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1789999200": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {
+            "command.execute": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          },
+          "totalAttempts": 1,
+          "totalFailures": 0,
+          "totalSuccesses": 1,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {
+                "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+                  "attempts": 1,
+                  "failures": 0,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "cli": 1
+                  },
+                  "successes": 1,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 1,
+                    "samples": [
+                      1
+                    ],
+                    "totalMS": 1
+                  }
+                }
+              },
+              "days": {
+                "2026-09-21": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 1,
+                  "samples": [
+                    1
+                  ],
+                  "totalMS": 1
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 0,
+              "totalSuccesses": 1,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          }
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "calendar_gregorian_Pacific/Kiritimati",
+      "now": 1790000000,
+      "zone": "Pacific/Kiritimati",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "attempt"
+        },
+        {
+          "op": "complete",
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "op": "snapshot"
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {
+            "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+              "attempts": 1,
+              "failures": 0,
+              "lastUsed": "2026-09-21T14:13:20Z",
+              "priorSuccesses": 0,
+              "sources": {
+                "cli": 1
+              },
+              "successes": 1,
+              "timing": {
+                "count": 1,
+                "maxMS": 1,
+                "samples": [
+                  1
+                ],
+                "totalMS": 1
+              }
+            }
+          },
+          "days": {
+            "2026-09-22": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1789999200": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {
+            "command.execute": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          },
+          "totalAttempts": 1,
+          "totalFailures": 0,
+          "totalSuccesses": 1,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {
+                "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+                  "attempts": 1,
+                  "failures": 0,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "cli": 1
+                  },
+                  "successes": 1,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 1,
+                    "samples": [
+                      1
+                    ],
+                    "totalMS": 1
+                  }
+                }
+              },
+              "days": {
+                "2026-09-22": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 1,
+                  "samples": [
+                    1
+                  ],
+                  "totalMS": 1
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 0,
+              "totalSuccesses": 1,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          }
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "calendar_gregorian_America/Los_Angeles",
+      "now": 1790000000,
+      "zone": "America/Los_Angeles",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "attempt"
+        },
+        {
+          "op": "complete",
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "op": "snapshot"
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {
+            "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+              "attempts": 1,
+              "failures": 0,
+              "lastUsed": "2026-09-21T14:13:20Z",
+              "priorSuccesses": 0,
+              "sources": {
+                "cli": 1
+              },
+              "successes": 1,
+              "timing": {
+                "count": 1,
+                "maxMS": 1,
+                "samples": [
+                  1
+                ],
+                "totalMS": 1
+              }
+            }
+          },
+          "days": {
+            "2026-09-21": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1789999200": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {
+            "command.execute": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          },
+          "totalAttempts": 1,
+          "totalFailures": 0,
+          "totalSuccesses": 1,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {
+                "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+                  "attempts": 1,
+                  "failures": 0,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "cli": 1
+                  },
+                  "successes": 1,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 1,
+                    "samples": [
+                      1
+                    ],
+                    "totalMS": 1
+                  }
+                }
+              },
+              "days": {
+                "2026-09-21": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 1,
+                  "samples": [
+                    1
+                  ],
+                  "totalMS": 1
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 0,
+              "totalSuccesses": 1,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          }
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "calendar_buddhist_UTC",
+      "now": 1790000000,
+      "zone": "UTC",
+      "calendar": "buddhist",
+      "actions": [
+        {
+          "op": "attempt"
+        },
+        {
+          "op": "complete",
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "op": "snapshot"
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {
+            "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+              "attempts": 1,
+              "failures": 0,
+              "lastUsed": "2026-09-21T14:13:20Z",
+              "priorSuccesses": 0,
+              "sources": {
+                "cli": 1
+              },
+              "successes": 1,
+              "timing": {
+                "count": 1,
+                "maxMS": 1,
+                "samples": [
+                  1
+                ],
+                "totalMS": 1
+              }
+            }
+          },
+          "days": {
+            "2569-09-21": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1789999200": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {
+            "command.execute": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          },
+          "totalAttempts": 1,
+          "totalFailures": 0,
+          "totalSuccesses": 1,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {
+                "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+                  "attempts": 1,
+                  "failures": 0,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "cli": 1
+                  },
+                  "successes": 1,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 1,
+                    "samples": [
+                      1
+                    ],
+                    "totalMS": 1
+                  }
+                }
+              },
+              "days": {
+                "2569-09-21": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 1,
+                  "samples": [
+                    1
+                  ],
+                  "totalMS": 1
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 0,
+              "totalSuccesses": 1,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          }
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "calendar_buddhist_Pacific/Kiritimati",
+      "now": 1790000000,
+      "zone": "Pacific/Kiritimati",
+      "calendar": "buddhist",
+      "actions": [
+        {
+          "op": "attempt"
+        },
+        {
+          "op": "complete",
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "op": "snapshot"
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {
+            "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+              "attempts": 1,
+              "failures": 0,
+              "lastUsed": "2026-09-21T14:13:20Z",
+              "priorSuccesses": 0,
+              "sources": {
+                "cli": 1
+              },
+              "successes": 1,
+              "timing": {
+                "count": 1,
+                "maxMS": 1,
+                "samples": [
+                  1
+                ],
+                "totalMS": 1
+              }
+            }
+          },
+          "days": {
+            "2569-09-22": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1789999200": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {
+            "command.execute": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          },
+          "totalAttempts": 1,
+          "totalFailures": 0,
+          "totalSuccesses": 1,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {
+                "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+                  "attempts": 1,
+                  "failures": 0,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "cli": 1
+                  },
+                  "successes": 1,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 1,
+                    "samples": [
+                      1
+                    ],
+                    "totalMS": 1
+                  }
+                }
+              },
+              "days": {
+                "2569-09-22": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 1,
+                  "samples": [
+                    1
+                  ],
+                  "totalMS": 1
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 0,
+              "totalSuccesses": 1,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          }
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "calendar_buddhist_America/Los_Angeles",
+      "now": 1790000000,
+      "zone": "America/Los_Angeles",
+      "calendar": "buddhist",
+      "actions": [
+        {
+          "op": "attempt"
+        },
+        {
+          "op": "complete",
+          "ok": true,
+          "ms": 1
+        },
+        {
+          "op": "snapshot"
+        }
+      ],
+      "expected": {
+        "document": {
+          "commands": {
+            "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+              "attempts": 1,
+              "failures": 0,
+              "lastUsed": "2026-09-21T14:13:20Z",
+              "priorSuccesses": 0,
+              "sources": {
+                "cli": 1
+              },
+              "successes": 1,
+              "timing": {
+                "count": 1,
+                "maxMS": 1,
+                "samples": [
+                  1
+                ],
+                "totalMS": 1
+              }
+            }
+          },
+          "days": {
+            "2569-09-21": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1789999200": {
+              "failures": 0,
+              "successes": 1,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {
+            "command.execute": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          },
+          "totalAttempts": 1,
+          "totalFailures": 0,
+          "totalSuccesses": 1,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {
+                "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+                  "attempts": 1,
+                  "failures": 0,
+                  "lastUsed": "2026-09-21T14:13:20Z",
+                  "priorSuccesses": 0,
+                  "sources": {
+                    "cli": 1
+                  },
+                  "successes": 1,
+                  "timing": {
+                    "count": 1,
+                    "maxMS": 1,
+                    "samples": [
+                      1
+                    ],
+                    "totalMS": 1
+                  }
+                }
+              },
+              "days": {
+                "2569-09-21": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1789999200": {
+                  "failures": 0,
+                  "successes": 1,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {
+                "command.execute": {
+                  "count": 1,
+                  "maxMS": 1,
+                  "samples": [
+                    1
+                  ],
+                  "totalMS": 1
+                }
+              },
+              "totalAttempts": 1,
+              "totalFailures": 0,
+              "totalSuccesses": 1,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          }
+        ],
+        "storageError": null
+      }
+    }
+  ]
+}

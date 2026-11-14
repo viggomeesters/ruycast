@@ -87,9 +87,6 @@ class Analytics(unittest.TestCase):
                 self.assertEqual(p.returncode,0,p.stderr);pair.append(json.loads(p.stdout))
         self.assertEqual(normalized(pair[0]),normalized(pair[1]));type(self).cases+=1;return pair[0]
     def empty(self):return self.run_case([])['document']
-    def test_attempt_completion_pause_reset_and_private_export(self):
-        actions=[dict(op='attempt',id='own private URL token',source='snippet',ticket='a'),dict(op='configure',enabled=False),dict(op='attempt',id='ignored',ticket='ignored'),dict(op='complete',ticket='a',ok=True,ms=12),dict(op='snapshot'),dict(op='configure',enabled=True),dict(op='attempt',id='old',ticket='old'),dict(op='reset'),dict(op='complete',ticket='old',ok=False,ms=999),dict(op='attempt',id='e\u0301',source='unexpected'),dict(op='complete',ok=False,ms=3,code='private raw failure',exit=999),dict(op='snapshot'),dict(op='export')]
-        out=self.run_case(actions);self.assertNotIn('own private URL token',json.dumps(out));self.assertEqual(out['document']['totalFailures'],1)
     def test_retention_utc_hours_and_calendar_days_across_dst(self):
         import datetime
         for iso in ['2026-03-29T12:30:00+00:00','2026-10-25T12:30:00+00:00']:
@@ -141,10 +138,6 @@ class Analytics(unittest.TestCase):
     def test_legacy_import_caps_and_second_import_do_not_duplicate(self):
         counts={f'own-{i}':i for i in range(-1,2051)}
         out=self.run_case([dict(op='import',counts=counts),dict(op='import',counts={'ignored':999}),dict(op='export')]);self.assertEqual(len(out['document']['commands']),2048)
-    def test_calendar_year_and_local_day_are_foundation_values(self):
-        for calendar in ['gregorian','buddhist']:
-            for zone in ['UTC','Pacific/Kiritimati','America/Los_Angeles']:
-                self.run_case([dict(op='attempt'),dict(op='complete',ok=True,ms=1),dict(op='snapshot')],calendar=calendar,zone=zone)
     @classmethod
     def tearDownClass(cls):
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
