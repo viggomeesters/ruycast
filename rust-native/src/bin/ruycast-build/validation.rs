@@ -96,6 +96,8 @@ cli-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features 
 supervision-framing-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_framing_process --locked
 supervision-io-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_io_process --locked
 supervision-protocol-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_protocol_process --locked
+supervision-fault-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example supervision-fault-shim --locked
+supervision-fault-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_fault_process --locked
 supervision-process|p|rust-native/tests/supervision_process.py
 script-fault-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example script-fault-shim --locked
 script-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked
@@ -438,6 +440,14 @@ fn sanitized(command: &mut Command, root: &Path, lease: &BuildLock, fixture: &Pa
         );
     lease.apply_to_child(command)
 }
+fn supervision_fault_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
+    artifact_paths(target)?;
+    let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libsupervision_fault_shim.dylib");
+    owned_path(root, &artifact)?;
+    regular_bytes(&artifact)?;
+    command.env("RUYCAST_TEST_SUPERVISION_SHIM", artifact);
+    Ok(())
+}
 fn step(
     root: &Path,
     lease: &BuildLock,
@@ -451,6 +461,9 @@ fn step(
     let mut command = Command::new(&entry.arguments[0]);
     command.args(&entry.arguments[1..]).current_dir(root);
     sanitized(&mut command, root, lease, fixture)?;
+    if matches!(entry.name.as_str(), "supervision-fault-process" | "supervision-process") {
+        supervision_fault_environment(root, &receipt.target, &mut command)?;
+    }
     if entry.name == "startup-process" {
         let (artifact, sha) = keyboard_fixture(root)?;
         command
@@ -1421,6 +1434,22 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 mod tests {
     use super::*;
     #[test]
+    fn supervision_fault_environment_requires_the_exact_matrix_artifact() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let target = "aarch64-apple-darwin";
+        let mut command = Command::new("cargo");
+        assert!(supervision_fault_environment(root, target, &mut command).is_err());
+        let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libsupervision_fault_shim.dylib");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, b"owned nonexecutable SDK fixture").unwrap();
+        supervision_fault_environment(root, target, &mut command).unwrap();
+        assert_eq!(command.get_envs().find(|(key, _)| *key == "RUYCAST_TEST_SUPERVISION_SHIM").unwrap().1, Some(artifact.as_os_str()));
+        fs::remove_file(&artifact).unwrap();
+        std::os::unix::fs::symlink(root.join("outside"), &artifact).unwrap();
+        assert!(supervision_fault_environment(root, target, &mut command).is_err());
+    }
+    #[test]
     fn keyboard_receipt_sources_match_both_consumers_and_reject_drift() {
         let fixture = super::super::tests::Fixture::new();
         let root = &fixture.0;
@@ -1787,7 +1816,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 137);
+        assert_eq!(steps.len(), 139);
         let supervision_probe = steps.iter().position(|step|step.name=="supervision-probe-build").unwrap();
         let supervision_framing = steps.iter().position(|step|step.name=="supervision-framing-process").unwrap();
         assert!(supervision_probe < supervision_framing);
@@ -1795,6 +1824,14 @@ mod tests {
         assert!(supervision_probe < supervision_io);
         let supervision_protocol = steps.iter().position(|step|step.name=="supervision-protocol-process").unwrap();
         assert!(supervision_probe < supervision_protocol);
+        let supervision_sdk = steps.iter().position(|step|step.name=="supervision-fault-sdk-build").unwrap();
+        for name in ["supervision-fault-process", "supervision-process"] {
+            let consumer = steps.iter().position(|step|step.name==name).unwrap();
+            assert!(supervision_sdk < consumer);
+        }
+        assert!(steps[supervision_sdk].arguments.windows(2).any(|pair|pair==["--example","supervision-fault-shim"]));
+        let supervision_fault = steps.iter().find(|step|step.name=="supervision-fault-process").unwrap();
+        assert!(supervision_fault.arguments.windows(2).any(|pair|pair==["--test","supervision_fault_process"]));
         assert!(steps[supervision_protocol].arguments.windows(2).any(|pair|pair==["--test","supervision_protocol_process"]));
         assert!(steps[supervision_io].arguments.windows(2).any(|pair|pair==["--test","supervision_io_process"]));
         assert!(steps[supervision_framing].arguments.windows(2).any(|pair|pair==["--test","supervision_framing_process"]));

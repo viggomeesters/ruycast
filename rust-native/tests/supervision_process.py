@@ -71,15 +71,6 @@ class Supervision(unittest.TestCase):
                 self.clean_tree(pid,sentinel)
                 pid.unlink();sentinel.unlink(missing_ok=True)
 
-    def test_real_parent_wait_error_retries_reap_without_child_leak(self):
-        result=self.probe(fault=True)
-        self.assertIn('error',result)
-        self.assertEqual((self.base/'wait-injected').read_text(),'injected')
-
-    def test_precommit_cleanup_wait_error_is_retried(self):
-        result=self.probe(helper=self.fake('print("old runner",flush=True);time.sleep(.1)'),fault=True)
-        self.assertIn('error',result);self.assertEqual((self.base/'wait-injected').read_text(),'injected')
-
     def test_parent_panic_closes_output_before_waiting_for_helper(self):
         marker=self.base/'helper-cleaned'
         committed=self.base/'helper-committed'

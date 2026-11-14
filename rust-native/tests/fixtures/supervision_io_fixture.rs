@@ -39,6 +39,12 @@ fn helper_protocol() {
             std::io::stdout().flush().unwrap();
             return;
         }
+        "old-ready-wait" => {
+            println!("old runner");
+            std::io::stdout().flush().unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            return;
+        }
         "old-version" => {
             println!("{}", serde_json::json!({"scriptSupervisor":1,"ready":true}));
             std::io::stdout().flush().unwrap();
