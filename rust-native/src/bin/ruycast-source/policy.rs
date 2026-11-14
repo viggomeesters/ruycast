@@ -386,14 +386,12 @@ rust-native/tests/fixtures/keyboard_host_loader.json
 rust-native/tests/keyboard_host_provider.rs
 rust-native/tests/fixtures/keyboard_fixture.rs
 rust-native/tests/fixtures/keyboard_missing_parameter.rs
-rust-native/tests/keyword_capture_process.py
 rust-native/tests/keyword_capture_process.rs
 rust-native/tests/keyword_native_process.rs
 rust-native/tests/fixtures/keyword_notification.rs
 rust-native/tests/keyword_notification.rs
 rust-native/tests/keyword_process.rs
 rust-native/tests/keyword_reference.json
-rust-native/tests/keyword_rich_process.py
 rust-native/tests/keyword_rich_process.rs
 rust-native/tests/fixtures/keyword_core.rs
 rust-native/tests/fixtures/keyword_ax.rs
