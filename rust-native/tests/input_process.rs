@@ -563,3 +563,79 @@ fn light_dark_input_and_validation_capture() {
         view(&host, |v| v["formVisible"] == false);
     }
 }
+fn inline_open(host: &Bridge, tab: bool) {
+    actions::show(host, "runfixture");
+    assert_eq!(actions::probe(host, "read")["windowShown"], false);
+    key(
+        host,
+        if tab { 48 } else { 36 },
+        if tab { "\t" } else { "\r" },
+        0,
+    );
+    view(host, |v| v["runInputInline"] == true);
+}
+fn inline_type(host: &Bridge, text: &str) {
+    host.probe("run-inline-type", json!({"text":text}));
+}
+fn inline_closed(host: &Bridge) -> Value {
+    view(host, |v| {
+        v["runInputInline"] == false && v["formVisible"] == false
+    })
+}
+#[test]
+fn return_and_tab_open_inline_input_cancel_restores_query() {
+    let host = host();
+    let before = fs::read(&host.config).unwrap();
+    for tab in [false, true] {
+        inline_open(&host, tab);
+        inline_type(&host, "PRIVATE literal Ω");
+        assert_eq!(
+            actions::probe(&host, "run-inline-read")["text"],
+            "PRIVATE literal Ω"
+        );
+        assert_eq!(actions::probe(&host, "read")["modelQuery"], "runfixture");
+        assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+        key(&host, 53, "", 0);
+        assert_eq!(inline_closed(&host)["input"], "runfixture");
+        assert_eq!(fs::read(&host.config).unwrap(), before);
+    }
+    actions::probe(&host, "assert-hidden-order-block");
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+    assert!(
+        actions::probe(&host, "read")["blockedOrders"]
+            .as_u64()
+            .unwrap()
+            > 0
+    );
+}
+#[test]
+fn alias_capture_cancel_restores_only_alias() {
+    let host = host();
+    assert_eq!(
+        host.rpc(&json!({"op":"show","query":"runfixture\t  raw tail"}))["ok"],
+        true
+    );
+    host.settled(|s| s["nativeUI"]["visible"] == true);
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+    view(&host, |v| v["runInputInline"] == true);
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "  raw tail"
+    );
+    key(&host, 53, "", 0);
+    assert_eq!(inline_closed(&host)["input"], "runfixture");
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn composing_alias_does_not_capture_until_commit() {
+    let host = host();
+    actions::show(&host, "runfixture");
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+    host.probe("query-composing", json!({"text":"runfixture 日本語"}));
+    host.settled(|_| true);
+    assert_eq!(actions::probe(&host, "read")["runInputInline"], false);
+    actions::probe(&host, "query-commit");
+    view(&host, |v| v["runInputInline"] == true);
+    assert_eq!(actions::probe(&host, "run-inline-read")["text"], "日本語");
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}

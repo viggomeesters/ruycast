@@ -16,15 +16,6 @@ class InlineInput(unittest.TestCase):
     def expanded(self,host):return self.view(host,lambda v:v['formVisible'] and not v['runInputInline'])
     def closed(self,host):return self.view(host,lambda v:not v['runInputInline'] and not v['formVisible'])
 
-    def test_return_and_tab_open_input_without_running_and_cancel_restores_query(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);before=host.config.read_bytes()
-        for tab in [False,True]:
-            self.open(host,tab);self.type(host,'PRIVATE literal Ω');self.assertEqual(self.text(host),'PRIVATE literal Ω')
-            self.assertEqual(host.probe('read')['modelQuery'],'runfixture');self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-            self.key(host,53);self.assertEqual(self.closed(host)['input'],'runfixture')
-            self.assertEqual(host.config.read_bytes(),before)
-        host.probe('assert-hidden-order-block');self.assertFalse(host.probe('read')['windowShown']);self.assertGreater(host.probe('read')['blockedOrders'],0)
-
     def test_alias_tail_preserves_spaces_tabs_unicode_and_literal_arguments(self):
         host=self.host(native=True);out=host.base/'result'
         command=self.command('import pathlib,sys;pathlib.Path(%r).write_text(sys.argv[1])'%str(out),inputPrompt='Message');command['arguments']+=['{input}'];self.replace_command(host,command)
@@ -33,12 +24,6 @@ class InlineInput(unittest.TestCase):
         self.key(host,36,'\r');self.file(out);self.idle(host);self.closed(host);self.assertEqual(out.read_text(),tail)
         self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
         self.assertNotIn('literal', (host.profile/'command-log.json').read_text())
-
-    def test_alias_capture_cancel_restores_only_alias(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.show(host,'runfixture\t  raw tail')
-        self.view(host,lambda v:v['runInputInline']);self.assertEqual(self.text(host),'  raw tail')
-        self.key(host,53);self.assertEqual(self.closed(host)['input'],'runfixture')
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
 
     def test_same_token_reload_usage_and_theme_keep_text_editor_undo_and_composition(self):
         host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'before')
@@ -51,12 +36,6 @@ class InlineInput(unittest.TestCase):
         after=host.probe('run-inline-read');self.assertTrue(after['marked']);self.assertEqual(after['text'],marked['text']);self.assertEqual(after['editorAddress'],marked['editorAddress']);self.assertEqual(after['selectedLocation'],marked['selectedLocation'])
         host.probe('run-inline-ime-guards');self.assertEqual(len(host.rpc({'op':'logs'})['result']),2)
         host.probe('run-inline-unmark');self.type(host,' continued');self.assertTrue(self.text(host).endswith(' continued'))
-
-    def test_composing_alias_does_not_capture_until_commit(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.show(host)
-        host.probe('query-composing',text='runfixture 日本語');host.settled();self.assertFalse(host.probe('read')['runInputInline'])
-        host.probe('query-commit');self.view(host,lambda v:v['runInputInline']);self.assertEqual(self.text(host),'日本語')
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
 
     def test_expand_preserves_actual_field_editor_text_and_token_without_execution(self):
         host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'Unicode büro 日本語 $(literal)')
