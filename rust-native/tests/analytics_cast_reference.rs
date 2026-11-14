@@ -170,3 +170,56 @@ fn schema_one_missing_and_null_hours_are_upgraded() {
         compare_from(data, &format!("schema_one_{variant}"));
     }
 }
+
+#[test]
+fn existing_document_rejection_and_date_codec_match_foundation() {
+    compare_from(
+        include_str!("fixtures/analytics_retention_reference.json"),
+        "empty",
+    );
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/analytics_decoder_reference.json")).unwrap();
+    let cases = fixture["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 12);
+    for case in cases {
+        let root = runtime_host::OwnedDir::new();
+        fs::write(root.0.join(".ruycast-analytics-fixture"), b"").unwrap();
+        let raw = case["raw"].as_str().unwrap().as_bytes();
+        let path = root.0.join("analytics.json");
+        fs::write(&path, raw).unwrap();
+        let request = json!({"root":root.0,"now":1790000000,"zone":"UTC","calendar":"gregorian","actions":[]});
+        let mut child = Command::new(env!("CARGO_BIN_EXE_analytics-probe"))
+            .env_clear()
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let writer = std::thread::spawn(move || serde_json::to_writer(stdin, &request));
+        let output = child_output::wait(child, Duration::from_secs(20));
+        assert!(writer.join().unwrap().is_ok());
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(fs::read(&path).unwrap(), raw, "{}", case["name"]);
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let mut actual = if value["storageError"]
+            .as_str()
+            .is_some_and(|v| !v.is_empty())
+        {
+            value["storageError"].clone()
+        } else {
+            value["document"].clone()
+        };
+        normalize(&mut actual);
+        assert!(
+            equivalent(&actual, &case["expected"]),
+            "{}: actual={actual} expected={}",
+            case["name"],
+            case["expected"]
+        );
+    }
+}
