@@ -766,7 +766,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/control.rs", include_bytes!("../../control.rs"), "3ed188dcb94c9578ed6dc499ec2737be8ed7ad019d4924fabe2d8f0edd6a06ef"),
             ("rust-native/src/lib.rs", include_bytes!("../../lib.rs"), "f6f059088e1000c1828df47924f5748f35d1bb362a74640f4796dd93b1c1a28f"),
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "3fd6aa6c6a3c8321dde7a9f4b85a01045e18aad1e0bfeea89d2a9d5d0f935409"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "f4a435fa611ef0bafe581776f6a6ab8fc5020e422445d038f48a8104828cd4a3"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0c216f4ad15093310146454b6eba26d9bba95d300175d314a3bded41f0a6b528"),
             ("Sources/RuycastApp/PolishChecks.swift", include_bytes!("../../../../Sources/RuycastApp/PolishChecks.swift"), "87377916433de1fd22fea0ee92b586e741f635213d2b2472368f1a8ae62111a2"),
         ],
         "--check-feedback" => &[
@@ -817,7 +817,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-actions-menu" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "f4a435fa611ef0bafe581776f6a6ab8fc5020e422445d038f48a8104828cd4a3"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0c216f4ad15093310146454b6eba26d9bba95d300175d314a3bded41f0a6b528"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
@@ -1062,7 +1062,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust/src/script.rs", include_bytes!("../../../../rust/src/script.rs"), "16974362c399c6c5a92596d7563d501eb0492df9f5e2463d8147eeb70108bfb0"),
             ("rust-native/tests/script_result_basic_process.rs", include_bytes!("../../../tests/script_result_basic_process.rs"), "70e1a2de21b80f8702438acb49b03fac13576c84cc90e3857af8fc3aa48eb498"),
             ("rust-native/tests/script_result_native_process.rs", include_bytes!("../../../tests/script_result_native_process.rs"), "6791270af079e8a05e679dc86de1528dd4dfb7f881b7a291dc8b9878a8786410"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "f4a435fa611ef0bafe581776f6a6ab8fc5020e422445d038f48a8104828cd4a3"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0c216f4ad15093310146454b6eba26d9bba95d300175d314a3bded41f0a6b528"),
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
             ("Sources/RuycastApp/AppleShortcutChecks.swift", include_bytes!("../../../../Sources/RuycastApp/AppleShortcutChecks.swift"), "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74"),
@@ -1150,7 +1150,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-settings" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "f4a435fa611ef0bafe581776f6a6ab8fc5020e422445d038f48a8104828cd4a3"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0c216f4ad15093310146454b6eba26d9bba95d300175d314a3bded41f0a6b528"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
@@ -1204,7 +1204,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/runtime_utilities.rs", include_bytes!("../../runtime_utilities.rs"), "209d90ba65f4fb8fd9a1341d419fddf5ada441dcebb641914cd2ac1e6692e8bd"),
             ("rust-native/src/runtime_builtins.rs", include_bytes!("../../runtime_builtins.rs"), "43bc0ddfcfde25438465f7dc2f9c245bd7084d8906f44baf5f229be43e6f991c"),
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
-            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "f4a435fa611ef0bafe581776f6a6ab8fc5020e422445d038f48a8104828cd4a3"),
+            ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "0c216f4ad15093310146454b6eba26d9bba95d300175d314a3bded41f0a6b528"),
             (
                 "rust-native/src/activity.rs",
                 include_bytes!("../../activity.rs"),

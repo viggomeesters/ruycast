@@ -73,20 +73,6 @@ else:
         if out:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
             folder=Path(out).parent/'rich';folder.mkdir(exist_ok=True);(folder/'query-undo-event-boundaries.json').write_text(json.dumps(dict(first=first,second=second,roleGroupBefore=details['resultPanel']['queryGroupBeforeRole'],roleGroupAfter=details['resultPanel']['queryGroupAfterRole'],undo1='cafe',undo2='',redo='cafe',binarySHA256=hashlib.sha256(bridge.TOOLS.read_bytes()).hexdigest()),indent=2))
 
-    def test_failure_can_add_first_readable_detail_without_replacing_choices(self):
-        initial=dict(ok=True,choices=dict(title='Projects',placeholder='Find…',items=[dict(id='one',title='Project',subtitle='EX',value='literal')]))
-        code='import sys;print(%r if not sys.argv[1] else %r)'%(json.dumps(initial),json.dumps(dict(ok=False,error='Provider failed',detail='New failure report')))
-        command=self.command(code);command['arguments']+=['{input}'];host=self.host(native=True,commands=[command]);old=self.open(host)['scriptResult'];self.assertIsNone(old['detail']);self.assertNotIn('Details ⌘D',host.probe('read')['resultPanel']['buttons']);self.click(host,'choose');r=self.view(host,lambda r:r['detail'] is not None)['scriptResult'];self.assertEqual(r['token'],old['token']);self.assertIn('Details ⌘D',host.probe('read')['resultPanel']['buttons']);self.click(host,'details');self.assertEqual(self.view(host,lambda r:r['detail_visible'])['resultPanel']['detail'],'New failure report')
-
-    def test_empty_choices_and_blank_provider_labels_keep_functional_accessibility(self):
-        command=self.command('print(\'{"ok":true,"choices":{"title":"","placeholder":"","items":[]}}\')')
-        host=self.host(native=True,commands=[command]);v=self.open(host);r=v['scriptResult'];self.assertEqual(r['title'],'Execution Fixture');self.assertIn('Search choices',v['accessibilityText']);self.assertEqual(r['rows'],[]);self.assertIsNone(r['selection']);self.assertIn('No results',v['screenText']);old=r['token'];self.key(host,36,'\r');host.settled();self.assertEqual(self.view(host)['scriptResult']['token'],old);self.click(host,'reload');self.assertNotEqual(self.view(host,lambda r:r['token']!=old)['scriptResult']['token'],old);self.capture(host,'blank-empty-labels')
-
-    def test_actual_process_failure_without_envelope_keeps_real_error_and_choices(self):
-        initial=dict(ok=True,choices=dict(title='Projects',placeholder='Find…',items=[dict(id='one',title='Project',subtitle='EX',value='literal')]))
-        code='import sys;print(%r if not sys.argv[1] else "ordinary failure text");raise SystemExit(0 if not sys.argv[1] else 7)'%json.dumps(initial)
-        command=self.command(code);command['arguments']+=['{input}'];host=self.host(native=True,commands=[command]);old=self.open(host)['scriptResult'];self.click(host,'choose');v=self.view(host,lambda r:bool(r['error']));self.assertEqual(v['scriptResult']['token'],old['token']);self.assertIn('status 7',v['scriptResult']['error']);self.assertFalse(v['scriptResult']['busy']);self.assertTrue(any(e.get('exitStatus')==7 and not e['success'] for e in host.rpc({'op':'logs'})['result'] if e['phase']=='command.finish'))
-
     def test_retired_result_ingress_cannot_suppress_new_initial_job(self):
         host=self.fixture();old=self.open(host)['scriptResult']
         root=str(host.base);code='import pathlib,sys,time,json;p=pathlib.Path(sys.argv[1]);(p/"new-ready").write_text("ready");\nwhile not (p/"new-release").exists():time.sleep(.01)\n(p/"new-effect").write_text("done");print(json.dumps(dict(ok=True,detail="NEW JOB REPORT")))'

@@ -531,3 +531,100 @@ fn light_dark_empty_and_long_labels_render() {
             .any(|s| s == "No results"));
     }
 }
+fn special_host(mode: &str) -> Bridge {
+    let host = host("close");
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let c = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    c["arguments"] = json!(["rich-special", mode, "{input}"]);
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    host
+}
+#[test]
+fn failure_can_add_first_readable_detail_without_replacing_choices() {
+    let host = special_host("detail-failure");
+    let old = open(&host)["scriptResult"].clone();
+    assert!(old.get("detail").unwrap().is_null());
+    assert!(!actions::probe(&host, "read")["resultPanel"]["buttons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s == "Details ⌘D"));
+    click(&host, "choose");
+    let v = view(&host, |r| !r["detail"].is_null());
+    assert_eq!(
+        v["scriptResult"].get("token").unwrap(),
+        old.get("token").unwrap()
+    );
+    assert!(actions::probe(&host, "read")["resultPanel"]["buttons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s == "Details ⌘D"));
+    click(&host, "details");
+    assert_eq!(
+        view(&host, |r| r["detail_visible"] == true)["resultPanel"]["detail"],
+        "New failure report"
+    );
+}
+#[test]
+fn empty_choices_and_blank_labels_keep_accessibility() {
+    let host = special_host("empty");
+    let v = open(&host);
+    let r = &v["scriptResult"];
+    assert_eq!(r["title"], "Execution Fixture");
+    assert!(v["accessibilityText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s == "Search choices"));
+    assert_eq!(r["rows"], json!([]));
+    assert!(r.get("selection").unwrap().is_null());
+    assert!(v["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s == "No results"));
+    let old = r.get("token").unwrap().clone();
+    actions::key(&host, 36, 0, "\r", false);
+    host.settled(|_| true);
+    assert_eq!(
+        view(&host, |_| true)["scriptResult"].get("token").unwrap(),
+        &old
+    );
+    click(&host, "reload");
+    assert_ne!(
+        view(&host, |r| r.get("token").unwrap() != &old)["scriptResult"]
+            .get("token")
+            .unwrap(),
+        &old
+    );
+    capture(&host, "blank-empty-labels");
+}
+#[test]
+fn actual_process_failure_without_envelope_keeps_error_and_choices() {
+    let host = special_host("process-failure");
+    let old = open(&host)["scriptResult"].get("token").unwrap().clone();
+    click(&host, "choose");
+    let v = view(&host, |r| {
+        r["error"].as_str().is_some_and(|s| !s.is_empty())
+    });
+    assert_eq!(v["scriptResult"].get("token").unwrap(), &old);
+    assert!(v["scriptResult"]["error"]
+        .as_str()
+        .unwrap()
+        .contains("status 7"));
+    assert_eq!(v["scriptResult"]["busy"], false);
+    let logs = host.rpc(&json!({"op":"logs"}));
+    assert!(logs["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["phase"] == "command.finish")
+        .any(|e| e["exitStatus"] == 7 && e["success"] == false));
+}
