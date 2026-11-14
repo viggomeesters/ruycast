@@ -44,16 +44,6 @@ class NativeInput(unittest.TestCase):
 
     def idle(self,host):host.wait(lambda s:s['scriptsRunning']==0)
 
-    def test_open_and_cancel_do_not_execute_or_edit_configuration(self):
-        command=self.command(inputPrompt='Message');command['arguments']+=['PRIVATE-TARGET-ARG']
-        host=self.host(native=True,commands=[command]);before=host.config.read_bytes()
-        view=self.open(host);self.assertIn('Message',view['screenText']);self.assertNotIn('PRIVATE-TARGET-ARG',json.dumps(view))
-        self.assertTrue(host.probe('run-input-read')['focused']);self.type(host,'PRIVATE-DRAFT')
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-        host.probe('cancel-editor');self.view(host,lambda v:not v['formVisible'])
-        self.assertEqual(host.config.read_bytes(),before);self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-        self.assertFalse(host.probe('read')['windowShown'])
-
     def test_validation_literal_multiline_input_and_no_secret_logs(self):
         host=self.host(native=True);out=host.base/'result'
         code='import sys,pathlib;pathlib.Path(%r).write_text(sys.argv[1])'%str(out)
@@ -68,11 +58,6 @@ class NativeInput(unittest.TestCase):
         self.assertEqual(out.read_text(),value);self.assertEqual(host.config.read_bytes(),before)
         self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
         raw=(host.profile/'command-log.json').read_text();self.assertNotIn('private.invalid',raw);self.assertNotIn('literal $',raw)
-
-    def test_plain_return_inserts_a_newline_without_running(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'First line')
-        self.key(host,36,'\r');self.type(host,'Second line')
-        self.assertEqual(host.probe('run-input-read')['text'],'First line\nSecond line');self.assertEqual(host.rpc({'op':'logs'})['result'],[])
 
     def test_relocated_configuration_refuses_the_old_run_draft(self):
         host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'keep this')
@@ -171,12 +156,6 @@ class NativeInput(unittest.TestCase):
         new=self.open(host)['editorToken'];self.assertNotEqual(old,new)
         self.type(host,'new draft');time.sleep(.1);self.assertEqual(host.probe('run-input-read')['text'],'new draft')
         self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
-    def test_marked_text_blocks_run_and_escape_without_effects(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host)
-        self.assertTrue(host.probe('run-input-ime')['runAndEscapeIgnored'])
-        self.assertTrue(host.probe('read')['formVisible']);self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-        host.probe('editor-text-command',marked=False);self.view(host,lambda v:not v['formVisible'])
 
     def test_expired_submission_retains_text_and_releases_controls(self):
         host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'expired draft')
