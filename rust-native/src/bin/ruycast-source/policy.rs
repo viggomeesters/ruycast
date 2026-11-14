@@ -403,6 +403,7 @@ rust-native/tests/library_navigation_process.rs
 rust-native/tests/library_lifecycle_process.rs
 rust-native/tests/manager_process.rs
 rust-native/tests/native_choice_process.py
+rust-native/tests/native_choice_host_process.rs
 rust-native/tests/native_dashboard_dialog_process.rs
 rust-native/tests/native_hid_process.py
 rust-native/tests/native_keyboard_process.py
