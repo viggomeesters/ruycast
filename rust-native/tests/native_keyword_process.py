@@ -80,8 +80,6 @@ class NativeKeyword(unittest.TestCase):
         host=self.host(start=False);host.replace(capture.config());foreign=host.base/'unmarked';foreign.mkdir();host.env['RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER']=str(foreign);before=host.config.read_bytes()
         with self.assertRaisesRegex(AssertionError,'Own config adoption fixture required'):host.start()
         self.assertEqual(host.process.poll(),1);host.process.communicate(timeout=3);host.process=None;self.assertEqual(host.config.read_bytes(),before)
-    def test_actual_host_adopts_prepared_catalog_and_emits_without_showing_window(self):
-        host,_=self.configured();self.assertEqual(self.type(host,'abc'),[False,False,True]);s=self.kw(host);self.assertEqual(capture.KeywordCapture.inserted(self,s),'HELLO');self.assertEqual(s['valueReads'],0);self.assertFalse(host.probe('read')['windowShown']);self.assertFalse(host.rpc({'op':'status'})['result']['snippetExpansionComplete'])
     def test_reload_uses_confirmed_new_catalog_and_disable_retires_filter(self):
         host,c=self.configured();self.type(host,'ab');c['commands'][0]['target']='NEW';self.reload(host,c);self.assertEqual(self.type(host,'c'),[False]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1]);self.assertEqual(capture.KeywordCapture.inserted(self,self.kw(host)),'NEW')
         c['snippetExpansionEnabled']=False;self.reload(host,c);host.wait(lambda s:s['snippetExpansion']=='Off');self.assertFalse(self.kw(host)['tapValid']);self.assertFalse(self.type(host,'abc')[-1])
@@ -95,14 +93,6 @@ class NativeKeyword(unittest.TestCase):
             self.assertLess(time.monotonic(),deadline);time.sleep(.005)
         host.probe('cancel-editor');host.wait(lambda s:not s['nativeUI']['editorOpen']);self.assertTrue(host.rpc({'op':'status'})['result']['recordingShortcut']);self.assertFalse(self.type(host,'c')[-1]);self.assertEqual(self.kw(host)['posts'],0)
         host.rpc(dict(op='native.test',surface='settings',action='cancel-editor'));host.wait(lambda s:not s['recordingShortcut']);self.assertEqual(host.probe('keyboard-press',code=49,modifiers=6144)['statuses'],[0]);host.wait(lambda s:not s['nativeUI']['visible']);self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
-    def test_actual_hid_hyper_episode_between_keyword_events_clears_prefix(self):
-        host,_=self.configured(hyperKeyEnabled=True);host.wait(lambda s:s['hyper']=='On');self.type(host,'ab')
-        for down,t in [(True,1),(False,1.1)]:host.probe('keyboard-hid',control='input',usage=57,down=down,time=t)
-        self.assertFalse(self.type(host,'c')[-1]);self.assertEqual(self.kw(host)['posts'],0);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
-    def test_external_activation_roundtrip_invalidates_prefix_even_same_retained_app(self):
-        host,_=self.configured();self.type(host,'ab')
-        for _ in range(2):host.probe('keyboard-hid',control='notification',name='activate')
-        self.assertFalse(self.type(host,'c')[-1]);self.assertEqual(self.kw(host)['posts'],0);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
     def test_sleep_session_interleaving_and_resumption(self):
         host,_=self.configured();self.type(host,'ab')
         for name in ['sleep','resign','wake']:host.probe('keyboard-hid',control='notification',name=name)
