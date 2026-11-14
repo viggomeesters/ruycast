@@ -230,3 +230,98 @@ fn validation_preserves_literal_multiline_input_and_private_logs() {
     assert!(!raw.contains("private.invalid"));
     assert!(!raw.contains("literal $"));
 }
+fn set_execution(host: &Bridge, target: &str, args: Value, timeout: f64) {
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    command["target"] = json!(target);
+    command["arguments"] = args;
+    command["timeout"] = json!(timeout);
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+}
+#[test]
+fn failure_preserves_text_focus_typing_and_undo() {
+    let host = host();
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-fail"]),
+        3.0,
+    );
+    let token = open(&host)["editorToken"].clone();
+    input_type(&host, "Keep me");
+    actions::probe(&host, "save-editor");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    view(&host, |v| actions::text_contains(v, "7"));
+    let state = actions::probe(&host, "run-input-read");
+    assert_eq!(state["editable"], true);
+    assert_eq!(state["focused"], true);
+    assert_eq!(state["canUndo"], true);
+    assert_eq!(state["text"], "Keep me");
+    assert_eq!(actions::probe(&host, "read")["editorToken"], token);
+    input_type(&host, " and this");
+    assert_eq!(
+        actions::probe(&host, "run-input-read")["text"],
+        "Keep me and this"
+    );
+    key(&host, 6, "z", actions::CMD);
+    assert_ne!(
+        actions::probe(&host, "run-input-read")["text"],
+        "Keep me and this"
+    );
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
+#[test]
+fn launch_failure_keeps_input_and_typing() {
+    let host = host();
+    set_execution(
+        &host,
+        "/nonexistent-ruycast-fixture",
+        json!(["{input}"]),
+        3.0,
+    );
+    open(&host);
+    input_type(&host, "launch draft");
+    actions::probe(&host, "save-editor");
+    view(&host, |v| {
+        v["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s.as_str().unwrap().to_lowercase().contains("such file"))
+    });
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert_eq!(
+        actions::probe(&host, "run-input-read")["text"],
+        "launch draft"
+    );
+    input_type(&host, " retained");
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
+#[test]
+fn timeout_keeps_input_and_typing() {
+    let host = host();
+    set_execution(&host, "/bin/sleep", json!(["1"]), 0.1);
+    open(&host);
+    input_type(&host, "timeout draft");
+    actions::probe(&host, "save-editor");
+    view(&host, |v| {
+        v["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s.as_str().unwrap().to_lowercase().contains("timed out"))
+    });
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert_eq!(
+        actions::probe(&host, "run-input-read")["text"],
+        "timeout draft"
+    );
+    input_type(&host, " retained");
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
