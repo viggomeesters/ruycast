@@ -169,8 +169,6 @@ class AnalyticsRuntime(unittest.TestCase):
             if (h.base/'analytics-write-entered').exists():return
             time.sleep(.01)
         self.fail('No actual analytics publication hold observed')
-    def test_idle_cli_settings_flush_wakes_owner_and_preserves_existing_file(self):
-        h=self.host();started=time.monotonic();paused=h.rpc(dict(op='analytics.settings',enabled=False));self.assertTrue(paused['ok'],paused);self.assertLess(time.monotonic()-started,2);self.assertFalse(paused['result']['enabled']);self.assertFalse(json.loads((h.profile/'analytics.json').read_text())['enabled']);self.assertTrue(h.cli('analytics','resume')['result']['enabled']);self.assertTrue(h.cli('analytics','reset','--confirm')['ok']);export=h.cli('analytics','export')['result'];self.assertNotIn('commands',export);self.assertEqual(export['attempts'],0)
     def test_actual_held_io_keeps_owner_responsive_and_reports_failed_flush(self):
         h=self.host();(h.base/'hold-analytics-write').touch();(h.base/'fail-analytics-write').touch()
         with ThreadPoolExecutor(1) as pool:
@@ -196,13 +194,6 @@ class AnalyticsRuntime(unittest.TestCase):
             finally:(h.base/'analytics-write-release').touch()
             self.assertTrue(first.result(timeout=4)['ok'])
         self.assertTrue(h.rpc(dict(op='analytics.settings'))['ok']);self.assertEqual(json.loads((h.profile/'analytics.json').read_text())['retentionDays'],20)
-    def test_raw_analytics_request_casts_match_foundation_without_config_coercion(self):
-        h=self.host()
-        for value,expected in [(0,False),(1,True),(2,True),(-1,True),(1.5,True),('1',True),(None,True)]:
-            result=h.rpc(dict(op='analytics.settings',enabled=value));self.assertTrue(result['ok']);self.assertIs(result['result']['enabled'],expected)
-        for value in [True,1.0,1.5,'7']:
-            result=h.rpc(dict(op='analytics.settings',retentionDays=value));self.assertTrue(result['ok']);self.assertEqual(result['result']['retentionDays'],1)
-        self.assertFalse(h.rpc(dict(op='analytics.settings',retentionDays=False))['ok']);self.assertFalse(h.rpc(dict(op='analytics.reset',confirmed=0))['ok']);self.assertTrue(h.rpc(dict(op='analytics.reset',confirmed=1))['ok'])
     def test_shutdown_does_not_confirm_a_flush_that_is_still_held(self):
         h=self.host();(h.base/'hold-analytics-write').touch();(h.base/'fail-analytics-write').touch()
         with ThreadPoolExecutor(1) as pool:
