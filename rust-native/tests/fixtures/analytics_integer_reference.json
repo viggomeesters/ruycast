@@ -1,0 +1,462 @@
+{
+  "provenance": {
+    "source_sha256": {
+      "Sources/RuycastApp/AnalyticsStore.swift": "43461d33394436195f3c7d7cbcaa66d1407ac53049bed3e8a2f91562d140ca7d",
+      "Sources/LauncherCore/Files.swift": "055d650d00848ffbb739381034bdc52f977b23eb3476ec0596524614d033338d",
+      "rust-native/tests/analytics_process.py": "8dfb5445f841c721852bd63a96bf6fcdfaaead0658dc0c9d7c02de127fe949d5"
+    },
+    "origin": "Actual Swift AnalyticsStore and Foundation JSON codec, generated 2026-11-14"
+  },
+  "generated": {
+    "actions": [
+      {
+        "op": "attempt",
+        "id": "own",
+        "source": "snippet"
+      },
+      {
+        "op": "complete",
+        "ok": false,
+        "ms": 1,
+        "exit": 1
+      }
+    ],
+    "expected": {
+      "document": {
+        "commands": {
+          "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+            "attempts": 1,
+            "failures": 1,
+            "lastUsed": "2026-09-21T14:13:20Z",
+            "priorSuccesses": 0,
+            "sources": {
+              "snippet": 1
+            },
+            "successes": 0,
+            "timing": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          }
+        },
+        "days": {
+          "2026-09-21": {
+            "failures": 1,
+            "successes": 0,
+            "uses": 1
+          }
+        },
+        "enabled": true,
+        "events": [
+          {
+            "category": "command",
+            "code": "action-failed",
+            "commandID": "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3",
+            "date": "2026-09-21T14:13:20Z",
+            "exitStatus": 1
+          }
+        ],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1789999200": {
+            "failures": 1,
+            "successes": 0,
+            "uses": 1
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {
+          "command.execute": {
+            "count": 1,
+            "maxMS": 1,
+            "samples": [
+              1
+            ],
+            "totalMS": 1
+          }
+        },
+        "totalAttempts": 1,
+        "totalFailures": 1,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "ok": true,
+      "results": [],
+      "storageError": null
+    }
+  },
+  "snapshot": {
+    "actions": [
+      {
+        "op": "snapshot"
+      }
+    ],
+    "initial_raw": "{\"commands\": {\"27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3\": {\"attempts\": 1.0, \"failures\": 1.0, \"lastUsed\": \"2026-09-21T14:13:20Z\", \"priorSuccesses\": 0.0, \"sources\": {\"snippet\": 1.0}, \"successes\": 0.0, \"timing\": {\"count\": 1.0, \"maxMS\": 1.0, \"samples\": [1.0], \"totalMS\": 1.0}}}, \"days\": {\"2026-09-21\": {\"failures\": 1.0, \"successes\": 0.0, \"uses\": 1.0}}, \"enabled\": true, \"events\": [{\"category\": \"command\", \"code\": \"action-failed\", \"commandID\": \"27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3\", \"date\": \"2026-09-21T14:13:20Z\", \"exitStatus\": 1.0, \"id\": \"33EED6E6-C70E-4623-8511-33BEDF53FB14\"}], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {\"1789999200\": {\"failures\": 1.0, \"successes\": 0.0, \"uses\": 1.0}}, \"legacyImported\": false, \"omittedCommands\": 0.0, \"priorSuccesses\": 0.0, \"retentionDays\": 30.0, \"schema\": 2.0, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {\"command.execute\": {\"count\": 1.0, \"maxMS\": 1.0, \"samples\": [1.0], \"totalMS\": 1.0}}, \"totalAttempts\": 1.0, \"totalFailures\": 1.0, \"totalSuccesses\": 0.0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+    "expected": {
+      "document": {
+        "commands": {
+          "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+            "attempts": 1,
+            "failures": 1,
+            "lastUsed": "2026-09-21T14:13:20Z",
+            "priorSuccesses": 0,
+            "sources": {
+              "snippet": 1
+            },
+            "successes": 0,
+            "timing": {
+              "count": 1,
+              "maxMS": 1,
+              "samples": [
+                1
+              ],
+              "totalMS": 1
+            }
+          }
+        },
+        "days": {
+          "2026-09-21": {
+            "failures": 1,
+            "successes": 0,
+            "uses": 1
+          }
+        },
+        "enabled": true,
+        "events": [
+          {
+            "category": "command",
+            "code": "action-failed",
+            "commandID": "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3",
+            "date": "2026-09-21T14:13:20Z",
+            "exitStatus": 1
+          }
+        ],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1789999200": {
+            "failures": 1,
+            "successes": 0,
+            "uses": 1
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {
+          "command.execute": {
+            "count": 1,
+            "maxMS": 1,
+            "samples": [
+              1
+            ],
+            "totalMS": 1
+          }
+        },
+        "totalAttempts": 1,
+        "totalFailures": 1,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "ok": true,
+      "results": [
+        {
+          "document": {
+            "commands": {
+              "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3": {
+                "attempts": 1,
+                "failures": 1,
+                "lastUsed": "2026-09-21T14:13:20Z",
+                "priorSuccesses": 0,
+                "sources": {
+                  "snippet": 1
+                },
+                "successes": 0,
+                "timing": {
+                  "count": 1,
+                  "maxMS": 1,
+                  "samples": [
+                    1
+                  ],
+                  "totalMS": 1
+                }
+              }
+            },
+            "days": {
+              "2026-09-21": {
+                "failures": 1,
+                "successes": 0,
+                "uses": 1
+              }
+            },
+            "enabled": true,
+            "events": [
+              {
+                "category": "command",
+                "code": "action-failed",
+                "commandID": "27c13d62e487af161ed9adec9a694aef4654d5443dbb2585f5510329e1da60d3",
+                "date": "2026-09-21T14:13:20Z",
+                "exitStatus": 1
+              }
+            ],
+            "hourlyStartedAt": "2026-09-21T14:13:20Z",
+            "hours": {
+              "1789999200": {
+                "failures": 1,
+                "successes": 0,
+                "uses": 1
+              }
+            },
+            "legacyImported": false,
+            "omittedCommands": 0,
+            "priorSuccesses": 0,
+            "retentionDays": 30,
+            "schema": 2,
+            "startedAt": "2026-09-21T14:13:20Z",
+            "timings": {
+              "command.execute": {
+                "count": 1,
+                "maxMS": 1,
+                "samples": [
+                  1
+                ],
+                "totalMS": 1
+              }
+            },
+            "totalAttempts": 1,
+            "totalFailures": 1,
+            "totalSuccesses": 0,
+            "updatedAt": "2026-09-21T14:13:20Z"
+          },
+          "storageError": null
+        }
+      ],
+      "storageError": null
+    }
+  },
+  "cases": [
+    {
+      "name": "0e99999",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 0e99999, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "0e-99999",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 0e-99999, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "1.000",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 1.000, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 1,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "1.5",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 1.5, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": "Analytics data could not be read. Reset analytics to start again."
+    },
+    {
+      "name": "1000e-3",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 1000e-3, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 1,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "1000000000000.00001",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 1000000000000.00001, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 1000000000000,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "999999999999.99999",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 999999999999.99999, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 1000000000000,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "1.0000000000000000001",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 1.0000000000000000001, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 1,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "1e-9999",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": 1e-9999, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    },
+    {
+      "name": "-0.0",
+      "raw": "{\"commands\": {}, \"days\": {}, \"enabled\": true, \"events\": [], \"hourlyStartedAt\": \"2026-09-21T14:13:20Z\", \"hours\": {}, \"legacyImported\": false, \"omittedCommands\": 0, \"priorSuccesses\": 0, \"retentionDays\": 30, \"schema\": 2, \"startedAt\": \"2026-09-21T14:13:20Z\", \"timings\": {}, \"totalAttempts\": -0.0, \"totalFailures\": 0, \"totalSuccesses\": 0, \"updatedAt\": \"2026-09-21T14:13:20Z\"}",
+      "expected": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      }
+    }
+  ]
+}

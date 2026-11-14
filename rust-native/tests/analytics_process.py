@@ -87,21 +87,6 @@ class Analytics(unittest.TestCase):
                 self.assertEqual(p.returncode,0,p.stderr);pair.append(json.loads(p.stdout))
         self.assertEqual(normalized(pair[0]),normalized(pair[1]));type(self).cases+=1;return pair[0]
     def empty(self):return self.run_case([])['document']
-    def test_actual_decoder_integer_spelling_at_all_stored_count_fields(self):
-        document=self.run_case([dict(op='attempt',id='own',source='snippet'),dict(op='complete',ok=False,ms=1,exit=1)])['document']
-        def floats(value):
-            if type(value) is int:return float(value)
-            if isinstance(value,dict):return {k:floats(v) for k,v in value.items()}
-            if isinstance(value,list):return [floats(v) for v in value]
-            return value
-        self.run_case([dict(op='snapshot')],initial=floats(document))
-        initial=json.dumps(self.empty());self.assertIn('"totalAttempts": 0',initial)
-        for literal in ['0e99999','0e-99999','1.000','1.5','1000e-3','1000000000000.00001','999999999999.99999','1.0000000000000000001','1e-9999','-0.0']:
-            raw=initial.replace('"totalAttempts": 0','"totalAttempts": '+literal);pair=[]
-            for binary in [PROBE,DIR/'reference']:
-                with tempfile.TemporaryDirectory(prefix='analytics-int-',dir=DIR) as own:
-                    root=Path(own);(root/'.ruycast-analytics-fixture').touch();(root/'analytics.json').write_text(raw);run=subprocess.run([str(binary)],input=json.dumps(dict(root=str(root),now=1790000000,calendar='gregorian',zone='UTC',actions=[])),capture_output=True,text=True,timeout=20);self.assertEqual(run.returncode,0,run.stderr);result=json.loads(run.stdout);pair.append(result['storageError'] if result['storageError'] else normalized(result['document']))
-            self.assertEqual(pair[0],pair[1],literal);type(self).cases+=1
     def test_sample_caps_error_whitelist_and_hashed_raw_utf8_identity(self):
         actions=[]
         for i in range(270):actions += [dict(op='attempt',id='é' if i%2 else 'e\u0301',source='snippet'),dict(op='complete',ok=i%3==0,ms=i,code='timeout' if i%2 else 'raw private text',exit=-1)]

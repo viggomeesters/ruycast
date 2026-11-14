@@ -223,3 +223,69 @@ fn existing_document_rejection_and_date_codec_match_foundation() {
         );
     }
 }
+
+fn integer_probe(actions: &Value, raw: Option<&str>, timeout: Duration) -> Value {
+    let root = runtime_host::OwnedDir::new();
+    fs::write(root.0.join(".ruycast-analytics-fixture"), b"").unwrap();
+    if let Some(raw) = raw {
+        fs::write(root.0.join("analytics.json"), raw).unwrap();
+    }
+    let request = json!({"root":root.0,"now":1790000000,"zone":"UTC","calendar":"gregorian","actions":actions});
+    let mut child = Command::new(env!("CARGO_BIN_EXE_analytics-probe"))
+        .env_clear()
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stdin = child.stdin.take().unwrap();
+    let writer = std::thread::spawn(move || serde_json::to_writer(stdin, &request));
+    let output = child_output::wait(child, timeout);
+    assert!(writer.join().unwrap().is_ok());
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+#[test]
+fn decoder_integer_spelling_at_all_stored_count_fields() {
+    let fixture: Value =
+        serde_json::from_str(include_str!("fixtures/analytics_integer_reference.json")).unwrap();
+    for name in ["generated", "snapshot"] {
+        let case = &fixture[name];
+        let mut result = integer_probe(
+            &case["actions"],
+            case["initial_raw"].as_str(),
+            Duration::from_secs(30),
+        );
+        normalize(&mut result);
+        assert!(equivalent(&result, &case["expected"]), "{name}");
+    }
+    let empty = compare_from(
+        include_str!("fixtures/analytics_retention_reference.json"),
+        "empty",
+    );
+    assert_eq!(empty["document"]["totalAttempts"], 0);
+    let cases = fixture["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 10);
+    for case in cases {
+        let value = integer_probe(&json!([]), case["raw"].as_str(), Duration::from_secs(20));
+        let mut actual = if value["storageError"]
+            .as_str()
+            .is_some_and(|v| !v.is_empty())
+        {
+            value["storageError"].clone()
+        } else {
+            value["document"].clone()
+        };
+        normalize(&mut actual);
+        assert!(
+            equivalent(&actual, &case["expected"]),
+            "{}: actual={actual} expected={}",
+            case["name"],
+            case["expected"]
+        );
+    }
+}
