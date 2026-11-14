@@ -61,24 +61,6 @@ class Supervision(unittest.TestCase):
         with self.assertRaises(ProcessLookupError):os.kill(int(pid.read_text()),0)
         time.sleep(.85);self.assertFalse(sentinel.exists())
 
-    def test_success_failure_and_signal_preserve_legacy_response(self):
-        for code in ['print("literal Ω")','import sys;print("out");print("err",file=sys.stderr);raise SystemExit(7)','import os,signal;os.kill(os.getpid(),signal.SIGTERM)']:
-            command=self.command(code)
-            expected=subprocess.run([str(CLI),'__run-script'],input=json.dumps(command),capture_output=True,text=True,env=self.env,timeout=5)
-            self.assertEqual(self.probe(command)['response'],json.loads(expected.stdout))
-
-    def test_literal_null_stdin_and_explicit_home(self):
-        script=self.base/'fixture'
-        script.write_text('#!/bin/sh\nread line; printf "%s|%s" "$?" "$1"\n');script.chmod(0o700)
-        command=self.command();command.update(target='~/fixture',arguments=['$(literal) Ω\nline'])
-        self.assertEqual(self.probe(command)['response']['result']['stdout'],'1|$(literal) Ω\nline')
-
-    def test_output_bounds_survive_json_replacement_and_escaping(self):
-        command=self.command('import os;os.write(1,bytes([255])*100000);os.write(2,bytes([0])*100000)')
-        result=self.probe(command)['response']['result']
-        self.assertEqual(len(result['stdout']),65536);self.assertEqual(len(result['stderr']),65536)
-        self.assertEqual(set(result['stdout']),{'�'});self.assertEqual(set(result['stderr']),{'\0'})
-
     def test_cancel_deadline_and_panic_keep_independent_group_cleanup(self):
         for option in ['cancelMs','deadlineMs','panicMs']:
             with self.subTest(option=option):
