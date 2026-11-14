@@ -225,6 +225,11 @@ path = "src/bin/script_probe.rs"
 required-features = ["test-tools"]
 
 [[bin]]
+name = "supervision-io-fixture"
+path = "tests/fixtures/supervision_io_fixture.rs"
+required-features = ["test-tools"]
+
+[[bin]]
 name = "supervision-probe"
 path = "src/bin/supervision_probe.rs"
 required-features = ["test-tools"]
