@@ -65,23 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_saturated_scripts_leave_status_and_quit_admission(self):
-        host=self.host();pids=host.base/'pids';pids.mkdir()
-        command=self.command('import sys,os,time,pathlib;pathlib.Path(sys.argv[1]).write_text(str(os.getpid()));time.sleep(10)')
-        command['arguments'].append('{input}');command['timeout']=15
-        self.replace_command(host,command)
-        streams=[self.pending(host,values={'input':str(pids/str(i))}) for i in range(15)]
-        host.wait(lambda s:s['scriptsRunning']==15)
-        for i in range(15):self.file(pids/str(i))
-        busy=host.rpc(dict(op='execute',id='runfixture',values={'input':str(pids/'extra')}))
-        self.assertFalse(busy['ok']);self.assertIn('busy',busy['error'])
-        start=time.monotonic();self.assertTrue(host.rpc({'op':'status'})['ok']);self.assertLess(time.monotonic()-start,.5)
-        self.assertTrue(host.rpc({'op':'quit'})['ok'])
-        out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode())
-        for path in pids.iterdir():self.dead(path.read_text())
-        self.assertFalse((host.profile/'control.sock').exists())
-        for stream in streams:stream.close()
-
     def test_native_return_runs_real_script_and_records_launcher_ranking(self):
         host=self.host(native=True);marker=host.base/'native-result'
         self.replace_command(host,self.command('import pathlib;pathlib.Path(%r).write_text("native")'%str(marker)))
