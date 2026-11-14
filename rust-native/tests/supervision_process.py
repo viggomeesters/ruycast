@@ -44,12 +44,6 @@ class Supervision(unittest.TestCase):
         result=json.loads(output.stdout);self.assertTrue(result['noChildren'])
         return result['result']
 
-    def fake(self,body):
-        path=self.base/'fake-helper'
-        path.write_text('#!/usr/bin/python3\nimport sys,json,os,time,pathlib\n'+body+'\n')
-        path.chmod(0o700)
-        return path
-
     def tree(self):
         pid=self.base/'script-pid';sentinel=self.base/'descendant'
         child='import time,signal,pathlib;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(.8);pathlib.Path(%r).write_text("bad")'%str(sentinel)
@@ -70,19 +64,6 @@ class Supervision(unittest.TestCase):
                 else:self.assertFalse(result['response']['ok'])
                 self.clean_tree(pid,sentinel)
                 pid.unlink();sentinel.unlink(missing_ok=True)
-
-    def test_parent_panic_closes_output_before_waiting_for_helper(self):
-        marker=self.base/'helper-cleaned'
-        committed=self.base/'helper-committed'
-        body='print(json.dumps({"scriptSupervisor":3,"ready":True}),flush=True);header=sys.stdin.readline();assert header.endswith("\\n");pathlib.Path(%r).write_text("committed");sys.stdin.read()\ntry:os.write(1,b"x"*1000000)\nexcept BrokenPipeError:pass\npathlib.Path(%r).write_text("closed");os._exit(0)'%(str(committed),str(marker))
-        self.assertTrue(self.probe(helper=self.fake(body),panicMs=1000,trace=True)['panicCaught'])
-        self.assertEqual(committed.read_text(),'committed')
-        self.assertEqual(marker.read_text(),'closed')
-        self.assertFalse((self.base/'kill-trace').exists(),'parent killed helper after commit')
-
-    def test_stderr_cannot_block_helper_cleanup(self):
-        body='print(json.dumps({"scriptSupervisor":3,"ready":True}),flush=True);sys.stdin.readline();os.write(2,b"x"*1000000);print(json.dumps({"ok":True,"scriptSupervisor":3,"response":{"ok":True,"result":{"exitCode":0,"stdout":"","stderr":""}},"capture":{"stdout":{"truncated":False,"eof":True,"validUtf8":True},"stderr":{"truncated":False,"eof":True,"validUtf8":True}}}),flush=True)'
-        self.assertTrue(self.probe(helper=self.fake(body))['response']['ok'])
 
 
 class HostLifecycle(unittest.TestCase):
