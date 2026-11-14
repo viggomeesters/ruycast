@@ -1329,3 +1329,84 @@ fn native_hid_refresh_timer_recovers_file_fault_without_new_input() {
     fs::remove_file(fault).unwrap();
     h.wait(|s| s["hidStatus"] == "On");
 }
+
+#[test]
+fn native_hid_sleep_and_inactive_session_require_separate_release_in_both_orders() {
+    for (first, second, release_first, release_second) in [
+        ("sleep", "resign", "wake", "active"),
+        ("resign", "sleep", "active", "wake"),
+    ] {
+        let (h, marker) = hid_host("ctrl+left-control", true);
+        hid(&h, "input", json!({"usage":224,"down":true,"time":1}));
+        for name in [
+            first,
+            second,
+            first,
+            second,
+            release_first,
+            "launch",
+            "terminate",
+            release_first,
+        ] {
+            hid(&h, "notification", json!({"name":name}));
+            let status = h.rpc(&json!({"op":"status"}));
+            assert_eq!(status["result"]["hidStatus"], "Paused", "{name}");
+            let state = hid(&h, "state", json!({}));
+            assert_eq!(state["state"]["manager"], false, "{name}");
+            assert_eq!(state["state"]["caps"], 0, "{name}");
+            assert!(!marker.exists(), "{name}");
+        }
+        hid(&h, "notification", json!({"name":release_second}));
+        h.wait(|s| s["hidStatus"] == "On");
+        hid(&h, "input", json!({"usage":224,"down":false,"time":1.2}));
+        assert!(!marker.exists());
+        hid(&h, "input", json!({"usage":224,"down":true,"time":2}));
+        hid(&h, "input", json!({"usage":224,"down":false,"time":2.2}));
+        wait_file(&marker);
+    }
+}
+#[test]
+fn native_hid_eventless_recording_invalidates_old_modifier_tap() {
+    let (h, marker) = hid_host("ctrl+left-control", false);
+    hid(&h, "input", json!({"usage":224,"down":true,"time":1}));
+    h.rpc(&json!({"op":"show","query":"finder"}));
+    h.settled(|_| true);
+    h.probe(
+        "key-event",
+        json!({"code":43,"flags":(1<<20)|(1<<17),"chars":","}),
+    );
+    actions::view(&h, |v| v["recording"] == true);
+    h.probe("cancel-editor", json!({}));
+    h.wait(|s| s["recordingShortcut"] == false);
+    hid(&h, "input", json!({"usage":224,"down":false,"time":1.2}));
+    assert!(!marker.exists());
+    hid(&h, "input", json!({"usage":224,"down":true,"time":2}));
+    hid(&h, "input", json!({"usage":224,"down":false,"time":2.2}));
+    wait_file(&marker);
+}
+#[test]
+fn native_hid_permission_health_saves_plan_and_carbon_remains_available() {
+    let (h, _) = hid_host("right-cmd+a", false);
+    let mut config = actions::config(&h);
+    hid(&h, "env", json!({"value":2}));
+    h.wait(|s| {
+        s["hidStatus"]
+            .as_str()
+            .is_some_and(|v| v.starts_with("Allow Accessibility"))
+    });
+    config["commands"][0]["title"] = json!("Saved with unavailable HID");
+    h.replace(&config, None);
+    assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+    h.wait(|s| s["hidGeneration"] == s["keyboardGeneration"]);
+    assert_eq!(
+        actions::config(&h)["commands"][0]["title"],
+        "Saved with unavailable HID"
+    );
+    assert_eq!(
+        h.probe("keyboard-press", json!({"code":49,"modifiers":6144}))["statuses"],
+        json!([0])
+    );
+    h.wait(|s| s["nativeUI"]["visible"] == true);
+    hid(&h, "env", json!({"value":0}));
+    h.wait(|s| s["hidStatus"] == "On");
+}
