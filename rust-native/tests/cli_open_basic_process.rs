@@ -13,7 +13,7 @@ use std::{
 fn command(kind: &str, target: &str) -> Value {
     json!({"id":"fixture.open","title":"Fixture","kind":kind,"target":target,"aliases":["fixture-alias"]})
 }
-fn host(command: Value) -> Host {
+fn host_clipboard(command: Value, named: bool, clipboard: Option<&str>) -> Host {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
         .map(std::path::PathBuf::from)
@@ -38,6 +38,14 @@ fn host(command: Value) -> Host {
         .insert("RUYCAST_NATIVE_TEST_DISPATCH_MS".into(), "2000".into());
     h.env
         .insert("RUYCAST_NATIVE_TEST_CLIPBOARD_GUARD".into(), "1".into());
+    if named {
+        h.env
+            .insert("RUYCAST_NATIVE_TEST_CLIPBOARD".into(), "named".into());
+        if let Some(value) = clipboard {
+            h.env
+                .insert("RUYCAST_NATIVE_TEST_CLIPBOARD_TEXT".into(), value.into());
+        }
+    }
     h.env
         .insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
     h.start();
@@ -46,6 +54,10 @@ fn host(command: Value) -> Host {
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
     h
 }
+fn host(command: Value) -> Host {
+    host_clipboard(command, false, None)
+}
+
 fn trace(h: &Host) -> Vec<Value> {
     let p = h.base.join("workspace-trace.jsonl");
     if !p.exists() {
@@ -201,4 +213,62 @@ fn missing_apps_paths_and_fields_do_not_open() {
         );
         assert!(opens(&h).is_empty());
     }
+}
+
+#[test]
+fn fixture_clipboard_without_explicit_named_enablement_is_never_read() {
+    let h = host(command("url", "https://example.invalid/{clipboard}"));
+    let result = h.rpc(&json!({"op":"execute","id":"fixture.open"}));
+    assert_eq!(result["ok"], false);
+    assert!(result["error"]
+        .as_str()
+        .unwrap()
+        .contains("fixture boundary"));
+    let events = trace(&h);
+    assert_eq!(events.len(), 1);
+}
+#[test]
+fn named_clipboard_url_uses_main_thread_and_preserves_raw_substitution() {
+    let h = host_clipboard(
+        command("url", "https://example.invalid/?q={clipboard}"),
+        true,
+        Some("raw/Ω&x=1"),
+    );
+    let value = h.cli(&["run", "fixture.open"]);
+    assert_eq!(value["ok"], true, "{value}");
+    let events = trace(&h);
+    let reads: Vec<_> = events
+        .iter()
+        .filter(|s| s["phase"] == "clipboard-read")
+        .collect();
+    assert_eq!(reads.len(), 1);
+    assert_eq!(reads[0]["mainThread"], true);
+    let opened = opens(&h);
+    assert_eq!(opened[0]["mainThread"], false);
+    assert!(opened[0]["url"].as_str().unwrap().contains("&x=1"));
+    assert!(h.base.join("clipboard-read").exists());
+    assert_eq!(h.cli(&["usage"])["result"]["fixture.open"], 1);
+}
+#[test]
+fn missing_named_clipboard_and_nonliteral_demand_do_not_read_general() {
+    let h = host_clipboard(
+        command("url", "https://example.invalid/{clipboard}"),
+        true,
+        None,
+    );
+    let value = h.rpc(&json!({"op":"execute","id":"fixture.open"}));
+    assert_eq!(value["ok"], false);
+    assert!(opens(&h).is_empty());
+    let marker = h.base.join("clipboard-read");
+    assert!(marker.exists());
+    let mut cfg = config(&h);
+    cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+        json!("https://example.invalid/{clipboard}\u{301}");
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    fs::remove_file(&marker).unwrap();
+    let value = h.rpc(&json!({"op":"execute","id":"fixture.open"}));
+    assert_eq!(value["ok"], false);
+    assert!(!marker.exists());
+    assert!(opens(&h).is_empty());
 }
