@@ -461,7 +461,7 @@ fn step(
     let mut command = Command::new(&entry.arguments[0]);
     command.args(&entry.arguments[1..]).current_dir(root);
     sanitized(&mut command, root, lease, fixture)?;
-    if matches!(entry.name.as_str(), "supervision-fault-process" | "supervision-process") {
+    if entry.name == "supervision-fault-process" {
         supervision_fault_environment(root, &receipt.target, &mut command)?;
     }
     if entry.name == "startup-process" {
@@ -1825,10 +1825,8 @@ mod tests {
         let supervision_protocol = steps.iter().position(|step|step.name=="supervision-protocol-process").unwrap();
         assert!(supervision_probe < supervision_protocol);
         let supervision_sdk = steps.iter().position(|step|step.name=="supervision-fault-sdk-build").unwrap();
-        for name in ["supervision-fault-process", "supervision-process"] {
-            let consumer = steps.iter().position(|step|step.name==name).unwrap();
-            assert!(supervision_sdk < consumer);
-        }
+        let supervision_fault_index = steps.iter().position(|step|step.name=="supervision-fault-process").unwrap();
+        assert!(supervision_sdk < supervision_fault_index);
         assert!(steps[supervision_sdk].arguments.windows(2).any(|pair|pair==["--example","supervision-fault-shim"]));
         let supervision_fault = steps.iter().find(|step|step.name=="supervision-fault-process").unwrap();
         assert!(supervision_fault.arguments.windows(2).any(|pair|pair==["--test","supervision_fault_process"]));

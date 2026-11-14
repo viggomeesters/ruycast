@@ -17,6 +17,24 @@ struct Input {
     deadline_ms: Option<u64>,
 }
 fn main() {
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    if args
+        .first()
+        .is_some_and(|arg| arg == "__supervision-tree" || arg == "__supervision-tree-descendant")
+    {
+        assert_eq!(args.len(), 2);
+        let home = tree_home(PathBuf::from(&args[1]));
+        if args[0] == "__supervision-tree" {
+            tree_leader(home);
+        } else {
+            unsafe {
+                libc::signal(libc::SIGTERM, libc::SIG_IGN);
+            }
+            std::thread::sleep(Duration::from_millis(800));
+            std::fs::write(home.join("descendant"), "bad").unwrap();
+        }
+        return;
+    }
     let mut data = String::new();
     io::stdin()
         .take(8 * 1024 * 1024 + 8192)
@@ -58,4 +76,33 @@ fn main() {
         json!({"result":value,"noChildren":clean,"elapsedMs":start.elapsed().as_millis()})
     );
     assert!(clean, "supervisor left an owned helper");
+}
+
+fn tree_home(home: PathBuf) -> PathBuf {
+    assert!(home.is_absolute() && home.is_dir());
+    assert_eq!(home.canonicalize().unwrap(), home);
+    assert_eq!(
+        std::fs::read(home.join(".ruycast-supervision-fixture")).unwrap(),
+        b"owned-supervision-helper-v1"
+    );
+    home
+}
+// The actual supervisor owns reaping this deliberately unreaped descendant.
+#[allow(
+    clippy::zombie_processes,
+    reason = "Original fixture leaves its descendant to the actual supervisor group cleanup"
+)]
+fn tree_leader(home: PathBuf) {
+    std::fs::write(home.join("script-pid"), std::process::id().to_string()).unwrap();
+    unsafe {
+        libc::signal(libc::SIGTERM, libc::SIG_IGN);
+    }
+    let _child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            std::ffi::OsStr::new("__supervision-tree-descendant"),
+            home.as_os_str(),
+        ])
+        .spawn()
+        .unwrap();
+    std::thread::sleep(Duration::from_secs(3));
 }

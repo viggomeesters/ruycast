@@ -1,70 +1,10 @@
-"""Independent Rust CLI lifetime, strict framing and parent cleanup faults."""
+"""Independent supervisor lifetime after real host death or suspension."""
 import json
 import os
-from pathlib import Path
 import signal
-import subprocess
-import tempfile
 import time
 import unittest
 import runtime_process as rt
-
-ROOT=rt.ROOT.parent
-CLI=Path(os.environ.get('RUYCAST_TEST_CLI',ROOT/'.build/rust/release/ruycast'))
-PROBE=Path(os.environ.get('RUYCAST_SUPERVISION_PROBE',rt.ROOT/'target/debug/supervision-probe'))
-
-
-class Supervision(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        target=Path(os.environ.get('CARGO_TARGET_DIR',ROOT/'.build/full-rust-release/native'))
-        cls.shim=Path(os.environ.get('RUYCAST_TEST_SUPERVISION_SHIM',target/'release/examples/libsupervision_fault_shim.dylib'))
-        if not cls.shim.is_absolute() or not cls.shim.is_file():
-            raise RuntimeError('Build --features test-tools --example supervision-fault-shim and set RUYCAST_TEST_SUPERVISION_SHIM first')
-
-    def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(prefix='ruycast-supervision-')
-        self.addCleanup(self.temp.cleanup)
-        self.base=Path(self.temp.name)
-        self.env=dict(os.environ)
-        for name in ['DYLD_INSERT_LIBRARIES','RUYCAST_HOME','RUSTCAST_HOME','RUYCAST_CONFIG_DIR','RUSTCAST_CONFIG_DIR']:
-            self.env.pop(name,None)
-
-    def command(self,code='print("literal Ω")',timeout=2):
-        return dict(id='script.fixture',title='Fixture',kind='script',target='/usr/bin/python3',arguments=['-c',code],timeout=timeout)
-
-    def probe(self,command=None,helper=CLI,fault=False,trace=False,**options):
-        request=dict(helper=str(helper),command=command or self.command(),home=str(self.base),**options)
-        env=dict(self.env)
-        if fault or trace:env['DYLD_INSERT_LIBRARIES']=str(self.shim)
-        if fault:env['RUYCAST_SUPERVISION_WAIT_MARKER']=str(self.base/'wait-injected')
-        if trace:env['RUYCAST_SUPERVISION_KILL_TRACE']=str(self.base/'kill-trace')
-        output=subprocess.run([str(PROBE)],input=json.dumps(request),capture_output=True,text=True,env=env,timeout=7)
-        self.assertEqual(output.returncode,0,output.stdout+output.stderr)
-        result=json.loads(output.stdout);self.assertTrue(result['noChildren'])
-        return result['result']
-
-    def tree(self):
-        pid=self.base/'script-pid';sentinel=self.base/'descendant'
-        child='import time,signal,pathlib;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(.8);pathlib.Path(%r).write_text("bad")'%str(sentinel)
-        code='import os,time,signal,pathlib,sys,subprocess;pathlib.Path(%r).write_text(str(os.getpid()));signal.signal(signal.SIGTERM,signal.SIG_IGN);subprocess.Popen([sys.executable,"-c",%r]);time.sleep(3)'%(str(pid),child)
-        return self.command(code),pid,sentinel
-
-    def clean_tree(self,pid,sentinel):
-        self.assertTrue(pid.exists(),'script did not start')
-        with self.assertRaises(ProcessLookupError):os.kill(int(pid.read_text()),0)
-        time.sleep(.85);self.assertFalse(sentinel.exists())
-
-    def test_cancel_deadline_and_panic_keep_independent_group_cleanup(self):
-        for option in ['cancelMs','deadlineMs','panicMs']:
-            with self.subTest(option=option):
-                command,pid,sentinel=self.tree()
-                result=self.probe(command,**{option:200})
-                if option=='panicMs':self.assertTrue(result['panicCaught'])
-                else:self.assertFalse(result['response']['ok'])
-                self.clean_tree(pid,sentinel)
-                pid.unlink();sentinel.unlink(missing_ok=True)
-
 
 class HostLifecycle(unittest.TestCase):
     def host(self,commands):
