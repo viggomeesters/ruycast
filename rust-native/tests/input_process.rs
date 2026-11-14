@@ -1438,3 +1438,197 @@ fn full_editor_adopts_own_arguments_after_save_without_running() {
     inline_closed(&host);
     assert_eq!(fs::read_to_string(out).unwrap(), "PRIVATE literal Ω");
 }
+fn input_sync_host() -> Bridge {
+    let mut host = Bridge::new(Config::current(), false);
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":"/usr/bin/printf","arguments":["fixture result"],"timeout":3,"inputPrompt":"Message"}));
+    host.replace(&config, None);
+    let shim = std::env::var_os("RUYCAST_TEST_FCNTL_SHIM")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            host.settings
+                .host
+                .parent()
+                .unwrap()
+                .join("examples/libfcntl_sync_shim.dylib")
+        });
+    assert!(
+        shim.is_absolute() && shim.is_file(),
+        "build fcntl-sync-shim first"
+    );
+    host.env
+        .insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
+    let directory = host.profile.as_os_str().to_owned();
+    let marker = host.profile.join("sync-injected").into_os_string();
+    host.env
+        .insert("RUYCAST_TEST_FSYNC_DIRECTORY".into(), directory);
+    host.env.insert("RUYCAST_TEST_FSYNC_MARKER".into(), marker);
+    host.start();
+    host.settled(|_| true);
+    inline_open(&host, false);
+    inline_type(&host, "PRIVATE literal Ω");
+    host
+}
+fn warning_pixels(path: &std::path::Path) -> (usize, usize) {
+    use std::collections::HashSet;
+    #[link(name = "z")]
+    unsafe extern "C" {
+        fn uncompress(
+            dest: *mut u8,
+            dest_len: *mut libc::c_ulong,
+            source: *const u8,
+            source_len: libc::c_ulong,
+        ) -> libc::c_int;
+    }
+    let png = fs::read(path).unwrap();
+    assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+    let mut position = 8;
+    let mut width = 0usize;
+    let mut height = 0usize;
+    let mut compressed = Vec::new();
+    while position < png.len() {
+        let size = u32::from_be_bytes(png[position..position + 4].try_into().unwrap()) as usize;
+        let kind = &png[position + 4..position + 8];
+        let value = &png[position + 8..position + 8 + size];
+        if kind == b"IHDR" {
+            width = u32::from_be_bytes(value[0..4].try_into().unwrap()) as usize;
+            height = u32::from_be_bytes(value[4..8].try_into().unwrap()) as usize;
+            assert_eq!(&value[8..13], &[8, 6, 0, 0, 0]);
+        } else if kind == b"IDAT" {
+            compressed.extend_from_slice(value);
+        }
+        position += 12 + size;
+    }
+    assert!(width > 0 && height > 0 && width <= 4096 && height <= 4096);
+    let stride = width * 4;
+    let mut raw = vec![0; height * (stride + 1)];
+    let mut length = raw.len() as libc::c_ulong;
+    assert_eq!(
+        unsafe {
+            uncompress(
+                raw.as_mut_ptr(),
+                &mut length,
+                compressed.as_ptr(),
+                compressed.len() as libc::c_ulong,
+            )
+        },
+        0
+    );
+    assert_eq!(length as usize, raw.len());
+    let mut previous = vec![0u8; stride];
+    let mut colors = [HashSet::new(), HashSet::new()];
+    for y in 0..height {
+        let offset = y * (stride + 1);
+        let kind = raw[offset];
+        assert!(kind <= 4);
+        let mut row = raw[offset + 1..offset + 1 + stride].to_vec();
+        for x in 0..stride {
+            let a = if x >= 4 { row[x - 4] } else { 0 };
+            let b = previous[x];
+            let c = if x >= 4 { previous[x - 4] } else { 0 };
+            let prediction = match kind {
+                0 => 0,
+                1 => a,
+                2 => b,
+                3 => ((u16::from(a) + u16::from(b)) / 2) as u8,
+                4 => {
+                    let p = i32::from(a) + i32::from(b) - i32::from(c);
+                    let pa = (p - i32::from(a)).abs();
+                    let pb = (p - i32::from(b)).abs();
+                    let pc = (p - i32::from(c)).abs();
+                    if pa <= pb && pa <= pc {
+                        a
+                    } else if pb <= pc {
+                        b
+                    } else {
+                        c
+                    }
+                }
+                _ => unreachable!(),
+            };
+            row[x] = row[x].wrapping_add(prediction);
+        }
+        for (index, (top, bottom)) in [(86, 106), (454, 476)].into_iter().enumerate() {
+            if top * height <= y * 490 && y * 490 < bottom * height {
+                for x in (24 * width / 760)..(400 * width / 760) {
+                    let i = x * 4;
+                    colors[index].insert([row[i], row[i + 1], row[i + 2]]);
+                }
+            }
+        }
+        previous = row;
+    }
+    (colors[0].len(), colors[1].len())
+}
+#[test]
+fn postpublication_sync_warning_resumes_without_retry() {
+    let host = input_sync_host();
+    input_action(&host, "Set Alias…");
+    input_action_form(&host);
+    host.probe("alias-input", json!({"text":"published"}));
+    actions::probe(&host, "save-editor");
+    let state = input_action_resumed(&host);
+    assert!(host.profile.join("sync-injected").exists());
+    assert_eq!(input_saved_command(&host)["aliases"], json!(["published"]));
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    assert!(state["screenText"].as_array().unwrap().iter().any(|s| s
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("disk confirmation failed")));
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+    host.capture("warning-input");
+    let (heading, footer) = warning_pixels(&host.profile.join("native-probe.png"));
+    assert!(
+        heading > 8 && footer > 8,
+        "heading {heading}, footer {footer}"
+    );
+}
+#[test]
+fn disable_and_remove_postpublication_warning_do_not_offer_retry() {
+    for action in ["Disable", "Remove…"] {
+        let host = input_sync_host();
+        input_action(&host, action);
+        let state = if action == "Remove…" {
+            input_action_form(&host);
+            actions::probe(&host, "save-editor");
+            let state = inline_closed(&host);
+            let config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+            assert!(!config["commands"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["id"] == "script.fixture"));
+            state
+        } else {
+            let state = input_action_resumed(&host);
+            assert_eq!(input_saved_command(&host)["enabled"], false);
+            assert_eq!(
+                actions::probe(&host, "run-inline-read")["text"],
+                "PRIVATE literal Ω"
+            );
+            assert!(state["screenText"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|s| s == "Disabled · Expand ⌘↵"));
+            host.capture("warning-disabled");
+            let (heading, footer) = warning_pixels(&host.profile.join("native-probe.png"));
+            assert!(
+                heading > 8 && footer > 8,
+                "heading {heading}, footer {footer}"
+            );
+            state
+        };
+        assert!(host.profile.join("sync-injected").exists());
+        assert!(state["screenText"].as_array().unwrap().iter().any(|s| s
+            .as_str()
+            .unwrap()
+            .to_lowercase()
+            .contains("disk confirmation failed")));
+        assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+    }
+}
