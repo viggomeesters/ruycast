@@ -409,7 +409,6 @@ rust-native/tests/native_hid_process.py
 rust-native/tests/native_keyboard_process.py
 rust-native/tests/native_keyboard_process.rs
 rust-native/tests/native_keyword_process.py
-rust-native/tests/native_open_process.py
 rust-native/tests/native_open_basic_process.rs
 rust-native/tests/native_process.py
 rust-native/tests/native_snippet_choice_process.py
@@ -441,7 +440,6 @@ rust-native/tests/fixtures/supervision_fault_shim.rs
 rust-native/tests/supervision_process.py
 rust-native/tests/system_search_process.py
 rust-native/tests/system_search_sdk.rs
-rust-native/tests/template_form_process.py
 rust-native/tests/template_process.rs
 rust-native/tests/template_reference.json
 rust-native/tests/workspace_activation_process.rs
