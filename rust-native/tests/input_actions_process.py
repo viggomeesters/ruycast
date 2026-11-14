@@ -76,8 +76,4 @@ class InputActions(unittest.TestCase):
             if action=='Remove…':self.form(host);host.probe('save-editor');view=self.closed(host);self.assertFalse(any(c['id']=='script.fixture' for c in json.loads(host.config.read_bytes())['commands']))
             else:view=self.resumed(host);self.assertFalse(self.saved_command(host)['enabled']);self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertIn('Disabled · Expand ⌘↵',view['screenText']);self.capture(host,'warning-disabled');pixels=png_text_regions(host.profile/'native-probe.png');self.assertGreater(pixels['heading'],8,pixels);self.assertGreater(pixels['footer'],8,pixels)
             self.assertTrue((host.profile/'sync-injected').exists());self.assertTrue(any('disk confirmation failed' in x.lower() for x in view['screenText']));self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-    def test_full_editor_own_arguments_are_adopted_after_save_without_running(self):
-        host=self.fixture();out=host.base/'result';self.action(host,'Edit…');self.form(host)
-        host.probe('command-argument',index=1,text='import pathlib,sys;pathlib.Path(%r).write_text(sys.argv[1])'%str(out));host.probe('add-argument');host.probe('command-argument',index=2,text='{input}');host.probe('save-editor');self.resumed(host)
-        self.assertFalse(out.exists());self.assertEqual(self.text(host),'PRIVATE literal Ω');self.key(host,36,'\r');self.file(out);self.idle(host);self.closed(host);self.assertEqual(out.read_text(),'PRIVATE literal Ω')
 if __name__=='__main__':unittest.main()

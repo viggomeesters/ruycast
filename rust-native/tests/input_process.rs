@@ -1408,3 +1408,33 @@ fn light_dark_input_actions_and_resumed_captures() {
         host.capture(&format!("input-actions-resumed-{theme}"));
     }
 }
+#[test]
+fn full_editor_adopts_own_arguments_after_save_without_running() {
+    let host = RunningHost(host());
+    let out = host.base.join("result");
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-write", "unused"]),
+        3.0,
+    );
+    inline_open(&host, false);
+    inline_type(&host, "PRIVATE literal Ω");
+    input_action(&host, "Edit…");
+    input_action_form(&host);
+    host.probe("command-argument", json!({"index":1,"text":out}));
+    actions::probe(&host, "add-argument");
+    host.probe("command-argument", json!({"index":2,"text":"{input}"}));
+    actions::probe(&host, "save-editor");
+    input_action_resumed(&host);
+    assert!(!out.exists());
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    key(&host, 36, "\r", 0);
+    wait_exists(&out);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    inline_closed(&host);
+    assert_eq!(fs::read_to_string(out).unwrap(), "PRIVATE literal Ω");
+}
