@@ -365,3 +365,85 @@ fn return_waits_for_original_and_new_input_cancels_while_returning() {
         assert_eq!(kw(&h, "state", json!({}))["activationRequests"], 1);
     }
 }
+
+fn analytics(h: &Bridge) -> Value {
+    h.rpc(&json!({"op":"analytics"}))["result"].clone()
+}
+fn wait_notice(h: &Bridge, text: &str) -> Value {
+    let end = Instant::now() + Duration::from_secs(3);
+    loop {
+        let notice = h.probe("notice-read", json!({}));
+        if notice["text"] == text {
+            return notice;
+        }
+        assert!(Instant::now() < end, "{notice}");
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+#[test]
+fn choice_analytics_records_once_at_apply_and_preserves_pause() {
+    let h = visible();
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics.reset","confirmed":true}))["ok"],
+        true
+    );
+    assert_eq!(analytics(&h)["totalAttempts"], 0);
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    wait_output(&h);
+    let data = analytics(&h);
+    assert_eq!(
+        (
+            data["totalAttempts"].clone(),
+            data["totalSuccesses"].clone(),
+            data["totalFailures"].clone()
+        ),
+        (json!(1), json!(1), json!(0))
+    );
+    assert_eq!(
+        data["commands"]
+            .as_object()
+            .unwrap()
+            .values()
+            .next()
+            .unwrap()["sources"],
+        json!({"snippet":1})
+    );
+    choice(&h, "insert", json!({}));
+    assert_eq!(analytics(&h)["totalAttempts"], 1);
+    let h = visible();
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics.settings","enabled":false}))["ok"],
+        true
+    );
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    wait_output(&h);
+    assert_eq!(analytics(&h)["totalAttempts"], 0);
+}
+#[test]
+fn return_failures_show_feedback_without_false_attempt() {
+    let h = visible();
+    fs::write(h.base.join("keyword-fail-app_activate"), b"").unwrap();
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    wait_notice(&h, "The app is unavailable. Type the keyword again.");
+    assert_eq!(analytics(&h)["totalAttempts"], 0);
+    let h = visible();
+    kw(&h, "text", json!({"value":"changed","at":7}));
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    wait_notice(&h, "The text field changed. Type the keyword again.");
+    assert_eq!(analytics(&h)["totalAttempts"], 0);
+}
+#[test]
+fn bounded_original_return_failure_has_feedback_without_attempt_or_output() {
+    let h = visible();
+    activate(&h, &["own"]);
+    kw(&h, "environment", json!({"pid":"self","app":u64::MAX}));
+    choice(&h, "insert", json!({}));
+    wait_choice(&h, "None");
+    wait_notice(&h, "The text field changed. Type the keyword again.");
+    assert_eq!(analytics(&h)["totalAttempts"], 0);
+    assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}

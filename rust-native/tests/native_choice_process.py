@@ -20,10 +20,6 @@ class NativeChoice(unittest.TestCase):
             if notice.get('text')==text:return notice
             time.sleep(.01)
         raise AssertionError(notice)
-    def test_actual_choice_analytics_records_once_only_at_apply_and_pause_is_preserved(self):
-        host,_=self.visible();self.assertTrue(host.rpc(dict(op='analytics.reset',confirmed=True))['ok']);self.assertEqual(self.analytics(host)['totalAttempts'],0)
-        self.choice(host,'insert');self.wait_choice(host,'None');self.wait_output(host);d=self.analytics(host);self.assertEqual((d['totalAttempts'],d['totalSuccesses'],d['totalFailures']),(1,1,0));self.assertEqual(next(iter(d['commands'].values()))['sources'],{'snippet':1});self.choice(host,'insert');self.assertEqual(self.analytics(host)['totalAttempts'],1)
-        host,_=self.visible();self.assertTrue(host.rpc(dict(op='analytics.settings',enabled=False))['ok']);self.choice(host,'insert');self.wait_choice(host,'None');self.wait_output(host);self.assertEqual(self.analytics(host)['totalAttempts'],0)
     def test_actual_plain_keyword_analytics_and_rich_partial_failure_notice(self):
         host,_=self.host(body='Hello');self.assertEqual(self.type(host,'abc'),[False,False,True]);d=self.analytics(host);self.assertEqual((d['totalAttempts'],d['totalSuccesses']),(1,1))
         for theme in ['light','dark']:
@@ -31,11 +27,6 @@ class NativeChoice(unittest.TestCase):
             if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):
                 out=Path(folder).parent/'snippet-feedback';out.mkdir(parents=True,exist_ok=True);shutil.copy2(host.profile/'native-notice-probe.png',out/('partial-'+theme+'.png'));(out/('partial-'+theme+'.json')).write_text(json.dumps(render,indent=2))
 
-    def test_actual_return_failures_show_feedback_without_false_attempt(self):
-        host,_=self.visible();(host.base/'keyword-fail-app_activate').touch();self.choice(host,'insert');self.wait_choice(host,'None');self.wait_notice(host,'The app is unavailable. Type the keyword again.');self.assertEqual(self.analytics(host)['totalAttempts'],0)
-        host,_=self.visible();self.kw(host,'text',value='changed',at=7);self.choice(host,'insert');self.wait_choice(host,'None');self.wait_notice(host,'The text field changed. Type the keyword again.');self.assertEqual(self.analytics(host)['totalAttempts'],0)
-    def test_bounded_original_return_failure_has_feedback_and_no_attempt_or_output(self):
-        host,_=self.visible();self.activate(host,'own');self.kw(host,'environment',pid='self',app=2**64-1);self.choice(host,'insert');self.wait_choice(host,'None');self.wait_notice(host,'The text field changed. Type the keyword again.');self.assertEqual(self.analytics(host)['totalAttempts'],0);self.assertEqual(self.kw(host)['posts'],0)
     @classmethod
     def setUpClass(cls):
         keyboard.NativeKeyboard.setUpClass.__func__(cls)
