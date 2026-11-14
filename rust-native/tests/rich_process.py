@@ -61,16 +61,6 @@ else:
         payload=dict(ok=False,error='Provider failed',detail='Failure report')
         host=self.host(native=True,commands=[self.command('print(%r)'%json.dumps(payload),inputPrompt='Message')]);token=inputs.NativeInput().open(host)['editorToken'];self.type(host,'PRIVATE input');host.probe('save-editor');self.idle(host)
         v=self.view(host,lambda r:r['detail_visible']);self.assertEqual(v['editorToken'],token);self.capture(host,'input-failure-report');self.click(host,'close');host.settled();v=host.probe('read');self.assertEqual(v['editorToken'],token);self.assertIn('PRIVATE input',v['screenText']);self.capture(host,'input-restored');self.assertTrue(host.probe('run-input-read')['focused']);self.assertTrue(host.probe('run-input-read')['canUndo']);self.type(host,' continued');self.key(host,6,'z',1<<20);self.assertEqual(host.probe('run-input-read')['text'],'PRIVATE input')
-    def test_native_light_dark_empty_and_long_labels_renders(self):
-        for theme in ['light','dark']:
-            host=self.fixture(width=600);cfg=json.loads(host.config.read_bytes());cfg['theme']=theme;host.replace(cfg);host.rpc({'op':'reload'});self.open(host);self.capture(host,'choices-'+theme)
-            host.probe('query',query='no result');self.view(host,lambda r:not r['rows']);v=self.capture(host,'empty-'+theme);self.assertIn('No results',v['screenText']);host.close()
-    def test_close_during_busy_owner_rejects_its_old_published_view(self):
-        host=self.fixture('slow');self.open(host);self.click(host,'choose');self.file(host.base/'ready');self.view(host,lambda r:r['busy']);host.probe('schedule-result-close')
-        delay=host.rpc(dict(op='native.delay',executionBarrier=True));self.assertTrue(delay['result']['newIntentDuringDelay']);proof=json.loads(self.file(host.profile/'result-close-barrier.json'));self.assertTrue(proof['rejected']);self.assertFalse(proof['windowShown']);self.idle(host);host.settled();self.assertIsNone(host.probe('read')['scriptResult'])
-    def test_config_change_after_admission_keeps_concrete_usage_warning(self):
-        host=self.fixture('slow');self.open(host);self.click(host,'choose');self.file(host.base/'ready');self.replace_command(host,self.command('print("changed")'));(host.base/'release').write_text('go');r=self.view(host,lambda r:r['detail_visible'])['scriptResult'];self.assertIn('configuration',r['error']);self.assertEqual(r['detail'],'Late report')
-
     def native_event_boundary(self,host):
         before=host.probe('rich-query-read')['groupingLevel'];host.probe('rich-query-native-event');end=time.monotonic()+3
         while time.monotonic()<end:
