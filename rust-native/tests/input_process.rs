@@ -851,3 +851,101 @@ fn native_expand_selectors_preserve_text_without_executing() {
     }
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
+#[test]
+fn reload_usage_and_theme_keep_inline_editor_undo_and_composition() {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "before");
+    let initial = actions::probe(&host, "run-inline-read");
+    assert_eq!(initial["canUndo"], true);
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    config["theme"] = json!("light");
+    config["commands"].as_array_mut().unwrap().push(json!({"id":"script.other","title":"Other","kind":"script","target":"/usr/bin/true","arguments":[]}));
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    assert_eq!(
+        host.rpc(&json!({"op":"execute","id":"script.other"}))["ok"],
+        true
+    );
+    host.settled(|_| true);
+    let after = actions::probe(&host, "run-inline-read");
+    assert_eq!(after["text"], "before");
+    assert_eq!(
+        after.get("editorAddress").unwrap(),
+        initial.get("editorAddress").unwrap()
+    );
+    assert_eq!(after["canUndo"], true);
+    assert_eq!(after.get("token").unwrap(), initial.get("token").unwrap());
+    host.probe("run-inline-mark", json!({"text":"にほん"}));
+    let marked = actions::probe(&host, "run-inline-read");
+    assert_eq!(marked["marked"], true);
+    config["theme"] = json!("dark");
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    host.settled(|_| true);
+    let after = actions::probe(&host, "run-inline-read");
+    assert_eq!(after["marked"], true);
+    for field in ["text", "editorAddress", "selectedLocation"] {
+        assert_eq!(after.get(field).unwrap(), marked.get(field).unwrap());
+    }
+    actions::probe(&host, "run-inline-ime-guards");
+    assert_eq!(
+        host.rpc(&json!({"op":"logs"}))["result"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    actions::probe(&host, "run-inline-unmark");
+    inline_type(&host, " continued");
+    assert!(actions::probe(&host, "run-inline-read")["text"]
+        .as_str()
+        .unwrap()
+        .ends_with(" continued"));
+}
+#[test]
+fn old_menu_button_cannot_act_on_reopened_menu_or_new_input() {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "original");
+    key(&host, 40, "k", actions::CMD);
+    view(&host, |v| v["actionsVisible"] == true);
+    host.probe("retain-input-button", json!({"index":1}));
+    key(&host, 53, "", 0);
+    view(&host, |v| v["actionsVisible"] == false);
+    key(&host, 40, "k", actions::CMD);
+    view(&host, |v| v["actionsVisible"] == true);
+    actions::probe(&host, "old-input-button");
+    assert_eq!(actions::probe(&host, "read")["runInputInline"], true);
+    assert_eq!(actions::probe(&host, "read")["actionsVisible"], true);
+    key(&host, 53, "", 0);
+    view(&host, |v| v["actionsVisible"] == false);
+    key(&host, 53, "", 0);
+    inline_closed(&host);
+    inline_open(&host, false);
+    inline_type(&host, "new");
+    actions::probe(&host, "old-input-button");
+    assert_eq!(actions::probe(&host, "run-inline-read")["text"], "new");
+    assert_eq!(actions::probe(&host, "read")["formVisible"], false);
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn light_dark_inline_and_menu_captures() {
+    let host = host();
+    for theme in ["light", "dark"] {
+        let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+        config["theme"] = json!(theme);
+        host.replace(&config, None);
+        assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+        inline_open(&host, false);
+        inline_type(&host, "Unicode büro 日本語");
+        host.capture(&format!("run-inline-{theme}"));
+        key(&host, 40, "k", actions::CMD);
+        view(&host, |v| v["actionsVisible"] == true);
+        host.capture(&format!("run-inline-menu-{theme}"));
+        key(&host, 53, "", 0);
+        view(&host, |v| v["actionsVisible"] == false);
+        key(&host, 53, "", 0);
+        inline_closed(&host);
+    }
+}

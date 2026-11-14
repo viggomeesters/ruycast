@@ -16,31 +16,12 @@ class InlineInput(unittest.TestCase):
     def expanded(self,host):return self.view(host,lambda v:v['formVisible'] and not v['runInputInline'])
     def closed(self,host):return self.view(host,lambda v:not v['runInputInline'] and not v['formVisible'])
 
-    def test_same_token_reload_usage_and_theme_keep_text_editor_undo_and_composition(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'before')
-        initial=host.probe('run-inline-read');self.assertTrue(initial['canUndo'])
-        config=json.loads(host.config.read_bytes());config['theme']='light';config['commands'].append(dict(id='script.other',title='Other',kind='script',target='/usr/bin/true',arguments=[]));host.replace(config);self.assertTrue(host.rpc({'op':'reload'})['ok'])
-        self.assertTrue(host.rpc(dict(op='execute',id='script.other'))['ok']);host.settled()
-        after=host.probe('run-inline-read');self.assertEqual(after['text'],'before');self.assertEqual(after['editorAddress'],initial['editorAddress']);self.assertTrue(after['canUndo']);self.assertEqual(after['token'],initial['token'])
-        host.probe('run-inline-mark',text='にほん');marked=host.probe('run-inline-read');self.assertTrue(marked['marked'])
-        config['theme']='dark';host.replace(config);self.assertTrue(host.rpc({'op':'reload'})['ok']);host.settled()
-        after=host.probe('run-inline-read');self.assertTrue(after['marked']);self.assertEqual(after['text'],marked['text']);self.assertEqual(after['editorAddress'],marked['editorAddress']);self.assertEqual(after['selectedLocation'],marked['selectedLocation'])
-        host.probe('run-inline-ime-guards');self.assertEqual(len(host.rpc({'op':'logs'})['result']),2)
-        host.probe('run-inline-unmark');self.type(host,' continued');self.assertTrue(self.text(host).endswith(' continued'))
-
     def delayed_control(self,host,**options):
         host.probe('schedule-inline-control',**options)
         stream=host.connect(timeout=4);self.addCleanup(stream.close);stream.sendall(b'{"op":"native.delay"}\n')
         self.file(host.profile/'inline-control-fired')
         with stream.makefile('rb') as reader:self.assertTrue(json.loads(reader.readline())['result']['newIntentDuringDelay'])
         host.settled()
-
-    def test_old_menu_button_cannot_act_on_reopened_menu_or_new_input(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'original')
-        self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);host.probe('retain-input-button',index=1);self.key(host,53);self.view(host,lambda v:not v['actionsVisible'])
-        self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);host.probe('old-input-button');self.assertTrue(host.probe('read')['runInputInline']);self.assertTrue(host.probe('read')['actionsVisible']);self.key(host,53);self.view(host,lambda v:not v['actionsVisible']);self.key(host,53);self.closed(host)
-        self.open(host);self.type(host,'new');host.probe('old-input-button');self.assertEqual(self.text(host),'new');self.assertFalse(host.probe('read')['formVisible'])
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
 
     def test_script_failure_restores_same_inline_text_cursor_and_typing(self):
         host=self.host(native=True,commands=[self.command('raise SystemExit(7)',inputPrompt='Message')]);self.open(host);self.type(host,'keep retry text')
@@ -62,13 +43,5 @@ class InlineInput(unittest.TestCase):
         host.probe('run-input-new-query',query='finder');host.settled();gate.write_text('go');self.file(done);self.idle(host)
         view=self.closed(host);self.assertEqual(view['input'],'finder');self.assertTrue(host.rpc({'op':'status'})['result']['nativeUI']['visible'])
         self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
-
-    def test_light_dark_inline_and_menu_captures(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')])
-        for theme in ['light','dark']:
-            config=json.loads(host.config.read_bytes());config['theme']=theme;host.replace(config);self.assertTrue(host.rpc({'op':'reload'})['ok'])
-            self.open(host);self.type(host,'Unicode büro 日本語');self.capture(host,'run-inline-'+theme)
-            self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);self.capture(host,'run-inline-menu-'+theme)
-            self.key(host,53);self.view(host,lambda v:not v['actionsVisible']);self.key(host,53);self.closed(host)
 
 if __name__=='__main__':unittest.main()
