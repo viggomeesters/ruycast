@@ -659,8 +659,8 @@ const SETTINGS: &[SettingsGate] = &[
         "startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback",
         "analytics_cast_reference::sample_caps_error_whitelist_and_hashed_raw_utf8_identity",
         "analytics_cast_reference::existing_document_rejection_and_date_codec_match_foundation",
-        "dashboard_presentation_process.Presentation.test_populated_top30_hash_ties_last_wins_disabled_names_samples_errors_and_legacy",
-        "dashboard_presentation_process.Presentation.test_elapsed_utc_hours_unknown_calendar_start_retention_dst_and_year",
+        "dashboard_presentation_reference::populated_top30_hash_ties_names_samples_errors_and_legacy",
+        "dashboard_presentation_reference::elapsed_hours_retention_dst_and_calendar_year",
         "native_dashboard_dialog_process::populated_paused_errors_confirmation_roles_values_and_local_key_loop",
         "native_dashboard_dialog_process::owned_save_dialog_takes_current_data_and_cancel_writes_nothing",
         "native_dashboard_dialog_process::actual_dashboard_renders_themes_widths_and_preserves_scroll",
@@ -1268,16 +1268,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
                 "922179b5495bd479c70eccece85735bfafaaec0cbd1accc4590ca28a75f98a07",
             ),
             (
-                "rust-native/tests/analytics_process.py",
-                include_bytes!("../../../tests/analytics_process.py"),
-                "300c82c03ab972875137279b8a0fba77ba0d68ea4e4641a1c983656b4602c21f",
-            ),
-            (
-                "rust-native/tests/dashboard_presentation_process.py",
-                include_bytes!("../../../tests/dashboard_presentation_process.py"),
-                "df7ce714c4eb567d2ac0f7bbbcc6b084e12046134b4e318f2ab931be89a173d7",
-            ),
-            (
                 "rust-native/tests/dashboard_export_process.rs",
                 include_bytes!("../../../tests/dashboard_export_process.rs"),
                 "710c9f5b5010acef290e19af2a9f14d3f1cb8851cf4d596f97952dea33644a0b",
@@ -1311,6 +1301,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/fixtures/analytics_decoder_reference.json", include_bytes!("../../../tests/fixtures/analytics_decoder_reference.json"), "22a3ec58d6f51df2173d686b2f98770a3b0d39ce015af85eaa674327a15b32cc"),
             ("rust-native/tests/fixtures/analytics_integer_reference.json", include_bytes!("../../../tests/fixtures/analytics_integer_reference.json"), "3c0fed3cabad017dc90b7d2396b27b455c57489eba80d58ef19682d524befc4c"),
             ("rust-native/tests/fixtures/analytics_limits_reference.json", include_bytes!("../../../tests/fixtures/analytics_limits_reference.json"), "e58f134fddec3a7ecb65a6c9fa341dca1feee40dde9abd7c3b03e11bc2563bfb"),
+            ("rust-native/tests/dashboard_presentation_reference.rs", include_bytes!("../../../tests/dashboard_presentation_reference.rs"), "bf3748beebc236ffecd75289e95011704dbef19dbe8f52083b263e0ff34efc85"),
+            ("rust-native/tests/fixtures/dashboard_presentation_reference.json", include_bytes!("../../../tests/fixtures/dashboard_presentation_reference.json"), "3e1bf1619960487cf831ad00001a7b575b1b434c89bb395522734e44a2cba283"),
         ],
         "--check-visual-assets" => &[
             (

@@ -50,7 +50,7 @@ analytics-probe-build|b|analytics-probe tools
 analytics-write-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example analytics-write-shim --locked
 analytics-runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test analytics_runtime_process --locked
 analytics-cast-reference|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test analytics_cast_reference --locked
-dashboard-presentation-process|p|rust-native/tests/dashboard_presentation_process.py
+dashboard-presentation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test dashboard_presentation_reference --locked
 probe-build|b|foundation-probe tools
 script-probe-build|b|script-probe tools
 supervision-probe-build|b|supervision-probe tools
@@ -191,10 +191,6 @@ const REFERENCES: &[(&str, &str)] = &[
     ),
     ("nativeSnippetChoice", "native-snippet-choice-bindings.json"),
     ("nativeChoiceHost", "native-choice-bindings.json"),
-    (
-        "dashboardPresentation",
-        "dashboard-presentation-bindings.json",
-    ),
 ];
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -530,9 +526,6 @@ fn step(
             return Err("All four public clipboard parser cases must actually pass without skips.".into());
         }
     }
-    if entry.name == "dashboard-presentation-process" {
-        qualify_dashboard_presentation(root)?;
-    }
     for (source, alias) in &entry.copies {
         compatibility_copy(root, source, alias, copies)?;
     }
@@ -861,6 +854,18 @@ const DASHBOARD_EXPORT_CASES: [&str; 5] = [
             "commit_entered_before_close_keeps_published_outcome_and_retires_feedback",
 ];
 fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
+    if name == "dashboard-presentation-process" {
+        let text = std::str::from_utf8(stdout).map_err(error)?;
+        for case in ["populated_top30_hash_ties_names_samples_errors_and_legacy", "elapsed_hours_retention_dst_and_calendar_year"] {
+            if text.lines().filter(|line| *line == format!("test {case} ... ok")).count() != 1 {
+                return Err("Both captured dashboard presentation scenarios must pass.".into());
+            }
+        }
+        if !text.lines().any(|line| line.starts_with("test result: ok. 5 passed; 0 failed; 0 ignored;")) {
+            return Err("Dashboard presentation tests must pass without skips.".into());
+        }
+    }
+
     if name == "dashboard-export-process" {
         let text = std::str::from_utf8(stdout).map_err(error)?;
         if DASHBOARD_EXPORT_CASES.iter().any(|case| text.lines().filter(|line| *line == format!("test {case} ... ok")).count() != 1)
@@ -999,55 +1004,6 @@ fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
             return Err("The feedback, same-board and recorder menu routes must actually pass in both themes.".into());
         }
     }
-    Ok(())
-}
-fn qualify_dashboard_presentation(root: &Path) -> Result<()> {
-    let receipt = root
-        .join(DIRECTORY)
-        .join("native-profile/dashboard-presentation-bindings.json");
-    let mut value: serde_json::Value =
-        serde_json::from_slice(&regular_bytes(&receipt)?).map_err(error)?;
-    if value["cases"] != 14 {
-        return Err("All fourteen actual dashboard presentation comparisons are required.".into());
-    }
-    let mut sources = BTreeMap::new();
-    for name in [
-        "Sources/RuycastApp/AnalyticsDashboard.swift",
-        "Sources/RuycastApp/AnalyticsStore.swift",
-        "rust-native/tests/dashboard_presentation_process.py",
-    ] {
-        sources.insert(name, digest(&root.join(name))?);
-    }
-    if value["sources"] != serde_json::to_value(&sources).map_err(error)? {
-        return Err("Dashboard presentation source binding changed.".into());
-    }
-    let generated = "rust-native/target/dashboard-reference/main.swift";
-    if value["generatedSHA256"] != digest(&root.join(generated))? {
-        return Err("Dashboard presentation generated source changed.".into());
-    }
-    // The existing producer extracts Files and the shared analytics driver too.
-    for name in [
-        "Sources/LauncherCore/Files.swift",
-        "rust-native/tests/analytics_process.py",
-    ] {
-        sources.insert(name, digest(&root.join(name))?);
-    }
-    value["sources"] = serde_json::to_value(sources).map_err(error)?;
-    let mut artifacts = BTreeMap::new();
-    for name in [
-        generated,
-        "rust-native/target/dashboard-reference/reference",
-        "rust-native/target/debug/analytics-probe",
-    ] {
-        artifacts.insert(name, digest(&root.join(name))?);
-    }
-    value["artifacts"] = serde_json::to_value(artifacts).map_err(error)?;
-    check_binding(root, &value)?;
-    ruycast_native::private_storage::write(
-        &receipt,
-        &serde_json::to_vec_pretty(&value).map_err(error)?,
-        true,
-    )?;
     Ok(())
 }
 fn keyboard_fixture(root: &Path) -> Result<(PathBuf, String)> {
@@ -1710,60 +1666,12 @@ mod tests {
         // none of these binding checks substitutes for SDK consumer admission.
     }
     #[test]
-    fn dashboard_producer_receipt_binds_generated_source_and_both_executables() {
-        let fixture = super::super::tests::Fixture::new();
-        let mut sources = BTreeMap::new();
-        for name in [
-            "Sources/RuycastApp/AnalyticsDashboard.swift",
-            "Sources/RuycastApp/AnalyticsStore.swift",
-            "rust-native/tests/dashboard_presentation_process.py",
-            "Sources/LauncherCore/Files.swift",
-            "rust-native/tests/analytics_process.py",
-            "rust-native/target/dashboard-reference/main.swift",
-            "rust-native/target/dashboard-reference/reference",
-            "rust-native/target/debug/analytics-probe",
-        ] {
-            let path = fixture.0.join(name);
-            fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::write(&path, b"owned nonexecutable receipt fixture").unwrap();
-            if sources.len() < 3 {
-                sources.insert(name, digest(&path).unwrap());
-            }
-        }
-        let generated = fixture
-            .0
-            .join("rust-native/target/dashboard-reference/main.swift");
-        let receipt = fixture
-            .0
-            .join(DIRECTORY)
-            .join("native-profile/dashboard-presentation-bindings.json");
-        fs::create_dir_all(receipt.parent().unwrap()).unwrap();
-        let original = serde_json::json!({"sources":sources,"generatedSHA256":digest(&generated).unwrap(),"cases":14});
-        let write = |value: &serde_json::Value| {
-            fs::write(&receipt, serde_json::to_vec(value).unwrap()).unwrap()
-        };
-        let mut incomplete = original.clone();
-        incomplete["cases"] = serde_json::json!(13);
-        write(&incomplete);
-        assert!(qualify_dashboard_presentation(&fixture.0).is_err());
-        write(&original);
-        fs::write(&generated, b"mutated generated source").unwrap();
-        assert!(qualify_dashboard_presentation(&fixture.0).is_err());
-        fs::write(&generated, b"owned nonexecutable receipt fixture").unwrap();
-        qualify_dashboard_presentation(&fixture.0).unwrap();
-        let qualified: serde_json::Value =
-            serde_json::from_slice(&fs::read(&receipt).unwrap()).unwrap();
-        assert_eq!(qualified["sources"].as_object().unwrap().len(), 5);
-        assert_eq!(qualified["artifacts"].as_object().unwrap().len(), 3);
-        check_binding(&fixture.0, &qualified).unwrap();
-        fs::write(
-            fixture
-                .0
-                .join("rust-native/target/dashboard-reference/reference"),
-            b"mutated executable",
-        )
-        .unwrap();
-        assert!(check_binding(&fixture.0, &qualified).is_err());
+    fn dashboard_reference_output_requires_both_cases_without_skips() {
+        let output = b"test populated_top30_hash_ties_names_samples_errors_and_legacy ... ok\ntest elapsed_hours_retention_dst_and_calendar_year ... ok\ntest result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1s\n";
+        assert!(selected_step_output("dashboard-presentation-process", output).is_ok());
+        assert!(selected_step_output("dashboard-presentation-process", &output[..40]).is_err());
+        let skipped=String::from_utf8_lossy(output).replace("5 passed; 0 failed; 0 ignored;", "4 passed; 0 failed; 1 ignored;");
+        assert!(selected_step_output("dashboard-presentation-process", skipped.as_bytes()).is_err());
     }
     #[test]
     fn keyboard_fixture_requires_current_sources_and_exact_owned_artifact() {
@@ -2066,7 +1974,7 @@ mod tests {
         let actions = steps.iter().find(|step|step.name=="actions-menu-process").unwrap();
         assert_eq!(actions.arguments.last().unwrap(),"--actions-menu-only");
         assert_eq!(steps.iter().find(|step|step.name=="item-binding-original-process").unwrap().arguments.last().unwrap(),"--item-binding-original-only");
-        assert_eq!(REFERENCES.len(), 12);
+        assert_eq!(REFERENCES.len(), 11);
         assert!(matrix("unsupported").is_err());
     }
     #[test]
