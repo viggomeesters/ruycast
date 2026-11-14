@@ -59,14 +59,6 @@ class NativeInput(unittest.TestCase):
         self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
         raw=(host.profile/'command-log.json').read_text();self.assertNotIn('private.invalid',raw);self.assertNotIn('literal $',raw)
 
-    def test_relocated_configuration_refuses_the_old_run_draft(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'keep this')
-        directory=host.base/'relocated';directory.mkdir()
-        self.assertTrue(host.cli('config','directory',str(directory))['ok'])
-        host.probe('save-editor');self.view(host,lambda v:any('folder changed' in s for s in v['screenText']))
-        self.assertEqual(host.probe('run-input-read')['text'],'keep this');self.type(host,' after relocation')
-        self.assertEqual(host.rpc({'op':'logs'})['result'],[])
-
     def test_failure_preserves_same_native_text_focus_typing_and_undo(self):
         host=self.host(native=True,commands=[self.command('import sys;print("failure",file=sys.stderr);raise SystemExit(7)',inputPrompt='Message')])
         token=self.open(host)['editorToken'];self.type(host,'Keep me')
@@ -138,14 +130,6 @@ class NativeInput(unittest.TestCase):
         (host.profile/'usage.json').mkdir();host.probe('save-editor');self.file(counter);self.idle(host)
         self.view(host,lambda v:not v['formVisible'] and any('Action completed' in s for s in v['screenText']))
         host.probe('save-editor');self.assertEqual(counter.read_text(),'once');self.assertEqual(len(host.rpc({'op':'logs'})['result']),2)
-
-    def test_configuration_change_rejects_old_input_and_preserves_draft(self):
-        host=self.host(native=True,commands=[self.command(inputPrompt='Message')]);self.open(host);self.type(host,'old input')
-        changed=self.command(inputPrompt='Different prompt');changed.update(target='/usr/bin/true',arguments=[]);self.replace_command(host,changed)
-        before=host.config.read_bytes();host.probe('save-editor')
-        self.view(host,lambda v:any('changed' in s for s in v['screenText']))
-        self.assertEqual(host.probe('run-input-read')['text'],'old input');self.type(host,' retained')
-        self.assertEqual(host.config.read_bytes(),before);self.assertEqual(host.rpc({'op':'logs'})['result'],[])
 
     def test_cancel_running_input_does_not_close_a_new_draft(self):
         host=self.host(native=True);pid=host.base/'leader'

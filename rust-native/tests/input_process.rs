@@ -12,7 +12,7 @@ use std::fs;
 fn host() -> Bridge {
     let mut host = Bridge::new(Config::current(), false);
     let mut config = default_config();
-    config["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":"/usr/bin/true","arguments":["PRIVATE-TARGET-ARG"],"timeout":3,"inputPrompt":"Message"}));
+    config["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":"/usr/bin/printf","arguments":["PRIVATE-TARGET-ARG"],"timeout":3,"inputPrompt":"Message"}));
     host.replace(&config, None);
     host.start();
     host.settled(|_| true);
@@ -89,4 +89,46 @@ fn marked_text_blocks_run_and_escape_without_effects() {
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
     host.probe("editor-text-command", json!({"marked":false}));
     view(&host, |v| v["formVisible"] == false);
+}
+#[test]
+fn relocated_configuration_refuses_old_draft() {
+    let host = host();
+    open(&host);
+    input_type(&host, "keep this");
+    let directory = host.base.join("relocated");
+    fs::create_dir(&directory).unwrap();
+    assert_eq!(
+        host.cli(&["config", "directory", directory.to_str().unwrap()])["ok"],
+        true
+    );
+    actions::probe(&host, "save-editor");
+    view(&host, |v| actions::text_contains(v, "folder changed"));
+    assert_eq!(actions::probe(&host, "run-input-read")["text"], "keep this");
+    input_type(&host, " after relocation");
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn changed_command_preserves_old_input_draft() {
+    let host = host();
+    open(&host);
+    input_type(&host, "old input");
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    command["inputPrompt"] = json!("Different prompt");
+    command["target"] = json!("/usr/bin/true");
+    command["arguments"] = json!([]);
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    let before = fs::read(&host.config).unwrap();
+    actions::probe(&host, "save-editor");
+    view(&host, |v| actions::text_contains(v, "changed"));
+    assert_eq!(actions::probe(&host, "run-input-read")["text"], "old input");
+    input_type(&host, " retained");
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
