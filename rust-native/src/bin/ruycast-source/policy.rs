@@ -442,6 +442,7 @@ rust-native/tests/fixtures/supervision_fault_shim.rs
 rust-native/tests/supervision_process.py
 rust-native/tests/supervision_framing_process.rs
 rust-native/tests/supervision_io_process.rs
+rust-native/tests/supervision_protocol_process.rs
 rust-native/tests/fixtures/supervision_io_fixture.rs
 rust-native/tests/system_search_cli_process.rs
 rust-native/tests/system_search_sdk.rs
