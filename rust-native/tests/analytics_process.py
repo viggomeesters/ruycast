@@ -87,19 +87,6 @@ class Analytics(unittest.TestCase):
                 self.assertEqual(p.returncode,0,p.stderr);pair.append(json.loads(p.stdout))
         self.assertEqual(normalized(pair[0]),normalized(pair[1]));type(self).cases+=1;return pair[0]
     def empty(self):return self.run_case([])['document']
-    def test_retention_utc_hours_and_calendar_days_across_dst(self):
-        import datetime
-        for iso in ['2026-03-29T12:30:00+00:00','2026-10-25T12:30:00+00:00']:
-            now=datetime.datetime.fromisoformat(iso).timestamp();d=self.empty();d['retentionDays']=1;hour=int(now//3600*3600);d['hours']={str(hour-delta*3600):dict(uses=1,successes=0,failures=0) for delta in [23,24,25,26]}
-            for zone in ['Europe/Amsterdam','America/New_York','UTC']:
-                out=self.run_case([dict(op='snapshot'),dict(op='hourly')],initial=d,now=now,zone=zone);self.assertEqual(len(out['document']['hours']),2)
-    def test_schema_one_missing_and_null_hours_are_upgraded(self):
-        d=self.empty();d['schema']=1;d.pop('hourlyStartedAt')
-        for hours in ['absent',None,{}]:
-            fixture=copy.deepcopy(d)
-            if hours=='absent':fixture.pop('hours')
-            else:fixture['hours']=hours
-            self.run_case([dict(op='snapshot'),dict(op='hourly')],initial=fixture)
     def test_existing_document_rejection_and_date_codec_match_actual_decoder(self):
         base=self.empty();variants=[]
         for key,value in [('schema',3),('retentionDays',0),('hourlyStartedAt',None),('hours',{'000':dict(uses=0,successes=0,failures=0)}),('timings',{'private':dict(count=0,totalMS=0,maxMS=0,samples=[])}),('totalAttempts',1000000000001)]:

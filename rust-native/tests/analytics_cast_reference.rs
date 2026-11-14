@@ -64,6 +64,13 @@ fn compare_from(data: &str, case: &str) -> Value {
         .unwrap();
     let root = runtime_host::OwnedDir::new();
     fs::write(root.0.join(".ruycast-analytics-fixture"), b"").unwrap();
+    if let Some(initial) = entry.get("initial").filter(|v| !v.is_null()) {
+        fs::write(
+            root.0.join("analytics.json"),
+            serde_json::to_vec(initial).unwrap(),
+        )
+        .unwrap();
+    }
     let input = json!({"root":root.0,"now":entry.get("now").unwrap_or(&fixture["provenance"]["now"]),"zone":entry.get("zone").unwrap_or(&fixture["provenance"]["zone"]),"calendar":entry.get("calendar").unwrap_or(&fixture["provenance"]["calendar"]),"actions":entry["actions"]});
     let mut child = Command::new(env!("CARGO_BIN_EXE_analytics-probe"))
         .env_clear()
@@ -142,4 +149,24 @@ fn reference_comparison_preserves_numeric_boundaries() {
         &json!(9007199254740993u64),
         &json!(9007199254740992.0)
     ));
+}
+
+#[test]
+fn retention_utc_hours_and_calendar_days_across_dst() {
+    let data = include_str!("fixtures/analytics_retention_reference.json");
+    compare_from(data, "empty");
+    for date in ["2026-03-29T12:30:00+00:00", "2026-10-25T12:30:00+00:00"] {
+        for zone in ["Europe/Amsterdam", "America/New_York", "UTC"] {
+            let out = compare_from(data, &format!("retention_{date}_{zone}"));
+            assert_eq!(out["document"]["hours"].as_object().unwrap().len(), 2);
+        }
+    }
+}
+#[test]
+fn schema_one_missing_and_null_hours_are_upgraded() {
+    let data = include_str!("fixtures/analytics_retention_reference.json");
+    compare_from(data, "empty");
+    for variant in ["absent", "null", "empty"] {
+        compare_from(data, &format!("schema_one_{variant}"));
+    }
 }
