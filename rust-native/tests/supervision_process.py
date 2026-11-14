@@ -80,20 +80,6 @@ class Supervision(unittest.TestCase):
         result=self.probe(helper=self.fake('print("old runner",flush=True);time.sleep(.1)'),fault=True)
         self.assertIn('error',result);self.assertEqual((self.base/'wait-injected').read_text(),'injected')
 
-    def test_bad_ready_or_no_ready_never_receives_a_command(self):
-        for body in ['print("old runner",flush=True)','print(json.dumps({"scriptSupervisor":1,"ready":True}),flush=True)','time.sleep(1)']:
-            helper=self.fake(body)
-            self.assertIn('error',self.probe(helper=helper,deadlineMs=100))
-
-    def test_partial_malformed_and_wrong_exit_response_are_unknown(self):
-        ready='print(json.dumps({"scriptSupervisor":3,"ready":True}),flush=True);sys.stdin.readline()\n'
-        for body in ['print("partial",end="",flush=True)','print("not json",flush=True)', 'print(json.dumps({"ok":True,"scriptSupervisor":3,"response":{"ok":True}}),flush=True)', 'print(json.dumps({"ok":True,"scriptSupervisor":3,"response":{"ok":False,"error":"failure"}}),flush=True);raise SystemExit(7)']:
-            self.assertIn('error',self.probe(helper=self.fake(ready+body)))
-
-    def test_oversized_final_response_closes_output_and_reaps_helper(self):
-        body='print(json.dumps({"scriptSupervisor":3,"ready":True}),flush=True);sys.stdin.readline();os.write(1,b"x"*(3*1024*1024))'
-        self.assertIn('error',self.probe(helper=self.fake(body)))
-
     def test_parent_panic_closes_output_before_waiting_for_helper(self):
         marker=self.base/'helper-cleaned'
         committed=self.base/'helper-committed'

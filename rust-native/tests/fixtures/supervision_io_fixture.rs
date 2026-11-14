@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [mode] if mode == "__run-script-supervised" => helper_protocol(),
         [mode] if mode == "success" => println!("literal Ω"),
         [mode] if mode == "exit7" => {
             println!("out");
@@ -25,4 +26,59 @@ fn main() {
         }
         _ => panic!("Unknown owned supervision I/O fixture"),
     }
+}
+
+// Real subprocess endpoints for deliberately invalid helper protocol variants.
+fn helper_protocol() {
+    use std::io::BufRead;
+    let mode =
+        std::env::var("RUYCAST_SUPERVISION_HELPER_MODE").expect("Explicit owned helper mode");
+    match mode.as_str() {
+        "old-ready" => {
+            println!("old runner");
+            std::io::stdout().flush().unwrap();
+            return;
+        }
+        "old-version" => {
+            println!("{}", serde_json::json!({"scriptSupervisor":1,"ready":true}));
+            std::io::stdout().flush().unwrap();
+            return;
+        }
+        "no-ready" => {
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            return;
+        }
+        "partial" | "malformed" | "missing-capture" | "wrong-exit" | "oversized-final" => {}
+        _ => panic!("Unknown owned helper protocol mode"),
+    }
+    println!("{}", serde_json::json!({"scriptSupervisor":3,"ready":true}));
+    std::io::stdout().flush().unwrap();
+    let mut header = String::new();
+    std::io::stdin().lock().read_line(&mut header).unwrap();
+    match mode.as_str() {
+        "partial" => print!("partial"),
+        "malformed" => println!("not json"),
+        "missing-capture" => println!(
+            "{}",
+            serde_json::json!({"ok":true,"scriptSupervisor":3,"response":{"ok":true}})
+        ),
+        "wrong-exit" => {
+            println!(
+                "{}",
+                serde_json::json!({"ok":true,"scriptSupervisor":3,"response":{"ok":false,"error":"failure"}})
+            );
+            std::io::stdout().flush().unwrap();
+            std::process::exit(7);
+        }
+        "oversized-final" => {
+            if std::io::stdout()
+                .write_all(&vec![b'x'; 3 * 1024 * 1024])
+                .is_err()
+            {
+                std::process::exit(1);
+            }
+        }
+        _ => unreachable!(),
+    }
+    std::io::stdout().flush().unwrap();
 }
