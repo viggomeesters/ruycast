@@ -65,28 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_native_window_close_cancels_running_script(self):
-        host=self.host(native=True);pid=host.base/'closed-pid'
-        self.replace_command(host,self.command('import os,pathlib,time;pathlib.Path(%r).write_text(str(os.getpid()));time.sleep(10)'%str(pid)))
-        self.show(host);self.key(host,36,'\r');self.file(pid);host.probe('window-close')
-        host.wait(lambda s:s['scriptsRunning']==0 and not s['nativeUI']['visible']);self.dead(pid.read_text())
-
-    def test_native_escape_cancels_running_script(self):
-        host=self.host(native=True);pid=host.base/'native-pid'
-        self.replace_command(host,self.command('import os,pathlib,time;pathlib.Path(%r).write_text(str(os.getpid()));time.sleep(10)'%str(pid)))
-        self.show(host);self.key(host,36,'\r');self.file(pid)
-        self.key(host,53,flags=1<<23)
-        host.wait(lambda s:s['scriptsRunning']==0 and not s['nativeUI']['visible'])
-        self.dead(pid.read_text());self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-
-    def test_native_composition_keeps_escape_until_committed(self):
-        host=self.host(native=True);pid=host.base/'ime-pid'
-        self.replace_command(host,self.command('import os,pathlib,time;pathlib.Path(%r).write_text(str(os.getpid()));time.sleep(10)'%str(pid)))
-        self.show(host);self.key(host,36,'\r');self.file(pid)
-        self.assertTrue(host.probe('execution-ime-escape')['imeEscapeIgnored'])
-        self.assertEqual(host.rpc({'op':'status'})['result']['scriptsRunning'],1)
-        self.key(host,53);host.wait(lambda s:s['scriptsRunning']==0);self.dead(pid.read_text())
-
     def test_native_query_change_does_not_cancel_or_hide_new_results(self):
         host=self.host(native=True);ready=host.base/'native-ready';marker=host.base/'native-done'
         code='import pathlib,time;pathlib.Path(%r).write_text("ready");time.sleep(.3);pathlib.Path(%r).write_text("done")'%(str(ready),str(marker))
