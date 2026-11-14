@@ -1246,3 +1246,92 @@ fn alias_save_does_not_adopt_external_timeout_or_prompt() {
     );
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
+#[test]
+fn cancel_unpresented_child_preserves_live_ime_and_undo() {
+    let host = input_actions_fixture();
+    let before = fs::read(&host.config).unwrap();
+    key(&host, 40, "k", actions::CMD);
+    let menu = view(&host, |v| v["actionsVisible"] == true);
+    host.probe("defer-input-child", json!({"defer":true}));
+    let index = menu["actionLabels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|v| v == "Set Alias…")
+        .unwrap();
+    host.probe("action-button", json!({"index":index}));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(4);
+    while host.probe("defer-input-child", json!({"defer":true}))["pendingChild"] != true {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "owner did not publish deferred child"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    key(&host, 53, "", 0);
+    inline_type(&host, " continued");
+    host.probe("run-inline-mark", json!({"text":"日本"}));
+    let marked = actions::probe(&host, "run-inline-read");
+    assert_eq!(marked["marked"], true);
+    host.probe("defer-input-child", json!({"defer":false}));
+    input_action_resumed(&host);
+    let after = actions::probe(&host, "run-inline-read");
+    assert_eq!(after.get("text").unwrap(), marked.get("text").unwrap());
+    assert_eq!(
+        after.get("editorAddress").unwrap(),
+        marked.get("editorAddress").unwrap()
+    );
+    assert_eq!(after["marked"], true);
+    assert_eq!(after["canUndo"], true);
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn queued_child_save_cancel_resumes_without_publishing() {
+    let host = input_actions_fixture();
+    let before = fs::read(&host.config).unwrap();
+    input_action(&host, "Set Alias…");
+    let child = input_action_form(&host)["editorToken"].as_u64().unwrap();
+    host.probe("alias-input", json!({"text":"must-not-save"}));
+    actions::probe(&host, "schedule-save-cancel");
+    assert_eq!(host.rpc(&json!({"op":"native.delay"}))["ok"], true);
+    let state = input_action_resumed(&host);
+    assert!(state["editorToken"].as_u64().unwrap() > child);
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    inline_type(&host, " still typing");
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω still typing"
+    );
+}
+#[test]
+fn hiding_child_drops_suspended_input() {
+    let host = input_actions_fixture();
+    input_action(&host, "Set Alias…");
+    input_action_form(&host);
+    actions::probe(&host, "hide-palette");
+    host.settled(|s| s["nativeUI"]["visible"] == false);
+    actions::show(&host, "runfixture");
+    let state = actions::probe(&host, "read");
+    assert_eq!(state["windowShown"], false);
+    assert_eq!(state["runInputInline"], false);
+    assert_eq!(state["formVisible"], false);
+}
+#[test]
+fn settings_peer_preserves_primary_input() {
+    let host = input_actions_fixture();
+    let before = fs::read(&host.config).unwrap();
+    input_action(&host, "Settings");
+    input_action_resumed(&host);
+    host.wait(|s| s["managementUI"]["visible"] == true);
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
