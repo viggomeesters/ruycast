@@ -28,29 +28,6 @@ class Dashboard(unittest.TestCase):
             time.sleep(.02)
         self.fail(v)
     def click(self,h,index):h.probe('dashboard-control',index=index)
-    def test_standard_builtin_cli_native_sources_usage_logs_and_override(self):
-        from library_process import Palette
-        h=self.host();p=Palette(h)
-        rows=h.rpc(dict(op='search',query='dashboard'))['result'];self.assertEqual([r['id'] for r in rows],['builtin.dashboard'])
-        self.assertTrue(h.rpc(dict(op='execute',id='analytics',dryRun=True))['dryRun'])
-        self.assertTrue(h.rpc(dict(op='execute',id='analytics'))['ok']);h.settled(lambda s:s['managementUI']['tab']=='dashboard')
-        d=h.rpc(dict(op='analytics'))['result'];self.assertEqual(d['totalAttempts'],1);self.assertEqual(d['totalSuccesses'],1)
-        self.assertEqual(h.rpc(dict(op='usage'))['result']['builtin.dashboard'],1)
-        logs=h.rpc(dict(op='logs',limit=100))['result'];self.assertTrue(any(r['commandID']=='builtin.dashboard' and r['source']=='cli' and r['phase']=='command.finish' for r in logs))
-        h.rpc(dict(op='show',query='dashboard'));h.wait(lambda s:s['nativeUI']['visible']);p.probe('key-event',code=36,flags=0,chars='\r');h.settled(lambda s:s['managementUI']['tab']=='dashboard' and not s['nativeUI']['visible'])
-        self.assertEqual(h.rpc(dict(op='usage'))['result']['builtin.dashboard'],2)
-        d=h.rpc(dict(op='analytics'))['result'];self.assertEqual(d['totalAttempts'],2);self.assertEqual(d['totalSuccesses'],2)
-        c=json.loads(h.config.read_text());c['commands'].append(dict(id='own.dashboard',title='Own dashboard',kind='builtin',target='analytics',aliases=['myactivity'],enabled=False));h.replace(c);self.assertTrue(h.rpc(dict(op='reload'))['ok']);h.settled()
-        self.assertEqual(h.rpc(dict(op='search',query='dashboard'))['result'],[])
-        self.assertFalse(h.rpc(dict(op='execute',id='myactivity'))['ok'])
-    def test_builtin_input_validation_and_native_prompt_do_not_log_private_values(self):
-        from library_process import Palette
-        h=self.host();p=Palette(h);c=json.loads(h.config.read_text());c['commands'].append(dict(id='own.prompted-dashboard',title='Prompted analytics',kind='builtin',target='analytics',aliases=['promptactivity'],inputPrompt='Reason'));h.replace(c);self.assertTrue(h.rpc(dict(op='reload'))['ok']);h.settled()
-        self.assertTrue(h.rpc(dict(op='execute',id='promptactivity',dryRun=True))['dryRun'])
-        for values in [{},dict(input=' \n\t'),dict(input=2)]:self.assertFalse(h.rpc(dict(op='execute',id='promptactivity',values=values))['ok'])
-        self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],0)
-        h.rpc(dict(op='show',query='promptactivity'));h.wait(lambda s:s['nativeUI']['visible']);p.probe('key-event',code=36,flags=0,chars='\r');h.wait(lambda s:s['nativeUI']['editorOpen']);self.assertTrue(p.probe('read')['runInputInline']);self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],0)
-        p.probe('run-inline-type',text='PRIVATE dashboard reason');p.probe('key-event',code=36,flags=0,chars='\r');h.settled(lambda s:s['managementUI']['tab']=='dashboard' and not s['nativeUI']['visible']);self.assertEqual(h.rpc(dict(op='analytics'))['result']['totalAttempts'],1);self.assertNotIn('PRIVATE',json.dumps(h.rpc(dict(op='logs'))))
     def capture(self,h,name):
         v=h.probe('dashboard-screenshot')
         if folder:=os.environ.get('RUYCAST_NATIVE_EVIDENCE_DIR'):

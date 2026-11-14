@@ -75,6 +75,111 @@ fn entries(path: &std::path::Path) -> BTreeSet<std::ffi::OsString> {
         .collect()
 }
 #[test]
+fn standard_builtin_cli_native_sources_usage_logs_and_override() {
+    let h = host();
+    let rows = h.rpc(&json!({"op":"search","query":"dashboard"}))["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].clone())
+        .collect::<Vec<_>>();
+    assert_eq!(rows, vec![json!("builtin.dashboard")]);
+    assert_eq!(
+        h.rpc(&json!({"op":"execute","id":"analytics","dryRun":true}))["dryRun"],
+        true
+    );
+    assert_eq!(h.rpc(&json!({"op":"execute","id":"analytics"}))["ok"], true);
+    settled(&h, |s| s["managementUI"]["tab"] == "dashboard");
+    let d = h.rpc(&json!({"op":"analytics"}))["result"].clone();
+    assert_eq!(d["totalAttempts"], 1);
+    assert_eq!(d["totalSuccesses"], 1);
+    assert_eq!(
+        h.rpc(&json!({"op":"usage"}))["result"]["builtin.dashboard"],
+        1
+    );
+    let logs = h.rpc(&json!({"op":"logs","limit":100}))["result"].clone();
+    assert!(logs
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|r| r["commandID"] == "builtin.dashboard"
+            && r["source"] == "cli"
+            && r["phase"] == "command.finish"));
+    h.rpc(&json!({"op":"show","query":"dashboard"}));
+    h.wait(|s| s["nativeUI"]["visible"] == true);
+    h.probe("key-event", json!({"code":36,"flags":0,"chars":"\r"}));
+    settled(&h, |s| {
+        s["managementUI"]["tab"] == "dashboard" && s["nativeUI"]["visible"] == false
+    });
+    assert_eq!(
+        h.rpc(&json!({"op":"usage"}))["result"]["builtin.dashboard"],
+        2
+    );
+    let d = h.rpc(&json!({"op":"analytics"}))["result"].clone();
+    assert_eq!(d["totalAttempts"], 2);
+    assert_eq!(d["totalSuccesses"], 2);
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    cfg["commands"].as_array_mut().unwrap().push(json!({"id":"own.dashboard","title":"Own dashboard","kind":"builtin","target":"analytics","aliases":["myactivity"],"enabled":false}));
+    h.replace(&cfg, None);
+    assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+    settled(&h, |_| true);
+    assert_eq!(
+        h.rpc(&json!({"op":"search","query":"dashboard"}))["result"],
+        json!([])
+    );
+    assert_eq!(
+        h.rpc(&json!({"op":"execute","id":"myactivity"}))["ok"],
+        false
+    );
+}
+#[test]
+fn builtin_input_validation_and_native_prompt_do_not_log_private_values() {
+    let h = host();
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    cfg["commands"].as_array_mut().unwrap().push(json!({"id":"own.prompted-dashboard","title":"Prompted analytics","kind":"builtin","target":"analytics","aliases":["promptactivity"],"inputPrompt":"Reason"}));
+    h.replace(&cfg, None);
+    assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
+    settled(&h, |_| true);
+    assert_eq!(
+        h.rpc(&json!({"op":"execute","id":"promptactivity","dryRun":true}))["dryRun"],
+        true
+    );
+    for values in [json!({}), json!({"input":" \n\t"}), json!({"input":2})] {
+        assert_eq!(
+            h.rpc(&json!({"op":"execute","id":"promptactivity","values":values}))["ok"],
+            false
+        );
+    }
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"],
+        0
+    );
+    h.rpc(&json!({"op":"show","query":"promptactivity"}));
+    h.wait(|s| s["nativeUI"]["visible"] == true);
+    h.probe("key-event", json!({"code":36,"flags":0,"chars":"\r"}));
+    h.wait(|s| s["nativeUI"]["editorOpen"] == true);
+    assert_eq!(h.probe("read", json!({}))["runInputInline"], true);
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"],
+        0
+    );
+    h.probe(
+        "run-inline-type",
+        json!({"text":"PRIVATE dashboard reason"}),
+    );
+    h.probe("key-event", json!({"code":36,"flags":0,"chars":"\r"}));
+    settled(&h, |s| {
+        s["managementUI"]["tab"] == "dashboard" && s["nativeUI"]["visible"] == false
+    });
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["totalAttempts"],
+        1
+    );
+    assert!(!serde_json::to_string(&h.rpc(&json!({"op":"logs"})))
+        .unwrap()
+        .contains("PRIVATE"));
+}
+#[test]
 fn management_routing_controls_custom_retention_and_reset() {
     let h = host();
     let v = open(&h);
