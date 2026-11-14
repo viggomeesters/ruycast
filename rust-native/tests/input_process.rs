@@ -773,3 +773,81 @@ fn inline_menu_clicked_expand_and_cancel() {
     inline_closed(&host);
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
+fn delayed_inline(host: &Bridge, fields: Value) {
+    use std::io::{BufRead, Write};
+    host.probe("schedule-inline-control", fields);
+    let mut stream = host.connect(std::time::Duration::from_secs(4));
+    stream.write_all(b"{\"op\":\"native.delay\"}\n").unwrap();
+    wait_exists(&host.profile.join("inline-control-fired"));
+    let mut line = String::new();
+    std::io::BufReader::new(stream)
+        .read_line(&mut line)
+        .unwrap();
+    let result: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(result["result"]["newIntentDuringDelay"], true);
+    host.settled(|_| true);
+}
+#[test]
+fn pending_menu_cancel_keeps_inline_input_and_typing() {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "menu pending");
+    let initial = actions::probe(&host, "run-inline-read");
+    let token = initial.get("token").unwrap().clone();
+    delayed_inline(&host, json!({"operation":"menu","cancel":true}));
+    assert_eq!(actions::probe(&host, "read")["runInputInline"], true);
+    assert_eq!(actions::probe(&host, "read")["actionsVisible"], false);
+    let state = actions::probe(&host, "run-inline-read");
+    assert_eq!(state["text"], "menu pending continued");
+    assert_eq!(state.get("token").unwrap(), &token);
+    inline_type(&host, " now");
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn expired_expand_releases_inline_input_without_losing_text() {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "expired expand");
+    delayed_inline(&host, json!({"operation":"expand","expire":true}));
+    view(&host, |v| actions::text_contains(v, "expired"));
+    assert_eq!(actions::probe(&host, "read")["runInputInline"], true);
+    assert_eq!(actions::probe(&host, "read")["formVisible"], false);
+    let state = actions::probe(&host, "run-inline-read");
+    assert_eq!(state["pending"], false);
+    assert_eq!(state["text"], "expired expand");
+    inline_type(&host, " retained");
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn empty_menu_run_restores_direct_typing() {
+    let host = host();
+    inline_open(&host, false);
+    key(&host, 40, "k", actions::CMD);
+    view(&host, |v| v["actionsVisible"] == true);
+    host.probe("action-button", json!({"index":0}));
+    view(&host, |v| {
+        v["actionsVisible"] == false && actions::text_contains(v, "Enter Message")
+    });
+    inline_type(&host, "repaired");
+    assert_eq!(actions::probe(&host, "run-inline-read")["text"], "repaired");
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn native_expand_selectors_preserve_text_without_executing() {
+    let host = host();
+    for selector in ["line-break", "newline-ignore"] {
+        inline_open(&host, false);
+        inline_type(&host, "selector value");
+        host.probe("run-inline-selector", json!({"selector":selector}));
+        view(&host, |v| {
+            v["formVisible"] == true && v["runInputInline"] == false
+        });
+        assert_eq!(
+            actions::probe(&host, "run-input-read")["text"],
+            "selector value"
+        );
+        actions::probe(&host, "cancel-editor");
+        inline_closed(&host);
+    }
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
