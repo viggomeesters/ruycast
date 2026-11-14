@@ -162,7 +162,6 @@ capture-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 capture-bytes-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_bytes_process --locked
 capture-cli-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_cli_process --locked
 rich-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test rich_process --locked
-rich-process|p|rust-native/tests/rich_process.py
 clipboard-import-parser|p|Tests/test_clipboard_import.py
 benchmark-contract-1|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_ignores_external_configuration_with_500_commands -- --ignored --exact
 benchmark-contract-2|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_rejects_changed_cli_and_quits_gracefully -- --ignored --exact
@@ -1784,7 +1783,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 133);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
@@ -1942,7 +1941,7 @@ mod tests {
             "system-search-sdk",
             "native-choice-host-process",
             "capture-process",
-            "rich-process",
+            "rich-process-rust",
             "unit",
             "core-unit",
             "clippy",
