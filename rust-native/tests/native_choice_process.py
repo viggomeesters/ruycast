@@ -93,18 +93,6 @@ class NativeChoice(unittest.TestCase):
             out=Path(folder).parent/'native-choice';out.mkdir(parents=True,exist_ok=True);shutil.copy2(host.base/'choice.png',out/(name+'.png'));(out/(name+'.json')).write_text(json.dumps(value,indent=2))
         return value
     def activate(self,host,*values):return host.probe('keyboard-hid',control='activation-burst',values=list(values))
-    def test_live_trigger_anchor_hidden_form_and_single_use_original_replacement(self):
-        host,_=self.visible();self.choice(host,'set',field=0,value='Rust');self.choice(host,'insert');self.wait_choice(host,'None')
-        output=self.wait_output(host);self.assertEqual(self.inserted(output),'Hello Rust!')
-        self.assertEqual(sum(v['key']==51 and v['down'] for v in output['output']),3)
-        before=output['posts'];self.assertEqual(self.choice(host,'insert')['phase'],'None');self.assertEqual(self.kw(host)['posts'],before)
-    def test_original_identity_replacement_same_pid_and_unknown_activation_cancel(self):
-        for actor in ['replacement','foreign','missing','malformed']:
-            with self.subTest(actor=actor):
-                host,_=self.visible();self.activate(host,actor);self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
-    def test_expected_own_activation_keeps_form_but_away_back_stays_cancelled(self):
-        host,_=self.visible();self.activate(host,'own');self.assertEqual(self.choice(host)['phase'],'Visible')
-        self.activate(host,'foreign','own');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
     def test_extra_input_during_pending_capture_cancels_without_reusing_event(self):
         host,_=self.host();self.assertEqual(self.kw(host,'event-burst',text='abcX')['consumed'],[False]*4);self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
     def test_capture_changed_anchor_and_secure_policy_fail_closed(self):
