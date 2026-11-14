@@ -90,6 +90,7 @@ hid-process|p|rust-native/tests/hid_process.py
 manager-probe-build|b|manager-probe tools
 manager-workspace-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example workspace-fixture --locked
 manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test manager_process --locked
+cli-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test cli_open_basic_process --locked
 cli-open-process|p|rust-native/tests/cli_open_process.py
 supervision-process|p|rust-native/tests/supervision_process.py
 script-fault-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example script-fault-shim --locked
@@ -1784,7 +1785,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 134);
+        assert_eq!(steps.len(), 135);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
