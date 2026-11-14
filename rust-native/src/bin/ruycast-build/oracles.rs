@@ -518,7 +518,7 @@ const SETTINGS: &[SettingsGate] = &[
         "native_keyboard_process::pending_recorder_consumes_save_keys_and_cancels_during_positive_physical_hold",
         "ui_completion::item_binding_original",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-browser-tabs", original_source:"Sources/RuycastApp/BrowserTabChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk"], native_cases:&[
+    SettingsGate { id:"--check-browser-tabs", original_source:"Sources/RuycastApp/BrowserTabChecks.swift", required_native_steps:&["unit","system-search-process","system-search-cli-process","system-search-sdk"], native_cases:&[
         "system_search::tests::safari_position_snapshot_never_falls_back_to_matching_title_or_url",
         "system_search::tests::safari_original_snapshot_mutations_fail_before_the_next_effect",
         "system_search::tests::safari_selection_mismatch_stops_before_foreground_effect",
@@ -546,9 +546,9 @@ const SETTINGS: &[SettingsGate] = &[
         "runtime::system::shortcut_budget_tests::held_denied_consent_refreshes_local_results_once_without_granting_access",
         "system_search_sdk::browser_original_native_return_and_forty_eight_hidden_variants_are_owned",
         "system_search_sdk::direct_sdk_transport_is_fully_owned",
-        "system_search_process.SystemSearch.test_cli_real_provider_routes_metadata_order_and_exact_effects",
+        "system_search_cli_process::cli_real_provider_routes_metadata_order_and_exact_effects",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-apple-shortcuts", original_source:"Sources/RuycastApp/AppleShortcutChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk","private-results-process","script-process","script-result-process","script-result-native-process"], native_cases:&[
+    SettingsGate { id:"--check-apple-shortcuts", original_source:"Sources/RuycastApp/AppleShortcutChecks.swift", required_native_steps:&["unit","system-search-process","system-search-cli-process","system-search-sdk","private-results-process","script-process","script-result-process","script-result-native-process"], native_cases:&[
         "system_search::tests::shortcut_uuid_parser_overrides_and_execution_tuple_are_exact",
         "system_search::tests::owned_shortcut_children_drain_both_pipes_and_never_wait_for_inherited_eof",
         "system_search::tests::generated_uuid_and_builtin_bindings_persist_without_resurrecting_deleted_saved_rows",
@@ -556,11 +556,11 @@ const SETTINGS: &[SettingsGate] = &[
         "system_search::apple_shortcuts::tests::workflow_output_and_private_failures_never_become_ui_or_public_error_data",
         "system_search::apple_shortcuts::tests::elapsed_capture_deadline_reports_unknown_result_without_reinterpreting_output",
         "system_search_sdk::shortcuts_original_native_return_and_twenty_four_hidden_states_keep_uuid_identity",
-        "system_search_process.SystemSearch.test_cli_shortcut_uuid_duplicate_titles_bindings_and_private_output",
+        "system_search_cli_process::cli_shortcut_uuid_duplicate_titles_bindings_and_private_output",
         "system_search_process.SystemSearch.test_native_shortcut_alias_override_and_reopen",
         "script_result_basic_process::cli_preserves_choices_detail_unknown_fields_and_success_usage",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-window-search", original_source:"Sources/RuycastApp/WindowSearchChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk"], native_cases:&[
+    SettingsGate { id:"--check-window-search", original_source:"Sources/RuycastApp/WindowSearchChecks.swift", required_native_steps:&["unit","system-search-process","system-search-cli-process","system-search-sdk"], native_cases:&[
         "system_search::tests::window_identity_duplicate_titles_and_minimized_restore_are_exact",
         "system_search::tests::window_post_activation_pid_role_title_membership_and_restore_state_are_rechecked",
         "system_search::tests::window_unknown_minimized_untitled_and_old_snapshot_metadata_are_preserved",
@@ -578,9 +578,9 @@ const SETTINGS: &[SettingsGate] = &[
         "runtime::system::shortcut_budget_tests::ax_request_budget_windows_delivers_original_internal_partial_results",
         "system_search_sdk::window_original_native_return_and_twenty_four_hidden_states_preserve_durable_choices",
         "system_search_sdk::direct_sdk_transport_is_fully_owned",
-        "system_search_process.SystemSearch.test_cli_real_provider_routes_metadata_order_and_exact_effects",
+        "system_search_cli_process::cli_real_provider_routes_metadata_order_and_exact_effects",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-menu-actions", original_source:"Sources/RuycastApp/MenuActionChecks.swift", required_native_steps:&["unit","system-search-process","system-search-sdk"], native_cases:&[
+    SettingsGate { id:"--check-menu-actions", original_source:"Sources/RuycastApp/MenuActionChecks.swift", required_native_steps:&["unit","system-search-process","system-search-cli-process","system-search-sdk"], native_cases:&[
         "system_search::tests::app_shortcuts_decode_without_registering_launcher_hotkeys",
         "system_search::tests::menus_disabled_unknown_original_app_and_shortcut_rebuild_fail_closed",
         "system_search::tests::detached_menu_path_is_never_replaced_by_a_same_title_item",
@@ -602,7 +602,7 @@ const SETTINGS: &[SettingsGate] = &[
         "runtime::system::shortcut_budget_tests::ax_request_budget_menu_identity_does_not_spend_private_traversal_clock",
         "system_search_sdk::menu_original_native_return_and_twenty_four_hidden_states_preserve_captured_actions",
         "system_search_sdk::direct_sdk_transport_is_fully_owned",
-        "system_search_process.SystemSearch.test_cli_real_provider_routes_metadata_order_and_exact_effects",
+        "system_search_cli_process::cli_real_provider_routes_metadata_order_and_exact_effects",
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-render-updates", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["render-updates-process"], native_cases:&[
         "ui_completion::render_updates",
@@ -811,7 +811,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "0cf0eb9765919ea4142fe4436df347a9ed7215663dfa699d218a970e39c1569c"),
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "3fd6aa6c6a3c8321dde7a9f4b85a01045e18aad1e0bfeea89d2a9d5d0f935409"),
-            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "7b1e791169131c1031782b9a2f5714199f69bf365be8850fe9701234b2dd325e"),
+            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "4450947810183eaa4886309bcdd60d907a283902a625a0703c123602c3741f80"),
             ("Sources/RuycastApp/SystemChecks.swift", include_bytes!("../../../../Sources/RuycastApp/SystemChecks.swift"), "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"),
         ],
 
@@ -947,6 +947,10 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("Sources/RuycastApp/RichResourceChecks.swift", include_bytes!("../../../../Sources/RuycastApp/RichResourceChecks.swift"), "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda"),
         ],
         "--check-menu-actions" => &[
+            ("rust-native/tests/system_search_cli_process.rs", include_bytes!("../../../tests/system_search_cli_process.rs"), "13f1e11116d08da56b31bbed83f4dadd5f969631afd72657134a465bb1c991d3"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "0cf0eb9765919ea4142fe4436df347a9ed7215663dfa699d218a970e39c1569c"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "fd42e39f7784f426e34806f43a8a2d7cef46413d26684d5cd6d5cd444c1759b7"),
@@ -965,7 +969,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/main_bridge.rs", include_bytes!("../../system_search/main_bridge.rs"), "d0267d4a14fbefc08a7c17a50c4e1f9872abb11fe414fe32f7507274552c908e"),
             ("rust-native/src/bin/system_search_probe.rs", include_bytes!("../../bin/system_search_probe.rs"), "091b06e8231011aab0b057b5c9f347bbbb531ac7e2b87e50ba92cabf1292c585"),
             ("rust-native/tests/system_search_sdk.rs", include_bytes!("../../../tests/system_search_sdk.rs"), "4232a21e7d0cd38ba0f43bf58fa289a336475985820644448b0dbdfc909afd55"),
-            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "7b1e791169131c1031782b9a2f5714199f69bf365be8850fe9701234b2dd325e"),
+            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "4450947810183eaa4886309bcdd60d907a283902a625a0703c123602c3741f80"),
             ("rust-native/tests/fixtures/system_nodes.rs", include_bytes!("../../../tests/fixtures/system_nodes.rs"), "a47bb7e0a8dea4524b09cc867655e1eb9c41791144f2a2c0172fbc3416252900"),
             ("rust-native/tests/fixtures/system_effects.rs", include_bytes!("../../../tests/fixtures/system_effects.rs"), "146408327fa184d10129d0a3f1fc6032079cf09d8e98fe313444150f72090f7d"),
             ("rust-native/tests/fixtures/system_apps.rs", include_bytes!("../../../tests/fixtures/system_apps.rs"), "6b32b83ad723be97e1d237dcc29bbfcc49a6d7bc533d3847dbafcbe70a48965e"),
@@ -982,6 +986,10 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("Sources/RuycastApp/MenuActionChecks.swift", include_bytes!("../../../../Sources/RuycastApp/MenuActionChecks.swift"), "41d224340e00d1970fb953aad90c3c4a539e6af84634b1aa04b90972c166f1ed"),
         ],
         "--check-window-search" => &[
+            ("rust-native/tests/system_search_cli_process.rs", include_bytes!("../../../tests/system_search_cli_process.rs"), "13f1e11116d08da56b31bbed83f4dadd5f969631afd72657134a465bb1c991d3"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "0cf0eb9765919ea4142fe4436df347a9ed7215663dfa699d218a970e39c1569c"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "fd42e39f7784f426e34806f43a8a2d7cef46413d26684d5cd6d5cd444c1759b7"),
@@ -1000,7 +1008,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/main_bridge.rs", include_bytes!("../../system_search/main_bridge.rs"), "d0267d4a14fbefc08a7c17a50c4e1f9872abb11fe414fe32f7507274552c908e"),
             ("rust-native/src/bin/system_search_probe.rs", include_bytes!("../../bin/system_search_probe.rs"), "091b06e8231011aab0b057b5c9f347bbbb531ac7e2b87e50ba92cabf1292c585"),
             ("rust-native/tests/system_search_sdk.rs", include_bytes!("../../../tests/system_search_sdk.rs"), "4232a21e7d0cd38ba0f43bf58fa289a336475985820644448b0dbdfc909afd55"),
-            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "7b1e791169131c1031782b9a2f5714199f69bf365be8850fe9701234b2dd325e"),
+            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "4450947810183eaa4886309bcdd60d907a283902a625a0703c123602c3741f80"),
             ("rust-native/tests/fixtures/system_nodes.rs", include_bytes!("../../../tests/fixtures/system_nodes.rs"), "a47bb7e0a8dea4524b09cc867655e1eb9c41791144f2a2c0172fbc3416252900"),
             ("rust-native/tests/fixtures/system_effects.rs", include_bytes!("../../../tests/fixtures/system_effects.rs"), "146408327fa184d10129d0a3f1fc6032079cf09d8e98fe313444150f72090f7d"),
             ("rust-native/tests/fixtures/system_apps.rs", include_bytes!("../../../tests/fixtures/system_apps.rs"), "6b32b83ad723be97e1d237dcc29bbfcc49a6d7bc533d3847dbafcbe70a48965e"),
@@ -1013,6 +1021,10 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("Sources/RuycastApp/WindowSearchChecks.swift", include_bytes!("../../../../Sources/RuycastApp/WindowSearchChecks.swift"), "cae0f60d635d6aa5af41d8fe8ecc9bc8102c28e49e2aec87a7e53462829ddf7f"),
         ],
         "--check-apple-shortcuts" => &[
+            ("rust-native/tests/system_search_cli_process.rs", include_bytes!("../../../tests/system_search_cli_process.rs"), "13f1e11116d08da56b31bbed83f4dadd5f969631afd72657134a465bb1c991d3"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "0cf0eb9765919ea4142fe4436df347a9ed7215663dfa699d218a970e39c1569c"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "fd42e39f7784f426e34806f43a8a2d7cef46413d26684d5cd6d5cd444c1759b7"),
@@ -1031,7 +1043,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/main_bridge.rs", include_bytes!("../../system_search/main_bridge.rs"), "d0267d4a14fbefc08a7c17a50c4e1f9872abb11fe414fe32f7507274552c908e"),
             ("rust-native/src/bin/system_search_probe.rs", include_bytes!("../../bin/system_search_probe.rs"), "091b06e8231011aab0b057b5c9f347bbbb531ac7e2b87e50ba92cabf1292c585"),
             ("rust-native/tests/system_search_sdk.rs", include_bytes!("../../../tests/system_search_sdk.rs"), "4232a21e7d0cd38ba0f43bf58fa289a336475985820644448b0dbdfc909afd55"),
-            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "7b1e791169131c1031782b9a2f5714199f69bf365be8850fe9701234b2dd325e"),
+            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "4450947810183eaa4886309bcdd60d907a283902a625a0703c123602c3741f80"),
             ("rust-native/tests/fixtures/system_nodes.rs", include_bytes!("../../../tests/fixtures/system_nodes.rs"), "a47bb7e0a8dea4524b09cc867655e1eb9c41791144f2a2c0172fbc3416252900"),
             ("rust-native/tests/fixtures/system_effects.rs", include_bytes!("../../../tests/fixtures/system_effects.rs"), "146408327fa184d10129d0a3f1fc6032079cf09d8e98fe313444150f72090f7d"),
             ("rust-native/tests/fixtures/system_apps.rs", include_bytes!("../../../tests/fixtures/system_apps.rs"), "6b32b83ad723be97e1d237dcc29bbfcc49a6d7bc533d3847dbafcbe70a48965e"),
@@ -1072,6 +1084,10 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("Sources/RuycastApp/InteractionChecks.swift", include_bytes!("../../../../Sources/RuycastApp/InteractionChecks.swift"), "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"),
         ],
         "--check-browser-tabs" => &[
+            ("rust-native/tests/system_search_cli_process.rs", include_bytes!("../../../tests/system_search_cli_process.rs"), "13f1e11116d08da56b31bbed83f4dadd5f969631afd72657134a465bb1c991d3"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "0cf0eb9765919ea4142fe4436df347a9ed7215663dfa699d218a970e39c1569c"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "fd42e39f7784f426e34806f43a8a2d7cef46413d26684d5cd6d5cd444c1759b7"),
@@ -1087,7 +1103,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/native.rs", include_bytes!("../../system_search/native.rs"), "d4be9915ab842a74652001bed1c7f7b363c72d5b94ca1dcac3e1db41652ea750"),
             ("rust-native/src/bin/system_search_probe.rs", include_bytes!("../../bin/system_search_probe.rs"), "091b06e8231011aab0b057b5c9f347bbbb531ac7e2b87e50ba92cabf1292c585"),
             ("rust-native/tests/system_search_sdk.rs", include_bytes!("../../../tests/system_search_sdk.rs"), "4232a21e7d0cd38ba0f43bf58fa289a336475985820644448b0dbdfc909afd55"),
-            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "7b1e791169131c1031782b9a2f5714199f69bf365be8850fe9701234b2dd325e"),
+            ("rust-native/tests/system_search_process.py", include_bytes!("../../../tests/system_search_process.py"), "4450947810183eaa4886309bcdd60d907a283902a625a0703c123602c3741f80"),
             ("rust-native/tests/fixtures/system_nodes.rs", include_bytes!("../../../tests/fixtures/system_nodes.rs"), "a47bb7e0a8dea4524b09cc867655e1eb9c41791144f2a2c0172fbc3416252900"),
             ("rust-native/tests/fixtures/system_effects.rs", include_bytes!("../../../tests/fixtures/system_effects.rs"), "146408327fa184d10129d0a3f1fc6032079cf09d8e98fe313444150f72090f7d"),
             ("rust-native/tests/fixtures/system_apps.rs", include_bytes!("../../../tests/fixtures/system_apps.rs"), "6b32b83ad723be97e1d237dcc29bbfcc49a6d7bc533d3847dbafcbe70a48965e"),
@@ -2097,6 +2113,7 @@ mod tests {
                 "system_search_process.",
                 include_str!("../../../tests/system_search_process.py"),
             ),
+            ("system_search_cli_process::", include_str!("../../../tests/system_search_cli_process.rs")),
             (
                 "runtime::inline_tests::",
                 include_str!("../../runtime_private_tests.rs"),
@@ -2125,8 +2142,8 @@ mod tests {
         for (id, expected_steps, expected_sources) in [
             (
                 "--check-browser-tabs",
-                &["unit", "system-search-process", "system-search-sdk"][..],
-                26,
+                &["unit", "system-search-process", "system-search-cli-process", "system-search-sdk"][..],
+                30,
             ),
             (
                 "--check-performance-pipeline",
@@ -2167,12 +2184,13 @@ mod tests {
             ("runtime::system::shortcut_budget_tests::", "rust-native/src/runtime_system.rs"),
             ("system_search_sdk::", "rust-native/tests/system_search_sdk.rs"),
             ("system_search_process.", "rust-native/tests/system_search_process.py"),
+            ("system_search_cli_process::", "rust-native/tests/system_search_cli_process.rs"),
             ("script_result_basic_process::", "rust-native/tests/script_result_basic_process.rs"),
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
         ];
         for (id, steps, case_count, source_count) in [
-            ("--check-window-search", &["unit", "system-search-process", "system-search-sdk"][..], 18, 29),
-            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 41),
+            ("--check-window-search", &["unit", "system-search-process", "system-search-cli-process", "system-search-sdk"][..], 18, 33),
+            ("--check-apple-shortcuts", &["unit", "system-search-process", "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 45),
             ("--check-render-updates", &["render-updates-process"][..], 1, 14),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
@@ -2200,19 +2218,20 @@ mod tests {
     #[test]
     fn menu_map_preserves_original_cases_required_routes_and_source_inputs() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-menu-actions").unwrap();
-        assert_eq!(gate.required_native_steps, &["unit", "system-search-process", "system-search-sdk"]);
+        assert_eq!(gate.required_native_steps, &["unit", "system-search-process", "system-search-cli-process", "system-search-sdk"]);
         assert_eq!(gate.native_cases.len(), 22);
         assert!(gate.unproven_invariants.is_empty());
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 33);
+        assert_eq!(inputs.len(), 37);
         assert!(inputs.iter().any(|(path, _, _)| *path == gate.original_source));
-        assert_eq!(inputs.iter().map(|(path, _, _)| *path).collect::<std::collections::BTreeSet<_>>().len(), 33);
+        assert_eq!(inputs.iter().map(|(path, _, _)| *path).collect::<std::collections::BTreeSet<_>>().len(), 37);
         let sources = [
             ("system_search::tests::", "rust-native/src/system_search/tests.rs"),
             ("system_search::native::tests::", "rust-native/src/system_search/native.rs"),
             ("runtime::system::shortcut_budget_tests::", "rust-native/src/runtime_system.rs"),
             ("system_search_sdk::", "rust-native/tests/system_search_sdk.rs"),
             ("system_search_process.", "rust-native/tests/system_search_process.py"),
+            ("system_search_cli_process::", "rust-native/tests/system_search_cli_process.rs"),
         ];
         for case in gate.native_cases {
             let (prefix, path) = sources.iter().find(|(prefix, _)| case.starts_with(*prefix)).unwrap();
@@ -2270,6 +2289,7 @@ mod tests {
             ("system_actions::tests::", "rust-native/src/system_actions.rs"),
             ("file_search::tests::", "rust-native/src/file_search.rs"),
             ("system_search_process.", "rust-native/tests/system_search_process.py"),
+            ("system_search_cli_process::", "rust-native/tests/system_search_cli_process.rs"),
             ("input_actions_process.", "rust-native/tests/input_actions_process.py"),
             ("native_edit::", "rust-native/src/native_edit.rs"),
             ("native_snippet_choice_process.", "rust-native/tests/native_snippet_choice_process.py"),

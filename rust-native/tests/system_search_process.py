@@ -47,31 +47,6 @@ class SystemSearch(unittest.TestCase):
         shutil.copy2(h.profile/'native-probe.png',OUT/(name+'.png'))
         v=h.probe('read');(OUT/(name+'.json')).write_text(json.dumps(v,ensure_ascii=False,indent=2))
         return v
-    def test_cli_real_provider_routes_metadata_order_and_exact_effects(self):
-        h=self.host()
-        initial=self.fixture(h);self.assertEqual(initial['reads'],0)
-        main=self.search(h,q='owned')['result'];self.assertTrue(main[0]['id'].startswith('system.tab:root.'))
-        self.assertEqual(main[1]['id'],'fixture.alias') # Deferred issue83 stays deferred.
-        self.assertFalse(any(c['id'].startswith('system.window:') for c in main))
-        tabs=self.search(h,'tabs','invalid')['result'];self.assertEqual(tabs[0]['tab']['url'],'https://example.invalid/owned')
-        self.assertFalse(tabs[0]['id'].startswith('system.tab:root.'))
-        windows=self.search(h,'windows')['result'];self.assertEqual(len(windows),2);self.assertTrue(windows[1]['window']['minimized'])
-        self.assertTrue(h.rpc(dict(op='execute',id=windows[1]['id']))['ok']);self.assertEqual(self.effects(h),['activate','restore','AXRaise'])
-        self.fixture(h,'clear-effects');menus=self.search(h,'menus');row=menus['result'][0]
-        self.assertEqual(row['menu']['shortcut']['label'],'Command + O');self.assertNotIn('hotkey',row)
-        self.assertFalse(h.rpc(dict(op='execute',id=row['id']))['ok']);self.assertEqual(self.effects(h),[])
-        self.assertTrue(h.rpc(dict(op='execute',id=row['id'],foreground=menus['foreground']))['ok']);self.assertEqual(self.effects(h),['activate','AXPress'])
-        self.fixture(h,'clear-effects');self.fixture(h,'rename-window')
-        self.assertFalse(h.rpc(dict(op='execute',id=windows[0]['id']))['ok']);self.assertEqual(self.effects(h),[])
-        self.assertTrue(h.rpc(dict(op='execute',id=tabs[0]['id']))['ok']);self.assertEqual(self.effects(h),['select-tab','front-window','activate'])
-        usage=h.rpc(dict(op='usage'))['result'];self.assertEqual(usage,{})
-    def test_cli_shortcut_uuid_duplicate_titles_bindings_and_private_output(self):
-        h=self.host();rows=self.search(h,'shortcuts')['result'];self.assertEqual(len(rows),2);self.assertEqual(rows[0]['title'],rows[1]['title']);self.assertNotEqual(rows[0]['id'],rows[1]['id'])
-        config=json.loads(h.config.read_text());saved=copy.deepcopy(rows[1]);saved.update(aliases=['uuidalias'],hotkey='cmd+alt+w');config['commands'].append(saved);h.replace(config);h.rpc(dict(op='reload'))
-        match=self.search(h,'shortcuts','uuidalias')['result'];self.assertEqual(match[0]['id'],saved['id']);self.assertEqual(match[0]['hotkey'],saved['hotkey'])
-        self.assertTrue(h.rpc(dict(op='execute',id='uuidalias'))['ok']);self.assertEqual(self.effects(h),['shortcut:11111111-2222-3333-4444-555555555555'])
-        saved['enabled']=False;config['commands'][-1]=saved;h.replace(config);h.rpc(dict(op='reload'));self.assertEqual(self.search(h,'shortcuts','uuidalias')['result'],[])
-        self.assertFalse(h.rpc(dict(op='execute',id='uuidalias'))['ok'])
     def test_native_modes_return_and_hidden_renders(self):
         for theme in ['light','dark']:
             for width in [600,760]:
