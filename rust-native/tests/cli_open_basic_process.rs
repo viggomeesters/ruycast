@@ -452,3 +452,17 @@ fn config_change_during_main_capture_retires_old_origin() {
     assert!(opens(&h).is_empty());
     assert_eq!(h.cli(&["run", "fixture.open"])["ok"], true);
 }
+
+#[test]
+fn small_execute_packet_can_open_expanded_output_above_one_mib() {
+    let h = host(command("url", "https://example.invalid/{x}{x}"));
+    let value = h.rpc_timeout(
+        &json!({"op":"execute","id":"fixture.open","values":{"x":"a".repeat(600_000)}}),
+        Duration::from_secs(10),
+    );
+    assert_eq!(value["ok"], true, "{value}");
+    assert_eq!(
+        opens(&h)[0]["url"],
+        format!("https://example.invalid/{}", "a".repeat(1_200_000))
+    );
+}
