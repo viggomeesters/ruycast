@@ -394,6 +394,7 @@ rust-native/tests/keyword_notification.rs
 rust-native/tests/keyword_process.rs
 rust-native/tests/keyword_reference.json
 rust-native/tests/keyword_rich_process.py
+rust-native/tests/keyword_rich_process.rs
 rust-native/tests/fixtures/keyword_core.rs
 rust-native/tests/fixtures/keyword_ax.rs
 rust-native/tests/fixtures/keyword_events.rs
@@ -517,6 +518,7 @@ rust-native/tests/support/status_rpc.rs
 rust-native/tests/support/runtime_host.rs
 rust-native/tests/support/native_bridge.rs
 rust-native/tests/support/native_actions.rs
+rust-native/tests/support/keyword_capture.rs
 rust-native/tests/support/native_editor.rs
 rust-native/tests/support/capture_holder.rs
 rust-native/tests/support/native_keyboard.rs

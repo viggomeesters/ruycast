@@ -78,6 +78,7 @@ keyword-native-process|c|test --manifest-path rust-native/Cargo.toml --features 
 workspace-activation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test workspace_activation_process --locked
 keyword-capture-probe-build|b|keyword-capture-probe tools
 keyword-capture-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_capture_process --locked
+keyword-rich-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test keyword_rich_process --locked
 keyword-rich-process|p|rust-native/tests/keyword_rich_process.py
 keyboard-probe-build|b|keyboard-probe tools
 keyboard-process|p|rust-native/tests/keyboard_process.py
@@ -1783,7 +1784,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 133);
+        assert_eq!(steps.len(), 134);
         let choice_sdk = steps.iter().position(|step|step.name=="native-choice-sdk-build").unwrap();
         let snippet_choice = steps.iter().position(|step|step.name=="native-snippet-choice-process-rust").unwrap();
         assert!(choice_sdk < snippet_choice);

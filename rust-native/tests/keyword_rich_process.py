@@ -9,23 +9,6 @@ class KeywordRich(unittest.TestCase):
     def rich(self,text='HELLO',mode='html',keyword='abc',before=None,after=None):
         return self.invoke([dict(op='config',value=config(text,keyword=keyword,snippetOutput=mode)),dict(op='refresh'),*(before or []),*keys(keyword),*(after or []),dict(op='status')])
     def text(self,value):return bytes(value or []).decode()
-    def test_plain_leaves_existing_clipboard_intact(self):
-        v=self.invoke([dict(op='config',value=config()),dict(op='refresh'),sdk('clipboard',value='ORIGINAL'),*keys('abc')]);self.assertEqual(self.text(v['final']['boardText']),'ORIGINAL');self.assertEqual(v['final']['boardClears'],0);self.assertEqual(v['final']['boardWrites'],0)
-    def test_html_and_teams_prepare_complete_item_then_erase_and_command_v(self):
-        for mode in ['html','teams']:
-            v=self.rich('A😀[label](https://example.test)\nEnd',mode);state=v['final'];self.assertEqual(self.text(state['boardText']),'A😀label\nEnd');self.assertIn('href="https://example.test"',self.text(state['boardHTML']));self.assertEqual(state['pasteIssues'],1);self.assertEqual(self.text(state['pasteText']),self.text(state['boardText']));self.assertEqual([e['key'] for e in state['output']],[51,51,51,51,9,9]);self.assertEqual([e['flags'] for e in state['output'][-2:]],[1<<20,1<<20]);self.assertEqual(state['output'][-2]['units'],[118]);self.assertEqual(v['steps'][-1]['ownChange'],state['boardCount']);self.assertFalse(v['steps'][-1]['ownActive'])
-    def test_item_preparation_failure_never_clears_or_consumes(self):
-        for failure in ['item_create','item_text','item_html']:
-            v=self.rich(before=[sdk('clipboard',value='OLD'),sdk('failure',name=failure)]);self.assertFalse(v['steps'][-2]['consumed']);self.assertEqual(v['final']['boardClears'],0);self.assertEqual(v['final']['posts'],0);self.assertEqual(self.text(v['final']['boardText']),'OLD');self.assertEqual(v['steps'][-1]['clipboardPartials'],0)
-    def test_clear_write_and_partial_failures_pass_trigger_without_keyboard(self):
-        for failure in ['board_clear','board_write','board_partial']:
-            v=self.rich(before=[sdk('clipboard',value='OLD'),sdk('failure',name=failure)]);self.assertFalse(v['steps'][-2]['consumed']);self.assertEqual(v['final']['posts'],0);self.assertEqual(v['steps'][-1]['clipboardPartials'],1);self.assertFalse(v['steps'][-1]['ownActive'])
-            if failure=='board_partial':self.assertEqual(self.text(v['final']['boardText']),'HELLO');self.assertIsNone(v['final']['boardHTML']);self.assertEqual(v['steps'][-1]['ownChange'],v['final']['boardCount'])
-    def test_external_replacement_after_clear_or_write_or_during_match_is_not_owned_or_pasted(self):
-        for phase in ['board_cleared','board_written','board_matches','board_ours']:
-            before=[dict(op='hook',at=phase,action='external')]
-            if phase=='board_ours':before.insert(0,sdk('failure',name='board_matches'))
-            v=self.rich(before=before);self.assertFalse(v['steps'][-2]['consumed'],phase);self.assertEqual(self.text(v['final']['boardText']),'EXTERNAL');self.assertEqual(v['final']['posts'],0);self.assertNotEqual(v['steps'][-1]['ownChange'],v['final']['boardCount'])
     def test_foreign_html_with_same_plain_text_is_not_suppressed(self):
         v=self.rich(before=[dict(op='hook',at='board_written',action='external-html')]);self.assertFalse(v['steps'][-2]['consumed']);self.assertEqual(self.text(v['final']['boardText']),'HELLO');self.assertEqual(self.text(v['final']['boardHTML']),'EXTERNAL HTML');self.assertNotEqual(v['steps'][-1]['ownChange'],v['final']['boardCount'])
     def test_clipboard_only_cancel_drop_or_panic_never_swallows_trigger(self):
