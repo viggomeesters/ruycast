@@ -46,8 +46,6 @@ fn invoke(text: &str, steps: Value, extra: Value, use_guard: bool, name: Option<
         let _guard = EVIDENCE.lock().unwrap();
         let folder = PathBuf::from(folder);
         fs::create_dir_all(&folder).unwrap();
-        let copy = folder.join("native-snippet-choice-guard.dylib");
-        fs::copy(&shim, &copy).unwrap();
         let root = runtime_host::root();
         let sources = [
             "rust-native/tests/fixtures/choice_board_sdk.rs",
@@ -66,12 +64,8 @@ fn invoke(text: &str, steps: Value, extra: Value, use_guard: bool, name: Option<
             )
         })
         .collect::<std::collections::BTreeMap<_, _>>();
-        let path = copy
-            .strip_prefix(&root)
-            .unwrap_or(&copy)
-            .to_string_lossy()
-            .to_string();
-        fs::write(folder.join("native-snippet-choice-bindings.json"), serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":{path:format!("{:x}",Sha256::digest(fs::read(copy).unwrap()))}})).unwrap()).unwrap();
+        let (path, digest) = runtime_host::bind_artifact(&artifact, "native-snippet-choice-guard");
+        fs::write(folder.join("native-snippet-choice-bindings.json"), serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":{path:digest}})).unwrap()).unwrap();
     }
     let title = extra
         .get("title")

@@ -899,7 +899,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/snippet_choice.rs", include_bytes!("../../snippet_choice.rs"), "d340d341185ef6000347355f8b88f68da6b34458730ecf646c5eb5541e2b95aa"),
             ("rust-native/src/snippet_choice_request.rs", include_bytes!("../../snippet_choice_request.rs"), "9f42eb8c27f93929e66a631de7dda8cc39630d2225459fa758d71195f391d6eb"),
             ("rust-native/src/bin/native_snippet_choice_probe.rs", include_bytes!("../native_snippet_choice_probe.rs"), "66f534623863df99f352a304bbb0a09669be6e609bfabb5db58699356f8ada03"),
-            ("rust-native/tests/native_snippet_choice_process.rs", include_bytes!("../../../tests/native_snippet_choice_process.rs"), "bba9e0fe768999a22ad103a9564df481ccb21f375198d80535e0f443b3d15a71"),
+            ("rust-native/tests/native_snippet_choice_process.rs", include_bytes!("../../../tests/native_snippet_choice_process.rs"), "a377189c20cb7af7710acfe989d3f514a92b4905f221e01e2e4a22934744af1d"),
             ("rust-native/tests/fixtures/choice_board_sdk.rs", include_bytes!("../../../tests/fixtures/choice_board_sdk.rs"), "b2cf3257801da488997df127933a9f29a09d3b93abec66f2dd14ea6808a34450"),
             ("rust-native/tests/fixtures/choice_monitor_sdk.rs", include_bytes!("../../../tests/fixtures/choice_monitor_sdk.rs"), "7d83558c04fb39fcac4369de5dac244c5387962b896bb4653817d55327325e74"),
             ("rust-native/tests/fixtures/choice_fixture.rs", include_bytes!("../../../tests/fixtures/choice_fixture.rs"), "cf80241e31020b09f45243c22bd29df3682cb8e83bfe1b796a5c26b054f976d8"),
