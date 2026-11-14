@@ -13,7 +13,13 @@ use std::{
 fn command(kind: &str, target: &str) -> Value {
     json!({"id":"fixture.open","title":"Fixture","kind":kind,"target":target,"aliases":["fixture-alias"]})
 }
-fn host_clipboard(command: Value, named: bool, clipboard: Option<&str>) -> Host {
+fn host_options(
+    commands: Vec<Value>,
+    named: bool,
+    clipboard: Option<&str>,
+    use_shim: bool,
+    discovered: bool,
+) -> Host {
     let settings = Config::current();
     let shim = std::env::var_os("RUYCAST_TEST_WORKSPACE_SHIM")
         .map(std::path::PathBuf::from)
@@ -30,7 +36,7 @@ fn host_clipboard(command: Value, named: bool, clipboard: Option<&str>) -> Host 
     );
     let mut h = Host::new(settings, false);
     let mut config = default_config();
-    config["commands"].as_array_mut().unwrap().push(command);
+    config["commands"].as_array_mut().unwrap().extend(commands);
     h.replace(&config, None);
     let home = h.base.as_os_str().to_owned();
     h.env.insert("RUYCAST_WORKSPACE_FIXTURE_HOME".into(), home);
@@ -46,13 +52,26 @@ fn host_clipboard(command: Value, named: bool, clipboard: Option<&str>) -> Host 
                 .insert("RUYCAST_NATIVE_TEST_CLIPBOARD_TEXT".into(), value.into());
         }
     }
-    h.env
-        .insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
+    if use_shim {
+        h.env
+            .insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
+    }
+    if discovered {
+        let contents = h.applications.join("Fixture.app/Contents");
+        fs::create_dir_all(&contents).unwrap();
+        fs::write(contents.join("Info.plist"), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>dev.fixture.discovered</string><key>CFBundleName</key><string>Fixture Discovered</string></dict></plist>").unwrap();
+    }
     h.start();
     h.env.remove(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"));
     h.env
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
+    if discovered {
+        h.wait(|s| s["appDiscoveryPending"] == false);
+    }
     h
+}
+fn host_clipboard(command: Value, named: bool, clipboard: Option<&str>) -> Host {
+    host_options(vec![command], named, clipboard, true, false)
 }
 fn host(command: Value) -> Host {
     host_clipboard(command, false, None)
@@ -271,4 +290,66 @@ fn missing_named_clipboard_and_nonliteral_demand_do_not_read_general() {
     assert_eq!(value["ok"], false);
     assert!(!marker.exists());
     assert!(opens(&h).is_empty());
+}
+
+#[test]
+fn discovered_app_runs_from_shared_catalog_without_saved_presence() {
+    let h = host_options(
+        vec![command("app", "dev.fixture.inline")],
+        false,
+        None,
+        true,
+        true,
+    );
+    let search = h.cli(&["search", "Fixture Discovered"]);
+    let row = search["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "discovered.dev.fixture.discovered")
+        .unwrap();
+    let id = row["id"].as_str().unwrap();
+    assert_eq!(h.cli(&["run", id, "--dry-run"])["dryRun"], true);
+    let result = h.cli(&["run", id]);
+    assert_eq!(result["ok"], true);
+    assert!(result.get("usageWarning").is_none());
+    assert_eq!(h.cli(&["usage"])["result"][id], 1);
+    assert!(!h.cli(&["commands"])["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == id));
+}
+#[test]
+fn saved_disabled_target_suppresses_discovered_and_saved_copy() {
+    let mut first = command("app", "dev.fixture.discovered");
+    first["enabled"] = json!(false);
+    let second =
+        json!({"id":"fixture.copy","title":"Copy","kind":"app","target":"dev.fixture.discovered"});
+    let h = host_options(vec![first, second], false, None, true, true);
+    for id in [
+        "fixture.open",
+        "fixture.copy",
+        "discovered.dev.fixture.discovered",
+    ] {
+        assert_eq!(h.rpc(&json!({"op":"execute","id":id}))["ok"], false);
+    }
+    assert!(opens(&h).is_empty());
+}
+#[test]
+fn missing_interposition_fails_closed_in_headless_fixture() {
+    let h = host_options(
+        vec![command("app", "dev.fixture.inline")],
+        false,
+        None,
+        false,
+        false,
+    );
+    let result = h.rpc(&json!({"op":"execute","id":"fixture.open"}));
+    assert_eq!(result["ok"], false);
+    assert!(result["error"]
+        .as_str()
+        .unwrap()
+        .contains("fixture boundary"));
+    assert!(trace(&h).is_empty());
 }
