@@ -115,3 +115,90 @@ fn unchanged_cli_keeps_sorted_serialization_policy() {
         );
     }
 }
+
+fn config(h: &Host) -> Value {
+    serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap()
+}
+#[test]
+fn canonical_alias_and_disabled_name_guard() {
+    let mut cmd = command("app", "dev.fixture.inline");
+    cmd["aliases"] = json!(["café"]);
+    let h = host(cmd);
+    assert_eq!(h.cli(&["run", "cafe\u{301}"])["ok"], true);
+    let mut cfg = config(&h);
+    cfg["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.disabled","title":"Disabled","kind":"url","target":"https://example.invalid","aliases":["cafe\u{301}"],"enabled":false}));
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    let before = opens(&h).len();
+    let result = h.rpc(&json!({"op":"execute","id":"café"}));
+    assert_eq!(result["ok"], false);
+    assert!(result["error"].as_str().unwrap().contains("disabled"));
+    assert_eq!(opens(&h).len(), before);
+}
+#[test]
+fn url_fields_encoding_open_with_and_literal_path() {
+    let mut cmd = command(
+        "url",
+        "https://example.invalid/{query}?place={x name=\"Place\"}",
+    );
+    cmd["applicationID"] = json!("dev.fixture.inline");
+    let h = host(cmd);
+    let input = r#"{"Query": "a&b /\u03a9", "Place": "New York"}"#;
+    assert_eq!(
+        h.cli(&["run", "fixture.open", "--input", input]),
+        json!({"ok":true,"result":{"state":"opened"}})
+    );
+    let trace = trace(&h);
+    let targets = trace
+        .iter()
+        .find(|s| s["phase"] == "open-with-targets")
+        .unwrap()["urls"]
+        .as_array()
+        .unwrap();
+    let url = targets[0].as_str().unwrap();
+    assert!(url.contains("a%26b%20"));
+    assert!(url.contains("New%20York"));
+    let path = h.base.join("literal Ω\n$(not-executed)");
+    fs::write(&path, "fixture").unwrap();
+    let mut cfg = config(&h);
+    *cfg["commands"].as_array_mut().unwrap().last_mut().unwrap() =
+        command("path", path.to_str().unwrap());
+    h.replace(&cfg, None);
+    h.cli(&["reload"]);
+    assert_eq!(
+        h.cli(&["run", "fixture.open"]),
+        json!({"ok":true,"result":{"command":"fixture.open","state":"opened"}})
+    );
+    let opened = opens(&h);
+    let last = opened.last().unwrap();
+    assert_eq!(last["phase"], "open-default");
+    assert!(last["url"].as_str().unwrap().contains("%0A"));
+}
+#[test]
+fn missing_apps_paths_and_fields_do_not_open() {
+    for (kind, target, expected) in [
+        ("app", Some("dev.fixture.missing"), "App is not installed:"),
+        ("path", None, "Path does not exist:"),
+        (
+            "url",
+            Some("https://example.invalid/{query}"),
+            "Enter Query.",
+        ),
+    ] {
+        let h = host(command(kind, target.unwrap_or("/own-placeholder")));
+        if target.is_none() {
+            let mut cfg = config(&h);
+            cfg["commands"].as_array_mut().unwrap().last_mut().unwrap()["target"] =
+                json!(h.base.join("missing"));
+            h.replace(&cfg, None);
+            h.cli(&["reload"]);
+        }
+        let result = h.rpc(&json!({"op":"execute","id":"fixture.open"}));
+        assert_eq!(result["ok"], false);
+        assert!(
+            result["error"].as_str().unwrap().contains(expected),
+            "{result}"
+        );
+        assert!(opens(&h).is_empty());
+    }
+}
