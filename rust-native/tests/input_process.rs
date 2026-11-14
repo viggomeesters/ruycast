@@ -1028,6 +1028,7 @@ fn newer_query_during_inline_run_finishes_without_hiding_search() {
 }
 fn input_actions_fixture() -> Bridge {
     let host = host();
+    set_execution(&host, "/usr/bin/printf", json!(["fixture result"]), 3.0);
     inline_open(&host, false);
     inline_type(&host, "PRIVATE literal Ω");
     host
@@ -1118,4 +1119,130 @@ fn relocated_config_before_edit_keeps_suspended_input() {
         "PRIVATE literal Ω"
     );
     assert_eq!(fs::read(&host.config).unwrap(), before);
+}
+fn input_action_form(host: &Bridge) -> Value {
+    view(host, |v| {
+        v["formVisible"] == true && v["runInputInline"] == false
+    })
+}
+fn input_action_resumed(host: &Bridge) -> Value {
+    host.settled(|_| true);
+    view(host, |v| {
+        v["runInputInline"] == true && v["actionsVisible"] == false
+    })
+}
+fn input_saved_command(host: &Bridge) -> Value {
+    let config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    config["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap()
+        .clone()
+}
+#[test]
+fn each_config_editor_cancel_resumes_fresh_input_without_writing() {
+    let host = input_actions_fixture();
+    let before = fs::read(&host.config).unwrap();
+    for action in ["Set Alias…", "Set Hotkey…", "Edit…", "Remove…"] {
+        let old = actions::probe(&host, "run-inline-read")["token"]
+            .as_u64()
+            .unwrap();
+        input_action(&host, action);
+        let child = input_action_form(&host)["editorToken"].as_u64().unwrap();
+        assert!(child > old);
+        actions::probe(&host, "cancel-editor");
+        let state = input_action_resumed(&host);
+        assert!(state["editorToken"].as_u64().unwrap() > child);
+        assert_eq!(
+            actions::probe(&host, "run-inline-read")["text"],
+            "PRIVATE literal Ω"
+        );
+        assert_eq!(fs::read(&host.config).unwrap(), before);
+    }
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn alias_and_hotkey_saves_resume_same_input() {
+    let host = input_actions_fixture();
+    input_action(&host, "Set Alias…");
+    input_action_form(&host);
+    host.probe("alias-input", json!({"text":"newalias"}));
+    actions::probe(&host, "save-editor");
+    input_action_resumed(&host);
+    assert_eq!(input_saved_command(&host)["aliases"], json!(["newalias"]));
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    input_action(&host, "Set Hotkey…");
+    input_action_form(&host);
+    key(&host, 45, "n", actions::CMD);
+    input_action_resumed(&host);
+    assert_eq!(input_saved_command(&host)["hotkey"], "cmd+n");
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    assert!(!fs::read_to_string(&host.config)
+        .unwrap()
+        .contains("PRIVATE"));
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn failed_alias_save_retains_both_drafts_until_cancel() {
+    let host = input_actions_fixture();
+    let before = fs::read(&host.config).unwrap();
+    input_action(&host, "Set Alias…");
+    input_action_form(&host);
+    host.probe("alias-input", json!({"text":"safari"}));
+    actions::probe(&host, "save-editor");
+    view(&host, |v| {
+        v["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s.as_str().unwrap().to_lowercase().contains("duplicate"))
+    });
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    assert_eq!(actions::probe(&host, "read")["aliasValue"], "safari");
+    actions::probe(&host, "cancel-editor");
+    input_action_resumed(&host);
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+}
+#[test]
+fn alias_save_does_not_adopt_external_timeout_or_prompt() {
+    let host = input_actions_fixture();
+    input_action(&host, "Set Alias…");
+    input_action_form(&host);
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let c = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    c["timeout"] = json!(2);
+    c["inputPrompt"] = json!("Other prompt");
+    host.replace(&config, None);
+    host.probe("alias-input", json!({"text":"mine"}));
+    actions::probe(&host, "save-editor");
+    input_action_resumed(&host);
+    key(&host, 36, "\r", 0);
+    view(&host, |v| {
+        v["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s.as_str().unwrap().to_lowercase().contains("changed"))
+    });
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
