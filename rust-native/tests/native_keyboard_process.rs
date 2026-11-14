@@ -1410,3 +1410,104 @@ fn native_hid_permission_health_saves_plan_and_carbon_remains_available() {
     hid(&h, "env", json!({"value":0}));
     h.wait(|s| s["hidStatus"] == "On");
 }
+
+#[test]
+fn native_hid_two_recorders_suppress_actions_keep_hyper_and_clear_old_tap() {
+    let (h, marker) = hid_host("ctrl+left-control", true);
+    hid(&h, "input", json!({"usage":224,"down":true,"time":1}));
+    h.rpc(&json!({"op":"show","query":"finder"}));
+    h.wait(|s| s["nativeUI"]["visible"] == true);
+    h.probe(
+        "key-event",
+        json!({"code":43,"flags":(1<<20)|(1<<17),"chars":","}),
+    );
+    h.wait(|s| s["recordingShortcut"] == true);
+    actions::view(&h, |v| v["recording"] == true);
+    h.rpc(&json!({"op":"show","mode":"settings"}));
+    h.wait(|s| s["managementUI"]["visible"] == true);
+    h.rpc(&json!({"op":"native.test","surface":"settings","action":"inline-hotkey","id":"app.safari"}));
+    h.wait(|s| s["managementUI"]["editorOpen"] == true);
+    let until = std::time::Instant::now() + Duration::from_secs(4);
+    loop {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        assert!(!left.is_zero());
+        if h.rpc_timeout(
+            &json!({"op":"native.test","surface":"settings","action":"read"}),
+            left,
+        )["result"]["recording"]
+            == true
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10).min(left));
+    }
+    h.probe("cancel-editor", json!({}));
+    h.wait(|s| s["nativeUI"]["editorOpen"] == false);
+    let recording = h.rpc(&json!({"op":"status"}))["result"].clone();
+    assert_eq!(recording["recordingShortcut"], true);
+    assert_eq!(recording["hyper"], "On");
+    assert_eq!(recording["modifierTaps"], "Off");
+    assert_eq!(recording["sidedShortcuts"], "Off");
+    for (down, time) in [(false, 1.2), (true, 1.3), (false, 1.5)] {
+        hid(&h, "input", json!({"usage":224,"down":down,"time":time}));
+    }
+    assert!(!marker.exists());
+    hid(&h, "input", json!({"usage":57,"down":true,"time":2}));
+    assert_eq!(
+        hid(&h, "event", json!({"type":10,"key":2,"flags":0}))["event"]["flags"],
+        HID_HYPER
+    );
+    hid(&h, "input", json!({"usage":57,"down":false,"time":2.1}));
+    h.rpc(&json!({"op":"native.test","surface":"settings","action":"cancel-editor"}));
+    h.wait(|s| s["recordingShortcut"] == false);
+    hid(&h, "input", json!({"usage":224,"down":false,"time":2.2}));
+    assert!(!marker.exists());
+    hid(&h, "input", json!({"usage":224,"down":true,"time":3}));
+    hid(&h, "input", json!({"usage":224,"down":false,"time":3.2}));
+    wait_file(&marker);
+}
+#[test]
+fn native_hid_quit_retains_profile_and_recovers_after_worker_stop() {
+    for fault in [
+        "hid-fail-manager_close",
+        "hid-fail-invalidate",
+        "caps-fail-set:false",
+    ] {
+        let (mut h, _) = hid_host("right-cmd+a", true);
+        hid(&h, "input", json!({"usage":57,"down":true,"time":0}));
+        let path = h.base.join(fault);
+        fs::write(&path, b"").unwrap();
+        let cleanup = RemoveFault(path);
+        assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+        std::thread::sleep(Duration::from_millis(150));
+        assert!(
+            h.process.as_mut().unwrap().try_wait().unwrap().is_none(),
+            "{fault}"
+        );
+        let child = h
+            .command(&h.settings.host)
+            .arg("--native-hidden")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let second = child_output::wait(child, Duration::from_secs(3));
+        assert!(!second.status.success());
+        assert!(String::from_utf8_lossy(&second.stdout).contains("already running"));
+        drop(cleanup);
+        let pid = h.process.as_ref().unwrap().id();
+        let output = h.wait_exit(Duration::from_secs(5), false);
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let proof: Value =
+            serde_json::from_slice(&fs::read(h.base.join("keyboard-retired.json")).unwrap())
+                .unwrap();
+        assert_eq!(proof["pid"], pid);
+        assert_eq!(proof["state"]["allocated"], 0);
+        assert_eq!(proof["state"]["caps"], 0);
+    }
+}
