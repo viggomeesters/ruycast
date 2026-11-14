@@ -949,3 +949,80 @@ fn light_dark_inline_and_menu_captures() {
         inline_closed(&host);
     }
 }
+#[test]
+fn script_failure_restores_inline_text_token_and_typing() {
+    let host = host();
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-fail"]),
+        3.0,
+    );
+    inline_open(&host, false);
+    inline_type(&host, "keep retry text");
+    let initial = actions::probe(&host, "run-inline-read");
+    let token = initial.get("token").unwrap().clone();
+    key(&host, 36, "\r", 0);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    view(&host, |v| actions::text_contains(v, "7"));
+    let state = actions::probe(&host, "run-inline-read");
+    assert_eq!(state["text"], "keep retry text");
+    assert_eq!(state.get("token").unwrap(), &token);
+    inline_type(&host, " retained");
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "keep retry text retained"
+    );
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
+#[test]
+fn cancel_running_inline_input_does_not_reopen_old_draft() {
+    let host = RunningHost(host());
+    let pidfile = host.base.join("leader");
+    set_execution(
+        &host,
+        env!("CARGO_BIN_EXE_private-results-fixture"),
+        json!(["execution-delay", pidfile, "2000", ""]),
+        3.0,
+    );
+    inline_open(&host, false);
+    inline_type(&host, "cancel active");
+    key(&host, 36, "\r", 0);
+    wait_exists(&pidfile);
+    key(&host, 53, "", 0);
+    inline_closed(&host);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let pid: i32 = fs::read_to_string(&pidfile).unwrap().parse().unwrap();
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ESRCH)
+    );
+    inline_open(&host, false);
+    inline_type(&host, "new draft");
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "new draft"
+    );
+    assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+}
+#[test]
+fn newer_query_during_inline_run_finishes_without_hiding_search() {
+    let (host, ready, gate, done) = waiting_input();
+    inline_open(&host, false);
+    inline_type(&host, "own fixture input");
+    key(&host, 36, "\r", 0);
+    wait_exists(&ready);
+    host.probe("run-input-new-query", json!({"query":"finder"}));
+    host.settled(|_| true);
+    finish_waiting_input(&host, &gate, &done);
+    assert_eq!(inline_closed(&host)["input"], "finder");
+    assert_eq!(
+        host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+        true
+    );
+    assert_eq!(
+        host.rpc(&json!({"op":"usage"}))["result"]["script.fixture"],
+        1
+    );
+}
