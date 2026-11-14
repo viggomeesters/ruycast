@@ -1,6 +1,9 @@
 //! Owned analytics runtime and source-built write shim.
 #![cfg(feature = "test-tools")]
-#![allow(clippy::duplicate_mod, reason = "Bounded second-instance probe shares owned host support")]
+#![allow(
+    clippy::duplicate_mod,
+    reason = "Bounded second-instance probe shares owned host support"
+)]
 #[allow(dead_code)]
 #[path = "support/runtime_host.rs"]
 mod runtime_host;
@@ -199,4 +202,50 @@ fn shutdown_does_not_confirm_a_flush_that_is_still_held() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(h.base.join("analytics-write-failed").exists());
+}
+
+#[test]
+fn full_flush_queue_does_not_hide_already_applied_setting() {
+    use std::io::Write;
+    let h = host();
+    fs::write(h.base.join("hold-analytics-write"), b"").unwrap();
+    let release = Release(h.base.join("analytics-write-release"));
+    let first = pending_setting(&h, Duration::from_secs(9));
+    entered(&h);
+    for retention in 2..17 {
+        let mut stream = h.connect(Duration::from_secs(3));
+        serde_json::to_writer(
+            &mut stream,
+            &json!({"op":"analytics.settings","retentionDays":retention}),
+        )
+        .unwrap();
+        stream.write_all(b"\n").unwrap();
+        let end = Instant::now() + Duration::from_secs(2);
+        loop {
+            if h.rpc(&json!({"op":"analytics"}))["result"]["retentionDays"] == retention {
+                break;
+            }
+            assert!(Instant::now() < end);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        drop(stream);
+    }
+    let result = h.rpc(&json!({"op":"analytics.settings","retentionDays":20}));
+    assert_eq!(result["ok"], false);
+    assert_eq!(result["applied"], true);
+    assert_eq!(result["persistence"], "unknown");
+    assert!(result["reason"].as_str().unwrap().contains("busy"));
+    assert_eq!(
+        h.rpc(&json!({"op":"analytics"}))["result"]["retentionDays"],
+        20
+    );
+    drop(release);
+    assert_eq!(
+        first.recv_timeout(Duration::from_secs(4)).unwrap().unwrap()["ok"],
+        true
+    );
+    assert_eq!(h.rpc(&json!({"op":"analytics.settings"}))["ok"], true);
+    let stored: Value =
+        serde_json::from_slice(&fs::read(h.profile.join("analytics.json")).unwrap()).unwrap();
+    assert_eq!(stored["retentionDays"], 20);
 }
