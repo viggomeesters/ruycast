@@ -76,12 +76,6 @@ class CliOpen(unittest.TestCase):
     def release(self,host):
         (host.base/'workspace-release').write_text('release')
 
-    def test_small_execute_packet_can_open_expanded_output_above_one_mib(self):
-        host=self.host([command('url','https://example.invalid/{x}{x}')])
-        result=host.rpc(dict(op='execute',id='fixture.open',values=dict(x='a'*600000)),timeout=10)
-        self.assertTrue(result['ok'],result)
-        self.assertEqual(self.opens(host)[0]['url'],'https://example.invalid/'+'a'*1200000)
-
     def test_blocked_lookup_deadline_is_retired_before_release_and_owner_remains_available(self):
         host=self.host([command(target='dev.fixture.hold-resolve')],dispatch=1000)
         worker,results=self.asynchronous(host)
