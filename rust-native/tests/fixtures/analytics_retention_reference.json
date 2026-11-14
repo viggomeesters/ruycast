@@ -1,0 +1,2200 @@
+{
+  "provenance": {
+    "source_sha256": {
+      "Sources/RuycastApp/AnalyticsStore.swift": "43461d33394436195f3c7d7cbcaa66d1407ac53049bed3e8a2f91562d140ca7d",
+      "Sources/LauncherCore/Files.swift": "055d650d00848ffbb739381034bdc52f977b23eb3476ec0596524614d033338d",
+      "rust-native/tests/analytics_process.py": "76a693a00165b14fc2056679b1e96cb437687562ac67840e8adf2f7f82c53d7e"
+    },
+    "origin": "Actual Swift AnalyticsStore and Foundation JSON codec, generated 2026-11-14"
+  },
+  "cases": [
+    {
+      "name": "empty",
+      "now": 1790000000,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [],
+      "initial": null,
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {},
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [],
+        "storageError": null
+      }
+    },
+    {
+      "name": "retention_2026-03-29T12:30:00+00:00_Europe/Amsterdam",
+      "now": 1774787400.0,
+      "zone": "Europe/Amsterdam",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1774702800": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774699200": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774695600": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774692000": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 1,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1774699200": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            },
+            "1774702800": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 1,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1774699200": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                },
+                "1774702800": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 1,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1774702800,
+              null
+            ],
+            [
+              1774706400,
+              null
+            ],
+            [
+              1774710000,
+              null
+            ],
+            [
+              1774713600,
+              null
+            ],
+            [
+              1774717200,
+              null
+            ],
+            [
+              1774720800,
+              null
+            ],
+            [
+              1774724400,
+              null
+            ],
+            [
+              1774728000,
+              null
+            ],
+            [
+              1774731600,
+              null
+            ],
+            [
+              1774735200,
+              null
+            ],
+            [
+              1774738800,
+              null
+            ],
+            [
+              1774742400,
+              null
+            ],
+            [
+              1774746000,
+              null
+            ],
+            [
+              1774749600,
+              null
+            ],
+            [
+              1774753200,
+              null
+            ],
+            [
+              1774756800,
+              null
+            ],
+            [
+              1774760400,
+              null
+            ],
+            [
+              1774764000,
+              null
+            ],
+            [
+              1774767600,
+              null
+            ],
+            [
+              1774771200,
+              null
+            ],
+            [
+              1774774800,
+              null
+            ],
+            [
+              1774778400,
+              null
+            ],
+            [
+              1774782000,
+              null
+            ],
+            [
+              1774785600,
+              null
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "retention_2026-03-29T12:30:00+00:00_America/New_York",
+      "now": 1774787400.0,
+      "zone": "America/New_York",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1774702800": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774699200": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774695600": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774692000": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 1,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1774699200": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            },
+            "1774702800": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 1,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1774699200": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                },
+                "1774702800": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 1,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1774702800,
+              null
+            ],
+            [
+              1774706400,
+              null
+            ],
+            [
+              1774710000,
+              null
+            ],
+            [
+              1774713600,
+              null
+            ],
+            [
+              1774717200,
+              null
+            ],
+            [
+              1774720800,
+              null
+            ],
+            [
+              1774724400,
+              null
+            ],
+            [
+              1774728000,
+              null
+            ],
+            [
+              1774731600,
+              null
+            ],
+            [
+              1774735200,
+              null
+            ],
+            [
+              1774738800,
+              null
+            ],
+            [
+              1774742400,
+              null
+            ],
+            [
+              1774746000,
+              null
+            ],
+            [
+              1774749600,
+              null
+            ],
+            [
+              1774753200,
+              null
+            ],
+            [
+              1774756800,
+              null
+            ],
+            [
+              1774760400,
+              null
+            ],
+            [
+              1774764000,
+              null
+            ],
+            [
+              1774767600,
+              null
+            ],
+            [
+              1774771200,
+              null
+            ],
+            [
+              1774774800,
+              null
+            ],
+            [
+              1774778400,
+              null
+            ],
+            [
+              1774782000,
+              null
+            ],
+            [
+              1774785600,
+              null
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "retention_2026-03-29T12:30:00+00:00_UTC",
+      "now": 1774787400.0,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1774702800": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774699200": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774695600": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1774692000": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 1,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1774699200": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            },
+            "1774702800": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 1,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1774699200": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                },
+                "1774702800": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 1,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1774702800,
+              null
+            ],
+            [
+              1774706400,
+              null
+            ],
+            [
+              1774710000,
+              null
+            ],
+            [
+              1774713600,
+              null
+            ],
+            [
+              1774717200,
+              null
+            ],
+            [
+              1774720800,
+              null
+            ],
+            [
+              1774724400,
+              null
+            ],
+            [
+              1774728000,
+              null
+            ],
+            [
+              1774731600,
+              null
+            ],
+            [
+              1774735200,
+              null
+            ],
+            [
+              1774738800,
+              null
+            ],
+            [
+              1774742400,
+              null
+            ],
+            [
+              1774746000,
+              null
+            ],
+            [
+              1774749600,
+              null
+            ],
+            [
+              1774753200,
+              null
+            ],
+            [
+              1774756800,
+              null
+            ],
+            [
+              1774760400,
+              null
+            ],
+            [
+              1774764000,
+              null
+            ],
+            [
+              1774767600,
+              null
+            ],
+            [
+              1774771200,
+              null
+            ],
+            [
+              1774774800,
+              null
+            ],
+            [
+              1774778400,
+              null
+            ],
+            [
+              1774782000,
+              null
+            ],
+            [
+              1774785600,
+              null
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "retention_2026-10-25T12:30:00+00:00_Europe/Amsterdam",
+      "now": 1792931400.0,
+      "zone": "Europe/Amsterdam",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1792846800": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792843200": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792839600": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792836000": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 1,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1792843200": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            },
+            "1792846800": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 1,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1792843200": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                },
+                "1792846800": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 1,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1792846800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 1
+              }
+            ],
+            [
+              1792850400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792854000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792857600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792861200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792864800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792868400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792872000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792875600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792879200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792882800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792886400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792890000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792893600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792897200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792900800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792904400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792908000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792911600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792915200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792918800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792922400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792926000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792929600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "retention_2026-10-25T12:30:00+00:00_America/New_York",
+      "now": 1792931400.0,
+      "zone": "America/New_York",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1792846800": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792843200": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792839600": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792836000": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 1,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1792843200": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            },
+            "1792846800": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 1,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1792843200": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                },
+                "1792846800": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 1,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1792846800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 1
+              }
+            ],
+            [
+              1792850400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792854000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792857600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792861200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792864800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792868400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792872000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792875600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792879200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792882800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792886400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792890000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792893600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792897200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792900800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792904400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792908000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792911600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792915200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792918800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792922400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792926000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792929600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "retention_2026-10-25T12:30:00+00:00_UTC",
+      "now": 1792931400.0,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hourlyStartedAt": "2026-09-21T14:13:20Z",
+        "hours": {
+          "1792846800": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792843200": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792839600": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          },
+          "1792836000": {
+            "uses": 1,
+            "successes": 0,
+            "failures": 0
+          }
+        },
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 1,
+        "schema": 2,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {
+            "1792843200": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            },
+            "1792846800": {
+              "failures": 0,
+              "successes": 0,
+              "uses": 1
+            }
+          },
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 1,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {
+                "1792843200": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                },
+                "1792846800": {
+                  "failures": 0,
+                  "successes": 0,
+                  "uses": 1
+                }
+              },
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 1,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1792846800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 1
+              }
+            ],
+            [
+              1792850400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792854000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792857600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792861200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792864800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792868400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792872000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792875600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792879200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792882800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792886400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792890000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792893600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792897200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792900800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792904400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792908000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792911600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792915200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792918800,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792922400,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792926000,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ],
+            [
+              1792929600,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "schema_one_absent",
+      "now": 1790000000,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 1,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {},
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {},
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1789916400,
+              null
+            ],
+            [
+              1789920000,
+              null
+            ],
+            [
+              1789923600,
+              null
+            ],
+            [
+              1789927200,
+              null
+            ],
+            [
+              1789930800,
+              null
+            ],
+            [
+              1789934400,
+              null
+            ],
+            [
+              1789938000,
+              null
+            ],
+            [
+              1789941600,
+              null
+            ],
+            [
+              1789945200,
+              null
+            ],
+            [
+              1789948800,
+              null
+            ],
+            [
+              1789952400,
+              null
+            ],
+            [
+              1789956000,
+              null
+            ],
+            [
+              1789959600,
+              null
+            ],
+            [
+              1789963200,
+              null
+            ],
+            [
+              1789966800,
+              null
+            ],
+            [
+              1789970400,
+              null
+            ],
+            [
+              1789974000,
+              null
+            ],
+            [
+              1789977600,
+              null
+            ],
+            [
+              1789981200,
+              null
+            ],
+            [
+              1789984800,
+              null
+            ],
+            [
+              1789988400,
+              null
+            ],
+            [
+              1789992000,
+              null
+            ],
+            [
+              1789995600,
+              null
+            ],
+            [
+              1789999200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "schema_one_null",
+      "now": 1790000000,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hours": null,
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 1,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {},
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {},
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1789916400,
+              null
+            ],
+            [
+              1789920000,
+              null
+            ],
+            [
+              1789923600,
+              null
+            ],
+            [
+              1789927200,
+              null
+            ],
+            [
+              1789930800,
+              null
+            ],
+            [
+              1789934400,
+              null
+            ],
+            [
+              1789938000,
+              null
+            ],
+            [
+              1789941600,
+              null
+            ],
+            [
+              1789945200,
+              null
+            ],
+            [
+              1789948800,
+              null
+            ],
+            [
+              1789952400,
+              null
+            ],
+            [
+              1789956000,
+              null
+            ],
+            [
+              1789959600,
+              null
+            ],
+            [
+              1789963200,
+              null
+            ],
+            [
+              1789966800,
+              null
+            ],
+            [
+              1789970400,
+              null
+            ],
+            [
+              1789974000,
+              null
+            ],
+            [
+              1789977600,
+              null
+            ],
+            [
+              1789981200,
+              null
+            ],
+            [
+              1789984800,
+              null
+            ],
+            [
+              1789988400,
+              null
+            ],
+            [
+              1789992000,
+              null
+            ],
+            [
+              1789995600,
+              null
+            ],
+            [
+              1789999200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    },
+    {
+      "name": "schema_one_empty",
+      "now": 1790000000,
+      "zone": "UTC",
+      "calendar": "gregorian",
+      "actions": [
+        {
+          "op": "snapshot"
+        },
+        {
+          "op": "hourly"
+        }
+      ],
+      "initial": {
+        "commands": {},
+        "days": {},
+        "enabled": true,
+        "events": [],
+        "hours": {},
+        "legacyImported": false,
+        "omittedCommands": 0,
+        "priorSuccesses": 0,
+        "retentionDays": 30,
+        "schema": 1,
+        "startedAt": "2026-09-21T14:13:20Z",
+        "timings": {},
+        "totalAttempts": 0,
+        "totalFailures": 0,
+        "totalSuccesses": 0,
+        "updatedAt": "2026-09-21T14:13:20Z"
+      },
+      "expected": {
+        "document": {
+          "commands": {},
+          "days": {},
+          "enabled": true,
+          "events": [],
+          "hourlyStartedAt": "2026-09-21T14:13:20Z",
+          "hours": {},
+          "legacyImported": false,
+          "omittedCommands": 0,
+          "priorSuccesses": 0,
+          "retentionDays": 30,
+          "schema": 2,
+          "startedAt": "2026-09-21T14:13:20Z",
+          "timings": {},
+          "totalAttempts": 0,
+          "totalFailures": 0,
+          "totalSuccesses": 0,
+          "updatedAt": "2026-09-21T14:13:20Z"
+        },
+        "ok": true,
+        "results": [
+          {
+            "document": {
+              "commands": {},
+              "days": {},
+              "enabled": true,
+              "events": [],
+              "hourlyStartedAt": "2026-09-21T14:13:20Z",
+              "hours": {},
+              "legacyImported": false,
+              "omittedCommands": 0,
+              "priorSuccesses": 0,
+              "retentionDays": 30,
+              "schema": 2,
+              "startedAt": "2026-09-21T14:13:20Z",
+              "timings": {},
+              "totalAttempts": 0,
+              "totalFailures": 0,
+              "totalSuccesses": 0,
+              "updatedAt": "2026-09-21T14:13:20Z"
+            },
+            "storageError": null
+          },
+          [
+            [
+              1789916400,
+              null
+            ],
+            [
+              1789920000,
+              null
+            ],
+            [
+              1789923600,
+              null
+            ],
+            [
+              1789927200,
+              null
+            ],
+            [
+              1789930800,
+              null
+            ],
+            [
+              1789934400,
+              null
+            ],
+            [
+              1789938000,
+              null
+            ],
+            [
+              1789941600,
+              null
+            ],
+            [
+              1789945200,
+              null
+            ],
+            [
+              1789948800,
+              null
+            ],
+            [
+              1789952400,
+              null
+            ],
+            [
+              1789956000,
+              null
+            ],
+            [
+              1789959600,
+              null
+            ],
+            [
+              1789963200,
+              null
+            ],
+            [
+              1789966800,
+              null
+            ],
+            [
+              1789970400,
+              null
+            ],
+            [
+              1789974000,
+              null
+            ],
+            [
+              1789977600,
+              null
+            ],
+            [
+              1789981200,
+              null
+            ],
+            [
+              1789984800,
+              null
+            ],
+            [
+              1789988400,
+              null
+            ],
+            [
+              1789992000,
+              null
+            ],
+            [
+              1789995600,
+              null
+            ],
+            [
+              1789999200,
+              {
+                "failures": 0,
+                "successes": 0,
+                "uses": 0
+              }
+            ]
+          ]
+        ],
+        "storageError": null
+      }
+    }
+  ]
+}
