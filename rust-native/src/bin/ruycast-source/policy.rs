@@ -417,6 +417,7 @@ rust-native/tests/native_open_basic_process.rs
 rust-native/tests/native_process.py
 rust-native/tests/native_snippet_choice_process.py
 rust-native/tests/rich_process.py
+rust-native/tests/rich_process.rs
 rust-native/tests/runtime_process.py
 rust-native/tests/runtime_process.rs
 rust-native/tests/rust_only_policy.py
