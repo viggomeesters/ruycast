@@ -358,6 +358,7 @@ rust-native/tests/fixtures/fcntl_abi.rs
 rust-native/tests/editor_process.rs
 rust-native/tests/execution_process.py
 rust-native/tests/execution_basic_process.rs
+rust-native/tests/execution_native_process.rs
 rust-native/tests/fixtures/fcntl_sync_shim.rs
 rust-native/tests/fixtures/fcntl_sync_probe.rs
 rust-native/tests/foundation_process.rs

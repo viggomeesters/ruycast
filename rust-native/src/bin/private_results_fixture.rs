@@ -3,6 +3,9 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("execution-write") if args.len() == 3 => {
+            std::fs::write(&args[1], &args[2]).unwrap();
+        }
         Some("execution-tree") if args.len() == 3 => {
             std::fs::write(&args[1], std::process::id().to_string()).unwrap();
             unsafe { libc::signal(libc::SIGTERM, libc::SIG_IGN); }

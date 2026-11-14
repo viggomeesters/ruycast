@@ -65,37 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_native_return_runs_real_script_and_records_launcher_ranking(self):
-        host=self.host(native=True);marker=host.base/'native-result'
-        self.replace_command(host,self.command('import pathlib;pathlib.Path(%r).write_text("native")'%str(marker)))
-        self.show(host);self.key(host,36,'\r');self.assertEqual(self.file(marker),'native')
-        host.wait(lambda s:s['scriptsRunning']==0 and not s['nativeUI']['visible'])
-        self.assertEqual(host.rpc({'op':'usage'})['result']['script.fixture'],1)
-        ranking=json.loads((host.profile/'search-ranking.json').read_bytes())
-        self.assertIn('script.fixture',ranking['entries'])
-        self.assertEqual(host.rpc({'op':'logs'})['result'][0]['source'],'launcher')
-        self.assertFalse(host.probe('read')['windowShown'])
-
-    def test_native_actions_open_uses_same_execution_owner(self):
-        host=self.host(native=True);marker=host.base/'native-actions'
-        self.replace_command(host,self.command('import pathlib;pathlib.Path(%r).write_text("actions")'%str(marker)))
-        self.show(host);self.key(host,40,'k',1<<20)
-        end=time.monotonic()+3
-        while time.monotonic()<end:
-            view=host.probe('read')
-            if view['actionsVisible']:break
-            time.sleep(.01)
-        index=next(i for i,label in enumerate(view['actionLabels']) if label.startswith('Run'))
-        host.probe('action-button',index=index)
-        self.assertEqual(self.file(marker),'actions')
-        host.wait(lambda s:s['scriptsRunning']==0)
-
-    def test_native_click_runs_the_clicked_script(self):
-        host=self.host(native=True);marker=host.base/'clicked-script'
-        self.replace_command(host,self.command('import pathlib;pathlib.Path(%r).write_text("clicked")'%str(marker)))
-        self.show(host);host.probe('click',row=0)
-        self.assertEqual(self.file(marker),'clicked');host.wait(lambda s:s['scriptsRunning']==0)
-
     def test_native_window_close_cancels_running_script(self):
         host=self.host(native=True);pid=host.base/'closed-pid'
         self.replace_command(host,self.command('import os,pathlib,time;pathlib.Path(%r).write_text(str(os.getpid()));time.sleep(10)'%str(pid)))
