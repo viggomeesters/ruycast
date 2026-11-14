@@ -65,27 +65,6 @@ class Execution(unittest.TestCase):
     def key(self, host, code, chars='', flags=0):
         return host.probe('key-event', code=code, flags=flags, chars=chars)
 
-    def test_disconnect_cancels_process_group_and_recovers_capacity(self):
-        host=self.host();pid=host.base/'leader';sentinel=host.base/'orphan'
-        child='import signal,time,pathlib;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(.8);pathlib.Path(%r).write_text("bad")'%str(sentinel)
-        code='import os,time,pathlib,subprocess,sys,signal;pathlib.Path(%r).write_text(str(os.getpid()));signal.signal(signal.SIGTERM,signal.SIG_IGN);subprocess.Popen([sys.executable,"-c",%r]);time.sleep(10)'%(str(pid),child)
-        self.replace_command(host,self.command(code))
-        stream=self.pending(host);self.file(pid);stream.close()
-        host.wait(lambda s:s['scriptsRunning']==0);self.dead(pid.read_text())
-        time.sleep(.85);self.assertFalse(sentinel.exists())
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-        logs=host.rpc({'op':'logs'})['result'];self.assertFalse(logs[0]['success'])
-
-    def test_usage_failure_reports_completed_action_without_retry(self):
-        host=self.host();gate=host.base/'gate';ready=host.base/'ready';counter=host.base/'counter'
-        code='import time,pathlib;pathlib.Path(%r).write_text("ready");p=pathlib.Path(%r)\nwhile not p.exists():time.sleep(.01)\npathlib.Path(%r).write_text("once")'%(str(ready),str(gate),str(counter))
-        self.replace_command(host,self.command(code))
-        stream=self.pending(host);self.file(ready)
-        (host.profile/'usage.json').mkdir();gate.write_text('go')
-        result=self.response(stream)
-        self.assertFalse(result['ok']);self.assertTrue(result['actionCompleted'])
-        self.assertEqual(counter.read_text(),'once');self.assertEqual(host.rpc({'op':'status'})['result']['scriptsRunning'],0)
-
     def test_saturated_scripts_leave_status_and_quit_admission(self):
         host=self.host();pids=host.base/'pids';pids.mkdir()
         command=self.command('import sys,os,time,pathlib;pathlib.Path(sys.argv[1]).write_text(str(os.getpid()));time.sleep(10)')

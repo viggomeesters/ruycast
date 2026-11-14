@@ -3,6 +3,19 @@ use std::{io::Write, path::PathBuf};
 fn main() {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("execution-tree") if args.len() == 3 => {
+            std::fs::write(&args[1], std::process::id().to_string()).unwrap();
+            unsafe { libc::signal(libc::SIGTERM, libc::SIG_IGN); }
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["execution-orphan", &args[2]]).spawn().unwrap();
+            std::thread::sleep(std::time::Duration::from_secs(10));
+            let _ = child.wait();
+        }
+        Some("execution-orphan") if args.len() == 2 => {
+            unsafe { libc::signal(libc::SIGTERM, libc::SIG_IGN); }
+            std::thread::sleep(std::time::Duration::from_millis(800));
+            std::fs::write(&args[1], "bad").unwrap();
+        }
         Some("execution-delay") if args.len() == 4 => {
             let millis: u64 = args[2].parse().expect("owned delay milliseconds");
             assert!(millis <= 10_000);
