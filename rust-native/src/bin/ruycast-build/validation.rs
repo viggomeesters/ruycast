@@ -31,7 +31,7 @@ const KEYBOARD_SDK_SOURCES: &[&str] = &[
     "rust-native/tests/fixtures/keyboard_host_loader.json",
 ];
 const SYSTEM_UI_SOURCES: &[&str] = &[
-    "rust-native/tests/native_keyboard_process.py",
+    "rust-native/tests/support/native_keyboard.rs",
     "rust-native/tests/system_search_sdk.rs",
     "rust-native/tests/support/owned_keyboard.rs",
 ];

@@ -302,7 +302,6 @@ rust-native/src/test_fixtures.rs
 rust-native/src/workspace.rs
 rust-native/src/workspace_activation.rs
 rust-native/swift-reference-lock.json
-rust-native/tests/actions_process.py
 rust-native/tests/actions_process.rs
 rust-native/tests/analytics_process.py
 rust-native/tests/fixtures/analytics_write_shim.rs
@@ -404,7 +403,6 @@ rust-native/tests/library_lifecycle_process.rs
 rust-native/tests/manager_process.rs
 rust-native/tests/native_choice_host_process.rs
 rust-native/tests/native_dashboard_dialog_process.rs
-rust-native/tests/native_keyboard_process.py
 rust-native/tests/native_keyboard_process.rs
 rust-native/tests/native_open_basic_process.rs
 rust-native/tests/native_process.py
