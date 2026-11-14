@@ -151,3 +151,117 @@ fn failure_keeps_query_selection_and_readable_detail() {
     click(&host, "choices");
     assert_eq!(view(&host, |_| true)["scriptResult"]["query"], "PLAN");
 }
+struct GracefulBridge(Bridge);
+impl std::ops::Deref for GracefulBridge {
+    type Target = Bridge;
+    fn deref(&self) -> &Bridge {
+        &self.0
+    }
+}
+impl Drop for GracefulBridge {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            let _ =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.0.host.stop(true)));
+        }
+    }
+}
+fn wait_exists(path: &std::path::Path) {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !path.exists() {
+        assert!(
+            Instant::now() < deadline,
+            "fixture did not publish {}",
+            path.display()
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+#[test]
+fn detail_scroll_back_preserves_choices_and_filter() {
+    let host = host("close");
+    open(&host);
+    host.probe("query", json!({"query":"PLAN"}));
+    view(&host, |r| r["query"] == "PLAN");
+    click(&host, "details");
+    let v = view(&host, |r| r["detail_visible"] == true);
+    assert_eq!(v["resultPanel"]["selectable"], true);
+    assert_eq!(v["resultPanel"]["editable"], false);
+    assert!(v["resultPanel"]["detail"]
+        .as_str()
+        .unwrap()
+        .contains("PRIVATE report"));
+    assert!(v["resultPanel"]["scrollMaxY"].as_f64().unwrap() > 0.0);
+    capture(&host, "long-detail");
+    actions::key(&host, 53, 0, "", false);
+    assert_eq!(
+        view(&host, |r| r["detail_visible"] == false)["scriptResult"]["query"],
+        "PLAN"
+    );
+}
+#[test]
+fn unsafe_followup_closes_choices_with_invalid_response() {
+    let host = host("invalid");
+    open(&host);
+    click(&host, "choose");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let v = actions::probe(&host, "read");
+    assert!(v.get("scriptResult").unwrap().is_null());
+    assert!(v["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s.as_str().unwrap().contains("invalid response")));
+}
+#[test]
+fn new_selection_result_uses_new_token_and_values() {
+    let host = host("replace");
+    let old = open(&host)["scriptResult"].get("token").unwrap().clone();
+    click(&host, "choose");
+    let v = view(&host, |r| r.get("token").unwrap() != &old);
+    assert_eq!(v["scriptResult"]["title"], "Updated");
+    assert_eq!(v["scriptResult"]["query"], "");
+}
+#[test]
+fn changed_command_cannot_execute_old_selection() {
+    let host = host("close");
+    open(&host);
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    let command = config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|c| c["id"] == "script.fixture")
+        .unwrap();
+    command["target"] = json!("/usr/bin/false");
+    command["arguments"] = json!([]);
+    host.replace(&config, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    click(&host, "choose");
+    let v = view(&host, |r| {
+        r["error"].as_str().unwrap_or("").contains("changed")
+    });
+    assert!(!host.base.join("selected").exists());
+    assert_eq!(v["scriptResult"]["busy"], false);
+}
+#[test]
+fn back_during_busy_cancels_only_owned_job() {
+    let host = GracefulBridge(host("slow"));
+    open(&host);
+    click(&host, "choose");
+    wait_exists(&host.base.join("ready"));
+    view(&host, |r| r["busy"] == true);
+    click(&host, "close");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let v = actions::probe(&host, "read");
+    assert!(v.get("scriptResult").unwrap().is_null());
+    assert_eq!(
+        host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+        true
+    );
+    assert!(!v["screenText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s.as_str().unwrap().contains("Late report")));
+}
