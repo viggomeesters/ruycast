@@ -1335,3 +1335,76 @@ fn settings_peer_preserves_primary_input() {
     assert_eq!(fs::read(&host.config).unwrap(), before);
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
 }
+#[test]
+fn disable_and_enable_keep_input_but_disabled_run_cannot_spawn() {
+    let host = input_actions_fixture();
+    input_action(&host, "Disable");
+    input_action_resumed(&host);
+    assert_eq!(input_saved_command(&host)["enabled"], false);
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    key(&host, 36, "\r", 0);
+    view(&host, |v| {
+        v["screenText"].as_array().unwrap().iter().any(|s| {
+            let s = s.as_str().unwrap().to_lowercase();
+            s.contains("disabled") || s.contains("changed")
+        })
+    });
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+    key(&host, 40, "k", actions::CMD);
+    let menu = view(&host, |v| v["actionsVisible"] == true);
+    let labels = menu["actionLabels"].as_array().unwrap();
+    assert!(!labels.iter().any(|v| v == "Run"));
+    let index = labels.iter().position(|v| v == "Enable").unwrap();
+    host.probe("action-button", json!({"index":index}));
+    input_action_resumed(&host);
+    assert_eq!(input_saved_command(&host)["enabled"], true);
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+}
+#[test]
+fn remove_commit_discards_input_and_never_executes() {
+    let host = input_actions_fixture();
+    input_action(&host, "Remove…");
+    input_action_form(&host);
+    actions::probe(&host, "save-editor");
+    inline_closed(&host);
+    let config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    assert!(!config["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == "script.fixture"));
+    assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
+}
+#[test]
+fn light_dark_input_actions_and_resumed_captures() {
+    let host = input_actions_fixture();
+    for theme in ["light", "dark"] {
+        let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+        config["theme"] = json!(theme);
+        host.replace(&config, None);
+        assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+        host.settled(|_| true);
+        key(&host, 40, "k", actions::CMD);
+        view(&host, |v| v["actionsVisible"] == true);
+        host.capture(&format!("input-actions-menu-{theme}"));
+        let menu = actions::probe(&host, "read");
+        let index = menu["actionLabels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|v| v == "Set Alias…")
+            .unwrap();
+        host.probe("action-button", json!({"index":index}));
+        input_action_form(&host);
+        host.capture(&format!("input-actions-alias-{theme}"));
+        actions::probe(&host, "cancel-editor");
+        input_action_resumed(&host);
+        host.capture(&format!("input-actions-resumed-{theme}"));
+    }
+}
