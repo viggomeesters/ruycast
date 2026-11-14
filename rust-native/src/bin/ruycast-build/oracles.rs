@@ -785,7 +785,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
-            ("rust-native/tests/actions_process.py", include_bytes!("../../../tests/actions_process.py"), "7e24c1a5e7625fbcac12201b82f0924a8b3799562e2a861b0ed7f29ca52774ca"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.py", include_bytes!("../../../tests/input_process.py"), "f8c8ea332624ada2dc0409a8f5e8ffe26ca435cea71622133c93837b6d6544e4"),
             ("rust-native/tests/inline_input_process.py", include_bytes!("../../../tests/inline_input_process.py"), "68d4a92983cf8baf44e2a06353ccc4f4306fc612f97fcd37ccb1b07443469b70"),
@@ -796,7 +795,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_lifecycle_process.rs", include_bytes!("../../../tests/library_lifecycle_process.rs"), "4f3d417117826cd22f64e233a5c27609402a4a41f5029b1e54ce6de6907c92ad"),
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
@@ -814,6 +812,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "3fd6aa6c6a3c8321dde7a9f4b85a01045e18aad1e0bfeea89d2a9d5d0f935409"),
             ("Sources/RuycastApp/SystemChecks.swift", include_bytes!("../../../../Sources/RuycastApp/SystemChecks.swift"), "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
         ],
 
         "--check-actions-menu" => &[
@@ -834,7 +833,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
-            ("rust-native/tests/actions_process.py", include_bytes!("../../../tests/actions_process.py"), "7e24c1a5e7625fbcac12201b82f0924a8b3799562e2a861b0ed7f29ca52774ca"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.py", include_bytes!("../../../tests/input_process.py"), "f8c8ea332624ada2dc0409a8f5e8ffe26ca435cea71622133c93837b6d6544e4"),
             ("rust-native/tests/inline_input_process.py", include_bytes!("../../../tests/inline_input_process.py"), "68d4a92983cf8baf44e2a06353ccc4f4306fc612f97fcd37ccb1b07443469b70"),
@@ -845,7 +843,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_lifecycle_process.rs", include_bytes!("../../../tests/library_lifecycle_process.rs"), "4f3d417117826cd22f64e233a5c27609402a4a41f5029b1e54ce6de6907c92ad"),
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
@@ -866,7 +863,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
-            ("rust-native/tests/actions_process.py", include_bytes!("../../../tests/actions_process.py"), "7e24c1a5e7625fbcac12201b82f0924a8b3799562e2a861b0ed7f29ca52774ca"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.py", include_bytes!("../../../tests/input_process.py"), "f8c8ea332624ada2dc0409a8f5e8ffe26ca435cea71622133c93837b6d6544e4"),
             ("rust-native/tests/inline_input_process.py", include_bytes!("../../../tests/inline_input_process.py"), "68d4a92983cf8baf44e2a06353ccc4f4306fc612f97fcd37ccb1b07443469b70"),
@@ -877,7 +873,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_lifecycle_process.rs", include_bytes!("../../../tests/library_lifecycle_process.rs"), "4f3d417117826cd22f64e233a5c27609402a4a41f5029b1e54ce6de6907c92ad"),
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/bridge_process.rs", include_bytes!("../../../tests/bridge_process.rs"), "5e281d85d5122f4758e648ce78133657377df963c3fedf827a17b609e778ec3d"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
@@ -906,6 +901,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-toolchain.toml", include_bytes!("../../../../rust-toolchain.toml"), "d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
+            ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
         ],
         "--check-rich-resources" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
@@ -1163,7 +1160,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
-            ("rust-native/tests/native_keyboard_process.py", include_bytes!("../../../tests/native_keyboard_process.py"), "27205492613c891ed37e45efeedf831a032f910348a853dbabadc48128cc042b"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "2b426ebe9c5b49d43de120859277f468c8285de16dc989b7179fc2de56a5862a"),
@@ -1186,7 +1182,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/runtime_health.rs", include_bytes!("../../runtime_health.rs"), "8c9964bcad7bda0bd6f52a2921b1e7d646c39545aa6a48bc7383138e1b33bdfb"),
             ("rust-native/src/settings_surface.rs", include_bytes!("../../settings_surface.rs"), "0578d288549d01d76d3168cc8607ab56bd46df03d8583a49ab266ce95b5e5b37"),
             ("rust-native/src/snippet_output.rs", include_bytes!("../../snippet_output.rs"), "c2fefbe888a3c3d1e9f940baaf783b6bf6a44faa19f83fdddc975aa3d2e53858"),
-            ("rust-native/tests/actions_process.py", include_bytes!("../../../tests/actions_process.py"), "7e24c1a5e7625fbcac12201b82f0924a8b3799562e2a861b0ed7f29ca52774ca"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/keyword_process.py", include_bytes!("../../../tests/keyword_process.py"), "f7aada122ee3c2da48d2390b60d5c4be5520b51a584e60e07a15fc5f3a3c09c2"),
             ("rust-native/tests/keyword_process.rs", include_bytes!("../../../tests/keyword_process.rs"), "435348c83048fe5a34a6ea4c121ee38089d493d2692732d563ed157b8f7c00eb"),
@@ -1763,7 +1758,7 @@ mod tests {
         assert!(!gate.native_cases.iter().any(|name| name.starts_with("native_keyboard_process.")));
         for id in ["--check-actions-menu", "--check-settings"] {
             let entries = super::settings_sources(id);
-            for path in ["rust-native/tests/native_keyboard_process.py", "rust-native/tests/native_keyboard_process.rs", "rust-native/tests/support/native_keyboard.rs", "rust-native/src/bin/private_results_fixture.rs"] {
+            for path in ["rust-native/tests/native_keyboard_process.rs", "rust-native/tests/support/native_keyboard.rs", "rust-native/src/bin/private_results_fixture.rs"] {
                 let matches = entries.iter().filter(|entry| entry.0 == path).collect::<Vec<_>>();
                 assert_eq!(matches.len(), 1, "{id}: {path}");
                 assert_eq!(format!("{:x}", sha2::Sha256::digest(matches[0].1)), matches[0].2);
@@ -1784,7 +1779,7 @@ mod tests {
         assert!(!gate.native_cases.iter().any(|name| name.starts_with("actions_process.")));
         for id in ["--check-feedback", "--check-actions-menu", "--check-settings"] {
             let entries = super::settings_sources(id);
-            for path in ["rust-native/tests/actions_process.py", "rust-native/tests/actions_process.rs", "rust-native/tests/support/native_actions.rs", "rust-native/tests/support/native_bridge.rs", "rust-native/tests/support/runtime_host.rs", "rust-native/tests/support/status_rpc.rs", "rust-native/tests/support/child_output.rs"] {
+            for path in ["rust-native/tests/actions_process.rs", "rust-native/tests/support/native_actions.rs", "rust-native/tests/support/native_bridge.rs", "rust-native/tests/support/runtime_host.rs", "rust-native/tests/support/status_rpc.rs", "rust-native/tests/support/child_output.rs"] {
                 let matches = entries.iter().filter(|entry| entry.0 == path).collect::<Vec<_>>();
                 assert_eq!(matches.len(), 1, "{id}: {path}");
                 assert_eq!(format!("{:x}", sha2::Sha256::digest(matches[0].1)), matches[0].2);
@@ -2308,8 +2303,8 @@ mod tests {
         ];
         for (id, count, input_count, complete) in [
             ("--check-polish", 10, 33, true),
-            ("--check-feedback", 21, 42, true),
-            ("--check-actions-menu", 11, 32, true),
+            ("--check-feedback", 21, 41, true),
+            ("--check-actions-menu", 11, 30, true),
             ("--check-interactions", 16, 49, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
