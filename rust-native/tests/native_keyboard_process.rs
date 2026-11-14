@@ -624,3 +624,45 @@ fn native_keyword_external_activation_roundtrip_clears_prefix() {
     keyword_reset(&h);
     assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
 }
+
+#[test]
+fn native_keyword_sleep_session_interleaving_and_resumption() {
+    let h = keyword_host(false);
+    keyword_type(&h, "ab");
+    for name in ["sleep", "resign", "wake"] {
+        h.probe(
+            "keyboard-hid",
+            json!({"control":"notification", "name":name}),
+        );
+    }
+    h.wait(|s| s["snippetExpansion"] == "Paused");
+    assert_eq!(keyword_type(&h, "c").last(), Some(&json!(false)));
+    h.probe(
+        "keyboard-hid",
+        json!({"control":"notification", "name":"active"}),
+    );
+    h.wait(|s| s["snippetExpansion"] == "On");
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+}
+#[test]
+fn native_keyword_timeout_recovers_on_main_wake_and_drops_prefix() {
+    let h = keyword_host(false);
+    keyword_type(&h, "ab");
+    keyword(&h, "event", json!({"type":u32::MAX}));
+    h.wait(|s| s["snippetExpansion"] == "On");
+    assert_eq!(keyword_type(&h, "c").last(), Some(&json!(false)));
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+}
+#[test]
+fn native_keyword_timer_recovers_failed_setup_without_new_input() {
+    let h = keyword_host(false);
+    let fault = h.base.join("keyword-fail-tap_create");
+    fs::write(&fault, b"").unwrap();
+    keyword(&h, "event", json!({"type":u32::MAX}));
+    h.wait(|s| s["snippetExpansion"] != "On");
+    fs::remove_file(fault).unwrap();
+    h.wait(|s| s["snippetExpansion"] == "On");
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+}
