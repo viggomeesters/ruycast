@@ -83,24 +83,6 @@ class Execution(unittest.TestCase):
         self.file(host.profile/'owner-delay-started')
         return host,gate,delay,stream
 
-    def test_native_config_replacement_and_error_do_not_leave_running_label(self):
-        for invalid in [False,True]:
-            with self.subTest(invalid=invalid):
-                host,gate,delay,_=self.delayed_completion()
-                if invalid:host.replace(b'{invalid')
-                else:
-                    value=json.loads(host.config.read_bytes())
-                    for command in value['commands']:
-                        if command['id']=='script.fixture':command.update(target='/usr/bin/true',arguments=[])
-                    host.replace(value)
-                gate.write_text('go');self.assertGreater(self.response(delay)['result']['executionReady'],0)
-                host.wait(lambda s:s['scriptsRunning']==0)
-                view=host.probe('read');self.assertNotIn('Running…',view['screenText'])
-                if invalid:self.assertTrue(any(text.startswith('Config:') for text in view['screenText']))
-                self.assertTrue(host.rpc({'op':'status'})['result']['nativeUI']['visible'])
-                self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-                host.close()
-
     def test_running_and_failure_copy_in_both_themes(self):
         for theme in ['light','dark']:
             host=self.host(native=True);value=json.loads(host.config.read_bytes());value['theme']=theme;host.replace(value);host.rpc({'op':'reload'})

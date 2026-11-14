@@ -397,3 +397,72 @@ fn ready_cli_completion_survives_queued_rpc_quit() {
         serde_json::from_slice(&fs::read(host.profile.join("usage.json")).unwrap()).unwrap();
     assert_eq!(usage["script.fixture"], 1);
 }
+
+#[test]
+fn config_replacement_and_invalid_config_clear_running_label() {
+    use std::io::Write;
+    for invalid in [false, true] {
+        let mut bridge = Bridge::new(Config::current(), false);
+        let ready = bridge.base.join("ready");
+        let gate = bridge.base.join("gate");
+        let marker = bridge.base.join("marker");
+        let mut config = default_config();
+        config["commands"].as_array_mut().unwrap().push(json!({"id":"script.fixture","title":"Execution Fixture","aliases":["runfixture"],"kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),"arguments":["fake","gated",ready,gate,marker,"completed"],"timeout":3}));
+        config["commands"].as_array_mut().unwrap().push(json!({"id":"script.other","title":"Execution Fixture Other","aliases":["otherfixture"],"kind":"script","target":"/usr/bin/true","arguments":[],"timeout":3}));
+        bridge.replace(&config, None);
+        bridge.start();
+        let host = GracefulBridge(bridge);
+        host.settled(|_| true);
+        actions::show(&host, "runfixture");
+        assert_eq!(
+            host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["selectedId"],
+            "script.fixture"
+        );
+        actions::key(&host, 36, 0, "\r", false);
+        wait_marker(&ready, "ready");
+        let mut delay = host.connect(Duration::from_secs(5));
+        delay
+            .write_all(b"{\"op\":\"native.delay\",\"executionBarrier\":true}\n")
+            .unwrap();
+        wait_exists(&host.profile.join("owner-delay-started"));
+        if invalid {
+            host.replace_bytes(b"{invalid", None);
+        } else {
+            let command = config["commands"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|c| c["id"] == "script.fixture")
+                .unwrap();
+            command["target"] = json!("/usr/bin/true");
+            command["arguments"] = json!([]);
+            host.replace(&config, None);
+        }
+        fs::write(&gate, "go").unwrap();
+        assert!(
+            response(delay)["result"]["executionReady"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        host.wait(|s| s["scriptsRunning"] == 0);
+        let view = actions::probe(&host, "read");
+        assert!(!view["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t == "Running…"));
+        if invalid {
+            assert!(view["screenText"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|t| t.as_str().unwrap().starts_with("Config:")));
+        }
+        assert_eq!(
+            host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+            true
+        );
+        assert_eq!(host.rpc(&json!({"op":"usage"}))["result"], json!({}));
+    }
+}
