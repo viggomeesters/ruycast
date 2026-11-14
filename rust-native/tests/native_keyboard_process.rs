@@ -774,3 +774,79 @@ fn native_keyword_secure_exclusion_and_permission_changes_prevent_expansion() {
     assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(false)));
     assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
 }
+
+fn rich_keyword_host() -> Bridge {
+    let mut h = host(&[], false, true, true, None);
+    let mut config = default_config();
+    config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"A{cursor}BC", "keyword":"x", "snippetOutput":"html" }]);
+    config["snippetExpansionEnabled"] = json!(true);
+    h.replace(&config, None);
+    h.start();
+    h.wait(|s| s["keywordGeneration"] == s["keyboardGeneration"] && s["snippetExpansion"] == "On");
+    h
+}
+#[test]
+fn native_keyword_failed_registration_retains_last_good_catalog() {
+    let h = keyword_host(false);
+    let mut config = actions::config(&h);
+    let before = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"].clone();
+    let fault = h.base.join("fail-code");
+    fs::write(&fault, "11").unwrap();
+    config["launcherHotkey"] = json!("cmd+b");
+    h.replace(&config, None);
+    h.rpc(&json!({"op":"reload"}));
+    h.wait(|s| s["configurationUpdating"] == false && s["keyboardGeneration"] == before);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["keywordGeneration"],
+        before
+    );
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+    fs::remove_file(fault).unwrap();
+}
+#[test]
+fn native_keyword_new_input_cancels_rich_cursor_before_timer() {
+    let h = rich_keyword_host();
+    assert_eq!(keyword_type(&h, "x"), vec![json!(true)]);
+    keyword(&h, "event", json!({"text":"z"}));
+    std::thread::sleep(Duration::from_millis(150));
+    let state = keyword(&h, "state", json!({}));
+    assert_eq!(state["pasteIssues"], 1);
+    assert!(!h.base.join("keyword-cursor-entered").exists());
+    assert_eq!(
+        state["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["key"] == 123 && e["down"] == true)
+            .count(),
+        0
+    );
+}
+#[test]
+fn native_keyword_partial_rich_write_suppresses_effect_but_passes_trigger() {
+    let mut h = rich_keyword_host();
+    fs::write(h.base.join("keyword-fail-board_partial"), b"").unwrap();
+    assert_eq!(keyword_type(&h, "x"), vec![json!(false)]);
+    let state = keyword(&h, "state", json!({}));
+    assert_eq!(state["posts"], 0);
+    let bytes: Vec<u8> = state["boardText"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_u64().unwrap() as u8)
+        .collect();
+    assert_eq!(String::from_utf8(bytes).unwrap(), "ABC");
+    assert!(state["boardHTML"].is_null());
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let proof: Value =
+        serde_json::from_slice(&fs::read(h.base.join("keyword-retired.json")).unwrap()).unwrap();
+    assert_eq!(proof["ownChange"], state["boardCount"]);
+    assert_eq!(proof["ownActive"], false);
+}

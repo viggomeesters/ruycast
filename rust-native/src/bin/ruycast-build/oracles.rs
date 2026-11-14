@@ -816,7 +816,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
 
         "--check-actions-menu" => &[
-            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "717d62d22c1080f88242856e84c76c93d7b10f9caa3f0c07b3f72a8b2a7624d1"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "5d3b336039b853151879fe002af7e28aa29205395fc61a9ab9f2e8b9f2f68b1f"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "8df1771311f7d65bbe1bfffc09bb8caf925744f1f0ea9531ecb391ce7ff35b07"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
@@ -1151,7 +1151,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("Sources/RuycastApp/PerformancePipelineChecks.swift", include_bytes!("../../../../Sources/RuycastApp/PerformancePipelineChecks.swift"), "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659"),
         ],
         "--check-settings" => &[
-            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "717d62d22c1080f88242856e84c76c93d7b10f9caa3f0c07b3f72a8b2a7624d1"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "5d3b336039b853151879fe002af7e28aa29205395fc61a9ab9f2e8b9f2f68b1f"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "8df1771311f7d65bbe1bfffc09bb8caf925744f1f0ea9531ecb391ce7ff35b07"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),

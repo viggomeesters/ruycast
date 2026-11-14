@@ -32,10 +32,6 @@ class NativeKeyword(unittest.TestCase):
                 self.wait_file(host.base/'keyword-cursor-entered')
                 state=self.kw(host);self.assertEqual(bytes(state['pasteText']).decode(),'ABC');self.assertEqual(state['pasteIssues'],1);self.assertEqual(sum(e['key']==123 and e['down'] for e in state['output']),2);self.assertFalse(host.probe('read')['windowShown'])
                 proof=self.retire(host);self.assertEqual(proof['ownChange'],state['boardCount']);self.assertFalse(proof['ownActive']);self.assertEqual(proof['state']['allocated'],0)
-    def test_new_native_input_cancels_rich_cursor_before_timer(self):
-        host,_=self.configured_rich();self.assertEqual(self.type(host,'x'),[True]);self.kw(host,'event',text='z');time.sleep(.15);state=self.kw(host);self.assertEqual(state['pasteIssues'],1);self.assertFalse((host.base/'keyword-cursor-entered').exists());self.assertEqual(sum(e['key']==123 and e['down'] for e in state['output']),0)
-    def test_native_partial_rich_write_is_suppressed_but_trigger_passes(self):
-        host,_=self.configured_rich();(host.base/'keyword-fail-board_partial').touch();self.assertEqual(self.type(host,'x'),[False]);state=self.kw(host);self.assertEqual(state['posts'],0);self.assertEqual(bytes(state['boardText']).decode(),'ABC');self.assertIsNone(state['boardHTML']);proof=self.retire(host);self.assertEqual(proof['ownChange'],state['boardCount']);self.assertFalse(proof['ownActive'])
     def test_quit_during_rich_clipboard_or_paste_retains_profile_until_cleanup(self):
         for phase in ['board_clear','board_write','post:down']:
             with self.subTest(phase=phase):
@@ -70,8 +66,6 @@ class NativeKeyword(unittest.TestCase):
         host=self.host(start=False);host.replace(capture.config());foreign=host.base/'unmarked';foreign.mkdir();host.env['RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER']=str(foreign);before=host.config.read_bytes()
         with self.assertRaisesRegex(AssertionError,'Own config adoption fixture required'):host.start()
         self.assertEqual(host.process.poll(),1);host.process.communicate(timeout=3);host.process=None;self.assertEqual(host.config.read_bytes(),before)
-    def test_failed_registration_keeps_last_good_catalog_after_owner_reconciliation(self):
-        host,c=self.configured();before=host.rpc({'op':'status'})['result']['keyboardGeneration'];(host.base/'fail-code').write_text('11');c['launcherHotkey']='cmd+b';host.replace(c);reply=host.rpc({'op':'reload'});host.wait(lambda s:not s['configurationUpdating'] and s['keyboardGeneration']==before);self.assertEqual(host.rpc({'op':'status'})['result']['keywordGeneration'],before);self.assertTrue(self.type(host,'abc')[-1]);(host.base/'fail-code').unlink()
     def test_actual_two_recorders_suppress_until_both_cancel(self):
         host,_=self.configured();self.type(host,'ab');host.rpc({'op':'show','query':''});host.settled();actions.ActionsProcesses.hotkey(self,host)
         self.assertEqual(host.rpc({'op':'status'})['result']['snippetExpansion'],'Off');host.rpc({'op':'show','mode':'settings'});host.settled();host.rpc(dict(op='native.test',surface='settings',action='inline-hotkey',id='own.snippet'));host.wait(lambda s:s['managementUI']['editorOpen'])
