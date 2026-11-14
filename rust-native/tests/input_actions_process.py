@@ -64,11 +64,6 @@ class InputActions(unittest.TestCase):
             raise RuntimeError('Build --features test-tools --example fcntl-sync-shim and set RUYCAST_TEST_FCNTL_SHIM first')
     @classmethod
     def tearDownClass(cls):cls.temp.cleanup()
-    def test_menu_cancel_while_owner_busy_preserves_actual_new_typing(self):
-        host=self.fixture();self.key(host,40,'k',CMD);self.view(host,lambda v:v['actionsVisible']);before=host.config.read_bytes()
-        host.probe('schedule-input-action-cancel');stream=host.connect(timeout=4);self.addCleanup(stream.close);stream.sendall(b'{"op":"native.delay"}\n');self.file(host.profile/'input-action-cancel-fired')
-        with stream.makefile('rb') as reader:self.assertTrue(json.loads(reader.readline())['result']['newIntentDuringDelay'])
-        self.resumed(host);self.assertEqual(self.text(host),'PRIVATE literal Ω continued');self.assertEqual(host.config.read_bytes(),before);self.assertFalse(host.probe('read')['formVisible'])
     def test_cancel_published_but_never_presented_child_preserves_live_text_ime_and_undo(self):
         host=self.fixture();before=host.config.read_bytes();self.key(host,40,'k',CMD);v=self.view(host,lambda v:v['actionsVisible']);host.probe('defer-input-child',defer=True);host.probe('action-button',index=v['actionLabels'].index('Set Alias…'))
         end=time.monotonic()+4
@@ -92,12 +87,6 @@ class InputActions(unittest.TestCase):
     def test_queued_child_save_cancel_resumes_without_publishing(self):
         host=self.fixture();before=host.config.read_bytes();self.action(host,'Set Alias…');child=self.form(host)['editorToken'];host.probe('alias-input',text='must-not-save');host.probe('schedule-save-cancel');self.assertTrue(host.rpc({'op':'native.delay'})['ok']);view=self.resumed(host)
         self.assertGreater(view['editorToken'],child);self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertEqual(host.config.read_bytes(),before);self.type(host,' still typing');self.assertEqual(self.text(host),'PRIVATE literal Ω still typing')
-    def test_external_removal_before_edit_keeps_input_without_replacement(self):
-        host=self.fixture();config=json.loads(host.config.read_bytes());config['commands']=[c for c in config['commands'] if c['id']!='script.fixture'];host.replace(config);self.action(host,'Set Alias…')
-        self.view(host,lambda v:any('changed' in x.lower() for x in v['screenText']));self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertFalse(host.probe('read')['formVisible'])
-    def test_relocated_config_before_edit_does_not_redirect_suspended_input(self):
-        host=self.fixture();folder=host.base/'relocated';folder.mkdir();self.assertTrue(host.cli('config','directory',str(folder))['ok']);before=host.config.read_bytes();self.action(host,'Set Alias…')
-        self.view(host,lambda v:any('folder changed' in x.lower() for x in v['screenText']));self.assertEqual(self.text(host),'PRIVATE literal Ω');self.assertEqual(host.config.read_bytes(),before)
     def test_light_dark_input_config_actions_and_resumed_capture(self):
         host=self.fixture()
         for theme in ['light','dark']:

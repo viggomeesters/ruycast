@@ -1026,3 +1026,96 @@ fn newer_query_during_inline_run_finishes_without_hiding_search() {
         1
     );
 }
+fn input_actions_fixture() -> Bridge {
+    let host = host();
+    inline_open(&host, false);
+    inline_type(&host, "PRIVATE literal Ω");
+    host
+}
+fn input_action(host: &Bridge, title: &str) {
+    key(host, 40, "k", actions::CMD);
+    let menu = view(host, |v| v["actionsVisible"] == true);
+    let index = menu["actionLabels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|v| v == title)
+        .unwrap();
+    host.probe("action-button", json!({"index":index}));
+}
+#[test]
+fn menu_cancel_while_busy_preserves_new_typing() {
+    use std::io::{BufRead, Write};
+    let host = input_actions_fixture();
+    key(&host, 40, "k", actions::CMD);
+    view(&host, |v| v["actionsVisible"] == true);
+    let before = fs::read(&host.config).unwrap();
+    actions::probe(&host, "schedule-input-action-cancel");
+    let mut stream = host.connect(std::time::Duration::from_secs(4));
+    stream.write_all(b"{\"op\":\"native.delay\"}\n").unwrap();
+    wait_exists(&host.profile.join("input-action-cancel-fired"));
+    let mut line = String::new();
+    std::io::BufReader::new(stream)
+        .read_line(&mut line)
+        .unwrap();
+    let value: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(value["result"]["newIntentDuringDelay"], true);
+    host.settled(|_| true);
+    view(&host, |v| {
+        v["runInputInline"] == true && v["actionsVisible"] == false
+    });
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω continued"
+    );
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    assert_eq!(actions::probe(&host, "read")["formVisible"], false);
+}
+#[test]
+fn external_removal_before_edit_keeps_input() {
+    let host = input_actions_fixture();
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|c| c["id"] != "script.fixture");
+    host.replace(&config, None);
+    input_action(&host, "Set Alias…");
+    view(&host, |v| {
+        v["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s.as_str().unwrap().to_lowercase().contains("changed"))
+    });
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    assert_eq!(actions::probe(&host, "read")["formVisible"], false);
+}
+#[test]
+fn relocated_config_before_edit_keeps_suspended_input() {
+    let host = input_actions_fixture();
+    let folder = host.base.join("relocated");
+    fs::create_dir(&folder).unwrap();
+    assert_eq!(
+        host.cli(&["config", "directory", folder.to_str().unwrap()])["ok"],
+        true
+    );
+    let before = fs::read(&host.config).unwrap();
+    input_action(&host, "Set Alias…");
+    view(&host, |v| {
+        v["screenText"].as_array().unwrap().iter().any(|s| {
+            s.as_str()
+                .unwrap()
+                .to_lowercase()
+                .contains("folder changed")
+        })
+    });
+    assert_eq!(
+        actions::probe(&host, "run-inline-read")["text"],
+        "PRIVATE literal Ω"
+    );
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+}
