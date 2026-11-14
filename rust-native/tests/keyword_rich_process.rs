@@ -148,3 +148,82 @@ fn external_replacement_is_not_owned_or_pasted() {
         );
     }
 }
+#[test]
+fn foreign_html_with_same_plain_text_is_not_suppressed() {
+    let v = rich(
+        "HELLO",
+        "html",
+        "abc",
+        vec![json!({"op":"hook","at":"board_written","action":"external-html"})],
+        vec![],
+    );
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 2]["consumed"], false);
+    assert_eq!(text(&v["final"]["boardText"]), "HELLO");
+    assert_eq!(text(&v["final"]["boardHTML"]), "EXTERNAL HTML");
+    assert_ne!(
+        s.last().unwrap().get("ownChange").unwrap(),
+        v["final"].get("boardCount").unwrap()
+    );
+}
+#[test]
+fn clipboard_only_cancel_drop_or_panic_never_swallows_trigger() {
+    for phase in [
+        "item_create",
+        "board_clear",
+        "board_cleared",
+        "board_write",
+        "board_written",
+        "board_matches",
+    ] {
+        for action in ["stop", "record", "drop", "disable", "panic"] {
+            let v = rich(
+                "HELLO",
+                "html",
+                "abc",
+                vec![json!({"op":"hook","at":phase,"action":action})],
+                vec![],
+            );
+            let s = v["steps"].as_array().unwrap();
+            assert_eq!(s[s.len() - 2]["consumed"], false, "{phase} {action}");
+            assert_eq!(v["final"]["posts"], 0, "{phase} {action}");
+            assert_eq!(s.last().unwrap()["ownActive"], false);
+        }
+    }
+}
+#[test]
+fn external_board_change_after_first_erase_stops_before_paste() {
+    let v = rich(
+        "HELLO",
+        "html",
+        "abc",
+        vec![json!({"op":"hook","at":"post:down","action":"external"})],
+        vec![],
+    );
+    let s = v["steps"].as_array().unwrap();
+    assert_eq!(s[s.len() - 2]["consumed"], true);
+    assert_eq!(v["final"]["pasteIssues"], 0);
+    let out = v["final"]["output"].as_array().unwrap();
+    assert_eq!(out.len(), 2);
+    assert_eq!(out.last().unwrap()["down"], false);
+}
+#[test]
+fn entered_paste_down_retains_cleared_up_on_revoke_and_panic() {
+    for action in ["stop", "record", "drop", "disable", "panic", "reenter"] {
+        let v = rich(
+            "HELLO",
+            "html",
+            "x",
+            vec![json!({"op":"hook","at":"post:down","action":action})],
+            vec![],
+        );
+        let s = v["steps"].as_array().unwrap();
+        assert_eq!(s[s.len() - 2]["consumed"], true);
+        let out = v["final"]["output"].as_array().unwrap();
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0]["key"], 9);
+        assert_eq!(out[0]["units"], json!([118]));
+        assert_eq!(out.last().unwrap()["units"], json!([]));
+        assert_eq!(out.last().unwrap()["flags"], 0);
+    }
+}

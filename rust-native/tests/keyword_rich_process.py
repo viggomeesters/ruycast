@@ -9,17 +9,6 @@ class KeywordRich(unittest.TestCase):
     def rich(self,text='HELLO',mode='html',keyword='abc',before=None,after=None):
         return self.invoke([dict(op='config',value=config(text,keyword=keyword,snippetOutput=mode)),dict(op='refresh'),*(before or []),*keys(keyword),*(after or []),dict(op='status')])
     def text(self,value):return bytes(value or []).decode()
-    def test_foreign_html_with_same_plain_text_is_not_suppressed(self):
-        v=self.rich(before=[dict(op='hook',at='board_written',action='external-html')]);self.assertFalse(v['steps'][-2]['consumed']);self.assertEqual(self.text(v['final']['boardText']),'HELLO');self.assertEqual(self.text(v['final']['boardHTML']),'EXTERNAL HTML');self.assertNotEqual(v['steps'][-1]['ownChange'],v['final']['boardCount'])
-    def test_clipboard_only_cancel_drop_or_panic_never_swallows_trigger(self):
-        for phase in ['item_create','board_clear','board_cleared','board_write','board_written','board_matches']:
-            for action in ['stop','record','drop','disable','panic']:
-                v=self.rich(before=[dict(op='hook',at=phase,action=action)]);self.assertFalse(v['steps'][-2]['consumed'],(phase,action));self.assertEqual(v['final']['posts'],0,(phase,action));self.assertFalse(v['steps'][-1]['ownActive'])
-    def test_external_board_change_after_first_erase_stops_before_paste(self):
-        v=self.rich(before=[dict(op='hook',at='post:down',action='external')]);self.assertTrue(v['steps'][-2]['consumed']);self.assertEqual(v['final']['pasteIssues'],0);self.assertEqual(len(v['final']['output']),2);self.assertFalse(v['final']['output'][-1]['down'])
-    def test_entered_paste_down_retains_cleared_up_on_revoke_and_panic(self):
-        for action in ['stop','record','drop','disable','panic','reenter']:
-            v=self.rich(keyword='x',before=[dict(op='hook',at='post:down',action=action)]);self.assertTrue(v['steps'][-2]['consumed']);out=v['final']['output'];self.assertEqual(len(out),2);self.assertEqual(out[0]['key'],9);self.assertEqual(out[0]['units'],[118]);self.assertEqual(out[-1]['units'],[]);self.assertEqual(out[-1]['flags'],0)
     def test_rich_cursor_is_delayed_and_not_sent_with_paste(self):
         v=self.rich('A{cursor}BC',after=[dict(op='status'),dict(op='wait',ms=100),dict(op='pump')]);self.assertTrue(v['steps'][-4]['cursor']);self.assertFalse(v['steps'][-2]['pendingCursor']);self.assertEqual(sum(e['key']==123 and e['down'] for e in v['final']['output']),2)
     def test_cursor_cancelled_by_input_record_hyper_activation_generation_and_target(self):
