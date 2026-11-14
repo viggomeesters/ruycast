@@ -76,29 +76,6 @@ class CliOpen(unittest.TestCase):
     def release(self,host):
         (host.base/'workspace-release').write_text('release')
 
-    def test_blocked_lookup_deadline_is_retired_before_release_and_owner_remains_available(self):
-        host=self.host([command(target='dev.fixture.hold-resolve')],dispatch=1000)
-        worker,results=self.asynchronous(host)
-        self.wait_file(host.base/'resolve-entered')
-        status=host.cli('status')['result'];self.assertEqual(status['scriptsRunning'],0);self.assertEqual(status['openRequestsRunning'],1)
-        worker.join(2);self.assertFalse(worker.is_alive());self.assertIsInstance(results[0],dict)
-        self.assertFalse(results[0]['ok']);self.assertNotIn('actionCompleted',results[0])
-        self.assertEqual(host.cli('status')['result']['liveExecutionWorkers'],1)
-        self.assertEqual(self.opens(host),[])
-        self.release(host)
-        host.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertEqual(self.opens(host),[])
-
-    def test_blocked_default_open_deadline_reports_unknown_before_transport_closes(self):
-        host=self.host([command('url','ruycast-fixture://hold-sync/path')],dispatch=1000)
-        worker,results=self.asynchronous(host)
-        self.wait_file(host.base/'open-started')
-        worker.join(2);self.assertFalse(worker.is_alive());self.assertIsInstance(results[0],dict)
-        self.assertEqual(results[0]['code'],'open-outcome-unknown');self.assertTrue(results[0]['actionCompleted'])
-        self.assertEqual(host.cli('status')['result']['openRequestsRunning'],0)
-        self.release(host);host.wait(lambda s:s['liveExecutionWorkers']==0)
-        self.assertNotIn('fixture.open',host.cli('usage')['result'])
-
     def test_changed_target_and_relocated_config_revoke_pending_before_commit(self):
         for change in ['replace','relocate','invalid']:
             host=self.host([command(target='dev.fixture.hold-resolve')])

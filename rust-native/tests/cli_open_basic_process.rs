@@ -466,3 +466,58 @@ fn small_execute_packet_can_open_expanded_output_above_one_mib() {
         format!("https://example.invalid/{}", "a".repeat(1_200_000))
     );
 }
+
+#[test]
+fn blocked_lookup_deadline_retires_before_release_and_owner_remains_available() {
+    let h = host_options_with_dispatch(
+        1000,
+        vec![command("app", "dev.fixture.hold-resolve")],
+        false,
+        None,
+        true,
+        false,
+    );
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_async(&h);
+    wait_file(&h.base.join("resolve-entered"));
+    let status = h.cli(&["status"])["result"].clone();
+    assert_eq!(status["scriptsRunning"], 0);
+    assert_eq!(status["openRequestsRunning"], 1);
+    let result = worker
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap()
+        .unwrap();
+    assert!(result.is_object());
+    assert_eq!(result["ok"], false);
+    assert!(result.get("actionCompleted").is_none());
+    assert_eq!(h.cli(&["status"])["result"]["liveExecutionWorkers"], 1);
+    assert!(opens(&h).is_empty());
+    release.release();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(opens(&h).is_empty());
+}
+#[test]
+fn blocked_default_open_deadline_reports_unknown_before_transport_closes() {
+    let h = host_options_with_dispatch(
+        1000,
+        vec![command("url", "ruycast-fixture://hold-sync/path")],
+        false,
+        None,
+        true,
+        false,
+    );
+    let release = Release(h.base.join("workspace-release"));
+    let worker = execute_async(&h);
+    wait_file(&h.base.join("open-started"));
+    let result = worker
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap()
+        .unwrap();
+    assert!(result.is_object());
+    assert_eq!(result["code"], "open-outcome-unknown");
+    assert_eq!(result["actionCompleted"], true);
+    assert_eq!(h.cli(&["status"])["result"]["openRequestsRunning"], 0);
+    release.release();
+    h.wait(|s| s["liveExecutionWorkers"] == 0);
+    assert!(h.cli(&["usage"])["result"].get("fixture.open").is_none());
+}
