@@ -933,3 +933,132 @@ fn native_keyword_quit_retries_failed_invalidation_and_retains_lock() {
     assert_eq!(proof["state"]["allocated"], 0);
     assert_eq!(proof["state"]["tapValid"], false);
 }
+
+#[test]
+fn native_keyword_pending_store_keeps_observation_without_old_effects() {
+    let mut h = host(&[], false, true, true, None);
+    let mut config = default_config();
+    config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"HELLO", "keyword":"abc" }]);
+    config["snippetExpansionEnabled"] = json!(true);
+    h.replace(&config, None);
+    let barrier_home = h.base.as_os_str().to_owned();
+    h.env.insert(
+        "RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER".into(),
+        barrier_home,
+    );
+    h.start();
+    h.wait(|s| s["snippetExpansion"] == "On");
+    keyword(&h, "activation-listen", json!({}));
+    keyword_type(&h, "ab");
+    let before = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"]
+        .as_u64()
+        .unwrap();
+    let marker = h.base.join("config-adoption-entered");
+    fs::write(h.base.join("hold-config-adoption"), b"").unwrap();
+    assert!(!marker.exists());
+    config["launcherHotkey"] = json!("cmd+b");
+    h.replace(&config, None);
+    let release = Release(h.base.join("config-adoption-release"));
+    wait_file(&marker);
+    let until = std::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        assert!(!left.is_zero(), "configuration did not become pending");
+        let status = h.rpc_timeout(&json!({"op":"status"}), left)["result"].clone();
+        if status["configurationUpdating"] == true
+            && status["keywordGeneration"] == 0
+            && status["snippetExpansion"] == "Configuration pending"
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(30).min(left));
+    }
+    let state = keyword(&h, "state", json!({}));
+    assert_eq!(state["tapValid"], true);
+    assert_eq!(state["tapEnabled"], true);
+    assert_eq!(state["tapCreates"], 1);
+    h.probe(
+        "keyboard-hid",
+        json!({"control":"activation-burst","values":["typed","missing","typed"]}),
+    );
+    let event_state = keyword(&h, "activation-state", json!({}));
+    let events = event_state["events"].as_array().unwrap();
+    assert_eq!(
+        events
+            .iter()
+            .map(|v| v["typed"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!(true), json!(false), json!(true)]
+    );
+    let first = events[0]["sequence"].as_u64().unwrap();
+    assert_eq!(
+        events
+            .iter()
+            .map(|v| v["sequence"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        (first..first + 3).collect::<Vec<_>>()
+    );
+    let status = h.rpc(&json!({"op":"status"}));
+    assert_eq!(status["result"]["configurationUpdating"], true);
+    assert_eq!(status["result"]["keywordGeneration"], 0);
+    assert!(keyword_type(&h, "abc").iter().all(|v| *v == false));
+    assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+    drop(release);
+    h.wait(|s| {
+        s["keyboardGeneration"].as_u64().unwrap_or(0) > before
+            && s["keywordGeneration"] == s["keyboardGeneration"]
+            && s["configurationUpdating"] == false
+    });
+    assert_eq!(keyword_type(&h, "c").last(), Some(&json!(false)));
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+    assert_eq!(keyword(&h, "state", json!({}))["tapCreates"], 1);
+}
+#[test]
+fn native_keyword_two_recorders_suppress_until_both_cancel() {
+    let h = keyword_host(false);
+    keyword_type(&h, "ab");
+    h.rpc(&json!({"op":"show","query":""}));
+    h.settled(|_| true);
+    actions::hotkey(&h);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["snippetExpansion"],
+        "Off"
+    );
+    h.rpc(&json!({"op":"show","mode":"settings"}));
+    h.settled(|_| true);
+    h.rpc(&json!({"op":"native.test","surface":"settings","action":"inline-hotkey","id":"own.snippet"}));
+    h.wait(|s| s["managementUI"]["editorOpen"] == true);
+    let until = std::time::Instant::now() + Duration::from_secs(4);
+    loop {
+        let left = until.saturating_duration_since(std::time::Instant::now());
+        assert!(!left.is_zero(), "settings recording did not start");
+        if h.rpc_timeout(
+            &json!({"op":"native.test","surface":"settings","action":"read"}),
+            left,
+        )["result"]["recording"]
+            == true
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5).min(left));
+    }
+    h.probe("cancel-editor", json!({}));
+    h.wait(|s| s["nativeUI"]["editorOpen"] == false);
+    assert_eq!(
+        h.rpc(&json!({"op":"status"}))["result"]["recordingShortcut"],
+        true
+    );
+    assert_eq!(keyword_type(&h, "c").last(), Some(&json!(false)));
+    assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+    h.rpc(&json!({"op":"native.test","surface":"settings","action":"cancel-editor"}));
+    h.wait(|s| s["recordingShortcut"] == false);
+    assert_eq!(
+        h.probe("keyboard-press", json!({"code":49,"modifiers":6144}))["statuses"],
+        json!([0])
+    );
+    h.wait(|s| s["nativeUI"]["visible"] == false);
+    assert_eq!(keyword_type(&h, "c").last(), Some(&json!(false)));
+    keyword_reset(&h);
+    assert_eq!(keyword_type(&h, "abc").last(), Some(&json!(true)));
+}

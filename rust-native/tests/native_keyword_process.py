@@ -40,31 +40,10 @@ class NativeKeyword(unittest.TestCase):
     def reload(self,host,c):
         before=host.rpc({'op':'status'})['result']['keyboardGeneration'];host.replace(c);reply=host.rpc({'op':'reload'});self.assertTrue(reply['ok'] or 'being updated' in reply.get('error',''),reply);return self.wait_generation(host,before)
     def reset(self,host):self.kw(host,'event',text='');self.kw(host,'clear')
-    def test_pending_store_confirmation_keeps_observation_without_old_effects(self):
-        host=self.host(start=False);c=capture.config();host.replace(c);host.env['RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER']=str(host.base)
-        host.start();host.wait(lambda s:s['snippetExpansion']=='On');self.kw(host,'activation-listen');self.type(host,'ab');before=host.rpc({'op':'status'})['result']['keyboardGeneration']
-        marker=host.base/'config-adoption-entered';release=host.base/'config-adoption-release';(host.base/'hold-config-adoption').touch();self.assertFalse(marker.exists())
-        changed=copy.deepcopy(c);changed['launcherHotkey']='cmd+b';host.replace(changed)
-        try:
-            self.wait_file(marker);status=host.wait(lambda s:s['configurationUpdating'] and s['keywordGeneration']==0 and s['snippetExpansion']=='Configuration pending',timeout=2);state=self.kw(host);self.assertTrue(state['tapValid']);self.assertTrue(state['tapEnabled']);self.assertEqual(state['tapCreates'],1)
-            host.probe('keyboard-hid',control='activation-burst',values=['typed','missing','typed'])
-            events=self.kw(host,'activation-state')['events'];self.assertEqual([v['typed'] for v in events],[True,False,True]);self.assertEqual([v['sequence'] for v in events],list(range(events[0]['sequence'],events[0]['sequence']+3)))
-            status=host.rpc({'op':'status'})['result'];self.assertTrue(status['configurationUpdating']);self.assertEqual(status['keywordGeneration'],0)
-            self.assertFalse(any(self.type(host,'abc')));self.assertEqual(self.kw(host)['posts'],0)
-        finally:release.touch()
-        self.wait_generation(host,before);self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1]);self.assertEqual(self.kw(host)['tapCreates'],1)
     def test_adoption_barrier_requires_exact_owned_fixture_home(self):
         host=self.host(start=False);host.replace(capture.config());foreign=host.base/'unmarked';foreign.mkdir();host.env['RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER']=str(foreign);before=host.config.read_bytes()
         with self.assertRaisesRegex(AssertionError,'Own config adoption fixture required'):host.start()
         self.assertEqual(host.process.poll(),1);host.process.communicate(timeout=3);host.process=None;self.assertEqual(host.config.read_bytes(),before)
-    def test_actual_two_recorders_suppress_until_both_cancel(self):
-        host,_=self.configured();self.type(host,'ab');host.rpc({'op':'show','query':''});host.settled();actions.ActionsProcesses.hotkey(self,host)
-        self.assertEqual(host.rpc({'op':'status'})['result']['snippetExpansion'],'Off');host.rpc({'op':'show','mode':'settings'});host.settled();host.rpc(dict(op='native.test',surface='settings',action='inline-hotkey',id='own.snippet'));host.wait(lambda s:s['managementUI']['editorOpen'])
-        deadline=time.monotonic()+4
-        while not host.rpc(dict(op='native.test',surface='settings',action='read'))['result']['recording']:
-            self.assertLess(time.monotonic(),deadline);time.sleep(.005)
-        host.probe('cancel-editor');host.wait(lambda s:not s['nativeUI']['editorOpen']);self.assertTrue(host.rpc({'op':'status'})['result']['recordingShortcut']);self.assertFalse(self.type(host,'c')[-1]);self.assertEqual(self.kw(host)['posts'],0)
-        host.rpc(dict(op='native.test',surface='settings',action='cancel-editor'));host.wait(lambda s:not s['recordingShortcut']);self.assertEqual(host.probe('keyboard-press',code=49,modifiers=6144)['statuses'],[0]);host.wait(lambda s:not s['nativeUI']['visible']);self.assertFalse(self.type(host,'c')[-1]);self.reset(host);self.assertTrue(self.type(host,'abc')[-1])
     def test_quit_during_entered_effect_keeps_profile_until_keyup_and_retirement(self):
         host,_=self.configured();self.type(host,'ab');(host.base/'hold-keyword-post:down').touch()
         with ThreadPoolExecutor(1) as pool:
