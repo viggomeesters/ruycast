@@ -382,6 +382,7 @@ rust-native/tests/inline_focus_process.rs
 rust-native/tests/inline_sync_process.rs
 rust-native/tests/input_actions_process.py
 rust-native/tests/input_process.py
+rust-native/tests/input_process.rs
 rust-native/tests/keyboard_process.py
 rust-native/tests/fixtures/keyboard_sdk.rs
 rust-native/tests/fixtures/keyboard_host.rs
