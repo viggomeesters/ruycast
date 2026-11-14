@@ -303,8 +303,9 @@ rust-native/src/workspace.rs
 rust-native/src/workspace_activation.rs
 rust-native/swift-reference-lock.json
 rust-native/tests/actions_process.rs
-rust-native/tests/analytics_process.py
 rust-native/tests/analytics_runtime_process.rs
+rust-native/tests/dashboard_presentation_reference.rs
+rust-native/tests/fixtures/dashboard_presentation_reference.json
 rust-native/tests/analytics_cast_reference.rs
 rust-native/tests/fixtures/analytics_cast_reference.json
 rust-native/tests/fixtures/analytics_lifecycle_reference.json
@@ -354,7 +355,6 @@ rust-native/tests/creation_process.rs
 rust-native/tests/dashboard_export_process.rs
 rust-native/tests/fixtures/dashboard_export_shim.rs
 rust-native/tests/fixtures/fcntl_abi.rs
-rust-native/tests/dashboard_presentation_process.py
 rust-native/tests/editor_process.rs
 rust-native/tests/execution_process.py
 rust-native/tests/fixtures/fcntl_sync_shim.rs
