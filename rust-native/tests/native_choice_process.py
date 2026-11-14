@@ -93,19 +93,6 @@ class NativeChoice(unittest.TestCase):
             out=Path(folder).parent/'native-choice';out.mkdir(parents=True,exist_ok=True);shutil.copy2(host.base/'choice.png',out/(name+'.png'));(out/(name+'.json')).write_text(json.dumps(value,indent=2))
         return value
     def activate(self,host,*values):return host.probe('keyboard-hid',control='activation-burst',values=list(values))
-    def test_compatible_confirmed_configuration_keeps_user_draft(self):
-        host,c=self.visible();self.choice(host,'set',field=0,value='Kept')
-        c['commands'].append(dict(id='other',title='Other',kind='url',target='https://example.com'));c['theme']='light'
-        before=host.rpc({'op':'status'})['result']['keyboardGeneration'];host.replace(c)
-        host.wait(lambda s:s['keyboardGeneration']>before and s['keywordGeneration']==s['keyboardGeneration'] and not s['configurationUpdating'])
-        self.assertEqual(self.choice(host)['phase'],'Visible');view=self.choice(host,'read');self.assertEqual(view['values'],['Kept','!']);self.assertEqual(view['appearance'],'NSAppearanceNameAqua')
-        self.choice(host,'insert');self.assertEqual(self.inserted(self.wait_output(host)),'Hello Kept!')
-    def test_changed_or_removed_original_command_cancels(self):
-        for remove in [False,True]:
-            host,c=self.visible();before=host.rpc({'op':'status'})['result']['keyboardGeneration']
-            if remove:c['commands']=[]
-            else:c['commands'][0]['title']='Changed'
-            host.replace(c);host.wait(lambda s:s['keyboardGeneration']>before and not s['configurationUpdating']);self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
     def test_pending_configuration_blocks_submit_and_retains_real_form_draft(self):
         for theme in ['light','dark']:
             host,c=self.visible(barrier=True,theme=theme);self.choice(host,'set',field=0,value='Kept');self.assertTrue(self.capture(host,'ready-'+theme)['insertEnabled']);before=host.rpc({'op':'status'})['result']['keyboardGeneration']
@@ -118,14 +105,6 @@ class NativeChoice(unittest.TestCase):
             finally:release.touch()
             host.wait(lambda s:s['keywordGeneration']==s['keyboardGeneration'] and s['keyboardGeneration']>before and not s['configurationUpdating'])
             self.assertTrue(self.choice(host,'read')['insertEnabled']);self.choice(host,'insert');self.assertEqual(self.inserted(self.wait_output(host)),'Hello Kept!')
-    def test_return_waits_for_original_and_new_input_cancels_while_returning(self):
-        for cancel in [False,True]:
-            host,_=self.visible();self.activate(host,'own');self.kw(host,'environment',pid='self',app=2**64-1);self.choice(host,'insert');self.wait_choice(host,'Returning')
-            if cancel:
-                self.kw(host,'event',text='x');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
-            else:
-                self.kw(host,'environment',app=1,pid=42);self.activate(host,'original');self.assertEqual(self.inserted(self.wait_output(host)),'Hello World!')
-            self.assertEqual(self.kw(host)['activationRequests'],1)
     def test_rich_choice_uses_original_target_and_delayed_cursor(self):
         for mode in ['html','teams']:
             host,_=self.visible(snippetOutput=mode,body='Hello {field name="name" default="World"}{field name="kind" options="!,?" default="!"} {cursor}TAIL');self.choice(host,'insert');state=self.wait_output(host)

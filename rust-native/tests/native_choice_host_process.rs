@@ -296,3 +296,72 @@ fn lost_observation_and_shutdown_retire_native_request() {
         serde_json::from_slice(&fs::read(h.base.join("keyword-retired.json")).unwrap()).unwrap();
     assert_eq!(proof["state"]["allocated"], 0);
 }
+
+#[test]
+fn compatible_confirmed_configuration_preserves_user_draft() {
+    let h = visible();
+    let mut config = native_keyboard::actions::config(&h);
+    choice(&h, "set", json!({"field":0,"value":"Kept"}));
+    config["commands"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":"other","title":"Other","kind":"url","target":"https://example.com"}));
+    config["theme"] = json!("light");
+    let before = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"]
+        .as_u64()
+        .unwrap();
+    h.replace(&config, None);
+    h.wait(|s| {
+        s["keyboardGeneration"].as_u64().unwrap_or(0) > before
+            && s["keywordGeneration"] == s["keyboardGeneration"]
+            && s["configurationUpdating"] == false
+    });
+    assert_eq!(choice(&h, "read-request", json!({}))["phase"], "Visible");
+    let view = choice(&h, "read", json!({}));
+    assert_eq!(view["values"], json!(["Kept", "!"]));
+    assert_eq!(view["appearance"], "NSAppearanceNameAqua");
+    choice(&h, "insert", json!({}));
+    assert_eq!(inserted(&wait_output(&h)), "Hello Kept!");
+}
+#[test]
+fn changed_or_removed_original_command_cancels() {
+    for remove in [false, true] {
+        let h = visible();
+        let mut config = native_keyboard::actions::config(&h);
+        let before = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"]
+            .as_u64()
+            .unwrap();
+        if remove {
+            config["commands"] = json!([]);
+        } else {
+            config["commands"][0]["title"] = json!("Changed");
+        }
+        h.replace(&config, None);
+        h.wait(|s| {
+            s["keyboardGeneration"].as_u64().unwrap_or(0) > before
+                && s["configurationUpdating"] == false
+        });
+        wait_choice(&h, "None");
+        assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+    }
+}
+#[test]
+fn return_waits_for_original_and_new_input_cancels_while_returning() {
+    for cancel in [false, true] {
+        let h = visible();
+        activate(&h, &["own"]);
+        kw(&h, "environment", json!({"pid":"self","app":u64::MAX}));
+        choice(&h, "insert", json!({}));
+        wait_choice(&h, "Returning");
+        if cancel {
+            kw(&h, "event", json!({"text":"x"}));
+            wait_choice(&h, "None");
+            assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+        } else {
+            kw(&h, "environment", json!({"app":1,"pid":42}));
+            activate(&h, &["original"]);
+            assert_eq!(inserted(&wait_output(&h)), "Hello World!");
+        }
+        assert_eq!(kw(&h, "state", json!({}))["activationRequests"], 1);
+    }
+}
