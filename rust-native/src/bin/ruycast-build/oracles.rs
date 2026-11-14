@@ -1302,7 +1302,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
                 include_bytes!("../../../../Sources/RuycastApp/AnalyticsChecks.swift"),
                 "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876",
             ),
-            ("rust-native/tests/analytics_runtime_process.rs", include_bytes!("../../../tests/analytics_runtime_process.rs"), "3ac814ae98bbe197cd1caf10e0da1b02b7016535e0fa835ddfd2f144231748f9"),
+            ("rust-native/tests/analytics_runtime_process.rs", include_bytes!("../../../tests/analytics_runtime_process.rs"), "ff4c03c49261e092ab6cfab620f4c87bb6e8c1bd24636a344aca82b7636e3347"),
             ("rust-native/tests/fixtures/analytics_write_shim.rs", include_bytes!("../../../tests/fixtures/analytics_write_shim.rs"), "9e2add20464e7336d854171083e3861f79a4dbe6d49f67ecf723cf72f98b790c"),
         ],
         "--check-visual-assets" => &[
