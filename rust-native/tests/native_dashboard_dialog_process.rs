@@ -16,8 +16,14 @@ use std::{
     time::{Duration, Instant},
 };
 fn host() -> Bridge {
+    host_with_theme(None)
+}
+fn host_with_theme(theme: Option<&str>) -> Bridge {
     let mut h = Bridge::new(Config::current(), false);
     let mut cfg = default_config();
+    if let Some(theme) = theme {
+        cfg["theme"] = json!(theme);
+    }
     cfg["commands"].as_array_mut().unwrap().extend([
         json!({"id":"analytics.fixture","title":"Own analytics fixture","kind":"script","target":"/usr/bin/true"}),
         json!({"id":"analytics.failure","title":"Own failure fixture","kind":"script","target":"/usr/bin/false"}),
@@ -26,6 +32,44 @@ fn host() -> Bridge {
     h.start();
     settled(&h, |_| true);
     h
+}
+#[test]
+fn actual_dashboard_renders_themes_widths_and_preserves_scroll() {
+    for theme in ["light", "dark"] {
+        let h = host_with_theme(Some(theme));
+        open(&h);
+        for width in [680, 980] {
+            probe(&h, "dashboard-size", json!({"width":width,"height":480}));
+            let v = probe(&h, "dashboard-screenshot", json!({}));
+            assert_eq!(v["width"].as_f64().unwrap(), f64::from(width));
+            let accessibility = v["accessibility"].as_array().unwrap();
+            assert!(accessibility.contains(&json!("Retention")));
+            assert!(accessibility.iter().any(|v| {
+                let text = v.as_str().unwrap();
+                text.contains("uses") || text == "Not recorded"
+            }));
+            if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+                let path = std::path::PathBuf::from(folder);
+                let out = path.parent().unwrap().join("dashboard");
+                fs::create_dir_all(&out).unwrap();
+                fs::copy(
+                    h.profile.join("native-dashboard-probe.png"),
+                    out.join(format!("{theme}-{width}.png")),
+                )
+                .unwrap();
+                fs::write(
+                    out.join(format!("{theme}-{width}.json")),
+                    serde_json::to_vec_pretty(&v).unwrap(),
+                )
+                .unwrap();
+            }
+            probe(&h, "dashboard-scroll", json!({"y":200}));
+            let before = read(&h)["scrollY"].clone();
+            click(&h, 0);
+            wait(&h, |v| v["surface"]["busy"] == false);
+            assert_eq!(read(&h)["scrollY"], before);
+        }
+    }
 }
 fn settled(h: &Bridge, predicate: impl Fn(&Value) -> bool) {
     h.wait(|s| {
