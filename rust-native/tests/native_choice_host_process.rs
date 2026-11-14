@@ -1,5 +1,11 @@
 //! Actual hidden AppKit keyword-choice host with owned keyboard and clipboard SDKs.
 #![cfg(feature = "test-tools")]
+#![allow(
+    clippy::duplicate_mod,
+    reason = "Bounded second-instance probes share owned host support"
+)]
+#[path = "support/child_output.rs"]
+mod child_output;
 #[allow(dead_code)]
 #[path = "support/native_keyboard.rs"]
 mod native_keyboard;
@@ -17,7 +23,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn choice_host_with_guard(use_guard: bool) -> Bridge {
+fn choice_host_custom(use_guard: bool, body: Option<&str>, mode: Option<&str>) -> Bridge {
     let mut h = host(&[], false, true, true, None);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_ruycast-native"));
     let artifact = std::env::var_os("RUYCAST_TEST_CHOICE_SDK")
@@ -83,12 +89,21 @@ fn choice_host_with_guard(use_guard: bool) -> Bridge {
     }
     let mut config = default_config();
     config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"Hello {field name=\"name\" default=\"World\"}{field name=\"kind\" options=\"!,?\" default=\"!\"}", "keyword":"abc" }]);
+    if let Some(body) = body {
+        config["commands"][0]["target"] = json!(body);
+    }
+    if let Some(mode) = mode {
+        config["commands"][0]["snippetOutput"] = json!(mode);
+    }
     config["snippetExpansionEnabled"] = json!(true);
     h.replace(&config, None);
     h.start();
     h.settled(|s| s["snippetExpansion"] == "On");
     kw(&h, "text", json!({"value":"abc"}));
     h
+}
+fn choice_host_with_guard(use_guard: bool) -> Bridge {
+    choice_host_custom(use_guard, None, None)
 }
 fn choice_host() -> Bridge {
     choice_host_with_guard(true)
@@ -120,8 +135,7 @@ fn wait_choice(h: &Bridge, phase: &str) -> Value {
         thread::sleep(Duration::from_millis(10));
     }
 }
-fn visible() -> Bridge {
-    let h = choice_host();
+fn visible_host(h: Bridge) -> Bridge {
     assert_eq!(
         typed(&h, "abc"),
         vec![json!(false), json!(false), json!(false)]
@@ -133,6 +147,10 @@ fn visible() -> Bridge {
     choice(&h, "set", json!({"field":0,"value":"World"}));
     h
 }
+fn visible() -> Bridge {
+    visible_host(choice_host())
+}
+
 fn wait_output(h: &Bridge) -> Value {
     let end = Instant::now() + Duration::from_secs(3);
     loop {
@@ -446,4 +464,70 @@ fn bounded_original_return_failure_has_feedback_without_attempt_or_output() {
     wait_notice(&h, "The text field changed. Type the keyword again.");
     assert_eq!(analytics(&h)["totalAttempts"], 0);
     assert_eq!(kw(&h, "state", json!({}))["posts"], 0);
+}
+
+#[test]
+fn rich_choice_uses_original_target_and_delayed_cursor() {
+    for mode in ["html", "teams"] {
+        let h=visible_host(choice_host_custom(true,Some("Hello {field name=\"name\" default=\"World\"}{field name=\"kind\" options=\"!,?\" default=\"!\"} {cursor}TAIL"),Some(mode)));
+        choice(&h, "insert", json!({}));
+        let mut state = wait_output(&h);
+        let end = Instant::now() + Duration::from_secs(2);
+        let count = |state: &Value| {
+            state["output"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|v| v["key"] == 123 && v["down"] == true)
+                .count()
+        };
+        while count(&state) < 4 && Instant::now() < end {
+            thread::sleep(Duration::from_millis(10));
+            state = kw(&h, "state", json!({}));
+        }
+        let text: Vec<u8> = state["pasteText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_u64().unwrap() as u8)
+            .collect();
+        assert_eq!(String::from_utf8(text).unwrap(), "Hello World! TAIL");
+        assert_eq!(count(&state), 4);
+        assert_eq!(state["pasteIssues"], 1);
+    }
+}
+struct ReleaseOnDrop(PathBuf);
+impl Drop for ReleaseOnDrop {
+    fn drop(&mut self) {
+        let _ = fs::write(&self.0, b"");
+    }
+}
+#[test]
+fn quit_keeps_profile_through_held_native_monitor_cleanup() {
+    let mut h = visible();
+    fs::write(h.base.join("hold-choice-remove"), b"").unwrap();
+    let release = ReleaseOnDrop(h.base.join("choice-remove-release"));
+    kw(&h, "choice-schedule-click", json!({}));
+    native_keyboard::wait_file(&h.base.join("choice-remove-entered"));
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    let child = h
+        .command(&h.settings.host)
+        .arg("--native-hidden")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let other = child_output::wait(child, Duration::from_secs(3));
+    assert!(!other.status.success());
+    assert!(String::from_utf8_lossy(&other.stdout).contains("already running"));
+    assert!(h.process.as_mut().unwrap().try_wait().unwrap().is_none());
+    drop(release);
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!h.profile.join("control.sock").exists());
 }
