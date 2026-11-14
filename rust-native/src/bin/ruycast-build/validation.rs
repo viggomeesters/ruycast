@@ -47,6 +47,8 @@ clippy|c|clippy --manifest-path rust-native/Cargo.toml --locked --all-targets --
 host-build|b|ruycast-native default
 headless-tools-build|b|ruycast-native headless
 analytics-probe-build|b|analytics-probe tools
+analytics-write-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example analytics-write-shim --locked
+analytics-runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test analytics_runtime_process --locked
 analytics-process|p|rust-native/tests/analytics_process.py
 dashboard-presentation-process|p|rust-native/tests/dashboard_presentation_process.py
 probe-build|b|foundation-probe tools
@@ -1875,7 +1877,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 132);
+        assert_eq!(steps.len(), 134);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
