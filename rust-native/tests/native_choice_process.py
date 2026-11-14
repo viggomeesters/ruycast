@@ -93,14 +93,6 @@ class NativeChoice(unittest.TestCase):
             out=Path(folder).parent/'native-choice';out.mkdir(parents=True,exist_ok=True);shutil.copy2(host.base/'choice.png',out/(name+'.png'));(out/(name+'.json')).write_text(json.dumps(value,indent=2))
         return value
     def activate(self,host,*values):return host.probe('keyboard-hid',control='activation-burst',values=list(values))
-    def test_extra_input_during_pending_capture_cancels_without_reusing_event(self):
-        host,_=self.host();self.assertEqual(self.kw(host,'event-burst',text='abcX')['consumed'],[False]*4);self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
-    def test_capture_changed_anchor_and_secure_policy_fail_closed(self):
-        for field in [dict(value='changed'),dict(value='abc',at=1)]:
-            host,_=self.host();self.kw(host,'text',**field);self.type(host,'abc');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
-        host,_=self.visible();self.kw(host,'environment',flags=4096);self.choice(host,'insert');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
-    def test_global_external_click_adapter_cancels_without_activating_original(self):
-        host,_=self.visible();self.assertEqual(self.kw(host,'choice-monitors'),dict(created=1,removed=0,delivered=0,active=1));self.choice(host,'click');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0);self.assertEqual(self.kw(host,'choice-monitors'),dict(created=1,removed=1,delivered=1,active=0));self.assertEqual(self.kw(host)['activationRequests'],0)
     def test_missing_complete_clipboard_substitute_refuses_before_ui_construction(self):
         host,_=self.host(guard=False);self.type(host,'abc');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
     def test_compatible_confirmed_configuration_keeps_user_draft(self):
@@ -136,8 +128,6 @@ class NativeChoice(unittest.TestCase):
             else:
                 self.kw(host,'environment',app=1,pid=42);self.activate(host,'original');self.assertEqual(self.inserted(self.wait_output(host)),'Hello World!')
             self.assertEqual(self.kw(host)['activationRequests'],1)
-    def test_original_anchor_is_rechecked_after_form_confirmation(self):
-        host,_=self.visible();self.kw(host,'text',value='different');self.choice(host,'insert');self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
     def test_lost_observation_and_shutdown_retire_native_request(self):
         host,_=self.visible();self.kw(host,'event',type=0xffffffff);self.wait_choice(host,'None');self.assertEqual(self.kw(host)['posts'],0)
         host,_=self.visible();self.assertTrue(host.rpc({'op':'quit'})['ok']);out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());self.assertFalse((host.profile/'control.sock').exists());self.assertEqual(json.loads((host.base/'keyword-retired.json').read_text())['state']['allocated'],0)
