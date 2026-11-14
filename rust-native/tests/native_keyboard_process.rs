@@ -775,15 +775,18 @@ fn native_keyword_secure_exclusion_and_permission_changes_prevent_expansion() {
     assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
 }
 
-fn rich_keyword_host() -> Bridge {
+fn rich_keyword_host_for(mode: &str) -> Bridge {
     let mut h = host(&[], false, true, true, None);
     let mut config = default_config();
-    config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"A{cursor}BC", "keyword":"x", "snippetOutput":"html" }]);
+    config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"A{cursor}BC", "keyword":"x", "snippetOutput":mode }]);
     config["snippetExpansionEnabled"] = json!(true);
     h.replace(&config, None);
     h.start();
     h.wait(|s| s["keywordGeneration"] == s["keyboardGeneration"] && s["snippetExpansion"] == "On");
     h
+}
+fn rich_keyword_host() -> Bridge {
+    rich_keyword_host_for("html")
 }
 #[test]
 fn native_keyword_failed_registration_retains_last_good_catalog() {
@@ -849,4 +852,84 @@ fn native_keyword_partial_rich_write_suppresses_effect_but_passes_trigger() {
         serde_json::from_slice(&fs::read(h.base.join("keyword-retired.json")).unwrap()).unwrap();
     assert_eq!(proof["ownChange"], state["boardCount"]);
     assert_eq!(proof["ownActive"], false);
+}
+
+#[test]
+fn native_keyword_rich_write_uses_real_cursor_timer_and_retires() {
+    for mode in ["html", "teams"] {
+        let mut h = rich_keyword_host_for(mode);
+        assert_eq!(keyword_type(&h, "x"), vec![json!(true)]);
+        wait_file(&h.base.join("keyword-cursor-entered"));
+        let state = keyword(&h, "state", json!({}));
+        let bytes: Vec<u8> = state["pasteText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_u64().unwrap() as u8)
+            .collect();
+        assert_eq!(String::from_utf8(bytes).unwrap(), "ABC");
+        assert_eq!(state["pasteIssues"], 1);
+        assert_eq!(
+            state["output"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|e| e["key"] == 123 && e["down"] == true)
+                .count(),
+            2
+        );
+        assert_eq!(h.probe("read", json!({}))["windowShown"], false);
+        assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+        let output = h.wait_exit(Duration::from_secs(5), false);
+        assert!(
+            output.status.success(),
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let proof: Value =
+            serde_json::from_slice(&fs::read(h.base.join("keyword-retired.json")).unwrap())
+                .unwrap();
+        assert_eq!(proof["ownChange"], state["boardCount"]);
+        assert_eq!(proof["ownActive"], false);
+        assert_eq!(proof["state"]["allocated"], 0);
+    }
+}
+struct RemoveFault(std::path::PathBuf);
+impl Drop for RemoveFault {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+#[test]
+fn native_keyword_quit_retries_failed_invalidation_and_retains_lock() {
+    let mut h = keyword_host(false);
+    let fault = h.base.join("keyword-fail-invalidate");
+    fs::write(&fault, b"").unwrap();
+    let cleanup = RemoveFault(fault);
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    std::thread::sleep(Duration::from_millis(100));
+    assert!(h.process.as_mut().unwrap().try_wait().unwrap().is_none());
+    let child = h
+        .command(&h.settings.host)
+        .arg("--native-hidden")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let second = child_output::wait(child, Duration::from_secs(3));
+    assert!(!second.status.success());
+    assert!(String::from_utf8_lossy(&second.stdout).contains("already running"));
+    drop(cleanup);
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(
+        output.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let proof: Value =
+        serde_json::from_slice(&fs::read(h.base.join("keyword-retired.json")).unwrap()).unwrap();
+    assert_eq!(proof["state"]["allocated"], 0);
+    assert_eq!(proof["state"]["tapValid"], false);
 }

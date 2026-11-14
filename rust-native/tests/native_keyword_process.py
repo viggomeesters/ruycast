@@ -23,15 +23,6 @@ class NativeKeyword(unittest.TestCase):
         host=self.host(start=False);c=capture.config(text,keyword='x',snippetOutput=mode);host.replace(c);host.start();host.wait(lambda s:s['keywordGeneration']==s['keyboardGeneration'] and s['snippetExpansion']=='On');return host,c
     def retire(self,host):
         self.assertTrue(host.rpc({'op':'quit'})['ok']);out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());return json.loads((host.base/'keyword-retired.json').read_text())
-    def test_rich_native_host_uses_shared_own_write_and_real_cursor_timer(self):
-        for mode in ['html','teams']:
-            with self.subTest(mode=mode):
-                host,_=self.configured_rich(mode=mode);self.assertEqual(self.type(host,'x'),[True])
-                # No status/probe RPC pumps the host: the actual common-mode
-                # timer must wake it and issue the pending cursor itself.
-                self.wait_file(host.base/'keyword-cursor-entered')
-                state=self.kw(host);self.assertEqual(bytes(state['pasteText']).decode(),'ABC');self.assertEqual(state['pasteIssues'],1);self.assertEqual(sum(e['key']==123 and e['down'] for e in state['output']),2);self.assertFalse(host.probe('read')['windowShown'])
-                proof=self.retire(host);self.assertEqual(proof['ownChange'],state['boardCount']);self.assertFalse(proof['ownActive']);self.assertEqual(proof['state']['allocated'],0)
     def test_quit_during_rich_clipboard_or_paste_retains_profile_until_cleanup(self):
         for phase in ['board_clear','board_write','post:down']:
             with self.subTest(phase=phase):
@@ -84,10 +75,4 @@ class NativeKeyword(unittest.TestCase):
             try:pending.result(timeout=5)
             except AssertionError as error:self.assertIn('closed without response',str(error))
         out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());proof=json.loads((host.base/'keyword-retired.json').read_text())['state'];self.assertEqual(proof['allocated'],0);self.assertEqual(proof['apps'],0);self.assertEqual(len(proof['output']),2);self.assertFalse(proof['output'][-1]['down']);self.assertEqual(proof['output'][-1]['units'],[])
-    def test_quit_retries_failed_invalidation_and_retains_instance_lock(self):
-        host,_=self.configured();fault=host.base/'keyword-fail-invalidate';fault.touch()
-        try:
-            self.assertTrue(host.rpc({'op':'quit'})['ok']);time.sleep(.1);self.assertIsNone(host.process.poll());second=subprocess.run([str(bridge.TOOLS),'--native-hidden'],env=host.env,capture_output=True,text=True,timeout=3);self.assertNotEqual(second.returncode,0);self.assertIn('already running',second.stdout)
-        finally:fault.unlink(missing_ok=True)
-        out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());proof=json.loads((host.base/'keyword-retired.json').read_text())['state'];self.assertEqual(proof['allocated'],0);self.assertFalse(proof['tapValid'])
 if __name__=='__main__':unittest.main(verbosity=2)
