@@ -156,7 +156,6 @@ inline-focus-process|c|test --manifest-path rust-native/Cargo.toml --features te
 inline-input-process|p|rust-native/tests/inline_input_process.py
 input-actions-process|p|rust-native/tests/input_actions_process.py
 input-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test input_process --locked
-input-process|p|rust-native/tests/input_process.py
 execution-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test execution_basic_process --locked
 execution-native-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test execution_native_process --locked
 script-result-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_result_basic_process --locked
@@ -1786,7 +1785,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 136);
+        assert_eq!(steps.len(), 135);
         let manager_sdk = steps.iter().position(|step|step.name=="manager-workspace-sdk-build").unwrap();
         let native_open = steps.iter().position(|step|step.name=="native-open-basic-process").unwrap();
         assert!(manager_sdk < native_open);
