@@ -325,7 +325,6 @@ rust-native/tests/fixtures/caps_missing_set.rs
 rust-native/tests/capture_bytes_process.rs
 rust-native/tests/capture_cli_process.rs
 rust-native/tests/capture_native_process.rs
-rust-native/tests/cli_open_process.py
 rust-native/tests/cli_open_basic_process.rs
 rust-native/tests/clipboard_history_process.py
 rust-native/tests/fixtures/clipboard_history_sdk.rs

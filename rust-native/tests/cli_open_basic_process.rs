@@ -676,3 +676,79 @@ fn new_disabled_canonical_target_revokes_unchanged_saved_command() {
     h.wait(|s| s["liveExecutionWorkers"] == 0);
     assert!(opens(&h).is_empty());
 }
+
+#[test]
+fn disconnect_and_quit_revoke_lookup_without_waiting_for_sdk() {
+    let mut h = host(command("app", "dev.fixture.hold-resolve"));
+    let mut stream = h.connect(Duration::from_secs(3));
+    stream
+        .write_all(b"{\"op\": \"execute\", \"id\": \"fixture.open\"}\n")
+        .unwrap();
+    wait_file(&h.base.join("resolve-entered"));
+    stream.shutdown(std::net::Shutdown::Both).unwrap();
+    drop(stream);
+    h.wait(|s| s["openRequestsRunning"] == 0);
+    assert_eq!(h.cli(&["status"])["result"]["liveExecutionWorkers"], 1);
+    h.rpc(&json!({"op":"quit"}));
+    let output = h.wait_exit(Duration::from_secs(2), false);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(opens(&h).is_empty());
+}
+struct JoinOwner(Option<std::thread::JoinHandle<()>>);
+impl Drop for JoinOwner {
+    fn drop(&mut self) {
+        if let Some(thread) = self.0.take() {
+            let _ = thread.join();
+        }
+    }
+}
+#[test]
+fn transport_timeout_retains_native_dispatch_truth_while_owner_busy() {
+    for (mode, kind, barrier, committed) in [
+        ("dev.fixture.hold-resolve", "app", "resolve-entered", false),
+        (
+            "ruycast-fixture://hold-sync/path",
+            "url",
+            "open-started",
+            true,
+        ),
+    ] {
+        let h =
+            host_options_with_dispatch(500, vec![command(kind, mode)], false, None, true, false);
+        let release = Release(h.base.join("workspace-release"));
+        let worker = execute_async(&h);
+        wait_file(&h.base.join(barrier));
+        let socket = h.socket();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _owner = JoinOwner(Some(std::thread::spawn(move || {
+            let result = runtime_host::status_rpc::request(
+                &socket,
+                &json!({"op":"workspace.fixture.delay"}),
+                std::time::Instant::now() + Duration::from_secs(2),
+            );
+            let _ = tx.send(result);
+        })));
+        wait_file(&h.base.join("owner-open-delay-started"));
+        let result = worker
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap()
+            .unwrap();
+        assert!(result.is_object());
+        assert_eq!(result["transportExpired"], true);
+        assert_eq!(result["ok"], false);
+        if committed {
+            assert_eq!(result["actionCompleted"], true);
+            assert_eq!(result["code"], "open-outcome-unknown");
+        } else {
+            assert!(result.get("actionCompleted").is_none());
+        }
+        let _ = rx.recv_timeout(Duration::from_secs(2));
+        release.release();
+        h.wait(|s| s["liveExecutionWorkers"] == 0);
+        assert_eq!(opens(&h).len(), usize::from(committed));
+    }
+}
