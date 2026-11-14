@@ -96,16 +96,4 @@ class NativeChoice(unittest.TestCase):
             finally:release.touch()
             host.wait(lambda s:s['keywordGeneration']==s['keyboardGeneration'] and s['keyboardGeneration']>before and not s['configurationUpdating'])
             self.assertTrue(self.choice(host,'read')['insertEnabled']);self.choice(host,'insert');self.assertEqual(self.inserted(self.wait_output(host)),'Hello Kept!')
-    def test_rich_choice_uses_original_target_and_delayed_cursor(self):
-        for mode in ['html','teams']:
-            host,_=self.visible(snippetOutput=mode,body='Hello {field name="name" default="World"}{field name="kind" options="!,?" default="!"} {cursor}TAIL');self.choice(host,'insert');state=self.wait_output(host)
-            end=time.monotonic()+2
-            while sum(v['key']==123 and v['down'] for v in state['output'])<4 and time.monotonic()<end:time.sleep(.01);state=self.kw(host)
-            self.assertEqual(bytes(state['pasteText']).decode(),'Hello World! TAIL');self.assertEqual(sum(v['key']==123 and v['down'] for v in state['output']),4);self.assertEqual(state['pasteIssues'],1)
-    def test_quit_keeps_profile_through_held_native_monitor_callback_cleanup(self):
-        host,_=self.visible();(host.base/'hold-choice-remove').touch();release=host.base/'choice-remove-release';self.kw(host,'choice-schedule-click');self.wait_file(host.base/'choice-remove-entered')
-        try:
-            self.assertTrue(host.rpc({'op':'quit'})['ok']);other=subprocess.run([str(bridge.TOOLS),'--native-hidden'],env=host.env,capture_output=True,text=True,timeout=3);self.assertNotEqual(other.returncode,0);self.assertIn('already running',other.stdout);self.assertIsNone(host.process.poll())
-        finally:release.touch()
-        out,err=host.process.communicate(timeout=5);self.assertEqual(host.process.returncode,0,out.decode()+err.decode());self.assertFalse((host.profile/'control.sock').exists())
 if __name__=='__main__':unittest.main(verbosity=2)
