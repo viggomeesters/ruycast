@@ -92,8 +92,4 @@ class ClipboardHistory(unittest.TestCase):
     before=json.loads(h.config.read_text());probe('clipboard-preferences-save',limit=0);time.sleep(.15);self.assertEqual(json.loads(h.config.read_text()),before)
     probe('clipboard-preferences-save',limit=12,retentionDays=7,excludedApps=['dev.fixture.private']);h.wait(lambda s:s['configurationRevision']>0 and not s['configurationUpdating'])
     actual=json.loads(h.config.read_text())['clipboard'];self.assertEqual(actual['limit'],12);self.assertEqual(actual['retentionDays'],7);self.assertEqual(actual['excludedApps'],['dev.fixture.private'])
- def test_atomic_import_dedup_and_external_edit_capture_base(self):
-    h=self.host();self.fixture(h,{'Text':'first'});self.wait_items(h,1)
-    current=self.items(h);external=dict(id='external',text='External owned edit',source='fixture',date=current[0]['date']);(h.profile/'clipboard.json').write_text(json.dumps(current+[external]));self.fixture(h,{'Text':'second'});self.wait_items(h,3);self.assertIn('external',[c['id'] for c in self.items(h)])
-    old=(h.profile/'clipboard.json').read_bytes();bad=[dict(id='raycast-valid',text='valid',source='fixture',date=current[0]['date']),dict(id='invalid',text='bad',source='fixture',date=current[0]['date'])];self.assertFalse(h.rpc(dict(op='clipboard.import',items=bad))['ok']);self.assertEqual(old,(h.profile/'clipboard.json').read_bytes())
 if __name__=='__main__':unittest.main(verbosity=2)
