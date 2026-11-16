@@ -123,13 +123,119 @@ pub(super) fn read(root: &Path) -> Result<String> {
     parse(&bytes)
 }
 #[cfg(test)]
+#[path = "../ruycast-source/policy.rs"]
+mod export_policy;
+#[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "Owned Rust child for bounded nonregular-source reader regression"]
+    fn nonregular_reader_child() {
+        let root = PathBuf::from(std::env::var_os("RUYCAST_VERSION_FIFO_ROOT").unwrap());
+        let error = read(&root).unwrap_err();
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
+    #[test]
+    fn changed_compiled_version_exports_and_invalid_source_leaves_no_outputs() {
+        use std::time::Duration;
+        let fixture = super::super::tests::Fixture::new();
+        let source = fixture.0.join("public-source");
+        fs::create_dir(&source).unwrap();
+        let actual = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        for name in export_policy::PATHS.lines().filter(|name| !name.is_empty()) {
+            let to = source.join(name);
+            fs::create_dir_all(to.parent().unwrap()).unwrap();
+            fs::write(&to, regular_bytes(&actual.join(name)).unwrap()).unwrap();
+            fs::set_permissions(&to, fs::metadata(actual.join(name)).unwrap().permissions())
+                .unwrap();
+        }
+        let path = source.join(SOURCE);
+        let original = fs::read_to_string(&path).unwrap();
+        let changed = original.replace(
+            &format!("\"{}\"", rustcast_core::product_version::CURRENT),
+            "\"17.23.409\"",
+        );
+        assert_ne!(original, changed);
+        fs::write(&path, &changed).unwrap();
+        assert_eq!(read(&source).unwrap(), "17.23.409");
+        let target = fixture.0.join("variant-target");
+        let mut compiler = Command::new("cargo");
+        compiler
+            .args([
+                "build",
+                "--quiet",
+                "--locked",
+                "--offline",
+                "--manifest-path",
+            ])
+            .arg(source.join("rust-native/Cargo.toml"))
+            .arg("--target-dir")
+            .arg(&target)
+            .args(["--bin", "ruycast-source"])
+            .current_dir(&source)
+            .env("CARGO_INCREMENTAL", "0");
+        let compiled =
+            process::capture(compiler, Duration::from_secs(180), 16 * 1024 * 1024).unwrap();
+        assert!(
+            compiled.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compiled.stderr)
+        );
+        let tool = target.join("debug/ruycast-source");
+        let output = fixture.0.join("export");
+        let mut command = Command::new(&tool);
+        command
+            .arg("export")
+            .arg("--repo")
+            .arg(&source)
+            .arg("--out")
+            .arg(&output);
+        let result = process::capture(command, Duration::from_secs(30), 1024 * 1024).unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stdout)
+        );
+        let response: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_slice(&fs::read(output.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        assert_eq!(manifest["version"], "17.23.409");
+        assert_eq!(manifest["versionAuthority"], SOURCE);
+        assert_eq!(read(&output).unwrap(), "17.23.409");
+        assert!(manifest["files"]
+            .get("scripts/product_version.py")
+            .is_some());
+        assert!(manifest["files"]
+            .get("rust-native/src/bin/ruycast-build/version.rs")
+            .is_some());
+        assert!(manifest["files"]
+            .get("Tests/test_product_version.py")
+            .is_none());
+        assert!(Path::new(response["archive"].as_str().unwrap()).is_file());
+        let invalid = b"pub const CURRENT: &str = \"not-a-version\";\n";
+        fs::write(&path, invalid).unwrap();
+        assert!(read(&source).unwrap_err().contains("one canonical"));
+        let refused = fixture.0.join("invalid-export");
+        let mut command = Command::new(&tool);
+        command
+            .arg("export")
+            .arg("--repo")
+            .arg(&source)
+            .arg("--out")
+            .arg(&refused);
+        let result = process::capture(command, Duration::from_secs(30), 1024 * 1024).unwrap();
+        assert!(!result.status.success());
+        assert!(!refused.exists());
+        assert!(!fixture.0.join("invalid-export.tar.gz").exists());
+        assert!(!fixture.0.join("invalid-export.tar.gz.sha256").exists());
+        assert_eq!(fs::read(path).unwrap(), invalid);
+    }
     #[test]
     fn owned_literal_matches_the_rust_compiler_and_rejects_link_fifo_directory_or_missing() {
         let fixture = super::super::tests::Fixture::new();
         let path = fixture.0.join(SOURCE);
-        for value in ["1.2.3", "17.23.409"] {
+        for value in ["0.0.1", "1.2.3", "17.23.409"] {
             fs::write(&path, format!("pub const CURRENT: &str = \"{value}\";\n")).unwrap();
             let source = fixture.0.join("version_probe.rs");
             fs::write(
@@ -138,41 +244,59 @@ mod tests {
             )
             .unwrap();
             let binary = fixture.0.join("version_probe");
-            output(
-                &fixture.0,
-                "rustc",
-                &[
-                    "--edition=2021",
-                    source.to_str().unwrap(),
-                    "-o",
-                    binary.to_str().unwrap(),
-                ],
+            let mut compiler = Command::new("rustc");
+            compiler
+                .arg("--edition=2021")
+                .arg(&source)
+                .arg("-o")
+                .arg(&binary)
+                .current_dir(&fixture.0);
+            let compiled =
+                process::capture(compiler, std::time::Duration::from_secs(60), 1024 * 1024)
+                    .unwrap();
+            assert!(
+                compiled.status.success(),
+                "{}",
+                String::from_utf8_lossy(&compiled.stderr)
+            );
+            assert_eq!(read(&fixture.0).unwrap(), value);
+            let ran = process::capture(
+                Command::new(&binary),
+                std::time::Duration::from_secs(2),
+                65536,
             )
             .unwrap();
-            assert_eq!(read(&fixture.0).unwrap(), value);
-            assert_eq!(
-                output(&fixture.0, binary.to_str().unwrap(), &[])
-                    .unwrap()
-                    .trim(),
-                value
-            );
+            assert!(ran.status.success());
+            assert_eq!(String::from_utf8(ran.stdout).unwrap().trim(), value);
         }
         let sentinel = fixture.0.join("owned_version_sentinel");
         fs::write(&sentinel, b"owned sentinel").unwrap();
         fs::remove_file(&path).unwrap();
         std::os::unix::fs::symlink(&sentinel, &path).unwrap();
-        assert!(read(&fixture.0).is_err());
+        assert!(read(&fixture.0).unwrap_err().contains("regular source"));
         fs::remove_file(&path).unwrap();
         fs::create_dir(&path).unwrap();
-        assert!(read(&fixture.0).is_err());
+        assert!(read(&fixture.0).unwrap_err().contains("regular source"));
         fs::remove_dir(&path).unwrap();
         let name = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
         let start = std::time::Instant::now();
-        assert!(read(&fixture.0).is_err());
+        let mut child = Command::new(std::env::current_exe().unwrap());
+        child
+            .args([
+                "--ignored",
+                "--exact",
+                "version::tests::nonregular_reader_child",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("RUYCAST_VERSION_FIFO_ROOT", &fixture.0);
+        let rejected = process::capture(child, std::time::Duration::from_secs(2), 65536).unwrap();
+        assert!(!rejected.status.success());
+        assert!(String::from_utf8_lossy(&rejected.stderr).contains("regular source"));
         assert!(start.elapsed() < std::time::Duration::from_secs(1));
         fs::remove_file(&path).unwrap();
-        assert!(read(&fixture.0).is_err());
+        assert!(read(&fixture.0).unwrap_err().contains("Cannot read"));
         assert_eq!(fs::read(sentinel).unwrap(), b"owned sentinel");
     }
     #[test]
@@ -186,10 +310,16 @@ mod tests {
             "pub const CURRENT: &str = \"01.2.3\";",
             "pub const CURRENT: &str = \"1.2\";",
             "pub const CURRENT: &str = \"1.2.3-beta\";",
+            "pub const CURRENT: &str = \"invalid\";",
             "pub const CURRENT: &str = String(\"1.2.3\");",
             "pub const CURRENT: &str = \"1.2.3\";pub const CURRENT: &str = \"4.5.6\";",
         ] {
-            assert!(parse(source.as_bytes()).is_err(), "{source}");
+            assert!(
+                parse(source.as_bytes())
+                    .unwrap_err()
+                    .contains("one canonical"),
+                "{source}"
+            );
         }
     }
 }
