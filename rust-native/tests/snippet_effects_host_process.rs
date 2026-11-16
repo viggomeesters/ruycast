@@ -237,6 +237,56 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
 }
 
 #[test]
+fn notice_expires_without_focus_and_replacement_keeps_single_timer() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut host = hidden_host("Owned");
+    show(&host);
+    run_native(&host);
+    wait_event(&mut host, "snippet-post", |_| true);
+    done(&host);
+    host.settled(|_| true);
+    let first = notice(&host, "snippet-notice-first");
+    let first_posts: Vec<_> = trace(&host)
+        .into_iter()
+        .filter(|event| event["phase"] == "snippet-post")
+        .collect();
+    let first_paste_end_ns = first_posts[1]["atNs"].as_u64().unwrap();
+    show(&host);
+    run_native(&host);
+    wait_event(&mut host, "snippet-post", |event| {
+        event["atNs"].as_u64().unwrap() > first_paste_end_ns
+    });
+    done(&host);
+    host.settled(|_| true);
+    let second = host.probe("notice-read", json!({}));
+    assert_eq!(
+        second["serial"].as_u64().unwrap(),
+        first["serial"].as_u64().unwrap() + 1
+    );
+    assert_eq!(second["timer"], true);
+    let expiry_start = Instant::now();
+    let deadline = expiry_start + Duration::from_secs(6);
+    while host.probe("notice-read", json!({}))["timer"]
+        .as_bool()
+        .unwrap()
+    {
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(50));
+    }
+    let view = host.probe("read", json!({}));
+    assert_eq!(view["windowShown"], false);
+    let expired = host.probe("notice-read", json!({}));
+    assert_eq!(expired["windowShown"], false);
+    save(
+        "notice-lifecycle",
+        &json!({"first":first,"second":second,"expired":expired,"view":view,"expiryObservedMs":expiry_start.elapsed().as_millis()}),
+        &trace(&host),
+    );
+}
+
+#[test]
 fn new_show_and_configuration_replacement_retire_delayed_effect_without_old_notice() {
     let _scenario = HOST_SCENARIOS
         .lock()
