@@ -162,6 +162,7 @@ rust-native/Cargo.lock
 rust-native/Cargo.toml
 rust-native/README.md
 rust-native/scripts/parity_inventory.py
+rust-native/resources/parity-families.json
 rust-native/src/actions.rs
 rust-native/src/activity.rs
 rust-native/src/analytics.rs
@@ -192,6 +193,7 @@ rust-native/src/bin/ruycast-build/public_source.rs
 rust-native/src/bin/ruycast-build/validation.rs
 rust-native/src/bin/ruycast-build/test_catalog.rs
 rust-native/src/bin/ruycast-build/parity_wire.rs
+rust-native/src/bin/ruycast-build/parity_families.rs
 rust-native/src/bin/ruycast-build/version.rs
 rust-native/src/bin/ruycast-source.rs
 rust-native/src/bin/ruycast-source/policy.rs

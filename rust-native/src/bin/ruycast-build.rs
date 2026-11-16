@@ -25,6 +25,8 @@ mod preparation;
 mod process;
 #[path = "ruycast-build/public_source.rs"]
 mod public_source;
+#[path = "ruycast-build/parity_families.rs"]
+mod parity_families;
 #[path = "ruycast-build/parity_wire.rs"]
 mod parity_wire;
 #[path = "ruycast-build/test_catalog.rs"]
@@ -480,6 +482,12 @@ fn run() -> Result<()> {
     if args.len() == 1 && matches!(args[0].as_str(), "--help" | "-h") {
         println!("{USAGE}");
         return Ok(());
+    }
+    if args.len()==3&&args[0]=="parity-families"&&args[1]=="--repo" {
+        if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
+        let root=Path::new(&args[2]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
+        let mut input=String::new();std::io::stdin().read_to_string(&mut input).map_err(error)?;
+        let value=parity_families::run(&root,&input)?;lease.validate()?;println!("{value}");return Ok(());
     }
     if args.len()==5&&args[0]=="parity-wire"&&args[1]=="--repo"&&args[3]=="--marker" {
         if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
