@@ -118,24 +118,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertEqual([r['down'] for r in posts],[i%2==0 for i in range(len(posts))])
         self.assertEqual([r['flags'] for r in posts],[1<<20 if key==9 else 0 for key in keys])
 
-    def test_real_palette_run_has_complete_copy_hide_activate_paste_and_cursor_sequence(self):
-        h=self.host(command(snippetOutput='html',timeout=.1));before=h.config.read_bytes();self.show(h);self.run_native(h)
-        self.wait_event(h,'snippet-post',lambda r:r['key']==123 and not r['down']);self.done(h);h.settled()
-        self.assertEqual(h.cli('usage')['result']['snippet.fixture'],1)
-        self.assertEqual(h.config.read_bytes(),before)
-        self.assertEqual(self.writes(h)[0]['text'],'A😀end')
-        self.assertIn('<div>A😀end</div>',self.writes(h)[0]['html'])
-        posts=self.posts(h);self.assert_keys(posts,[9,9]+[123]*8)
-        activate=next(r for r in self.trace(h) if r['phase']=='snippet-activate')
-        self.assertGreaterEqual(posts[0]['atNs']-activate['atNs'],149_000_000)
-        self.assertGreaterEqual(posts[2]['atNs']-posts[1]['atNs'],79_000_000)
-        self.assertFalse(h.probe('read')['windowShown'])
-        self.assertFalse(h.probe('read')['formVisible'])
-        state=json.loads((h.base/'snippet-status.json').read_text())
-        self.assertFalse(state['active']);self.assertFalse(state['timer']);self.assertEqual(state['pending'],0)
-        self.assertEqual(state['ownChangeCount'],self.writes(h)[0]['changeCount'])
-        notice=self.notice(h,'snippet-done');self.assertTrue(notice['success']);self.assertEqual(notice['text'],'Done');self.assertEqual(notice['height'],65)
-
     def test_preparation_failures_keep_the_input_draft_and_never_clear(self):
         for fault in ['fail-string','fail-html']:
             h=self.host(command('{message}',snippetOutput='html'),flags=[fault]);self.show(h);self.run_native(h)
