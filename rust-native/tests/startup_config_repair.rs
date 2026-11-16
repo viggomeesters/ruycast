@@ -388,6 +388,11 @@ fn offline_cli_and_host_initializer_refuse_unavailable_persisted_config() {
         .unwrap()
         .contains("Selected configuration is unavailable"));
     assert!(!missing.exists());
+    let native_refusal = bounded_value(f.command(true).arg("--init-config"), false);
+    assert!(native_refusal["error"]
+        .as_str()
+        .unwrap()
+        .contains("Selected configuration is unavailable"));
     let paths = ruycast_native::profile::ProfilePaths::new(f.root.clone(), f.base.clone(), None);
     assert!(paths
         .initialize()
@@ -419,6 +424,16 @@ fn offline_cli_and_host_initializer_refuse_parent_component_after_symlink() {
         .as_str()
         .unwrap()
         .contains("without '..' components"));
+    let native_refusal = bounded_value(
+        f.command(true)
+            .env("RUYCAST_CONFIG_DIR", &path)
+            .arg("--init-config"),
+        false,
+    );
+    assert!(native_refusal["error"]
+        .as_str()
+        .unwrap()
+        .contains("without '..' components"));
     let paths = ruycast_native::profile::ProfilePaths::new(
         f.root.clone(),
         f.base.clone(),
@@ -438,6 +453,80 @@ fn offline_cli_and_host_initializer_refuse_parent_component_after_symlink() {
     assert_eq!(fs::read_link(link).unwrap(), elsewhere);
     assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
     assert!(!f.root.join("config-location.json").exists());
+}
+
+#[test]
+fn offline_cli_and_host_initializer_override_persisted_location_without_overwrite() {
+    for existing in [false, true] {
+        let f = Fixture::new();
+        f.source();
+        let original = fs::read(f.root.join("config.json")).unwrap();
+        let missing = f.base.join("missing/persisted");
+        let selector = f.root.join("config-location.json");
+        let selector_bytes = serde_json::to_vec(&json!({"directory":missing})).unwrap();
+        fs::write(&selector, &selector_bytes).unwrap();
+        let selected = f.base.join("environment");
+        fs::create_dir(&selected).unwrap();
+        let file = selected.join("config.json");
+        let authored = existing.then(|| {
+            let mut bytes = original.clone();
+            bytes.extend_from_slice(b" \n");
+            bytes
+        });
+        if let Some(bytes) = &authored {
+            fs::write(&file, bytes).unwrap();
+        }
+        assert_eq!(
+            bounded_value(
+                f.command(false)
+                    .env("RUYCAST_CONFIG_DIR", &selected)
+                    .args(["config", "path"]),
+                true
+            )["result"],
+            json!(file)
+        );
+        let initialized = bounded_value(
+            f.command(true)
+                .env("RUYCAST_CONFIG_DIR", &selected)
+                .arg("--init-config"),
+            true,
+        );
+        assert_eq!(initialized["path"], json!(file));
+        let after = fs::read(&file).unwrap();
+        if let Some(bytes) = authored {
+            assert_eq!(after, bytes);
+        } else {
+            let value: Value = serde_json::from_slice(&after).unwrap();
+            rustcast_core::validate(&value).unwrap();
+        }
+        assert_eq!(
+            bounded_value(
+                f.command(false)
+                    .env("RUYCAST_CONFIG_DIR", &selected)
+                    .args(["config", "init"]),
+                true
+            )["path"],
+            json!(file)
+        );
+        assert_eq!(fs::read(&file).unwrap(), after);
+        assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
+        assert_eq!(fs::read(&selector).unwrap(), selector_bytes);
+        assert!(!missing.exists());
+    }
+    let f = Fixture::new();
+    let uncreated = f.base.join("uncreated-profile");
+    let refusal = bounded_value(
+        f.command(true)
+            .env("RUYCAST_HOME", &uncreated)
+            .env("RUYCAST_CONFIG_DIR", "relative")
+            .args(["--init-config", "extra"]),
+        false,
+    );
+    assert!(refusal["error"]
+        .as_str()
+        .unwrap()
+        .starts_with("Unknown arguments"));
+    assert!(!uncreated.exists());
 }
 
 #[test]
