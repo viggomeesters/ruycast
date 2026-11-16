@@ -16,10 +16,12 @@ pub struct Options {
 pub struct Application {
     pub path: PathBuf,
     pub metadata: Value,
+    pub non_json_title: bool,
 }
 pub struct Prepared {
     pub commands: Vec<Value>,
     pub counts: BTreeMap<String, u64>,
+    pub non_json_title: bool,
 }
 impl Prepared {
     pub fn summary(&self, applied: bool) -> Value {
@@ -208,6 +210,7 @@ pub fn prepare(
             by_app.insert(string(command, "target")?.to_owned(), index);
         }
     }
+    let mut non_json_title = false;
     let mut counts = [
         "appAliases",
         "apps",
@@ -257,6 +260,7 @@ pub fn prepare(
                 .cloned()
                 .unwrap_or_else(|| json!(stem));
             let index = commands.len();
+            non_json_title |= app.non_json_title;
             commands.push(json!({"id":id,"title":title,"kind":"app","target":bid,"aliases":extra}));
             names.insert(lower(&id));
             by_app.insert(bid.to_owned(), index);
@@ -332,7 +336,11 @@ pub fn prepare(
             *counts.get_mut("snippets").unwrap() += 1;
         }
     }
-    Ok(Prepared { commands, counts })
+    Ok(Prepared {
+        commands,
+        counts,
+        non_json_title,
+    })
 }
 #[cfg(test)]
 mod tests {
@@ -387,6 +395,7 @@ mod tests {
                 "org.app".into(),
                 Application {
                     path: "/owned/App.app".into(),
+                    non_json_title: false,
                     metadata: json!({}),
                 },
             ),
@@ -394,6 +403,7 @@ mod tests {
                 "org.new".into(),
                 Application {
                     path: "/owned/New.app".into(),
+                    non_json_title: false,
                     metadata: json!({"CFBundleDisplayName":"New"}),
                 },
             ),
@@ -466,6 +476,7 @@ mod tests {
                 "org.new".into(),
                 Application {
                     path: "/owned/Fallback.app".into(),
+                    non_json_title: false,
                     metadata,
                 },
             )]
@@ -487,6 +498,7 @@ mod tests {
                     id.into(),
                     Application {
                         path: "/owned/App.app".into(),
+                        non_json_title: false,
                         metadata: json!({}),
                     },
                 )
