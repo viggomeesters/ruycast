@@ -430,7 +430,6 @@ rust-native/tests/fixtures/snippet_board_fixture.rs
 rust-native/tests/snippet_choice_process.rs
 rust-native/tests/snippet_choice_reference.json
 rust-native/tests/snippet_choice_request_process.rs
-rust-native/tests/snippet_effects_process.py
 rust-native/tests/snippet_effects_host_process.rs
 rust-native/tests/fixtures/snippet_effects_sdk.rs
 rust-native/tests/fixtures/snippet_effects_fixture.rs
