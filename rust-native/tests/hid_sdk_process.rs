@@ -32,6 +32,15 @@ fn run_case_with_trace(
     environment: u32,
     final_caps: bool,
 ) -> (Value, String) {
+    run_case_options(name, operations, true, environment, final_caps)
+}
+fn run_case_options(
+    name: &str,
+    operations: Value,
+    original: bool,
+    environment: u32,
+    final_caps: bool,
+) -> (Value, String) {
     let probe = Path::new(env!("CARGO_BIN_EXE_hid-probe"));
     assert!(probe.is_absolute() && probe.is_file());
     let artifact = std::env::var_os("RUYCAST_TEST_HID_SHIM")
@@ -69,7 +78,7 @@ fn run_case_with_trace(
     let input = owned.0.join("input.json");
     fs::write(
         &input,
-        serde_json::to_vec(&json!({"operations":operations,"original":true,"env":environment}))
+        serde_json::to_vec(&json!({"operations":operations,"original":original,"env":environment}))
             .unwrap(),
     )
     .unwrap();
@@ -327,4 +336,38 @@ fn off_sleep_and_environment_precedence_short_circuit_discovery() {
     );
     assert_eq!(rows.as_array().unwrap().last().unwrap()["status"], "Paused");
     assert!(!trace.contains("hid-fixture:raycast"));
+}
+
+#[test]
+fn partial_setup_failure_always_restores_original_and_can_retry() {
+    for stage in [
+        "tap_create",
+        "source",
+        "manager_create",
+        "device_dictionary",
+        "input_dictionary",
+        "manager_open",
+        "tap_enable",
+    ] {
+        for original in [false, true] {
+            let (rows, _) = run_case_options(
+                &format!("setup-{stage}-{original}"),
+                json!([
+                    {"op":"plan","hyper":true}, {"op":"failure","name":stage}, {"op":"refresh"},
+                    {"op":"failure","name":""}, {"op":"refresh"}
+                ]),
+                original,
+                0,
+                false,
+            );
+            assert_ne!(rows[2]["status"], "On", "{stage}");
+            assert_eq!(
+                rows[2]["state"]["caps"],
+                if original { 1 } else { 0 },
+                "{stage}"
+            );
+            assert_eq!(rows[2]["state"]["allocated"], 0, "{stage}");
+            assert_eq!(rows[4]["status"], "On", "{stage}");
+        }
+    }
 }
