@@ -237,6 +237,42 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
 }
 
 #[test]
+fn external_clipboard_target_relaunch_and_termination_cancel_delayed_paste() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for (name, operation) in [
+        ("1", Some(1)),
+        ("2", Some(2)),
+        ("3", Some(3)),
+        ("terminated", None),
+    ] {
+        let mut host = hidden_host("Owned");
+        show(&host);
+        run_native(&host);
+        wait_event(&mut host, "snippet-activate", |_| true);
+        if let Some(operation) = operation {
+            host.probe("snippet-fixture-control", json!({"operation":operation}));
+        } else {
+            fs::write(host.base.join("target-terminated"), "Own terminated target").unwrap();
+        }
+        done(&host);
+        host.settled(|_| true);
+        let trace = trace(&host);
+        assert!(!trace.iter().any(|event| event["phase"] == "snippet-post"));
+        let notice = notice(&host, &format!("snippet-change-{name}"));
+        assert_eq!(notice["success"], false);
+        let status = host.rpc(&json!({"op":"status"}));
+        assert_eq!(status["result"]["nativeUI"]["visible"], false);
+        save(
+            &format!("target-change-{name}"),
+            &json!({"notice":notice,"status":status}),
+            &trace,
+        );
+    }
+}
+
+#[test]
 fn postcommit_failures_retire_input_and_use_passive_notice() {
     let _scenario = HOST_SCENARIOS
         .lock()
