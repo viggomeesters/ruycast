@@ -8,7 +8,7 @@ use std::{
     fs,
     os::unix::fs::DirBuilderExt,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Command, Output, Stdio},
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
@@ -34,27 +34,18 @@ fn run_case_with_trace(
 ) -> (Value, String) {
     run_case_options(name, operations, true, environment, final_caps)
 }
-fn run_case_options(
-    name: &str,
-    operations: Value,
-    original: bool,
-    environment: u32,
-    final_caps: bool,
-) -> (Value, String) {
+enum Library {
+    Complete,
+    Missing,
+}
+struct Invocation {
+    output: Output,
+    probe: Value,
+    sdk: Value,
+}
+fn invoke(input_value: Value, library: Option<Library>) -> Invocation {
     let probe = Path::new(env!("CARGO_BIN_EXE_hid-probe"));
     assert!(probe.is_absolute() && probe.is_file());
-    let artifact = std::env::var_os("RUYCAST_TEST_HID_SHIM")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            probe
-                .parent()
-                .unwrap()
-                .join("examples/libhid_fixture.dylib")
-        });
-    assert!(
-        artifact.is_absolute() && artifact.is_file(),
-        "Build hid-fixture first"
-    );
     let parent = PathBuf::from(
         std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("Own absolute fixture parent"),
     );
@@ -71,26 +62,63 @@ fn run_case_options(
         .create(&directory)
         .unwrap();
     let owned = Owned(directory);
-    let library = owned.0.join("complete.dylib");
-    fs::copy(&artifact, &library).unwrap();
-    let sdk_hash = hash(&library);
-    assert_eq!(hash(&artifact), sdk_hash);
+    let mut command = Command::new(probe);
+    command.env_clear();
+    let sdk = if let Some(library) = library {
+        let (variable, filename, copy_name) = match library {
+            Library::Complete => (
+                "RUYCAST_TEST_HID_SHIM",
+                "libhid_fixture.dylib",
+                "complete.dylib",
+            ),
+            Library::Missing => (
+                "RUYCAST_TEST_HID_PARTIAL",
+                "libhid_missing_post.dylib",
+                "missing.dylib",
+            ),
+        };
+        let artifact = std::env::var_os(variable)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| probe.parent().unwrap().join("examples").join(filename));
+        assert!(
+            artifact.is_absolute() && artifact.is_file(),
+            "Build actual Rust HID SDK variants first"
+        );
+        let copy = owned.0.join(copy_name);
+        fs::copy(&artifact, &copy).unwrap();
+        let sdk_hash = hash(&copy);
+        assert_eq!(hash(&artifact), sdk_hash);
+        command.env("DYLD_INSERT_LIBRARIES", &copy);
+        json!({"path":artifact,"sha256":sdk_hash,"privateCopyHashChecked":true})
+    } else {
+        Value::Null
+    };
     let input = owned.0.join("input.json");
-    fs::write(
-        &input,
-        serde_json::to_vec(&json!({"operations":operations,"original":original,"env":environment}))
-            .unwrap(),
-    )
-    .unwrap();
-    let child = Command::new(probe)
-        .env_clear()
-        .env("DYLD_INSERT_LIBRARIES", &library)
+    fs::write(&input, serde_json::to_vec(&input_value).unwrap()).unwrap();
+    let child = command
         .stdin(fs::File::open(input).unwrap())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
     let output = child_output::wait(child, Duration::from_secs(10));
+    Invocation {
+        output,
+        probe: json!({"path":probe,"sha256":hash(probe)}),
+        sdk,
+    }
+}
+fn run_case_options(
+    name: &str,
+    operations: Value,
+    original: bool,
+    environment: u32,
+    final_caps: bool,
+) -> (Value, String) {
+    let Invocation { output, probe, sdk } = invoke(
+        json!({"operations":operations,"original":original,"env":environment}),
+        Some(Library::Complete),
+    );
     let trace = String::from_utf8(output.stderr).unwrap();
     assert_eq!(output.status.code(), Some(0), "{trace}");
     let data: Value = serde_json::from_slice(&output.stdout).unwrap();
@@ -102,7 +130,14 @@ fn run_case_options(
     );
     if let Some(directory) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
         fs::create_dir_all(&directory).unwrap();
-        fs::write(PathBuf::from(directory).join(format!("hid-sdk-{name}.json")),serde_json::to_vec_pretty(&json!({"data":data,"trace":trace,"probe":{"path":probe,"sha256":hash(probe)},"sdk":{"path":artifact,"sha256":sdk_hash,"privateCopyHashChecked":true},"timeoutSeconds":10})).unwrap()).unwrap();
+        fs::write(
+            PathBuf::from(directory).join(format!("hid-sdk-{name}.json")),
+            serde_json::to_vec_pretty(
+                &json!({"data":data,"trace":trace,"probe":probe,"sdk":sdk,"timeoutSeconds":10}),
+            )
+            .unwrap(),
+        )
+        .unwrap();
     }
     (data["rows"].clone(), trace)
 }
@@ -622,4 +657,20 @@ fn unmatched_and_nonkey_callbacks_do_not_clone_or_allocate_the_binding_plan() {
         rows.as_array().unwrap().last().unwrap()["result"],
         json!({"rustAllocations":0,"callbacks":3000})
     );
+}
+
+#[test]
+fn missing_or_absent_sdk_table_never_falls_back() {
+    for (name, library) in [("missing", Some(Library::Missing)), ("absent", None)] {
+        let Invocation { output, probe, sdk } = invoke(json!({}), library);
+        assert_eq!(output.status.code(), Some(2));
+        let trace = String::from_utf8(output.stderr).unwrap();
+        assert!(trace.contains("Complete HID SDK fixture unavailable."));
+        assert!(!trace.contains("hid-fixture:"));
+        assert!(!trace.contains("caps-fixture:"));
+        if let Some(directory) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+            fs::create_dir_all(&directory).unwrap();
+            fs::write(PathBuf::from(directory).join(format!("hid-sdk-refusal-{name}.json")),serde_json::to_vec_pretty(&json!({"exitCode":output.status.code(),"stderr":trace,"probe":probe,"sdk":sdk,"timeoutSeconds":10})).unwrap()).unwrap();
+        }
+    }
 }

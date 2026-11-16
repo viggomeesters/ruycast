@@ -91,7 +91,6 @@ caps-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools
 hid-probe-build|b|hid-probe tools
 hid-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example hid-fixture --example hid-missing-post --locked
 hid-sdk-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test hid_sdk_process --locked
-hid-process|p|rust-native/tests/hid_process.py
 manager-probe-build|b|manager-probe tools
 manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test manager_process --locked
 cli-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test cli_open_basic_process --locked
@@ -485,14 +484,8 @@ fn step(
     if entry.name == "supervision-fault-process" {
         supervision_fault_environment(root, &receipt.target, &mut command)?;
     }
-    if matches!(entry.name.as_str(), "hid-sdk-process" | "hid-process") {
+    if entry.name == "hid-sdk-process" {
         hid_sdk_environment(root, &receipt.target, &mut command)?;
-        if entry.name == "hid-process" {
-            let probe = root.join("rust-native/target/validation-build").join(&receipt.target).join("debug/hid-probe");
-            owned_path(root, &probe)?;
-            regular_bytes(&probe)?;
-            command.env("RUYCAST_HID_PROBE", probe);
-        }
     }
     if entry.name == "snippet-effects-host-process" {
         snippet_effects_environment(root, &receipt.target, &mut command)?;
@@ -1961,11 +1954,11 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 142);
+        assert_eq!(steps.len(), 141);
         let hid_sdk = steps.iter().position(|step| step.name == "hid-sdk-build").unwrap();
         let hid_rust = steps.iter().position(|step| step.name == "hid-sdk-process").unwrap();
-        let hid_remaining = steps.iter().position(|step| step.name == "hid-process").unwrap();
-        assert!(hid_sdk < hid_rust && hid_rust < hid_remaining);
+        assert!(hid_sdk < hid_rust);
+        assert!(!steps.iter().any(|step| step.arguments.iter().any(|argument| argument.ends_with("hid_process.py"))));
         assert!(steps[hid_sdk].arguments.windows(2).any(|pair| pair == ["--example", "hid-fixture"]));
         assert!(steps[hid_sdk].arguments.windows(2).any(|pair| pair == ["--example", "hid-missing-post"]));
         assert!(steps[hid_rust].arguments.windows(2).any(|pair| pair == ["--test", "hid_sdk_process"]));
