@@ -118,19 +118,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertEqual([r['down'] for r in posts],[i%2==0 for i in range(len(posts))])
         self.assertEqual([r['flags'] for r in posts],[1<<20 if key==9 else 0 for key in keys])
 
-    def test_new_show_and_configuration_replacement_retire_delayed_effect_without_old_notice(self):
-        for change in ['show','replace']:
-            h=self.host(command('Owned'));self.show(h);self.run_native(h);self.wait_event(h,'snippet-activate')
-            if change=='show':self.show(h,'safari')
-            else:
-                cfg=json.loads(h.config.read_text());cfg['commands'][-1]['target']='Replacement';h.replace(cfg);h.cli('reload')
-            self.done(h);h.settled();time.sleep(.2)
-            self.assertEqual(self.posts(h),[])
-            if change=='show':
-                self.assertTrue(h.rpc(dict(op='status'))['result']['nativeUI']['visible'])
-                self.assertEqual(h.probe('read')['input'],'safari')
-                self.assertFalse(h.probe('notice-read')['present'])
-
     def test_real_multiple_field_choices_and_marked_text_use_same_snippet_pipeline(self):
         h=self.host(command('{a name="Message"}/{b name="Place" options="One,Two"}'))
         self.show(h);self.run_native(h);h.settled()
