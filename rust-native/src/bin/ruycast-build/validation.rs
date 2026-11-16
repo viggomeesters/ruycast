@@ -125,7 +125,6 @@ system-search-tools-build|c|build --manifest-path rust-native/Cargo.toml --featu
 system-search-cli-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test system_search_cli_process --locked
 clipboard-history-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example clipboard-history-fixture --locked
 clipboard-history-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_history_host_process --locked
-clipboard-history-process|p|rust-native/tests/clipboard_history_process.py
 snippet-links-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --snippet-links-only
 snippet-hotkey-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --snippet-hotkey-only
 feedback-actions-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --feedback-actions-only
@@ -186,6 +185,7 @@ const REFERENCES: &[(&str, &str)] = &[
     ("templateReference", "template-reference-bindings.json"),
     ("snippetReference", "snippet-reference-bindings.json"),
     ("snippetEffects", "snippet-effects-bindings.json"),
+    ("clipboardHistory", "clipboard-history-bindings.json"),
     ("keyboardReference", "keyboard-reference-bindings.json"),
     ("hidStateReference", "hid-state-reference-bindings.json"),
     ("keywordReference", "keyword-reference-bindings.json"),
@@ -470,6 +470,11 @@ fn clipboard_history_environment(root: &Path, target: &str, command: &mut Comman
     command.env("RUYCAST_TEST_HISTORY_SDK", artifact);
     Ok(())
 }
+fn clipboard_history_compatibility_sdk(root: &Path, target: &str, copies: &mut BTreeMap<String, serde_json::Value>) -> Result<()> {
+    artifact_paths(target)?;
+    let source = format!("rust-native/target/validation-build/{target}/debug/examples/libclipboard_history_fixture.dylib");
+    compatibility_copy(root, &source, "rust-native/target/clipboard-history-effects.dylib", copies)
+}
 fn snippet_effects_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
     artifact_paths(target)?;
     let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libsnippet_effects_fixture.dylib");
@@ -497,7 +502,8 @@ fn step(
     if entry.name == "hid-sdk-process" {
         hid_sdk_environment(root, &receipt.target, &mut command)?;
     }
-    if matches!(entry.name.as_str(), "clipboard-history-host-process" | "clipboard-history-process") {
+    if entry.name == "clipboard-history-host-process" {
+        clipboard_history_compatibility_sdk(root, &receipt.target, copies)?;
         clipboard_history_environment(root, &receipt.target, &mut command)?;
     }
     if entry.name == "snippet-effects-host-process" {
@@ -1182,6 +1188,46 @@ fn check_snippet_effects_binding(root: &Path, value: &serde_json::Value) -> Resu
     }
     Ok(())
 }
+const CLIPBOARD_HISTORY_SOURCES: &[&str] = &[
+    "rust-native/tests/clipboard_history_host_process.rs",
+    "rust-native/tests/support/runtime_host.rs",
+    "rust-native/tests/support/native_bridge.rs",
+    "rust-native/tests/support/status_rpc.rs",
+    "rust-native/tests/support/child_output.rs",
+    "rust-native/tests/fixtures/workspace_sdk.rs",
+    "rust-native/tests/fixtures/snippet_effects_sdk.rs",
+    "rust-native/tests/fixtures/clipboard_history_sdk.rs",
+    "rust-native/tests/fixtures/clipboard_history_fixture.rs",
+    "rust-native/Cargo.toml",
+    "rust-native/Cargo.lock",
+    "rust/Cargo.toml",
+    "rust/Cargo.lock",
+    "rust-toolchain.toml",
+    "rust-native/src/runtime.rs",
+    "config/default.json",
+];
+fn check_clipboard_history_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
+    check_binding(root, value)?;
+    let sources = value["sources"].as_object().ok_or("Missing clipboard history sources.")?;
+    let expected = CLIPBOARD_HISTORY_SOURCES.iter().copied().collect::<std::collections::BTreeSet<_>>();
+    if value["schema"] != "ruycast.clipboard-history-bindings.v1" || value["sdkCopyHashChecked"] != true
+        || sources.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != expected {
+        return Err("Clipboard history lost its current Rust consumer or SDK source binding.".into());
+    }
+    if value["retiredPythonSource"] != serde_json::json!({"path":"rust-native/tests/clipboard_history_process.py", "sha256":"72798c56f799ebc73893de1e53345ead4d2bc82125e1a76be47bd0b529752066", "role":"historical-original-case-source-only"}) {
+        return Err("Clipboard history lost its historical original-source provenance.".into());
+    }
+    let roles = value["artifactRoles"].as_object().ok_or("Missing clipboard history artifact roles.")?;
+    if roles.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != ["host", "cli", "sdk"].into_iter().collect() {
+        return Err("Clipboard history requires actual host, CLI and SDK artifacts.".into());
+    }
+    let paths = roles.values().map(|path| path.as_str().ok_or_else(|| "Invalid clipboard history artifact role.".to_owned())).collect::<Result<std::collections::BTreeSet<_>>>()?;
+    let artifacts = value["artifacts"].as_object().ok_or("Missing clipboard history artifacts.")?;
+    if paths.len() != 3 || artifacts.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != paths {
+        return Err("Clipboard history artifact roles do not match its actual artifact bindings.".into());
+    }
+    Ok(())
+}
 fn check_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
     for group in ["sources", "artifacts"] {
         for (name, expected) in value[group]
@@ -1317,6 +1363,7 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
             }
         }
         if *field == "snippetEffects" { check_snippet_effects_binding(root, &value[*field])?; }
+        if *field == "clipboardHistory" { check_clipboard_history_binding(root, &value[*field])?; }
         else { check_binding(root, &value[*field])?; }
     }
     let sdk = value["nativeHostSDKs"]
@@ -1453,6 +1500,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
             serde_json::from_slice(&raw).map_err(error)?
         };
         if *field == "snippetEffects" { check_snippet_effects_binding(root, &binding)?; }
+        if *field == "clipboardHistory" { check_clipboard_history_binding(root, &binding)?; }
         else { check_binding(root, &binding)?; }
         value[*field] = binding;
     }
@@ -1560,6 +1608,25 @@ mod tests {
         assert!(clipboard_history_environment(root, target, &mut command).is_err());
     }
     #[test]
+    fn clipboard_history_compatibility_sdk_binds_the_live_ui_alias() {
+        let fixture = super::super::tests::Fixture::new(); let root = &fixture.0;
+        let target = "aarch64-apple-darwin";
+        let source = format!("rust-native/target/validation-build/{target}/debug/examples/libclipboard_history_fixture.dylib");
+        assert!(include_str!("../../../examples/ui_completion.rs").contains("rust-native/target/clipboard-history-effects.dylib"));
+        assert!(clipboard_history_compatibility_sdk(root, target, &mut BTreeMap::new()).is_err());
+        let artifact = root.join(&source); fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, b"owned SDK fixture").unwrap();
+        let mut copies = BTreeMap::new();
+        clipboard_history_compatibility_sdk(root, target, &mut copies).unwrap();
+        let alias = "rust-native/target/clipboard-history-effects.dylib";
+        assert_eq!(digest(&root.join(alias)).unwrap(), digest(&artifact).unwrap());
+        assert_eq!(copies[alias]["source"], source);
+        assert_eq!(copies[alias]["sha256"], digest(&artifact).unwrap());
+        fs::write(&artifact, b"changed owned SDK fixture").unwrap();
+        clipboard_history_compatibility_sdk(root, target, &mut copies).unwrap();
+        assert_eq!(digest(&root.join(alias)).unwrap(), digest(&artifact).unwrap());
+    }
+    #[test]
     fn snippet_effects_environment_requires_the_exact_matrix_artifact() {
         let fixture = super::super::tests::Fixture::new();
         let root = &fixture.0;
@@ -1615,6 +1682,50 @@ mod tests {
         fs::write(root.join("artifacts/sdk"), b"changed real SDK artifact").unwrap();
         assert!(check_snippet_effects_binding(root, &binding).is_err());
         assert!(REFERENCES.contains(&("snippetEffects", "snippet-effects-bindings.json")));
+    }
+    #[test]
+    fn clipboard_history_binding_requires_current_sources_roles_and_unchanged_bytes() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let mut sources = BTreeMap::new();
+        for name in CLIPBOARD_HISTORY_SOURCES {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"owned nonexecutable source fixture").unwrap();
+            sources.insert(*name, digest(&path).unwrap());
+        }
+        let mut artifacts = BTreeMap::new();
+        let mut roles = BTreeMap::new();
+        for role in ["host", "cli", "sdk"] {
+            let name = format!("artifacts/{role}");
+            let path = root.join(&name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"owned nonexecutable artifact fixture").unwrap();
+            artifacts.insert(name.clone(), digest(&path).unwrap());
+            roles.insert(role, name);
+        }
+        let binding = serde_json::json!({"schema":"ruycast.clipboard-history-bindings.v1","sources":sources,"artifacts":artifacts,"artifactRoles":roles,"sdkCopyHashChecked":true,"retiredPythonSource":{"path":"rust-native/tests/clipboard_history_process.py","sha256":"72798c56f799ebc73893de1e53345ead4d2bc82125e1a76be47bd0b529752066","role":"historical-original-case-source-only"}});
+        check_clipboard_history_binding(root, &binding).unwrap();
+        let mut forgotten = binding.clone();
+        forgotten.as_object_mut().unwrap().remove("retiredPythonSource");
+        assert!(check_clipboard_history_binding(root, &forgotten).is_err());
+        let mut legacy = binding.clone();
+        legacy.as_object_mut().unwrap().remove("schema");
+        assert!(check_clipboard_history_binding(root, &legacy).is_err());
+        let mut omitted = binding.clone();
+        omitted["sources"].as_object_mut().unwrap().remove("rust-native/tests/fixtures/workspace_sdk.rs");
+        assert!(check_clipboard_history_binding(root, &omitted).is_err());
+        let mut unbound = binding.clone();
+        unbound["artifactRoles"]["sdk"] = serde_json::json!("artifacts/host");
+        assert!(check_clipboard_history_binding(root, &unbound).is_err());
+        let source = root.join("rust-native/tests/clipboard_history_host_process.rs");
+        let before = fs::read(&source).unwrap();
+        fs::write(&source, b"changed real consumer source").unwrap();
+        assert!(check_clipboard_history_binding(root, &binding).is_err());
+        fs::write(source, before).unwrap();
+        fs::write(root.join("artifacts/sdk"), b"changed real SDK artifact").unwrap();
+        assert!(check_clipboard_history_binding(root, &binding).is_err());
+        assert!(REFERENCES.contains(&("clipboardHistory", "clipboard-history-bindings.json")));
     }
     #[test]
     fn keyboard_receipt_sources_match_both_consumers_and_reject_drift() {
@@ -1983,9 +2094,9 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 143);
+        assert_eq!(steps.len(), 142);
         let history_build = steps.iter().position(|step| step.name == "clipboard-history-sdk-build").unwrap();
-        for name in ["clipboard-history-host-process", "clipboard-history-process"] {
+        for name in ["clipboard-history-host-process"] {
             assert!(history_build < steps.iter().position(|step| step.name == name).unwrap());
         }
         assert!(steps[history_build].arguments.windows(2).any(|pair| pair == ["--example", "clipboard-history-fixture"]));
@@ -2173,7 +2284,7 @@ mod tests {
             "private-results-process",
             "cli-contract-process",
             "utility-process",
-            "clipboard-history-process",
+            "clipboard-history-host-process",
             "clipboard-rich-paste",
             "clipboard-preview-original",
             "clipboard-preview-cancel-original",
@@ -2227,7 +2338,7 @@ mod tests {
         let actions = steps.iter().find(|step|step.name=="actions-menu-process").unwrap();
         assert_eq!(actions.arguments.last().unwrap(),"--actions-menu-only");
         assert_eq!(steps.iter().find(|step|step.name=="item-binding-original-process").unwrap().arguments.last().unwrap(),"--item-binding-original-only");
-        assert_eq!(REFERENCES.len(), 11);
+        assert_eq!(REFERENCES.len(), 12);
         assert!(matrix("unsupported").is_err());
     }
     #[test]

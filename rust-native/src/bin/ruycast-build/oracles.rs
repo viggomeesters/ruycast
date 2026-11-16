@@ -408,7 +408,7 @@ const SETTINGS: &[SettingsGate] = &[
     SettingsGate { id:"--check-settings", original_source:"Sources/RuycastApp/SettingsChecks.swift", required_native_steps:&[
         "core-unit", "unit", "settings-preferences-process", "settings-keyboard-process",
         "library-process", "library-checkbox-process", "library-drafts-process", "library-navigation-process", "actions-process", "native-keyboard-process", "hid-sdk-process",
-        "keyword-process", "applications-discovery-process", "app-picker-process", "capture-process", "bridge-process", "clipboard-history-process", "startup-process",
+        "keyword-process", "applications-discovery-process", "app-picker-process", "capture-process", "bridge-process", "clipboard-history-host-process", "startup-process",
         "feedback-actions-process", "snippet-links-process", "snippet-process", "snippet-board-process",
         "keyword-rich-process-rust", "clipboard-rich-paste", "settings-ui-process", "snippet-html-import",
     ], native_cases:&[
@@ -644,7 +644,7 @@ const SETTINGS: &[SettingsGate] = &[
         "remaining_macos_process::real_cli_window_files_processes_and_monitor_data_use_owned_backends",
         "remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-rich-resources", original_source:"Sources/RuycastApp/RichResourceChecks.swift", required_native_steps:&["unit","clipboard-preview-original","remaining-macos-process","clipboard-history-process","clipboard-rich-paste"], native_cases:&[
+    SettingsGate { id:"--check-rich-resources", original_source:"Sources/RuycastApp/RichResourceChecks.swift", required_native_steps:&["unit","clipboard-preview-original","remaining-macos-process","clipboard-history-host-process","clipboard-rich-paste"], native_cases:&[
         "remaining_macos_process::real_cli_window_files_processes_and_monitor_data_use_owned_backends",
         "remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes",
         "remaining_macos_process::native_process_sort_refresh_keeps_identity_and_kill_keeps_palette_open",
@@ -659,7 +659,7 @@ const SETTINGS: &[SettingsGate] = &[
         "system_search::providers::gate_tests::process_result_cap_bounds_opaque_target_registration",
         "processes::tests::owned_table_sort_and_immutable_kill_identity",
         "monitor::lifecycle_tests::visible_only_two_second_sampling_history_bound_and_reopen_preserve_state",
-        "clipboard_history_process.ClipboardHistory.test_native_text_image_empty_error_busy_light_dark_narrow_wide",
+        "clipboard_history_host_process::test_native_text_image_empty_error_busy_light_dark_narrow_wide",
         "clipboard_rich_paste::file_and_image_paste_complete_owned_ticket_without_recapture",
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-runtime-process","analytics-cast-reference","dashboard-presentation-process","native-dashboard-dialog-process","dashboard-export-process","startup-process"], native_cases:&[
@@ -689,7 +689,7 @@ const SETTINGS: &[SettingsGate] = &[
         "dashboard_export_process::close_before_commit_revokes_destination_without_feedback_to_reopened_window",
         "dashboard_export_process::commit_entered_before_close_keeps_published_outcome_and_retires_feedback",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-performance-pipeline", original_source:"Sources/RuycastApp/PerformancePipelineChecks.swift", required_native_steps:&["unit","clipboard-history-process","clipboard-history-host-process","clipboard-rich-paste"], native_cases:&[
+    SettingsGate { id:"--check-performance-pipeline", original_source:"Sources/RuycastApp/PerformancePipelineChecks.swift", required_native_steps:&["unit","clipboard-history-host-process","clipboard-rich-paste"], native_cases:&[
         "clipboard_history::tests::capture_admission_is_single_flight_and_lease_drop_reopens_it",
         "configuration_jobs::tests::capture_retention_handshake_preserves_both_orders_and_stops_without_owner_lock",
         "native_services::check_owned_poll",
@@ -940,7 +940,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "c00bfde67fef22f13fc2f1aebf80617ffaf4609d9d788dd9f14520fcd579a84a"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "94fe1298f7a96fe03b2eef17d067921fa043ad21bfcf7568b63aeb9d81df4c1a"),
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "3fd6aa6c6a3c8321dde7a9f4b85a01045e18aad1e0bfeea89d2a9d5d0f935409"),
-            ("rust-native/tests/clipboard_history_process.py", include_bytes!("../../../tests/clipboard_history_process.py"), "72798c56f799ebc73893de1e53345ead4d2bc82125e1a76be47bd0b529752066"),
+            ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "0eb5f95396e75ce989053755a3136a05ac82fa5039caeeeabfef25d80da9ea8d"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
             ("rust-native/tests/fixtures/snippet_effects_sdk.rs", include_bytes!("../../../tests/fixtures/snippet_effects_sdk.rs"), "4070c904b8d6cd406487561c108d03ea7870da176b64e66b14de718bfcadb4af"),
@@ -1146,7 +1146,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "94fe1298f7a96fe03b2eef17d067921fa043ad21bfcf7568b63aeb9d81df4c1a"),
             ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "0dfcbb5c3d0d5d15149af8fd128067832235819923bd813fda83e4c894a86333"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
-            ("rust-native/tests/clipboard_history_process.py", include_bytes!("../../../tests/clipboard_history_process.py"), "72798c56f799ebc73893de1e53345ead4d2bc82125e1a76be47bd0b529752066"),
+            ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "0eb5f95396e75ce989053755a3136a05ac82fa5039caeeeabfef25d80da9ea8d"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
             ("rust-native/tests/fixtures/snippet_effects_sdk.rs", include_bytes!("../../../tests/fixtures/snippet_effects_sdk.rs"), "4070c904b8d6cd406487561c108d03ea7870da176b64e66b14de718bfcadb4af"),
             ("rust-native/tests/fixtures/clipboard_history_sdk.rs", include_bytes!("../../../tests/fixtures/clipboard_history_sdk.rs"), "712c823e91e7670f738c52aff5781dbeac77314983434e19ec4c0b2e7984aae3"),
@@ -2175,10 +2175,6 @@ mod tests {
                 "clipboard_history_host_process::",
                 include_str!("../../../tests/clipboard_history_host_process.rs"),
             ),
-            (
-                "clipboard_history_process.",
-                include_str!("../../../tests/clipboard_history_process.py"),
-            ),
         ];
         for (id, expected_steps, expected_sources) in [
             (
@@ -2188,7 +2184,7 @@ mod tests {
             ),
             (
                 "--check-performance-pipeline",
-                &["unit", "clipboard-history-process", "clipboard-history-host-process", "clipboard-rich-paste"][..],
+                &["unit", "clipboard-history-host-process", "clipboard-rich-paste"][..],
                 29,
             ),
         ] {
@@ -2282,9 +2278,23 @@ mod tests {
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
+    fn clipboard_history_crosswalk_binds_current_rust_consumer_and_existing_steps() {
+        let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
+        let steps = plan["steps"].as_array().unwrap();
+        for id in ["--check-rich-resources", "--check-performance-pipeline"] {
+            let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
+            assert!(gate.required_native_steps.contains(&"clipboard-history-host-process"));
+            for name in gate.required_native_steps { assert!(steps.iter().any(|step| step["name"] == *name)); }
+            let (_, bytes, expected) = settings_sources(id).iter().find(|(path, _, _)| *path == "rust-native/tests/clipboard_history_host_process.rs").unwrap();
+            assert_eq!(format!("{:x}", Sha256::digest(bytes)), *expected);
+            assert!(!settings_sources(id).iter().any(|(path, _, _)| *path == "rust-native/tests/clipboard_history_process.py"));
+            assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        }
+    }
+    #[test]
     fn rich_resources_map_carries_original_groups_and_existing_preview_route() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
-        assert_eq!(gate.required_native_steps, &["unit", "clipboard-preview-original", "remaining-macos-process", "clipboard-history-process", "clipboard-rich-paste"]);
+        assert_eq!(gate.required_native_steps, &["unit", "clipboard-preview-original", "remaining-macos-process", "clipboard-history-host-process", "clipboard-rich-paste"]);
         assert_eq!(gate.native_cases.len(), 16);
         assert!(gate.unproven_invariants.is_empty());
         let inputs = settings_sources(gate.id);
@@ -2297,7 +2307,7 @@ mod tests {
             ("system_search::providers::gate_tests::", "rust-native/src/system_search/providers.rs"),
             ("processes::tests::", "rust-native/src/processes.rs"),
             ("monitor::lifecycle_tests::", "rust-native/src/monitor.rs"),
-            ("clipboard_history_process.", "rust-native/tests/clipboard_history_process.py"),
+            ("clipboard_history_host_process::", "rust-native/tests/clipboard_history_host_process.rs"),
             ("clipboard_rich_paste::", "rust-native/tests/clipboard_rich_paste.rs"),
         ];
         for case in gate.native_cases {
