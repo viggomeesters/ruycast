@@ -1,4 +1,4 @@
-//! Independent helper death through the actual headless host and Rust heartbeat.
+//! Independent supervisor lifetimes through the actual headless host and Rust heartbeat.
 #![cfg(feature = "test-tools")]
 #[allow(dead_code)]
 #[path = "support/runtime_host.rs"]
@@ -74,18 +74,105 @@ fn wait_file(path: &Path) -> Value {
     panic!("own script did not start");
 }
 fn heartbeat_host(timeout: Value) -> ManagedHost {
+    heartbeat_hosts(timeout, 1)
+}
+fn heartbeat_hosts(timeout: Value, count: usize) -> ManagedHost {
+    assert!((1..=15).contains(&count));
     let mut host = ManagedHost(Host::new(Config::current(), false));
     fs::write(
         host.base.join(".ruycast-supervision-fixture"),
         "owned-supervision-helper-v1",
     )
     .unwrap();
-    let command = json!({"id":"script.life0","title":"Lifecycle fixture0","kind":"script","target":env!("CARGO_BIN_EXE_supervision-probe"),"arguments":["__supervision-heartbeat",host.base,"0"],"timeout":timeout});
     let mut config = default_config();
-    config["commands"].as_array_mut().unwrap().push(command);
+    for index in 0..count {
+        let command = json!({"id":format!("script.life{index}"),"title":format!("Lifecycle fixture{index}"),"kind":"script","target":env!("CARGO_BIN_EXE_supervision-probe"),"arguments":["__supervision-heartbeat",host.base,index.to_string()],"timeout":timeout});
+        config["commands"].as_array_mut().unwrap().push(command);
+    }
     host.replace(&config, None);
     host.start();
     host
+}
+
+#[test]
+fn host_sigkill_keeps_supervisor_timeout_and_cancellation_alive() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut host = heartbeat_host(json!(0.2));
+    let mut stream = host.connect(Duration::from_secs(3));
+    stream
+        .write_all(b"{\"op\":\"execute\",\"id\":\"script.life0\"}\n")
+        .unwrap();
+    let initial = wait_file(&host.base.join("0"));
+    let old_pid = host.process.as_ref().unwrap().id();
+    assert_ne!(initial["helper"].as_u64().unwrap(), u64::from(old_pid));
+    host.process.as_mut().unwrap().kill().unwrap();
+    host.stop(false);
+    host.start();
+    let new_pid = host.process.as_ref().unwrap().id();
+    assert_ne!(new_pid, old_pid);
+    std::thread::sleep(Duration::from_millis(500));
+    let last: Value = serde_json::from_slice(&fs::read(host.base.join("0")).unwrap()).unwrap();
+    let heartbeat_delta = last["time"].as_f64().unwrap() - initial["time"].as_f64().unwrap();
+    assert!(heartbeat_delta < 0.25);
+    let pid = libc::pid_t::try_from(initial["pid"].as_i64().unwrap()).unwrap();
+    assert!(pid > 0);
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ESRCH)
+    );
+    if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let folder = std::path::PathBuf::from(folder);
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(folder.join("supervision-host-sigkill.json"),serde_json::to_vec_pretty(&json!({"initial":initial,"last":last,"oldHostPID":old_pid,"newHostPID":new_pid,"heartbeatDelta":heartbeat_delta,"killZeroErrno":libc::ESRCH})).unwrap()).unwrap();
+    }
+}
+
+#[test]
+fn many_helpers_do_not_inherit_each_others_lifeline_writers() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut host = heartbeat_hosts(json!(5), 15);
+    let mut streams = Vec::new();
+    for index in 0..15 {
+        let mut stream = host.connect(Duration::from_secs(3));
+        let request = json!({"op":"execute","id":format!("script.life{index}")});
+        writeln!(stream, "{request}").unwrap();
+        streams.push(stream);
+    }
+    let initial: Vec<_> = (0..15)
+        .map(|index| wait_file(&host.base.join(index.to_string())))
+        .collect();
+    host.process.as_mut().unwrap().kill().unwrap();
+    host.stop(false);
+    std::thread::sleep(Duration::from_millis(500));
+    let mut observations = Vec::new();
+    for (index, first) in initial.iter().enumerate() {
+        let last: Value =
+            serde_json::from_slice(&fs::read(host.base.join(index.to_string())).unwrap()).unwrap();
+        let heartbeat_delta = last["time"].as_f64().unwrap() - first["time"].as_f64().unwrap();
+        assert!(heartbeat_delta < 0.5);
+        let pid = libc::pid_t::try_from(first["pid"].as_i64().unwrap()).unwrap();
+        assert!(pid > 0);
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+        observations.push(json!({"initial":first,"last":last,"heartbeatDelta":heartbeat_delta,"killZeroErrno":libc::ESRCH}));
+    }
+    if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let folder = std::path::PathBuf::from(folder);
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(
+            folder.join("supervision-many-host-helpers.json"),
+            serde_json::to_vec_pretty(&observations).unwrap(),
+        )
+        .unwrap();
+    }
 }
 #[test]
 fn unexpected_helper_death_reports_unknown_without_retry() {
