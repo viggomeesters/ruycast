@@ -7,6 +7,7 @@ use native_bridge::{runtime_host, Bridge};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
+    collections::BTreeMap,
     fs,
     path::PathBuf,
     thread,
@@ -17,9 +18,12 @@ use std::{
 static HOST_SCENARIOS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn host(clipboard: Value) -> Bridge {
+    host_options(clipboard, 760, "light")
+}
+fn host_options(clipboard: Value, width: u64, theme: &str) -> Bridge {
     let mut h = Bridge::new(runtime_host::Config::current(), false);
     let mut config = runtime_host::default_config();
-    config["theme"] = json!("light");
+    config["theme"] = json!(theme);
     for (key, value) in clipboard.as_object().unwrap() {
         config["clipboard"][key] = value.clone();
     }
@@ -36,7 +40,7 @@ fn host(clipboard: Value) -> Bridge {
         Sha256::digest(fs::read(&private).unwrap())
     );
     for (key, value) in [
-        ("DYLD_INSERT_LIBRARIES", private.into_os_string()),
+        ("DYLD_INSERT_LIBRARIES", private.clone().into_os_string()),
         (
             "RUYCAST_WORKSPACE_FIXTURE_HOME",
             h.base.clone().into_os_string(),
@@ -44,10 +48,11 @@ fn host(clipboard: Value) -> Bridge {
         ("RUYCAST_NATIVE_TEST_CLIPBOARD", "named".into()),
         ("RUYCAST_NATIVE_TEST_SNIPPET", "1".into()),
         ("RUYCAST_NATIVE_TEST_CLIPBOARD_GUARD", "1".into()),
-        ("RUYCAST_NATIVE_TEST_WIDTH", "760".into()),
+        ("RUYCAST_NATIVE_TEST_WIDTH", width.to_string().into()),
     ] {
         h.env.insert(key.into(), value);
     }
+    binding(&h, &artifact, &private);
     h.start();
     h.settled(|_| true);
     h
@@ -350,4 +355,142 @@ fn test_native_preferences_save_is_revision_guarded_and_validated() {
         actual["clipboard"]["excludedApps"],
         json!(["dev.fixture.private"])
     );
+}
+
+const SOURCES: &[&str] = &[
+    "rust-native/tests/clipboard_history_host_process.rs",
+    "rust-native/tests/support/runtime_host.rs",
+    "rust-native/tests/support/native_bridge.rs",
+    "rust-native/tests/support/status_rpc.rs",
+    "rust-native/tests/support/child_output.rs",
+    "rust-native/tests/fixtures/workspace_sdk.rs",
+    "rust-native/tests/fixtures/snippet_effects_sdk.rs",
+    "rust-native/tests/fixtures/clipboard_history_sdk.rs",
+    "rust-native/tests/fixtures/clipboard_history_fixture.rs",
+    "rust-native/Cargo.toml",
+    "rust-native/Cargo.lock",
+    "rust/Cargo.toml",
+    "rust/Cargo.lock",
+    "rust-toolchain.toml",
+    "rust-native/src/runtime.rs",
+    "config/default.json",
+];
+fn binding(h: &Bridge, original: &std::path::Path, private: &std::path::Path) {
+    if let Some(directory) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let directory = PathBuf::from(directory);
+        fs::create_dir_all(&directory).unwrap();
+        let sources = SOURCES
+            .iter()
+            .map(|name| {
+                (
+                    *name,
+                    format!(
+                        "{:x}",
+                        Sha256::digest(fs::read(runtime_host::root().join(name)).unwrap())
+                    ),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let loaded = format!("{:x}", Sha256::digest(fs::read(private).unwrap()));
+        let mut artifacts = BTreeMap::new();
+        let mut roles = BTreeMap::new();
+        for (role, path) in [
+            ("host", h.settings.host.as_path()),
+            ("cli", h.settings.cli.as_path()),
+            ("sdk", original),
+        ] {
+            let (path, sha) = runtime_host::bind_artifact(path, role);
+            if role == "sdk" {
+                assert_eq!(sha, loaded);
+            }
+            roles.insert(role, path.clone());
+            artifacts.insert(path, sha);
+        }
+        fs::write(directory.join("clipboard-history-bindings.json"), serde_json::to_vec_pretty(&json!({
+            "schema":"ruycast.clipboard-history-bindings.v1", "sources":sources, "artifacts":artifacts,
+            "artifactRoles":roles, "sdkCopyHashChecked":true,
+            "retiredPythonSource":{"path":"rust-native/tests/clipboard_history_process.py", "sha256":"72798c56f799ebc73893de1e53345ead4d2bc82125e1a76be47bd0b529752066", "role":"historical-original-case-source-only"},
+            "scope":"Owned hidden/offscreen host and named boards; no general clipboard, desktop capture, activation or physical input"
+        })).unwrap()).unwrap();
+    }
+}
+fn capture(h: &Bridge, name: &str) -> Value {
+    h.settled(|_| true);
+    let value = h.probe("screenshot", json!({}));
+    for field in ["windowShown", "windowKey", "windowMain"] {
+        assert_eq!(value[field], false);
+    }
+    let output = runtime_host::root().join("rust-native/target/clipboard-evidence");
+    fs::create_dir_all(&output).unwrap();
+    fs::copy(
+        h.profile.join("native-probe.png"),
+        output.join(format!("{name}.png")),
+    )
+    .unwrap();
+    fs::write(
+        output.join(format!("{name}.json")),
+        serde_json::to_vec_pretty(&value).unwrap(),
+    )
+    .unwrap();
+    value
+}
+struct PreviewHold(PathBuf);
+impl Drop for PreviewHold {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+#[test]
+fn test_native_text_image_empty_error_busy_light_dark_narrow_wide() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
+    let mut hosts = Vec::new();
+    for (width, theme) in [(600, "light"), (760, "dark")] {
+        let h = host_options(json!({}), width, theme);
+        assert_eq!(h.rpc(&json!({"op":"show", "mode":"clipboard"}))["ok"], true);
+        h.settled(|s| s["nativeUI"]["visible"] == true);
+        capture(&h, &format!("empty-{width}-{theme}"));
+        fixture(&h, "Synthetic clipboard text\nOne deliberate second line.");
+        h.wait(|s| s["clipboardCount"] == 1);
+        let text = capture(&h, &format!("text-{width}-{theme}"));
+        let screen = text["screenText"].as_array().unwrap();
+        assert!(screen.contains(&json!(
+            "Synthetic clipboard text\nOne deliberate second line."
+        )));
+        assert!(!screen.contains(&json!("Clipboard is empty")));
+        assert!(screen.contains(&json!("Search clipboard")));
+        let hold = PreviewHold(h.profile.join("clipboard-preview-hold"));
+        fs::write(&hold.0, "own fixture").unwrap();
+        fixture_payload(&h, json!({"Image":png()}));
+        h.wait(|s| s["clipboardCount"] == 2);
+        h.probe("query", json!({"query":"Image"}));
+        h.settled(|_| true);
+        let end = Instant::now() + Duration::from_secs(3);
+        let entered = h.profile.join("clipboard-preview-entered");
+        while !entered.exists() && Instant::now() < end {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(entered.exists());
+        let busy = capture(&h, &format!("busy-{width}-{theme}"));
+        assert!(busy["screenText"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("Loading preview…")));
+        fs::remove_file(&hold.0).unwrap();
+        thread::sleep(Duration::from_millis(150));
+        capture(&h, &format!("image-{width}-{theme}"));
+        let image = items(&h)[0].clone();
+        fs::remove_file(h.profile.join(image["dataFile"].as_str().unwrap())).unwrap();
+        h.probe("query", json!({"query":"no-match"}));
+        h.settled(|_| true);
+        h.probe("query", json!({"query":"Image"}));
+        h.settled(|_| true);
+        thread::sleep(Duration::from_millis(150));
+        let error = capture(&h, &format!("error-{width}-{theme}"));
+        assert!(error["screenText"].as_array().unwrap().iter().any(|t| t
+            .as_str()
+            .unwrap()
+            .to_lowercase()
+            .contains("unavailable")));
+        hosts.push(h);
+    }
 }
