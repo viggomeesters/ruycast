@@ -344,7 +344,7 @@
     "docs/GETTING-STARTED.md": "41f2f51f8594f44fab62620b6c578f589776f5cbae6ff989900b73695940e6b9",
     "docs/IMPLEMENTATION-REFERENCES.md": "7ebd7944d2ddc5216ccd5525676d1fdd6b876386635deb3734624ebf7f0a4550",
     "docs/INSTALLATION.md": "5d6b23dbf306fabeb5e7e9ef087c5dfc687ed758cf7485216281e1ed4885cb1b",
-    "docs/PERFORMANCE.md": "f50c0464a0c977930ee66c8afb9372641b646949a98a928c6251e32e1f5ea0d6",
+    "docs/PERFORMANCE.md": "9a2b588d8ff8b09a723e75df5c9ce0b7d467ee718ae41fb9bed030d98a587357",
     "docs/RELEASING.md": "78d5731665de03d670b038291359ed9eb68658394879a93be6b77ad4a950d7cd",
     "docs/SOURCE-EXPORT.md": "aa7c5bef953b9a4028cd281c504331b487aef296abbc3d81201e3da3b1bd45fe",
     "docs/VISUALS.md": "8bfb5594a25e4a0b4866092f56638f3fc6ca3cfc919a299f4bec767771913c5f",
@@ -390,7 +390,7 @@
     "rust-native/src/bin/parity_ast.rs": "500f1fa0ee410767643e23dc067743869ece7c17fe624282afaa92e281043488",
     "rust-native/src/bin/private_results_fixture.rs": "5cbf5b70442aea92ceabefa122a42b18813f7f8ff2a100caa3d1f5a82f6a694b",
     "rust-native/src/bin/rust_only_policy.rs": "28beef083f9265489b573f52f6c0e3dea3b3e88d8d3348524ba9532bb8e4f4b9",
-    "rust-native/src/bin/ruycast-build.rs": "43014c03ed0d477533363e8c0186ecf2625d213c0d84446bddf0a4fb294d5613",
+    "rust-native/src/bin/ruycast-build.rs": "a2b7bd03bb4854bd7725700e4c4d234b430509b7c6e1c5b45e99a2a9a8f132a3",
     "rust-native/src/bin/ruycast-build/candidate.rs": "31d4651f58bccb5e287680e56b91ae9d49ea6ca9ebea4aee5661f641819c9be2",
     "rust-native/src/bin/ruycast-build/compat.rs": "9351c2f1a9ca80ba5e741b81666d70056af7600d79dd4fc9790b28e71e23e1ce",
     "rust-native/src/bin/ruycast-build/macho.rs": "a30b9e17d2d86720573de34c0c9a8a4c51b1ee5d457fc0a4cf321c999029328c",
@@ -406,6 +406,7 @@
     "rust-native/src/bin/ruycast-build/preparation.rs": "339c88b10dcce978c41767f5e632b8f16d1deed49411569dd7d87f8aa5992248",
     "rust-native/src/bin/ruycast-build/process.rs": "a9b195976e8bdb9b9cc8b99b38e499608e325a608ed244d544d18733f30bccf3",
     "rust-native/src/bin/ruycast-build/public_source.rs": "fcb510195383c1893ca4e32e0ad19250cda9a7b943f1cb9303d8da8faea1573d",
+    "rust-native/src/bin/ruycast-build/sample_performance.rs": "f83d022f382e220b848f42e5e47c3d52bf328187c6b2d4ede20a33134ec3cb18",
     "rust-native/src/bin/ruycast-build/test_catalog.rs": "f8d61fe5d973141f9672afa9f949e800bb4680510b999846a17c74e7647efb1a",
     "rust-native/src/bin/ruycast-build/validation.rs": "f8a3a521765b53cc0dc25c111052a1e9eb4099537d4c08887d3dff3782fcdca7",
     "rust-native/src/bin/ruycast-build/version.rs": "5227a80d2642d0998c85352ef9d4e46da883292473ec458e8033fe09c3c97082",
@@ -424,7 +425,7 @@
     "rust-native/src/bin/ruycast-source.rs": "fe584c5ad1243d0c295ccaf24f2a4888d45638d50a7d23f6186d8bbe38cd1869",
     "rust-native/src/bin/ruycast-source/archive.rs": "0d6f13ae08e191f148c5dadd54a618b0714987d1e181b06b88f67665737791cd",
     "rust-native/src/bin/ruycast-source/mod.rs": "859cf84fc00cf1212378336ac2d54ba8f44aad617968dc77dce27ed22db94e3e",
-    "rust-native/src/bin/ruycast-source/policy.rs": "6188e019629b6ec8c9c595d0883ce36c80d6290f319f389e116cbf7289bac2bb",
+    "rust-native/src/bin/ruycast-source/policy.rs": "425b82352e1e17f1e0aa53b31b248e71f71a4f9a15d673708f3449f245d7ed8c",
     "rust-native/src/bin/ruycast-source/tests.rs": "e92cdcbb59a4dd30b2a696d5784e5e31c72329250ba9925cca14961040fb63bd",
     "rust-native/src/bin/script_probe.rs": "3ac379a4a10ed66127beae50b8f7063e64541bc56f0567ace351354e8a45b371",
     "rust-native/src/bin/snippet_choice_probe.rs": "12c9ea0b13c2ca1966bd1ddb5e8361fe49abaddbf22d6e0e46cba638e69f76c0",
@@ -628,6 +629,7 @@
     "rust-native/tests/fixtures/keyword_fixture.rs": "d9cbb899b7e15bfcd4bf9173bc8dcc6098d1143b5adab818c340023b65b48e69",
     "rust-native/tests/fixtures/keyword_missing_value_type.rs": "42f9ff7232ab6de5835f047e010e9639e1a004029b9e0ba755bb81d9619f5b13",
     "rust-native/tests/fixtures/keyword_notification.rs": "9c98172da3060f1a7919e9ecec4c835739a671d5c5dcdb3816b6f6256e607d29",
+    "rust-native/tests/fixtures/performance_sampler_probe.rs": "5d2bed5a944d4ad8f402bd51cd79855c694f9c85878508919115538c646720d4",
     "rust-native/tests/fixtures/script_fault_shim.rs": "ed9c433be0756ad2f9bbd410c690c45c06d495d220979ea4d689fd2ac4df9f15",
     "rust-native/tests/fixtures/snippet_board_fixture.rs": "317f5d6f053b7ea5de2d42a5bdf8eddc5dd632226433317c84d45b80bc4bf022",
     "rust-native/tests/fixtures/snippet_effects_fixture.rs": "e15912ff7d35390930405b41d8cbf46abe15e62f13ae6fccbe163531d65d773f",
@@ -758,10 +760,9 @@
     "scripts/local_signing.py": "a4a11329926e50606189823863b974fcf8d7dd71047eba1898aeb33b6ad1246a",
     "scripts/package-app.py": "6502983e9eda477b4f71540794fccefe5d165094dc25aee0f27980fff21d5f33",
     "scripts/perf-probe.rs": "8970bd938ec5171322323b26def82fe7383358f8a261a2ef36565d0f799238b1",
-    "scripts/prepare-public.py": "2054f68b0c6251678057cc2e0a34315a7090d9aff9f2413892e6cd0bb1ba4c4d",
+    "scripts/prepare-public.py": "60de2c3146d1b4494b460a51b989f54f887474767acee0b161f22280e5e3353e",
     "scripts/prepare_release.py": "92dde1c77fe8d3f60bde8b788eba5ac224b5b21770ca2027d3f8707668e5aed7",
-    "scripts/product_version.py": "6f59793bb74fc3582a6b0896a9f1fb439cbf44a61e0421a254054a05025b450f",
-    "scripts/sample-performance.py": "1e5976f4b7de2eeb23aa43688bc969a3e0ef5f6436fd5e3383a070e88af03031"
+    "scripts/product_version.py": "6f59793bb74fc3582a6b0896a9f1fb439cbf44a61e0421a254054a05025b450f"
   },
   "modes": {
     ".github/ISSUE_TEMPLATE/bug_report.md": 420,
@@ -1167,6 +1168,7 @@
     "rust-native/src/bin/ruycast-build/preparation.rs": 420,
     "rust-native/src/bin/ruycast-build/process.rs": 420,
     "rust-native/src/bin/ruycast-build/public_source.rs": 420,
+    "rust-native/src/bin/ruycast-build/sample_performance.rs": 420,
     "rust-native/src/bin/ruycast-build/test_catalog.rs": 420,
     "rust-native/src/bin/ruycast-build/validation.rs": 420,
     "rust-native/src/bin/ruycast-build/version.rs": 420,
@@ -1389,6 +1391,7 @@
     "rust-native/tests/fixtures/keyword_fixture.rs": 420,
     "rust-native/tests/fixtures/keyword_missing_value_type.rs": 420,
     "rust-native/tests/fixtures/keyword_notification.rs": 420,
+    "rust-native/tests/fixtures/performance_sampler_probe.rs": 420,
     "rust-native/tests/fixtures/script_fault_shim.rs": 420,
     "rust-native/tests/fixtures/snippet_board_fixture.rs": 420,
     "rust-native/tests/fixtures/snippet_effects_fixture.rs": 420,
@@ -1521,8 +1524,7 @@
     "scripts/perf-probe.rs": 420,
     "scripts/prepare-public.py": 420,
     "scripts/prepare_release.py": 420,
-    "scripts/product_version.py": 420,
-    "scripts/sample-performance.py": 420
+    "scripts/product_version.py": 420
   },
   "roles": {
     ".github/ISSUE_TEMPLATE/bug_report.md": "product documentation, assets, default configuration or test support",
@@ -1928,6 +1930,7 @@
     "rust-native/src/bin/ruycast-build/preparation.rs": "Rust product or Rust tool",
     "rust-native/src/bin/ruycast-build/process.rs": "Rust product or Rust tool",
     "rust-native/src/bin/ruycast-build/public_source.rs": "Rust product or Rust tool",
+    "rust-native/src/bin/ruycast-build/sample_performance.rs": "Rust product or Rust tool",
     "rust-native/src/bin/ruycast-build/test_catalog.rs": "Rust product or Rust tool",
     "rust-native/src/bin/ruycast-build/validation.rs": "Rust product or Rust tool",
     "rust-native/src/bin/ruycast-build/version.rs": "Rust product or Rust tool",
@@ -2150,6 +2153,7 @@
     "rust-native/tests/fixtures/keyword_fixture.rs": "product documentation, assets, default configuration or test support",
     "rust-native/tests/fixtures/keyword_missing_value_type.rs": "product documentation, assets, default configuration or test support",
     "rust-native/tests/fixtures/keyword_notification.rs": "product documentation, assets, default configuration or test support",
+    "rust-native/tests/fixtures/performance_sampler_probe.rs": "product documentation, assets, default configuration or test support",
     "rust-native/tests/fixtures/script_fault_shim.rs": "product documentation, assets, default configuration or test support",
     "rust-native/tests/fixtures/snippet_board_fixture.rs": "product documentation, assets, default configuration or test support",
     "rust-native/tests/fixtures/snippet_effects_fixture.rs": "product documentation, assets, default configuration or test support",
@@ -2282,8 +2286,7 @@
     "scripts/perf-probe.rs": "product documentation, assets, default configuration or test support",
     "scripts/prepare-public.py": "product documentation, assets, default configuration or test support",
     "scripts/prepare_release.py": "product documentation, assets, default configuration or test support",
-    "scripts/product_version.py": "product documentation, assets, default configuration or test support",
-    "scripts/sample-performance.py": "product documentation, assets, default configuration or test support"
+    "scripts/product_version.py": "product documentation, assets, default configuration or test support"
   },
   "historicalReferences": [
     "Package.swift",

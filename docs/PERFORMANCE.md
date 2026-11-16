@@ -51,7 +51,9 @@ To sample a running host without interacting with it:
 ```sh
 cargo build --manifest-path rust-native/Cargo.toml --features test-tools --release --locked --bin perf-probe
 rust-native/target/release/perf-probe --self-check
-python3 scripts/sample-performance.py --pid PID --seconds 600 \
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
+  --target-dir .build/delivery-tools --bin ruycast-build -- sample-performance \
+  --pid PID --seconds 600 \
   --probe rust-native/target/release/perf-probe --out .build/performance/host.json --label local-host
 ```
 

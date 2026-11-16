@@ -25,6 +25,8 @@ mod preparation;
 mod process;
 #[path = "ruycast-build/public_source.rs"]
 mod public_source;
+#[path = "ruycast-build/sample_performance.rs"]
+mod sample_performance;
 #[path = "ruycast-build/parity_inventory.rs"]
 mod parity_inventory;
 #[path = "ruycast-build/parity_report.rs"]
@@ -494,6 +496,11 @@ fn run() -> Result<()> {
     if args.len() == 1 && matches!(args[0].as_str(), "--help" | "-h") {
         println!("{USAGE}");
         return Ok(());
+    }
+    if args.first().is_some_and(|value|value=="sample-performance") {
+        args.remove(0);if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build sample-performance --pid PID [--seconds 600] --probe PATH --out PATH --label LABEL");return Ok(());}
+        let options=match sample_performance::parse(args){Ok(value)=>value,Err(message)=>{eprintln!("{message}");std::process::exit(2)}};
+        match sample_performance::run(options)?{Some(summary)=>{println!("{summary}");return Ok(());},None=>std::process::exit(1)}
     }
     if args.first().is_some_and(|value|value=="parity-inventory") {
         args.remove(0);
