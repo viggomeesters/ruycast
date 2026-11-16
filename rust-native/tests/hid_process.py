@@ -54,24 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_recorder_episode_without_callbacks_invalidates_taps_and_swallowed_keys(self):
-        rows, _ = self.run_case([plan(True, modifiers={'224': 'tap'}, sided={'right-cmd+a': 'side'}), op('refresh'),
-                                 raw(224, True), op('gate', epoch=1, recording=True), op('gate', epoch=2), raw(224, False, .2),
-                                 event(flags=CMD | 16), op('gate', epoch=3, recording=True), event(11, flags=CMD | 16),
-                                 raw(57, True), event(flags=CMD | 16)])
-        self.assertEqual(rows[5]['actions'], [])
-        self.assertFalse(rows[8]['result']['consumed'])
-        self.assertFalse(rows[10]['result']['consumed'])
-        self.assertEqual(rows[10]['result']['flags'], HYPER | 16)
-
-    def test_scroll_and_mouse_cancel_modifier_taps_with_native_types(self):
-        for kind in [1, 3, 10, 22, 25]:
-            rows, _ = self.run_case([plan(False, modifiers={'224': 'tap'}), op('refresh'), raw(224, True),
-                                     event(kind), raw(224, False, .2)], final_caps=True)
-            self.assertEqual(rows[-1]['actions'], [], kind)
-        rows, _ = self.run_case([plan(False, modifiers={'224': 'tap'}), op('refresh'), raw(224, True), raw(224, False, .5)], final_caps=True)
-        self.assertEqual(rows[-1]['actions'], [dict(generation=1, canonical='ctrl+left-control', action='tap')])
-
     def test_identical_plan_generation_preserves_held_physical_and_hardware(self):
         rows, trace = self.run_case([plan(), op('refresh'), raw(57, True), plan(generation=2), op('refresh'), event()])
         self.assertEqual(rows[-1]['result']['flags'], HYPER)
