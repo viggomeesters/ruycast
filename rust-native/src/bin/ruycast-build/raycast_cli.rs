@@ -198,7 +198,8 @@ fn input(path: &Path) -> Result<Vec<u8>> {
 fn active(cli: &Path) -> Result<PathBuf> {
     let mut command = Command::new(cli);
     command.args(["config", "path"]);
-    let capture = process::capture(command, Duration::from_secs(10), 1024 * 1024)?;
+    // Leave cleanup margin for the original ten-second importer caller.
+    let capture = process::capture(command, Duration::from_secs(8), 1024 * 1024)?;
     std::io::stderr()
         .write_all(&capture.stderr)
         .map_err(error)?;
