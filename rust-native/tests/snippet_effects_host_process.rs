@@ -257,6 +257,58 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
 }
 
 #[test]
+fn management_run_preserves_management_and_hides_only_palette_peer() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut host = hidden_host("Settings");
+    show_query(&host, "safari");
+    let shown = host.cli(&["show", "settings"]);
+    host.wait(|status| {
+        status["managementUI"]["revision"] == status["managementUI"]["appliedRevision"]
+            && status["managementUI"]["visible"] == true
+    });
+    host.probe("query", json!({"surface":"settings","query":"snipfixture"}));
+    host.wait(|status| {
+        status["managementUI"]["revision"] == status["managementUI"]["appliedRevision"]
+    });
+    host.probe(
+        "key-event",
+        json!({"surface":"settings","code":40,"chars":"k","flags":1_u64 << 20}),
+    );
+    host.wait(|status| {
+        status["managementUI"]["revision"] == status["managementUI"]["appliedRevision"]
+    });
+    let actions = host.probe("read", json!({"surface":"settings"}));
+    let index = actions["actionLabels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|label| label == "Insert Snippet")
+        .unwrap();
+    host.probe("action-button", json!({"surface":"settings","index":index}));
+    wait_event(&mut host, "snippet-post", |_| true);
+    done(&host);
+    host.settled(|_| true);
+    let status = host.rpc(&json!({"op":"status"}));
+    assert_eq!(status["result"]["managementUI"]["visible"], true);
+    assert_eq!(status["result"]["nativeUI"]["visible"], false);
+    let trace = trace(&host);
+    let write = trace
+        .iter()
+        .find(|event| event["phase"] == "snippet-write")
+        .unwrap();
+    assert_eq!(write["text"], "Settings");
+    let view = host.probe("read", json!({"surface":"settings"}));
+    assert_eq!(view["windowShown"], false);
+    save(
+        "management-run",
+        &json!({"shown":shown,"actions":actions,"status":status,"view":view}),
+        &trace,
+    );
+}
+
+#[test]
 fn real_multiple_field_choices_and_marked_text_use_same_snippet_pipeline() {
     let _scenario = HOST_SCENARIOS
         .lock()
