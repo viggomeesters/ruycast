@@ -1,5 +1,4 @@
 """Exercise real migration/rollback filesystem writes in a fake home and app tree."""
-import json
 import os
 from pathlib import Path
 import plistlib
@@ -9,7 +8,7 @@ import unittest
 
 REPO=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(REPO/'scripts'))
-from install_support import OLD_ID,profile_paths,migrate_profile,check_profile_paths,data_hashes,set_cli_link,require_owned_bundle,require_owned_link
+from install_support import OLD_ID,profile_paths,migrate_profile,check_profile_paths,set_cli_link,require_owned_bundle,require_owned_link
 
 class MigrationTests(unittest.TestCase):
     def setUp(self):
@@ -39,27 +38,6 @@ class MigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'Linked personal adapter'):
             preserve_personal_bridge(repo,installed,stage)
 
-    def test_profile_preserves_bytes_and_idempotent_alias(self):
-        old,new=profile_paths(self.root);old.mkdir(parents=True)
-        for name in ['config.json','clipboard.json','usage.json','paused.json']:(old/name).write_bytes(('private fixture Ω '+name).encode())
-        before=data_hashes(old)
-        migrate_profile(old,new)
-        self.assertTrue(old.is_symlink());self.assertEqual(old.resolve(),new)
-        self.assertEqual(data_hashes(new),before)
-        migrate_profile(old,new);self.assertEqual(data_hashes(old),before)
-    def test_custom_config_is_backed_up_and_checked_separately_from_runtime(self):
-        from install_support import data_files
-        profile=self.root/'runtime';profile.mkdir()
-        custom=self.root/'synced'/'config';custom.mkdir(parents=True)
-        selected=custom/'config.json';selected.write_text('{"private":"fixture"}')
-        (profile/'config-location.json').write_text(json.dumps({'directory':str(custom)}))
-        (profile/'clipboard.json').write_text('[]')
-        (profile/'search-ranking.json').write_text('{"schema":1,"entries":{}}')
-        files=data_files(profile);self.assertEqual(files['selected-config.json'],selected)
-        self.assertEqual(files['search-ranking.json'],profile/'search-ranking.json')
-        before=data_hashes(profile);selected.write_text('{"private":"changed"}')
-        self.assertNotEqual(data_hashes(profile)['selected-config.json'],before['selected-config.json'])
-        self.assertEqual(data_hashes(profile)['clipboard.json'],before['clipboard.json'])
 
     def test_conflicting_profiles_and_links_are_preserved(self):
         old,new=profile_paths(self.root);old.mkdir(parents=True);new.mkdir()

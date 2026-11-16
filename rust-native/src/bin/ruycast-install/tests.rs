@@ -848,6 +848,62 @@ fn installer_owned_explicit_app_profile_config_and_relative_legacy_alias() {
 }
 
 #[test]
+fn installer_owned_profile_filesystem_preserves_bytes_and_idempotent_alias() {
+    let f = Fixture::new();
+    let (old, new) = profile::paths(&f.o, true);
+    stdfs::create_dir_all(&old).unwrap();
+    for name in ["config.json", "clipboard.json", "usage.json", "paused.json"] {
+        stdfs::write(old.join(name), format!("private fixture Ω {name}")).unwrap();
+    }
+    let before = profile::hashes(&old, None, &f.o.home).unwrap();
+    assert_eq!(profile::migrate(&old, &new).unwrap(), new);
+    assert!(old.is_symlink());
+    assert_eq!(stdfs::canonicalize(&old).unwrap(), new);
+    assert_eq!(profile::hashes(&new, None, &f.o.home).unwrap(), before);
+    assert_eq!(profile::migrate(&old, &new).unwrap(), new);
+    assert!(old.is_symlink());
+    assert_eq!(stdfs::canonicalize(&old).unwrap(), new);
+    let active = profile::active(&old, &new).unwrap();
+    assert_eq!(profile::hashes(&active, None, &f.o.home).unwrap(), before);
+}
+
+#[test]
+fn installer_owned_profile_filesystem_selected_config_hash_is_separate_from_runtime() {
+    let f = Fixture::new();
+    let runtime = f.root.join("runtime");
+    let custom = f.root.join("synced/config");
+    stdfs::create_dir(&runtime).unwrap();
+    stdfs::create_dir_all(&custom).unwrap();
+    let selected = custom.join("config.json");
+    stdfs::write(&selected, b"{\"private\":\"fixture\"}").unwrap();
+    stdfs::write(
+        runtime.join("config-location.json"),
+        serde_json::to_vec(&json!({"directory":custom})).unwrap(),
+    )
+    .unwrap();
+    stdfs::write(runtime.join("clipboard.json"), b"[]").unwrap();
+    stdfs::write(
+        runtime.join("search-ranking.json"),
+        b"{\"schema\":1,\"entries\":{}}",
+    )
+    .unwrap();
+    let files = profile::data(&runtime, None, &f.o.home).unwrap();
+    assert_eq!(files["selected-config.json"], selected);
+    assert_eq!(
+        files["search-ranking.json"],
+        runtime.join("search-ranking.json")
+    );
+    let before = profile::hashes(&runtime, None, &f.o.home).unwrap();
+    stdfs::write(&selected, b"{\"private\":\"changed\"}").unwrap();
+    let after = profile::hashes(&runtime, None, &f.o.home).unwrap();
+    assert_ne!(
+        after["selected-config.json"],
+        before["selected-config.json"]
+    );
+    assert_eq!(after["clipboard.json"], before["clipboard.json"]);
+}
+
+#[test]
 fn installer_owned_profile_lock_is_exclusive_and_released_after_owner_drop() {
     let f = Fixture::new();
     let path = f.root.join("instance.lock");
