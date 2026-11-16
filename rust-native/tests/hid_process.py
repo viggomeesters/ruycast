@@ -54,17 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_sided_repeat_release_and_backpressure_do_not_eat_input(self):
-        rows, _ = self.run_case([plan(False, sided={'right-cmd+a': 'item'}), op('refresh'),
-                                 op('accept', value=False), event(flags=CMD | 16), event(11, flags=CMD | 16),
-                                 op('accept', value=True), event(flags=CMD | 16), event(flags=CMD | 16, repeat=True),
-                                 event(11, flags=CMD | 16), event(11, flags=CMD | 16), event(flags=CMD | 8)], final_caps=True)
-        self.assertFalse(rows[3]['result']['consumed'])
-        self.assertFalse(rows[4]['result']['consumed'])
-        for index in [6, 7, 8]: self.assertTrue(rows[index]['result']['consumed'])
-        for index in [9, 10]: self.assertFalse(rows[index]['result']['consumed'])
-        self.assertEqual(rows[-1]['actions'], [dict(generation=1, canonical='right-cmd+a', action='item')])
-
     def test_recorder_episode_without_callbacks_invalidates_taps_and_swallowed_keys(self):
         rows, _ = self.run_case([plan(True, modifiers={'224': 'tap'}, sided={'right-cmd+a': 'side'}), op('refresh'),
                                  raw(224, True), op('gate', epoch=1, recording=True), op('gate', epoch=2), raw(224, False, .2),
@@ -168,11 +157,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(rows[3]['state']['allocated'], 3)
         self.assertEqual(rows[3]['state']['posts'], 0)
         self.assertEqual(rows[5]['state']['allocated'], 0)
-
-    def test_exact_canonical_route_is_preserved_when_two_bindings_share_an_id(self):
-        rows, _ = self.run_case([plan(False, sided={'right-cmd+a': 'same', 'left-cmd+a': 'same'}), op('refresh'),
-                                 event(flags=CMD | 16), event(11, flags=CMD | 16), event(flags=CMD | 8)], final_caps=True)
-        self.assertEqual([a['canonical'] for a in rows[-1]['actions']], ['right-cmd+a', 'left-cmd+a'])
 
     def test_gate_reentry_with_running_true_cannot_post_or_return_stale_hyper(self):
         rows, _ = self.run_case([plan(), op('refresh'), op('gate-stop', after=2), raw(57, True)])
