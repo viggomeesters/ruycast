@@ -32,7 +32,7 @@ def ast_parser():
     global _AST_PARSER
     if _AST_PARSER is None:
         target=REPO/'.build/delivery-tools'
-        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/bin/ruycast-build/parity_families.rs','rust-native/src/bin/ruycast-build/parity_sources.rs','rust-native/resources/parity-families.json','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
+        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/bin/ruycast-build/parity_families.rs','rust-native/src/bin/ruycast-build/parity_sources.rs','rust-native/src/bin/ruycast-build/parity_compile.rs','rust-native/src/bin/ruycast-build/process.rs','rust-native/src/bin/ruycast-build/preparation.rs','rust-native/resources/parity-families.json','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
         hashes={name:sha(REPO/name) for name in sources}
         command=['cargo','build','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','parity-ast']
         run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
@@ -52,26 +52,13 @@ def ast_parser():
     return _AST_PARSER
 
 def parse_module(module,paths,sdk,plugins):
-    binary,binding=ast_parser()
-    all_paths=sorted((REPO/'Sources'/module).glob('*.swift'))
-    before={str(p.relative_to(REPO)):sha(p) for p in all_paths}
-    cmd=['swiftc','-frontend','-dump-ast','-whole-module-optimization','-sdk',sdk,'-swift-version','6','-module-name',module,'-I','.build/swift/debug/Modules','-I','.build/swift/debug/CRuycastCore.build']
-    cmd+=plugins
-    if module!='RuycastApp':cmd+=['-parse-as-library']
-    for p in all_paths:
-        if p in paths:cmd+=['-primary-file',str(p.relative_to(REPO))]
-        else:cmd+=[str(p.relative_to(REPO))]
-    run=subprocess.run(cmd,cwd=REPO,capture_output=True,text=True,timeout=90)
+    _,binding=ast_parser()
+    command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-compile','--repo',str(REPO)]
+    payload=dict(module=module,paths=sorted(str(path.relative_to(REPO)) for path in paths),sdk=sdk,plugins=plugins,parser=binding)
+    run=subprocess.run(command,input=json.dumps(payload),cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
     if run.returncode:raise RuntimeError(run.stderr)
-    expected=sorted(str(p.relative_to(REPO)) for p in paths)
-    if parser_sha(binary)!=binding['sha256']:raise RuntimeError('AST parser snapshot changed before execution')
-    parser=subprocess.run([str(binary),*[part for name in expected for part in ['--source',name]]],input=run.stdout,cwd=REPO,capture_output=True,text=True,timeout=10)
-    if parser.returncode:raise RuntimeError(parser.stderr)
-    if parser_sha(binary)!=binding['sha256'] or any(sha(REPO/name)!=value for name,value in binding['sources'].items()):raise RuntimeError('AST parser source/artifact changed during inventory')
-    parsed=json.loads(parser.stdout);declarations=parsed['declarations']
-    context={str(p.relative_to(REPO)):sha(p) for p in all_paths}
-    if context!=before:raise RuntimeError('Compiler source inputs changed during inventory')
-    return declarations,dict(command=cmd,inputHashes=context,exitCode=run.returncode,diagnostics=run.stderr.strip(),sourceASTs=parsed['sourceASTs'],astParser=binding)
+    value=json.loads(run.stdout)
+    return value['declarations'],value['context']
 def rust_test_candidates():
     selectors=sorted({name for group in GROUPS for name in group['tests']})
     command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-tests','--repo',str(REPO),'--selectors',json.dumps(selectors)]

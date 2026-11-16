@@ -57,9 +57,11 @@ struct Pipe<T> {
     bytes: Vec<u8>,
     eof: bool,
     log: Option<std::fs::File>,
+    count: usize,
+    retain: bool,
 }
 impl<T: Read + AsRawFd> Pipe<T> {
-    fn new(reader: T, log: Option<std::fs::File>) -> Result<Self, String> {
+    fn new(reader: T, log: Option<std::fs::File>, retain: bool) -> Result<Self, String> {
         let flags = unsafe { libc::fcntl(reader.as_raw_fd(), libc::F_GETFL) };
         if flags < 0
             || unsafe { libc::fcntl(reader.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) }
@@ -72,40 +74,50 @@ impl<T: Read + AsRawFd> Pipe<T> {
             bytes: vec![],
             eof: false,
             log,
+            count: 0,
+            retain,
         })
     }
-    fn drain(&mut self, limit: usize) -> Result<(), String> {
+    fn drain(&mut self, limit: usize, end: Instant) -> Result<(), String> {
         if self.eof {
             return Ok(());
         }
         let mut buffer = [0u8; 8192];
-        loop {
+        // Yield between bounded batches even when the producer never reaches
+        // WouldBlock, and enforce the deadline inside each draining batch.
+        for _ in 0..16 {
+            if Instant::now() >= end {
+                return Err("Tool process timed out; owned process group was retired.".into());
+            }
             match self.reader.read(&mut buffer) {
                 Ok(0) => {
                     self.eof = true;
                     return Ok(());
                 }
                 Ok(count) => {
-                    if let Some(log) = self.log.as_mut() {
-                        use std::io::Write;
-                        log.write_all(&buffer[..count])
-                            .map_err(|error| error.to_string())?;
-                    }
-                    if self
-                        .bytes
-                        .len()
+                    let count = self
+                        .count
                         .checked_add(count)
-                        .is_none_or(|n| n > limit)
-                    {
+                        .ok_or("Tool output exceeds its bounded size.")?;
+                    if count > limit {
                         return Err("Tool output exceeds its bounded size.".into());
                     }
-                    self.bytes.extend_from_slice(&buffer[..count]);
+                    let added = count - self.count;
+                    if let Some(log) = self.log.as_mut() {
+                        use std::io::Write;
+                        log.write_all(&buffer[..added]).map_err(|e| e.to_string())?;
+                    }
+                    if self.retain {
+                        self.bytes.extend_from_slice(&buffer[..added]);
+                    }
+                    self.count = count;
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return Ok(()),
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
                 Err(e) => return Err(e.to_string()),
             }
         }
+        Ok(())
     }
 }
 pub(super) fn capture(
@@ -116,13 +128,87 @@ pub(super) fn capture(
     capture_logged(command, timeout, limit, None)
 }
 pub(super) fn capture_logged(
-    mut command: Command,
+    command: Command,
     timeout: Duration,
     limit: usize,
     logs: Option<(std::fs::File, std::fs::File)>,
 ) -> Result<Captured, String> {
+    let (out, err) = logs.map_or((None, None), |(out, err)| (Some(out), Some(err)));
+    capture_stream(
+        command,
+        timeout,
+        Capture {
+            input: Stdio::null(),
+            out,
+            err,
+            out_limit: limit,
+            err_limit: limit,
+            retain_out: true,
+        },
+    )
+}
+pub(super) fn capture_file_input(
+    command: Command,
+    input: std::fs::File,
+    timeout: Duration,
+    limit: usize,
+) -> Result<Captured, String> {
+    capture_stream(
+        command,
+        timeout,
+        Capture {
+            input: Stdio::from(input),
+            out: None,
+            err: None,
+            out_limit: limit,
+            err_limit: limit,
+            retain_out: true,
+        },
+    )
+}
+pub(super) fn capture_stdout_file(
+    command: Command,
+    output: std::fs::File,
+    timeout: Duration,
+    out_limit: usize,
+    err_limit: usize,
+) -> Result<Captured, String> {
+    capture_stream(
+        command,
+        timeout,
+        Capture {
+            input: Stdio::null(),
+            out: Some(output),
+            err: None,
+            out_limit,
+            err_limit,
+            retain_out: false,
+        },
+    )
+}
+struct Capture {
+    input: Stdio,
+    out: Option<std::fs::File>,
+    err: Option<std::fs::File>,
+    out_limit: usize,
+    err_limit: usize,
+    retain_out: bool,
+}
+fn capture_stream(
+    mut command: Command,
+    timeout: Duration,
+    settings: Capture,
+) -> Result<Captured, String> {
+    let Capture {
+        input,
+        out,
+        err,
+        out_limit,
+        err_limit,
+        retain_out,
+    } = settings;
     command
-        .stdin(Stdio::null())
+        .stdin(input)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0);
@@ -130,7 +216,6 @@ pub(super) fn capture_logged(
         child: command.spawn().map_err(|e| e.to_string())?,
         group_retired: false,
     };
-    let (out, err) = logs.map_or((None, None), |(out, err)| (Some(out), Some(err)));
     let mut stdout = Pipe::new(
         child
             .child
@@ -138,6 +223,7 @@ pub(super) fn capture_logged(
             .take()
             .ok_or("Tool stdout unavailable.")?,
         out,
+        retain_out,
     )?;
     let mut stderr = Pipe::new(
         child
@@ -146,12 +232,13 @@ pub(super) fn capture_logged(
             .take()
             .ok_or("Tool stderr unavailable.")?,
         err,
+        true,
     )?;
     let end = Instant::now() + timeout;
     let mut status = None;
     loop {
-        stdout.drain(limit)?;
-        stderr.drain(limit)?;
+        stdout.drain(out_limit, end)?;
+        stderr.drain(err_limit, end)?;
         if status.is_none() && child.exited_unreaped()? {
             child.retire();
             status = Some(child.child.wait().map_err(|e| e.to_string())?);
@@ -186,6 +273,19 @@ mod tests {
                 eprintln!("owned stderr");
                 std::process::exit(7);
             }
+            "continuous" => {
+                use std::io::Write;
+                let mut output = std::io::stdout().lock();
+                let bytes = [b'x'; 8192];
+                loop {
+                    output.write_all(&bytes).unwrap();
+                }
+            }
+            "stdin" => {
+                let mut data = String::new();
+                std::io::stdin().read_to_string(&mut data).unwrap();
+                println!("{data}");
+            }
             "hold" => std::thread::sleep(Duration::from_secs(5)),
             "flood" => {
                 use std::io::Write;
@@ -216,6 +316,74 @@ mod tests {
             }
             _ => panic!("unknown owned mode"),
         }
+    }
+    #[test]
+    fn streaming_output_is_capped_without_memory_retention() {
+        let fixture = super::super::tests::Fixture::new();
+        let path = fixture.0.join("stream.data");
+        let result = capture_stdout_file(
+            command("streams"),
+            std::fs::File::create(&path).unwrap(),
+            Duration::from_secs(5),
+            65536,
+            65536,
+        )
+        .unwrap();
+        assert_eq!(result.status.code(), Some(7));
+        assert!(result.stdout.is_empty());
+        assert!(std::fs::read(&path)
+            .unwrap()
+            .windows(12)
+            .any(|w| w == b"owned stdout"));
+        let result = capture_stdout_file(
+            command("continuous"),
+            std::fs::File::create(&path).unwrap(),
+            Duration::from_secs(5),
+            32768,
+            65536,
+        );
+        assert!(result.err().unwrap().contains("output"));
+        assert!(std::fs::metadata(&path).unwrap().len() <= 32768);
+        let start = Instant::now();
+        let result = capture_stdout_file(
+            command("continuous"),
+            std::fs::File::create(&path).unwrap(),
+            Duration::from_millis(80),
+            64 * 1024 * 1024,
+            65536,
+        );
+        assert!(result.err().unwrap().contains("timed out"));
+        assert!(start.elapsed() < Duration::from_secs(2));
+    }
+    #[test]
+    fn continuous_output_cannot_bypass_deadline_or_cap() {
+        let start = Instant::now();
+        let result = capture(
+            command("continuous"),
+            Duration::from_millis(80),
+            64 * 1024 * 1024,
+        );
+        assert!(result.err().unwrap().contains("timed out"));
+        assert!(start.elapsed() < Duration::from_secs(2));
+        let result = capture(command("continuous"), Duration::from_secs(5), 32 * 1024);
+        assert!(result.err().unwrap().contains("output"));
+    }
+    #[test]
+    fn file_input_uses_bounded_owned_capture() {
+        let fixture = super::super::tests::Fixture::new();
+        let path = fixture.0.join("input.data");
+        std::fs::write(&path, b"owned input bytes").unwrap();
+        let result = capture_file_input(
+            command("stdin"),
+            std::fs::File::open(path).unwrap(),
+            Duration::from_secs(5),
+            65536,
+        )
+        .unwrap();
+        assert!(result.status.success());
+        assert!(String::from_utf8(result.stdout)
+            .unwrap()
+            .contains("owned input bytes"));
     }
     fn command(mode: &str) -> Command {
         let mut c = Command::new(std::env::current_exe().unwrap());
