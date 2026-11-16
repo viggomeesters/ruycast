@@ -122,7 +122,6 @@ Tests/test_benchmark_host.py
 Tests/test_build_pipeline.py
 Tests/test_cli.py
 Tests/test_clipboard_import.py
-Tests/test_config_activation.py
 Tests/test_local_signing.py
 Tests/test_package_app.py
 Tests/test_private_storage.py
