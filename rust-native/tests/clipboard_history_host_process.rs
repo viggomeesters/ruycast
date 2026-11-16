@@ -8,6 +8,9 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{fs, path::PathBuf, thread, time::Duration};
 
+// Match unittest sequencing while each host keeps its private SDK and board.
+static HOST_SCENARIOS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn host(clipboard: Value) -> Bridge {
     let mut h = Bridge::new(runtime_host::Config::current(), false);
     let mut config = runtime_host::default_config();
@@ -58,6 +61,7 @@ fn items(h: &Bridge) -> Value {
 
 #[test]
 fn test_pause_disable_and_source_exclusion() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
     // Keep all three hosts alive until the scenario ends, as unittest cleanup did.
     let mut hosts = Vec::new();
     for config in [
@@ -83,4 +87,34 @@ fn test_pause_disable_and_source_exclusion() {
     fixture(&h, "resumed");
     h.wait(|s| s["clipboardCount"] == 1);
     hosts.push(h);
+}
+
+#[test]
+fn test_atomic_import_dedup_and_external_edit_capture_base() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
+    let h = host(json!({}));
+    fixture(&h, "first");
+    h.wait(|s| s["clipboardCount"] == 1);
+    let current = items(&h);
+    let mut external = current.as_array().unwrap().clone();
+    external.push(json!({"id":"external", "text":"External owned edit", "source":"fixture", "date":current[0]["date"]}));
+    let file = h.profile.join("clipboard.json");
+    fs::write(&file, serde_json::to_vec(&external).unwrap()).unwrap();
+    fixture(&h, "second");
+    h.wait(|s| s["clipboardCount"] == 3);
+    assert!(items(&h)
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["id"] == "external"));
+    let before = fs::read(&file).unwrap();
+    let bad = json!([
+        {"id":"raycast-valid", "text":"valid", "source":"fixture", "date":current[0]["date"]},
+        {"id":"invalid", "text":"bad", "source":"fixture", "date":current[0]["date"]}
+    ]);
+    assert_eq!(
+        h.rpc(&json!({"op":"clipboard.import", "items":bad}))["ok"],
+        false
+    );
+    assert_eq!(fs::read(&file).unwrap(), before);
 }
