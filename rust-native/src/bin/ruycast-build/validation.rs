@@ -38,7 +38,8 @@ const SYSTEM_UI_SOURCES: &[&str] = &[
 // Ordered transcription of the former check.py matrix. `p` invokes an existing
 // validator; `b` builds an explicit probe; `c` preserves a full Cargo command.
 const MATRIX: &str = r#"
-rust-only-policy|p|rust-native/scripts/check_rust_only.py
+rust-only-policy-build|c|build --quiet --manifest-path rust-native/Cargo.toml --bin rust-only-policy --locked
+rust-only-policy|s|rust-only-policy
 rust-only-policy-tests|c|test --manifest-path rust-native/Cargo.toml --test rust_only_policy --locked
 core-unit|c|test --manifest-path rust/Cargo.toml --locked
 unit|c|test --manifest-path rust-native/Cargo.toml --locked
@@ -218,6 +219,9 @@ fn matrix(target: &str) -> Result<Vec<Step>> {
         }
         let mut copies = vec![];
         let arguments = match fields[1] {
+            "s" if fields[0] == "rust-only-policy" && fields[2] == "rust-only-policy" => {
+                vec![RUST_POLICY_ALIAS.into(), "--root".into(), ".".into()]
+            }
             "p" => {
                 let mut args=vec!["python3".into(), fields[2].into()];
                 if fields[0]=="clipboard-import-parser" {args.push("-v".into());}
@@ -483,6 +487,95 @@ fn snippet_effects_environment(root: &Path, target: &str, command: &mut Command)
     command.env("RUYCAST_TEST_SNIPPET_EFFECTS_SDK", artifact);
     Ok(())
 }
+const RUST_POLICY_ALIAS: &str = "rust-native/target/debug/rust-only-policy";
+fn rust_policy_source(target: &str) -> Result<String> {
+    artifact_paths(target)?;
+    Ok(format!("rust-native/target/validation-build/{target}/debug/rust-only-policy"))
+}
+fn final_rust_policy_step(root: &Path, target: &str, copies: &BTreeMap<String, serde_json::Value>) -> Result<Step> {
+    let inputs = rust_policy_inputs(root, target, copies)?;
+    Ok(Step { name:"rust-only-policy-final".into(), arguments:vec![inputs["artifact"].as_str().unwrap().into(), "--root".into(), ".".into()], copies:vec![] })
+}
+fn check_rust_policy_inputs(root: &Path, target: &str, inputs: &serde_json::Value) -> Result<()> {
+    let sha = inputs["sha256"].as_str().ok_or("Missing initial Rust policy digest.")?;
+    if sha.len()!=64 || !sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+        return Err("Invalid initial Rust policy digest.".into());
+    }
+    let artifact = format!("{DIRECTORY}/policy-artifacts/{sha}");
+    if inputs["source"] != rust_policy_source(target)? || inputs["artifact"] != artifact
+        || digest(&root.join(&artifact))? != sha {
+        return Err("Rust policy differs from its initial matrix artifact binding.".into());
+    }
+    Ok(())
+}
+fn rust_policy_inputs(root: &Path, target: &str, copies: &BTreeMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+    let binding = copies.get(RUST_POLICY_ALIAS).ok_or("Missing initial Rust policy artifact copy.")?;
+    let sha = binding["sha256"].as_str().ok_or("Missing initial Rust policy digest.")?;
+    let inputs = serde_json::json!({"source":binding["source"], "artifact":format!("{DIRECTORY}/policy-artifacts/{sha}"), "sha256":sha});
+    check_rust_policy_inputs(root, target, &inputs)?;
+    let canonical=serde_json::json!({"source":rust_policy_source(target)?,"sha256":inputs["sha256"],"purpose":"test-compatibility-only","productionAuthority":false});
+    if binding != &canonical || copies.get(inputs["artifact"].as_str().unwrap()) != Some(&canonical) {
+        return Err("Rust policy snapshot lost its canonical copy binding.".into());
+    }
+    Ok(inputs)
+}
+fn publish_rust_policy_snapshot(path: &Path, bytes: &[u8], sha: &str, before_link: impl FnOnce() -> Result<()>) -> Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let parent = path.parent().ok_or("Missing Rust policy snapshot parent.")?;
+    ruycast_native::private_storage::secure_directory(parent)?;
+    let staged = parent.join(format!("stage-{}-{}", std::process::id(), NEXT.fetch_add(1,std::sync::atomic::Ordering::Relaxed)));
+    let mut file = OpenOptions::new().write(true).create_new(true).mode(0o700)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&staged).map_err(error)?;
+    struct Pending(PathBuf);
+    impl Drop for Pending { fn drop(&mut self) { let _=fs::remove_file(&self.0); } }
+    let _pending = Pending(staged.clone());
+    if format!("{:x}",Sha256::digest(bytes)) != sha { return Err("Initial Rust policy bytes changed before snapshot publication.".into()); }
+    file.write_all(bytes).map_err(error)?;
+    file.set_permissions(fs::Permissions::from_mode(0o500)).map_err(error)?;
+    file.sync_all().map_err(error)?;
+    before_link()?;
+    match fs::hard_link(&staged, path) {
+        Ok(()) => (),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => (),
+        Err(e) => return Err(error(e)),
+    }
+    let existing = regular_file(path)?;
+    let metadata = existing.metadata().map_err(error)?;
+    if metadata.uid() != unsafe {libc::getuid()} || metadata.mode() & 0o100 == 0 || digest(path)? != sha {
+        return Err("Existing Rust policy snapshot differs; preserve its bytes and ownership.".into());
+    }
+    File::open(parent).map_err(error)?.sync_all().map_err(error)?;
+    Ok(())
+}
+fn prepare_rust_policy_snapshot(root: &Path, target: &str, copies: &mut BTreeMap<String, serde_json::Value>) -> Result<()> {
+    let binding = copies.get(RUST_POLICY_ALIAS).ok_or("Missing initial Rust policy artifact copy.")?.clone();
+    let source = rust_policy_source(target)?;
+    let bytes = regular_bytes(&root.join(&source))?;
+    let sha = format!("{:x}",Sha256::digest(&bytes));
+    if binding["source"] != source || binding["sha256"] != sha || digest(&root.join(RUST_POLICY_ALIAS))? != sha {
+        return Err("Initial Rust policy build differs from its recorded artifact copy.".into());
+    }
+    let artifact = format!("{DIRECTORY}/policy-artifacts/{sha}");
+    publish_rust_policy_snapshot(&root.join(&artifact), &bytes, &sha, ||Ok(()))?;
+    copies.insert(artifact, binding);
+    rust_policy_inputs(root, target, copies)?;
+    Ok(())
+}
+fn check_rust_policy_pair(root: &Path, target: &str, steps: &[serde_json::Value], copies: &serde_json::Value) -> Result<()> {
+    let find = |name: &str| steps.iter().find(|step|step["name"]==name).ok_or_else(||format!("Missing {name} policy receipt."));
+    let build = &find("rust-only-policy-build")?["rustPolicyInputs"];
+    let first = &find("rust-only-policy")?["rustPolicyInputs"];
+    let last = &find("rust-only-policy-final")?["rustPolicyInputs"];
+    if build != first || first != last { return Err("Initial and final Rust policy must bind the exact same built snapshot.".into()); }
+    check_rust_policy_inputs(root,target,first)?;
+    let canonical = serde_json::json!({"source":rust_policy_source(target)?,"sha256":first["sha256"],"purpose":"test-compatibility-only","productionAuthority":false});
+    if copies[RUST_POLICY_ALIAS] != canonical || copies[first["artifact"].as_str().unwrap()] != canonical {
+        return Err("Rust policy lost its canonical initial and snapshot copy bindings.".into());
+    }
+    Ok(())
+}
 fn step(
     root: &Path,
     lease: &BuildLock,
@@ -493,9 +586,21 @@ fn step(
 ) -> Result<serde_json::Value> {
     lease.validate()?;
     let start = Instant::now();
+    let resolved_policy = if matches!(entry.name.as_str(), "rust-only-policy" | "rust-only-policy-final") {
+        let mut step = final_rust_policy_step(root, &receipt.target, copies)?;
+        step.name = entry.name.clone(); Some(step)
+    } else { None };
+    let entry = resolved_policy.as_ref().unwrap_or(entry);
     let mut command = Command::new(&entry.arguments[0]);
     command.args(&entry.arguments[1..]).current_dir(root);
     sanitized(&mut command, root, lease, fixture)?;
+    let initial_policy = if matches!(entry.name.as_str(), "rust-only-policy" | "rust-only-policy-final") {
+        let inputs = rust_policy_inputs(root, &receipt.target, copies)?;
+        if entry.arguments != [inputs["artifact"].as_str().unwrap(), "--root", "."] || !entry.copies.is_empty() {
+            return Err("Final Rust policy must execute its initial snapshot without rebuilding.".into());
+        }
+        Some(inputs)
+    } else { None };
     if entry.name == "supervision-fault-process" {
         supervision_fault_environment(root, &receipt.target, &mut command)?;
     }
@@ -601,8 +706,19 @@ fn step(
         inputs["artifacts"].as_object_mut().ok_or("Missing system UI input bindings.")?
             .extend(serde_json::to_value(generated).map_err(error)?.as_object().ok_or("Invalid UI evidence bindings.")?.clone());
     }
+    if entry.name == "rust-only-policy-build" { prepare_rust_policy_snapshot(root, &receipt.target, copies)?; }
     lease.validate()?;
     let mut result = serde_json::json!({"name":entry.name,"arguments":entry.arguments,"exitCode":captured.status.code(),"seconds":start.elapsed().as_secs_f64()});
+    if matches!(entry.name.as_str(), "rust-only-policy-build" | "rust-only-policy" | "rust-only-policy-final") {
+        let inputs = rust_policy_inputs(root, &receipt.target, copies)?;
+        if initial_policy.as_ref().is_some_and(|before| *before != inputs) {
+            return Err("Rust policy artifact changed during final execution.".into());
+        }
+        result["rustPolicyInputs"] = inputs;
+        if entry.name != "rust-only-policy-build" {
+            result["rustPolicyResult"] = serde_json::from_slice::<serde_json::Value>(&captured.stdout).map_err(error)?;
+        }
+    }
     if let Some(inputs) = normal_host { result["normalHostInputs"] = inputs; }
     if let Some((_, inputs)) = system_ui {
         result["systemUiInputs"] = inputs;
@@ -915,6 +1031,15 @@ const DASHBOARD_EXPORT_CASES: [&str; 5] = [
             "commit_entered_before_close_keeps_published_outcome_and_retires_feedback",
 ];
 fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
+    if matches!(name, "rust-only-policy" | "rust-only-policy-final") {
+        let value: serde_json::Value = serde_json::from_slice(stdout).map_err(error)?;
+        if value["ok"] != true || value["policy"] != "Rust-only new product code"
+            || value["productionReady"] != false || value["errors"] != serde_json::json!([])
+            || value["frozenLegacyFiles"].as_u64().is_none() || value["rustRuntimeFiles"].as_u64().is_none()
+            || value["lockSHA256"].as_str().is_none_or(|sha| sha.len()!=64 || !sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))) {
+            return Err("Rust policy must emit its actual successful fail-closed JSON result.".into());
+        }
+    }
     if name == "dashboard-presentation-process" {
         let text = std::str::from_utf8(stdout).map_err(error)?;
         for case in ["populated_top30_hash_ties_names_samples_errors_and_legacy", "elapsed_hours_retention_dst_and_calendar_year"] {
@@ -1306,7 +1431,23 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
             "Native verification does not contain the entire successful ordered matrix.".into(),
         );
     }
+    check_rust_policy_pair(root,&receipt.target,actual,&value["testCompatibilityCopies"])?;
     for step in actual {
+        if matches!(step["name"].as_str(), Some("rust-only-policy-build" | "rust-only-policy" | "rust-only-policy-final")) {
+            check_rust_policy_inputs(root, &receipt.target, &step["rustPolicyInputs"])?;
+            let name = step["name"].as_str().unwrap();
+            let expected_arguments = if name == "rust-only-policy-build" {
+                matrix(&receipt.target)?.remove(0).arguments
+            } else { vec![step["rustPolicyInputs"]["artifact"].as_str().unwrap().into(), "--root".into(), ".".into()] };
+            if step["arguments"] != serde_json::to_value(expected_arguments).map_err(error)? {
+                return Err("Rust policy receipt lost its actual initial/final caller.".into());
+            }
+            if name != "rust-only-policy-build" {
+            selected_step_output(name, &serde_json::to_vec(&step["rustPolicyResult"]).map_err(error)?)?;
+            let logged: serde_json::Value = serde_json::from_slice(&regular_bytes(&root.join(DIRECTORY).join(format!("{name}.stdout")))?).map_err(error)?;
+            if logged != step["rustPolicyResult"] { return Err("Rust policy JSON log differs from its receipt.".into()); }
+            }
+        }
         if matches!(step["name"].as_str(), Some("bridge-process")) {
             check_normal_host_inputs(root, &receipt, &step["normalHostInputs"])?;
         }
@@ -1469,14 +1610,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
         root,
         lease,
         &fixture,
-        &Step {
-            name: "rust-only-policy-final".into(),
-            arguments: vec![
-                "python3".into(),
-                "rust-native/scripts/check_rust_only.py".into(),
-            ],
-            copies: vec![],
-        },
+        &final_rust_policy_step(root, &receipt.target, &copies)?,
         &receipt,
         &mut copies,
     )?);
@@ -2090,14 +2224,144 @@ mod tests {
         assert_eq!(selected, ["bridge-process"]);
     }
     #[test]
+    fn rust_policy_matrix_pair_binds_initial_build_and_reuses_it_without_rebuilding() {
+        let target = "aarch64-apple-darwin";
+        let steps = matrix(target).unwrap(); let first = &steps[0];
+        assert_eq!(first.name, "rust-only-policy-build");
+        assert_eq!(&first.arguments[..3], ["cargo", "build", "--quiet"]);
+        assert_eq!(steps[1].name,"rust-only-policy");
+        assert!(steps[1].copies.is_empty());
+        assert!(first.arguments.iter().any(|arg|arg=="--locked"));
+        assert!(first.arguments.iter().any(|arg|arg=="--offline"));
+        assert!(first.arguments.windows(2).any(|pair|pair==["--bin","rust-only-policy"]));
+        assert_eq!(first.copies, vec![(rust_policy_source(target).unwrap(), RUST_POLICY_ALIAS.into())]);
+        let fixture = super::super::tests::Fixture::new(); let root = &fixture.0;
+        let mut copies = BTreeMap::new();
+        assert!(final_rust_policy_step(root, target, &copies).is_err());
+        let source = rust_policy_source(target).unwrap(); let path = root.join(&source);
+        fs::create_dir_all(path.parent().unwrap()).unwrap(); fs::write(&path,b"owned policy artifact fixture").unwrap();
+        compatibility_copy(root, &source, RUST_POLICY_ALIAS, &mut copies).unwrap();
+        prepare_rust_policy_snapshot(root, target, &mut copies).unwrap();
+        let inputs = rust_policy_inputs(root, target, &copies).unwrap();
+        check_rust_policy_inputs(root, target, &inputs).unwrap();
+        let last = final_rust_policy_step(root, target, &copies).unwrap();
+        assert_eq!(last.arguments, [inputs["artifact"].as_str().unwrap(), "--root", "."]);
+        assert!(last.copies.is_empty());
+        // Actual later Cargo tests may rebuild this path with other features.
+        // Neither that rebuild nor the mutable convenience alias changes the snapshot.
+        fs::write(&path,b"legitimately rebuilt source artifact").unwrap();
+        fs::write(root.join(RUST_POLICY_ALIAS), b"changed convenience alias").unwrap();
+        assert_eq!(rust_policy_inputs(root, target, &copies).unwrap(), inputs);
+        check_rust_policy_inputs(root, target, &inputs).unwrap();
+        let snapshot = root.join(inputs["artifact"].as_str().unwrap());
+        // This deliberate drift affects only this owned disposable fixture.
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&snapshot,fs::Permissions::from_mode(0o700)).unwrap();
+        fs::write(&snapshot,b"changed initial snapshot").unwrap();
+        assert!(final_rust_policy_step(root, target, &copies).is_err());
+        assert!(check_rust_policy_inputs(root, target, &inputs).is_err());
+        fs::write(&path,b"owned policy artifact fixture").unwrap();
+        fs::write(root.join(RUST_POLICY_ALIAS),b"owned policy artifact fixture").unwrap();
+        assert!(prepare_rust_policy_snapshot(root, target, &mut copies).is_err());
+    }
+    #[test]
+    fn rust_policy_snapshot_executes_the_actual_cli_after_mutable_rebuilds() {
+        let binary = std::env::var_os("RUYCAST_TEST_POLICY_CLI").map(PathBuf::from)
+            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("target/debug/rust-only-policy"));
+        assert!(binary.is_absolute() && binary.is_file(), "Build the actual Rust policy CLI first");
+        let fixture = super::super::tests::Fixture::new(); let root = &fixture.0;
+        fs::create_dir(root.join("Sources")).unwrap();
+        fs::write(root.join("Sources/Legacy.swift"), b"// own policy fixture").unwrap();
+        fs::write(root.join("Package.swift"), b"// own policy fixture").unwrap();
+        let frozen = ["Sources/Legacy.swift","Package.swift"].into_iter().map(|name|(name,digest(&root.join(name)).unwrap())).collect::<BTreeMap<_,_>>();
+        fs::write(root.join("rust-native/swift-reference-lock.json"), serde_json::to_vec(&serde_json::json!({"schema":"ruycast.rust-only-reference-lock.v1","legacy_roots":["Sources"],"runtime_roots":["rust/src","rust-native/src"],"files":frozen})).unwrap()).unwrap();
+        let target="aarch64-apple-darwin"; let source=rust_policy_source(target).unwrap();
+        fs::create_dir_all(root.join(&source).parent().unwrap()).unwrap();
+        fs::copy(&binary,root.join(&source)).unwrap();
+        let mut copies=BTreeMap::new();
+        compatibility_copy(root,&source,RUST_POLICY_ALIAS,&mut copies).unwrap();
+        prepare_rust_policy_snapshot(root,target,&mut copies).unwrap();
+        let before=rust_policy_inputs(root,target,&copies).unwrap();
+        let mut initial=Command::new(root.join(before["artifact"].as_str().unwrap()));
+        initial.args(["--root",root.to_str().unwrap()]).env_clear().stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+        let initial=process::capture(initial,Duration::from_secs(6),65536).unwrap();
+        assert!(initial.status.success(),"{}",String::from_utf8_lossy(&initial.stderr));
+        selected_step_output("rust-only-policy",&initial.stdout).unwrap();
+        fs::write(root.join(&source),b"legitimate different feature build").unwrap();
+        fs::write(root.join(RUST_POLICY_ALIAS),b"changed convenience alias").unwrap();
+        let step=final_rust_policy_step(root,target,&copies).unwrap();
+        let mut command=Command::new(root.join(&step.arguments[0]));
+        command.args(&step.arguments[1..]).current_dir(root).env_clear().stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+        let result=process::capture(command,Duration::from_secs(6),65536).unwrap();
+        assert!(result.status.success(),"{}",String::from_utf8_lossy(&result.stderr));
+        selected_step_output("rust-only-policy-final",&result.stdout).unwrap();
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&initial.stdout).unwrap(),serde_json::from_slice::<serde_json::Value>(&result.stdout).unwrap());
+        assert_eq!(rust_policy_inputs(root,target,&copies).unwrap(),before);
+    }
+    #[test]
+    fn rust_policy_pair_rejects_distinct_valid_snapshots_and_forged_copy_bindings() {
+        let fixture=super::super::tests::Fixture::new();let root=&fixture.0;let target="aarch64-apple-darwin";
+        let source=rust_policy_source(target).unwrap();fs::create_dir_all(root.join(&source).parent().unwrap()).unwrap();
+        fs::write(root.join(&source),b"owned first policy artifact").unwrap();let mut copies=BTreeMap::new();
+        compatibility_copy(root,&source,RUST_POLICY_ALIAS,&mut copies).unwrap();
+        prepare_rust_policy_snapshot(root,target,&mut copies).unwrap();let first=rust_policy_inputs(root,target,&copies).unwrap();
+        let mut steps=["rust-only-policy-build","rust-only-policy","rust-only-policy-final"].into_iter().map(|name|serde_json::json!({"name":name,"rustPolicyInputs":first})).collect::<Vec<_>>();
+        let mut bindings=serde_json::to_value(&copies).unwrap();
+        check_rust_policy_pair(root,target,&steps,&bindings).unwrap();
+        let bytes=b"owned second policy artifact";let sha=format!("{:x}",Sha256::digest(bytes));let artifact=format!("{DIRECTORY}/policy-artifacts/{sha}");
+        publish_rust_policy_snapshot(&root.join(&artifact),bytes,&sha,||Ok(())).unwrap();
+        steps[2]["rustPolicyInputs"]["sha256"]=serde_json::json!(sha);
+        steps[2]["rustPolicyInputs"]["artifact"]=serde_json::json!(artifact);
+        check_rust_policy_inputs(root,target,&steps[2]["rustPolicyInputs"]).unwrap();
+        assert!(check_rust_policy_pair(root,target,&steps,&bindings).is_err());
+        steps[2]["rustPolicyInputs"]=first;
+        bindings[RUST_POLICY_ALIAS]["sha256"]=serde_json::json!("f".repeat(64));
+        assert!(check_rust_policy_pair(root,target,&steps,&bindings).is_err());
+    }
+    #[test]
+    fn rust_policy_snapshot_publication_preserves_late_race_destinations() {
+        use std::os::unix::fs::PermissionsExt;
+        let fixture=super::super::tests::Fixture::new();let root=&fixture.0;
+        let bytes=b"owned policy bytes";let sha=format!("{:x}",Sha256::digest(bytes));let path=root.join("cache").join(&sha);
+        let winner=std::cell::Cell::new(0);
+        assert!(publish_rust_policy_snapshot(&path,bytes,&sha,||{
+            fs::write(&path,b"late independent destination").map_err(error)?;
+            winner.set(fs::metadata(&path).map_err(error)?.ino());Ok(())
+        }).is_err());
+        assert_eq!(fs::read(&path).unwrap(),b"late independent destination");
+        assert_eq!(fs::metadata(&path).unwrap().ino(),winner.get());
+        fs::remove_file(&path).unwrap();
+        publish_rust_policy_snapshot(&path,bytes,&sha,||{
+            fs::write(&path,bytes).map_err(error)?;
+            fs::set_permissions(&path,fs::Permissions::from_mode(0o500)).map_err(error)?;
+            winner.set(fs::metadata(&path).map_err(error)?.ino());Ok(())
+        }).unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().ino(),winner.get());
+        assert_eq!(fs::read(&path).unwrap(),bytes);
+        assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(),1);
+    }
+    #[test]
+    fn rust_policy_matrix_output_requires_successful_actual_json() {
+        let good=serde_json::json!({"ok":true,"policy":"Rust-only new product code","productionReady":false,"errors":[],"frozenLegacyFiles":2,"rustRuntimeFiles":2,"lockSHA256":"a".repeat(64)});
+        for name in ["rust-only-policy", "rust-only-policy-final"] {
+            selected_step_output(name,&serde_json::to_vec(&good).unwrap()).unwrap();
+            for key in ["ok","policy","productionReady","errors","frozenLegacyFiles","rustRuntimeFiles","lockSHA256"] {
+                let mut bad=good.clone();bad.as_object_mut().unwrap().remove(key);
+                assert!(selected_step_output(name,&serde_json::to_vec(&bad).unwrap()).is_err());
+            }
+            let mut failed=good.clone();failed["ok"]=serde_json::json!(false);
+            assert!(selected_step_output(name,&serde_json::to_vec(&failed).unwrap()).is_err());
+        }
+    }
+    #[test]
     fn complete_ordered_matrix_keeps_all_oracles_and_explicit_targets() {
         let steps = matrix("aarch64-apple-darwin").unwrap();
-        assert_eq!(steps.first().unwrap().name, "rust-only-policy");
+        assert_eq!(steps.first().unwrap().name, "rust-only-policy-build");
         let policy = steps.iter().find(|step| step.name == "rust-only-policy-tests").unwrap();
         assert!(policy.arguments.windows(2).any(|pair|pair==["--test","rust_only_policy"]));
         assert!(!steps.iter().any(|step| step.arguments.iter().any(|arg| arg.ends_with("rust_only_policy.py"))));
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 142);
+        assert_eq!(steps.len(), 143);
         let history_build = steps.iter().position(|step| step.name == "clipboard-history-sdk-build").unwrap();
         for name in ["clipboard-history-host-process"] {
             assert!(history_build < steps.iter().position(|step| step.name == name).unwrap());
