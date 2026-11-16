@@ -11,6 +11,8 @@ use std::{
     path::Path,
     time::{Duration, Instant},
 };
+// Match the original unittest and matrix sequencing for strict timed host scenarios.
+static HOST_SCENARIOS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 struct ManagedHost(Host);
 impl std::ops::Deref for ManagedHost {
     type Target = Host;
@@ -71,19 +73,26 @@ fn wait_file(path: &Path) -> Value {
     }
     panic!("own script did not start");
 }
-#[test]
-fn unexpected_helper_death_reports_unknown_without_retry() {
+fn heartbeat_host(timeout: Value) -> ManagedHost {
     let mut host = ManagedHost(Host::new(Config::current(), false));
     fs::write(
         host.base.join(".ruycast-supervision-fixture"),
         "owned-supervision-helper-v1",
     )
     .unwrap();
-    let command = json!({"id":"script.life0","title":"Lifecycle fixture0","kind":"script","target":env!("CARGO_BIN_EXE_supervision-probe"),"arguments":["__supervision-heartbeat",host.base,"0"],"timeout":5});
+    let command = json!({"id":"script.life0","title":"Lifecycle fixture0","kind":"script","target":env!("CARGO_BIN_EXE_supervision-probe"),"arguments":["__supervision-heartbeat",host.base,"0"],"timeout":timeout});
     let mut config = default_config();
     config["commands"].as_array_mut().unwrap().push(command);
     host.replace(&config, None);
     host.start();
+    host
+}
+#[test]
+fn unexpected_helper_death_reports_unknown_without_retry() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let host = heartbeat_host(json!(5));
     let mut stream = host.connect(Duration::from_secs(3));
     stream
         .write_all(b"{\"op\":\"execute\",\"id\":\"script.life0\"}\n")
@@ -120,5 +129,41 @@ fn unexpected_helper_death_reports_unknown_without_retry() {
         let folder = std::path::PathBuf::from(folder);
         fs::create_dir_all(&folder).unwrap();
         fs::write(folder.join("supervision-host-helper-death.json"),serde_json::to_vec_pretty(&json!({"initial":initial,"last":last,"response":result,"usage":usage,"killZeroErrno":libc::ESRCH})).unwrap()).unwrap();
+    }
+}
+
+#[test]
+fn stopped_host_cannot_stop_its_independent_script_deadline() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let host = heartbeat_host(json!(0.2));
+    let mut stream = host.connect(Duration::from_secs(3));
+    stream
+        .write_all(b"{\"op\":\"execute\",\"id\":\"script.life0\"}\n")
+        .unwrap();
+    let initial = wait_file(&host.base.join("0"));
+    let paused = PausedHost::new(&host);
+    std::thread::sleep(Duration::from_millis(500));
+    let last: Value = serde_json::from_slice(&fs::read(host.base.join("0")).unwrap()).unwrap();
+    let heartbeat_delta = last["time"].as_f64().unwrap() - initial["time"].as_f64().unwrap();
+    assert!(heartbeat_delta < 0.3);
+    let pid = libc::pid_t::try_from(initial["pid"].as_i64().unwrap()).unwrap();
+    assert!(pid > 0);
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ESRCH)
+    );
+    paused.resume();
+    let mut line = String::new();
+    BufReader::new(&mut stream).read_line(&mut line).unwrap();
+    let response: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(response["ok"], false);
+    assert!(response["error"].as_str().unwrap().contains("timed out"));
+    if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let folder = std::path::PathBuf::from(folder);
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(folder.join("supervision-stopped-host.json"),serde_json::to_vec_pretty(&json!({"initial":initial,"last":last,"heartbeatDelta":heartbeat_delta,"response":response,"killZeroErrno":libc::ESRCH})).unwrap()).unwrap();
     }
 }

@@ -42,18 +42,6 @@ class HostLifecycle(unittest.TestCase):
         self.assertLess(last['time']-initial['time'],.25)
         with self.assertRaises(ProcessLookupError):os.kill(initial['pid'],0)
 
-    def test_stopped_host_cannot_stop_its_independent_script_deadline(self):
-        host=rt.Host(start=False);self.addCleanup(host.close)
-        value=json.loads(host.config.read_bytes());value['commands'].append(self.heartbeat_command(host.base,0));host.replace(value);host.start()
-        stream=host.connect();self.addCleanup(stream.close);stream.sendall(b'{"op":"execute","id":"script.life0"}\n')
-        initial=self.wait_file(host.base/'0');host.process.send_signal(signal.SIGSTOP)
-        try:
-            time.sleep(.5);last=json.loads((host.base/'0').read_text());self.assertLess(last['time']-initial['time'],.3)
-            with self.assertRaises(ProcessLookupError):os.kill(initial['pid'],0)
-        finally:host.process.send_signal(signal.SIGCONT)
-        with stream.makefile('rb') as reader:response=json.loads(reader.readline())
-        self.assertFalse(response['ok']);self.assertIn('timed out',response['error'])
-
     def test_many_helpers_do_not_inherit_each_others_lifeline_writers(self):
         host=rt.Host(start=False);self.addCleanup(host.close)
         folder=host.base/'heartbeats';folder.mkdir()
