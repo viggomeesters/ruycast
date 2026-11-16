@@ -407,7 +407,7 @@ const SETTINGS: &[SettingsGate] = &[
     SettingsGate { id:"--check-edit-commands", original_source:"Sources/RuycastApp/EditCommandChecks.swift", required_native_steps:&["native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&["native_edit::check"], unproven_invariants:&[] },
     SettingsGate { id:"--check-settings", original_source:"Sources/RuycastApp/SettingsChecks.swift", required_native_steps:&[
         "core-unit", "unit", "settings-preferences-process", "settings-keyboard-process",
-        "library-process", "library-checkbox-process", "library-drafts-process", "library-navigation-process", "actions-process", "native-keyboard-process", "hid-process",
+        "library-process", "library-checkbox-process", "library-drafts-process", "library-navigation-process", "actions-process", "native-keyboard-process", "hid-sdk-process",
         "keyword-process", "applications-discovery-process", "app-picker-process", "capture-process", "bridge-process", "clipboard-history-process", "startup-process",
         "feedback-actions-process", "snippet-links-process", "snippet-process", "snippet-board-process",
         "keyword-rich-process-rust", "clipboard-rich-paste", "settings-ui-process", "snippet-html-import",
@@ -2081,6 +2081,17 @@ mod tests {
         for gate in SETTINGS {
             regular_file(&root.join(gate.original_source)).unwrap();
         }
+    }
+    #[test]
+    fn settings_hid_gate_binds_existing_rust_sdk_step() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
+        assert!(gate.required_native_steps.contains(&"hid-sdk-process"));
+        assert!(!gate.required_native_steps.contains(&"hid-process"));
+        let plan = validation::plan("aarch64-apple-darwin").unwrap();
+        let step = plan["steps"].as_array().unwrap().iter()
+            .find(|step| step["name"] == "hid-sdk-process").expect("Required settings HID step must exist");
+        let arguments = step["arguments"].as_array().unwrap();
+        assert!(arguments.windows(2).any(|pair| pair[0] == "--test" && pair[1] == "hid_sdk_process"));
     }
     #[test]
     fn settings_mapping_only_names_existing_matrix_steps_and_real_log_cases() {
