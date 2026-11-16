@@ -237,6 +237,56 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
 }
 
 #[test]
+fn preparation_failures_keep_the_input_draft_and_never_clear() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for fault in ["fail-string", "fail-html"] {
+        let mut command = command("{message}");
+        command["snippetOutput"] = json!("html");
+        let mut host = hidden_command_host(command, &[fault], true);
+        show(&host);
+        run_native(&host);
+        host.settled(|_| true);
+        assert_eq!(host.probe("read", json!({}))["runInputInline"], true);
+        host.probe("run-inline-type", json!({"text":"Own draft"}));
+        run_native(&host);
+        wait_event(&mut host, "snippet-item-failed", |_| true);
+        done(&host);
+        host.settled(|_| true);
+        let view = host.probe("read", json!({}));
+        assert_eq!(view["runInputInline"], true);
+        let screen_text = view["screenText"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|text| text.as_str().unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(screen_text.contains("Could not copy text"));
+        let failed_trace = trace(&host);
+        for phase in ["snippet-write", "snippet-post", "snippet-clear"] {
+            assert!(!failed_trace.iter().any(|event| event["phase"] == phase));
+        }
+        fs::remove_file(host.base.join(fault)).unwrap();
+        run_native(&host);
+        wait_event(&mut host, "snippet-post", |_| true);
+        done(&host);
+        let trace = trace(&host);
+        let write = trace
+            .iter()
+            .find(|event| event["phase"] == "snippet-write")
+            .unwrap();
+        assert_eq!(write["text"], "Own draft");
+        save(
+            &format!("preparation-{fault}"),
+            &json!({"failedView":view,"failedTrace":failed_trace,"draftRetried":true}),
+            &trace,
+        );
+    }
+}
+
+#[test]
 fn real_palette_run_has_complete_copy_hide_activate_paste_and_cursor_sequence() {
     let _scenario = HOST_SCENARIOS
         .lock()

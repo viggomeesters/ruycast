@@ -118,19 +118,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertEqual([r['down'] for r in posts],[i%2==0 for i in range(len(posts))])
         self.assertEqual([r['flags'] for r in posts],[1<<20 if key==9 else 0 for key in keys])
 
-    def test_preparation_failures_keep_the_input_draft_and_never_clear(self):
-        for fault in ['fail-string','fail-html']:
-            h=self.host(command('{message}',snippetOutput='html'),flags=[fault]);self.show(h);self.run_native(h)
-            h.settled();self.assertTrue(h.probe('read')['runInputInline'])
-            h.probe('run-inline-type',text='Own draft');self.run_native(h)
-            self.wait_event(h,'snippet-item-failed');self.done(h);h.settled()
-            view=h.probe('read');self.assertTrue(view['runInputInline'])
-            self.assertIn('Could not copy text','\n'.join(view['screenText']))
-            self.assertEqual(self.writes(h),[]);self.assertEqual(self.posts(h),[])
-            self.assertFalse(any(r['phase']=='snippet-clear' for r in self.trace(h)))
-            (h.base/fault).unlink();self.run_native(h);self.wait_event(h,'snippet-post');self.done(h)
-            self.assertEqual(self.writes(h)[0]['text'],'Own draft')
-
     def test_postcommit_failures_retire_input_and_use_passive_notice(self):
         for fault,needle in [('fail-write','clipboard may have changed'),('activation-noop','target app did not activate'),('fail-event','input events')]:
             h=self.host(command('{message}'),flags=[fault]);self.show(h);self.run_native(h)
