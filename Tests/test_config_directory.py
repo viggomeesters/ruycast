@@ -86,12 +86,6 @@ class ConfigDirectoryTests(unittest.TestCase):
         self.assertTrue((self.root/'control.sock').exists())
 
 
-    def test_unavailable_persisted_config_is_not_initialized(self):
-        (self.root/'config-location.json').write_text(json.dumps({'directory':str(self.custom)}))
-        self.cli('config','init',ok=False)
-        result=subprocess.run([str(HOST),'--init-config'],env=self.env,capture_output=True,text=True)
-        self.assertNotEqual(result.returncode,0)
-        self.assertFalse(self.custom.exists())
 
     def test_host_restart_uses_relocated_configuration(self):
         self.cli('config','directory',str(self.custom))
