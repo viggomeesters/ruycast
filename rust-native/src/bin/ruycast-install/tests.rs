@@ -521,6 +521,7 @@ fn installer_owned_current_app_config_selector_adapter_and_rollback_are_exact() 
 
 #[test]
 fn installer_owned_unrelated_product_and_unknown_stage_are_preserved() {
+    for existing_alias in [false,true] {
     let f = Fixture::new();
     f.legacy();
     f.signer();
@@ -530,24 +531,28 @@ fn installer_owned_unrelated_product_and_unknown_stage_are_preserved() {
         tools::plist_bytes(&json!({"CFBundleIdentifier":"org.unrelated.product"})).unwrap(),
     )
     .unwrap();
+    if existing_alias {f.bundle(NEW_ID,"Ruycast.app","17");let link=f.o.home.join(".local/bin/rustcast");stdfs::remove_file(&link).unwrap();symlink(f.o.apps.join("Ruycast.app/Contents/Resources/ruycast"),&link).unwrap();}
+    let original_cli=stdfs::read_link(f.o.home.join(".local/bin/rustcast")).unwrap();let old_agent=f.o.home.join(format!("Library/LaunchAgents/{OLD_ID}.plist"));let registration=stdfs::read(&old_agent).unwrap();
     let old_tree = fs::tree(&old).unwrap();
     let profile = f.o.home.join(".config/rustcast");
     let before = profile::hashes(&profile, None, &f.o.home).unwrap();
     let unknown = f.o.apps.join(".Ruycast.new.app");
     stdfs::create_dir(&unknown).unwrap();
     stdfs::write(unknown.join("user-file"), b"keep").unwrap();
+    let repo_stage=f.o.repo.join(".dist/Ruycast.app");stdfs::create_dir_all(&repo_stage).unwrap();stdfs::write(repo_stage.join("user-file"),b"keep me").unwrap();
     let mut r = f.runner();
     owned_install(&f.o, &mut r).unwrap();
     assert_eq!(fs::tree(&old).unwrap(), old_tree);
     assert_eq!(profile::hashes(&profile, None, &f.o.home).unwrap(), before);
     assert!(!profile.is_symlink());
-    assert!(stdfs::read_link(f.o.home.join(".local/bin/rustcast"))
-        .unwrap()
-        .starts_with(&old));
+    let actual_cli=stdfs::read_link(f.o.home.join(".local/bin/rustcast")).unwrap();assert_eq!(actual_cli,original_cli);if !existing_alias {assert!(actual_cli.starts_with(&old));}
+    assert!(old_agent.is_file());assert_eq!(stdfs::read(&old_agent).unwrap(),registration);
+    assert_eq!(stdfs::read(repo_stage.join("user-file")).unwrap(),b"keep me");
     assert!(r.calls.iter().all(|(_, a, _)| !a
         .iter()
         .any(|v| v.ends_with(OLD_ID) || v.ends_with(&format!("{OLD_ID}.plist")))));
     assert_eq!(stdfs::read(unknown.join("user-file")).unwrap(), b"keep");
+    }
 }
 
 #[test]
