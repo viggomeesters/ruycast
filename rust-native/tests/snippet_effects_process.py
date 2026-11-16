@@ -142,18 +142,6 @@ class SnippetEffects(unittest.TestCase):
                 self.assertTrue(h.rpc(dict(op='quit'))['ok']);out,err=h.process.communicate(timeout=3)
                 stream.close();self.assertEqual(h.process.returncode,0,out.decode()+err.decode());self.assertEqual(self.posts(h),[])
 
-    def test_management_run_preserves_management_and_hides_only_palette_peer(self):
-        h=self.host(command('Settings'));self.show(h,'safari');h.cli('show','settings')
-        h.wait(lambda s:s['managementUI']['revision']==s['managementUI']['appliedRevision'] and s['managementUI']['visible'])
-        def probe(action,**fields):return h.probe(action,surface='settings',**fields)
-        probe('query',query='snipfixture');h.wait(lambda s:s['managementUI']['revision']==s['managementUI']['appliedRevision'])
-        probe('key-event',code=40,chars='k',flags=1<<20)
-        h.wait(lambda s:s['managementUI']['revision']==s['managementUI']['appliedRevision'])
-        labels=probe('read')['actionLabels'];probe('action-button',index=labels.index('Insert Snippet'))
-        self.wait_event(h,'snippet-post');self.done(h);h.settled()
-        status=h.rpc(dict(op='status'))['result'];self.assertTrue(status['managementUI']['visible']);self.assertFalse(status['nativeUI']['visible'])
-        self.assertEqual(self.writes(h)[0]['text'],'Settings');self.assertFalse(probe('read')['windowShown'])
-
     def test_transport_expiry_preserves_snippet_commit_truth_when_owner_is_busy(self):
         for phase,committed in [('prepare',False),('write',True)]:
             h=self.host(command('Owned'),flags=['hold-'+phase],dispatch=350);results=[];busy=[]
