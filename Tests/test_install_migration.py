@@ -15,28 +15,7 @@ class MigrationTests(unittest.TestCase):
         base=Path(os.environ.get('VIGGO_TEST_ROOT',REPO/'.build/test-profiles'));base.mkdir(parents=True,exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=base);self.root=Path(self.tmp.name)
     def tearDown(self):self.tmp.cleanup()
-    def test_external_local_adapter_stages_without_entering_public_source(self):
-        from install_support import preserve_personal_bridge
-        repo=self.root/'public';installed=self.root/'installed';stage=self.root/'stage'
-        (stage/'Contents/Resources').mkdir(parents=True)
-        adapter=self.root/'local-adapter.py';adapter.write_bytes(b'fixture local adapter')
-        preserve_personal_bridge(repo,installed,stage,str(adapter))
-        self.assertEqual((stage/'Contents/Resources/personal_bridge.py').read_bytes(),adapter.read_bytes())
-        self.assertFalse((repo/'scripts/personal_bridge.py').exists())
-        with self.assertRaisesRegex(RuntimeError,'absolute regular'):
-            preserve_personal_bridge(repo,installed,stage,'relative.py')
 
-    def test_public_source_update_preserves_existing_local_adapter(self):
-        from install_support import preserve_personal_bridge
-        repo=self.root/'public';installed=self.root/'Ruycast.app';stage=self.root/'stage'
-        resource=installed/'Contents/Resources';resource.mkdir(parents=True)
-        (stage/'Contents/Resources').mkdir(parents=True)
-        adapter=resource/'personal_bridge.py';adapter.write_bytes(b'private adapter fixture')
-        preserve_personal_bridge(repo,installed,stage)
-        self.assertEqual((stage/'Contents/Resources/personal_bridge.py').read_bytes(),adapter.read_bytes())
-        adapter.unlink();adapter.symlink_to(self.root/'external')
-        with self.assertRaisesRegex(RuntimeError,'Linked personal adapter'):
-            preserve_personal_bridge(repo,installed,stage)
 
 
 

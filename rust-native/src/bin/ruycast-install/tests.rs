@@ -938,6 +938,56 @@ fn installer_owned_profile_filesystem_conflicts_and_unrelated_cli_are_preserved(
 }
 
 #[test]
+fn installer_owned_personal_adapter_external_stages_without_public_source_copy() {
+    let mut f = Fixture::new();
+    let installed = f.root.join("installed");
+    let stage = f.root.join("stage");
+    stdfs::create_dir_all(stage.join("Contents/Resources")).unwrap();
+    let adapter = f.root.join("local-adapter.py");
+    stdfs::write(&adapter, b"fixture local adapter").unwrap();
+    f.o.adapter = Some(adapter.clone());
+    profile::adapter(&f.o, &installed, &stage).unwrap();
+    let staged = stage.join("Contents/Resources/personal_bridge.py");
+    assert_eq!(
+        stdfs::read(&staged).unwrap(),
+        stdfs::read(&adapter).unwrap()
+    );
+    assert!(stdfs::symlink_metadata(f.o.repo.join("scripts/personal_bridge.py")).is_err());
+    f.o.adapter = Some(PathBuf::from("relative.py"));
+    assert!(profile::adapter(&f.o, &installed, &stage)
+        .unwrap_err()
+        .contains("absolute UTF-8 path"));
+    assert_eq!(stdfs::read(&staged).unwrap(), b"fixture local adapter");
+}
+
+#[test]
+fn installer_owned_personal_adapter_installed_bytes_preserved_and_link_refused() {
+    let f = Fixture::new();
+    let installed = f.root.join("Ruycast.app");
+    let stage = f.root.join("stage");
+    let resource = installed.join("Contents/Resources");
+    stdfs::create_dir_all(&resource).unwrap();
+    stdfs::create_dir_all(stage.join("Contents/Resources")).unwrap();
+    let adapter = resource.join("personal_bridge.py");
+    stdfs::write(&adapter, b"private adapter fixture").unwrap();
+    profile::adapter(&f.o, &installed, &stage).unwrap();
+    let staged = stage.join("Contents/Resources/personal_bridge.py");
+    assert_eq!(
+        stdfs::read(&staged).unwrap(),
+        stdfs::read(&adapter).unwrap()
+    );
+    stdfs::remove_file(&adapter).unwrap();
+    let external = f.root.join("external");
+    symlink(&external, &adapter).unwrap();
+    assert_eq!(
+        profile::adapter(&f.o, &installed, &stage).unwrap_err(),
+        "Linked installation path preserved."
+    );
+    assert_eq!(stdfs::read_link(&adapter).unwrap(), external);
+    assert_eq!(stdfs::read(&staged).unwrap(), b"private adapter fixture");
+}
+
+#[test]
 fn installer_owned_profile_lock_is_exclusive_and_released_after_owner_drop() {
     let f = Fixture::new();
     let path = f.root.join("instance.lock");
