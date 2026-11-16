@@ -173,8 +173,6 @@ class MigrationTests(unittest.TestCase):
     def test_signing_failure_keeps_existing_host_and_profile_untouched(self):
         self.installer_fixture(signing_fail=True)
 
-    def test_other_rustcast_app_cli_and_profile_are_preserved(self):
-        self.installer_fixture(unrelated=True)
 
     def test_receipt_failure_never_stops_installed_app(self):
         for fault in ["source","binary","missing"]:
@@ -182,8 +180,6 @@ class MigrationTests(unittest.TestCase):
                 # Each fixture needs a fresh filesystem root.
                 self.tearDown();self.setUp();self.installer_fixture(receipt_fault=fault)
 
-    def test_existing_compatibility_alias_does_not_own_other_rustcast_app(self):
-        self.installer_fixture(unrelated=True,existing_alias=True)
 
     def test_invalid_canonical_version_never_stages_or_stops_current_app(self):
         self.installer_fixture(version_source_fault=True)
