@@ -186,6 +186,7 @@ rust-native/src/bin/ruycast-build/macho.rs
 rust-native/src/bin/ruycast-build/oracles.rs
 rust-native/src/bin/ruycast-build/preparation.rs
 rust-native/src/bin/ruycast-build/process.rs
+rust-native/src/bin/ruycast-build/raycast_cli.rs
 rust-native/src/bin/ruycast-build/public_source.rs
 rust-native/src/bin/ruycast-build/validation.rs
 rust-native/src/bin/ruycast-build/test_catalog.rs

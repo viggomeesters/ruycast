@@ -27,6 +27,8 @@ mod process;
 mod public_source;
 #[path = "ruycast-build/sample_performance.rs"]
 mod sample_performance;
+#[path = "ruycast-build/raycast_cli.rs"]
+mod raycast_cli;
 #[path = "ruycast-build/parity_inventory.rs"]
 mod parity_inventory;
 #[path = "ruycast-build/parity_report.rs"]
@@ -673,6 +675,14 @@ fn run() -> Result<()> {
     Ok(())
 }
 fn main() {
+    let mut importer_args = std::env::args_os().skip(1);
+    if importer_args.next().as_deref() == Some(std::ffi::OsStr::new("import-raycast")) {
+        if let Err(failure) = raycast_cli::run(importer_args.collect()) {
+            eprintln!("{}", failure.message);
+            std::process::exit(failure.code);
+        }
+        return;
+    }
     if let Err(error) = run() {
         eprintln!("{error}");
         std::process::exit(BUILD_EXIT.load(std::sync::atomic::Ordering::Relaxed));
