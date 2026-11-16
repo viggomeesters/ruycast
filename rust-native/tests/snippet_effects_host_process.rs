@@ -153,6 +153,58 @@ fn show(host: &Bridge) {
     host.settled(|status| status["nativeUI"]["visible"] == true);
 }
 
+fn run_native(host: &Bridge) {
+    host.probe("key-event", json!({"code":36,"chars":"\r","flags":0}));
+}
+
+fn wait_event(host: &mut Bridge, phase: &str, predicate: impl Fn(&Value) -> bool) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        if let Some(event) = trace(host)
+            .into_iter()
+            .rev()
+            .find(|event| event["phase"] == phase && predicate(event))
+        {
+            return event;
+        }
+        assert!(
+            host.process.as_mut().unwrap().try_wait().unwrap().is_none(),
+            "Own snippet host exited"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+    panic!("Own snippet phase absent: {phase}");
+}
+
+fn done(host: &Bridge) -> Value {
+    host.wait(|status| status["snippetRequestsRunning"] == 0 && status["openRequestsRunning"] == 0)
+}
+
+fn notice(host: &Bridge, name: &str) -> Value {
+    let value = host.probe("notice-screenshot", json!({}));
+    let image = host.profile.join("native-notice-probe.png");
+    assert!(fs::read(&image).unwrap().starts_with(b"\x89PNG\r\n\x1a\n"));
+    if let Some(directory) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let output = PathBuf::from(directory)
+            .parent()
+            .unwrap()
+            .join("native-snippets");
+        fs::create_dir_all(&output).unwrap();
+        fs::copy(image, output.join(format!("{name}.png"))).unwrap();
+        fs::write(
+            output.join(format!("{name}.json")),
+            serde_json::to_vec_pretty(&value).unwrap(),
+        )
+        .unwrap();
+    }
+    assert_eq!(value["present"], true);
+    assert_eq!(value["windowShown"], false);
+    assert_eq!(value["canBecomeKey"], false);
+    assert_eq!(value["nonactivating"], true);
+    assert_eq!(value["ignoresMouse"], true);
+    value
+}
+
 fn assert_keys(posts: &[&Value], keys: &[u64]) {
     assert_eq!(
         posts
@@ -181,6 +233,76 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
         keys.iter()
             .map(|key| if *key == 9 { 1 << 20 } else { 0 })
             .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn real_palette_run_has_complete_copy_hide_activate_paste_and_cursor_sequence() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut command = command("A{cursor}😀end");
+    command["snippetOutput"] = json!("html");
+    command["timeout"] = json!(0.1);
+    let mut host = hidden_command_host(command, &[], true);
+    let before = fs::read(&host.config).unwrap();
+    show(&host);
+    run_native(&host);
+    wait_event(&mut host, "snippet-post", |event| {
+        event["key"] == 123 && event["down"] == false
+    });
+    done(&host);
+    host.settled(|_| true);
+    let usage = host.cli(&["usage"]);
+    assert_eq!(usage["result"]["snippet.fixture"], 1);
+    assert_eq!(fs::read(&host.config).unwrap(), before);
+    let trace = trace(&host);
+    let writes: Vec<_> = trace
+        .iter()
+        .filter(|event| event["phase"] == "snippet-write")
+        .collect();
+    assert_eq!(writes[0]["text"], "A😀end");
+    assert!(writes[0]["html"]
+        .as_str()
+        .unwrap()
+        .contains("<div>A😀end</div>"));
+    let posts: Vec<_> = trace
+        .iter()
+        .filter(|event| event["phase"] == "snippet-post")
+        .collect();
+    assert_keys(&posts, &[9, 9, 123, 123, 123, 123, 123, 123, 123, 123]);
+    let activate = trace
+        .iter()
+        .find(|event| event["phase"] == "snippet-activate")
+        .unwrap();
+    let activation_delay = posts[0]["atNs"]
+        .as_u64()
+        .unwrap()
+        .checked_sub(activate["atNs"].as_u64().unwrap())
+        .unwrap();
+    let cursor_delay = posts[2]["atNs"]
+        .as_u64()
+        .unwrap()
+        .checked_sub(posts[1]["atNs"].as_u64().unwrap())
+        .unwrap();
+    assert!(activation_delay >= 149_000_000);
+    assert!(cursor_delay >= 79_000_000);
+    assert_eq!(host.probe("read", json!({}))["windowShown"], false);
+    assert_eq!(host.probe("read", json!({}))["formVisible"], false);
+    let state: Value =
+        serde_json::from_slice(&fs::read(host.base.join("snippet-status.json")).unwrap()).unwrap();
+    assert_eq!(state["active"], false);
+    assert_eq!(state["timer"], false);
+    assert_eq!(state["pending"], 0);
+    assert_eq!(state["ownChangeCount"], writes[0]["changeCount"]);
+    let notice = notice(&host, "snippet-done");
+    assert_eq!(notice["success"], true);
+    assert_eq!(notice["text"], "Done");
+    assert_eq!(notice["height"].as_f64().unwrap(), 65.0);
+    save(
+        "palette-success",
+        &json!({"usage":usage,"state":state,"notice":notice,"activationDelayNs":activation_delay,"cursorDelayNs":cursor_delay}),
+        &trace,
     );
 }
 
