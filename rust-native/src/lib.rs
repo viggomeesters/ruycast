@@ -10,6 +10,7 @@ pub mod caps_lock;
 pub mod carbon_hotkeys;
 pub mod catalog;
 pub mod clipboard_ownership;
+pub mod clipboard_import;
 pub mod clipboard_history;
 pub mod clipboard_image;
 pub mod command_identity;

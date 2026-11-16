@@ -179,6 +179,7 @@ rust-native/src/bin/ruycast-build.rs
 rust-native/src/bin/rust_only_policy.rs
 rust-native/src/bin/parity_ast.rs
 rust-native/src/bin/ruycast-build/candidate.rs
+rust-native/src/bin/ruycast-build/clipboard_cli.rs
 rust-native/src/bin/ruycast-build/compat.rs
 rust-native/src/bin/ruycast-build/macho.rs
 rust-native/src/bin/ruycast-build/oracles.rs
@@ -216,6 +217,7 @@ rust-native/src/caps_lock.rs
 rust-native/src/carbon_hotkeys.rs
 rust-native/src/catalog.rs
 rust-native/src/clipboard_history.rs
+rust-native/src/clipboard_import.rs
 rust-native/src/clipboard_image.rs
 rust-native/src/clipboard_ownership.rs
 rust-native/src/clipboard_preview.rs

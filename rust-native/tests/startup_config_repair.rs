@@ -88,6 +88,73 @@ fn bounded_value(command: &mut Command, ok: bool) -> Value {
     assert_eq!(output.status.code(), Some(if ok { 0 } else { 1 }));
     value(output, ok)
 }
+#[test]
+fn clipboard_text_import_is_read_only_private_and_fail_closed() {
+    let f = Fixture::new();
+    let export = f.base.join("clipboard-export.json");
+    let row = json!({"category":"text","text":"Synthetic content","applicationPath":"/Applications/Fixture.app","createdAt":"2026-10-25T00:00:00Z"});
+    let data = json!({"builtin_package_clipboardHistory":{"clipboardHistoryRecords":[row.clone(),row.clone()]}});
+    let bytes = serde_json::to_vec(&data).unwrap();
+    fs::write(&export, &bytes).unwrap();
+    let run = |extra: &[&str]| {
+        child_output::wait(
+            Command::new(env!("CARGO_BIN_EXE_ruycast-build"))
+                .env_clear()
+                .current_dir(&f.base)
+                .env("HOME", &f.base)
+                .arg("import-clipboard")
+                .arg(&export)
+                .args(extra)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap(),
+            Duration::from_secs(8),
+        )
+    };
+    let output = run(&[]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["candidates"], 1);
+    assert_eq!(report["counts"]["duplicate"], 1);
+    assert_eq!(report["applied"], false);
+    assert!(output.stderr.is_empty());
+    let report = String::from_utf8(output.stdout).unwrap();
+    assert!(!report.contains("Synthetic content"));
+    assert!(!report.contains("/Applications/Fixture.app"));
+    assert_eq!(fs::read(&export).unwrap(), bytes);
+    for args in [&["--apply"][..], &["--max-text-bytes", "bad"][..]] {
+        let output = run(args);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert_eq!(fs::read(&export).unwrap(), bytes);
+    }
+    let mut file = row;
+    file["category"] = json!("file");
+    fs::write(
+        &export,
+        serde_json::to_vec(
+            &json!({"builtin_package_clipboardHistory":{"clipboardHistoryRecords":[file]}}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let before = fs::read(&export).unwrap();
+    let output = run(&[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8(output.stderr)
+        .unwrap()
+        .contains("not migrated"));
+    assert_eq!(fs::read(&export).unwrap(), before);
+    assert!(!f.root.join("clipboard.json").exists());
+    assert!(!f.root.join("control.sock").exists());
+}
 fn rejected_activation(external: bool) {
     use std::io::{Read, Write};
     use std::os::unix::net::{UnixListener, UnixStream};

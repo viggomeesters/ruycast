@@ -152,7 +152,7 @@ fn parse(args: Vec<OsString>) -> std::result::Result<Option<Options>, String> {
         apply,
     }))
 }
-fn input(path: &Path) -> Result<Vec<u8>> {
+pub(super) fn input(path: &Path) -> Result<Vec<u8>> {
     // User-selected config aliases remain supported, but nonregular/torn inputs fail closed.
     let mut file = OpenOptions::new()
         .read(true)

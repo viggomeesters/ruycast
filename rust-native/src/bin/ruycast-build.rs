@@ -29,6 +29,8 @@ mod public_source;
 mod sample_performance;
 #[path = "ruycast-build/raycast_cli.rs"]
 mod raycast_cli;
+#[path = "ruycast-build/clipboard_cli.rs"]
+mod clipboard_cli;
 #[path = "ruycast-build/parity_inventory.rs"]
 mod parity_inventory;
 #[path = "ruycast-build/parity_report.rs"]
@@ -676,7 +678,15 @@ fn run() -> Result<()> {
 }
 fn main() {
     let mut importer_args = std::env::args_os().skip(1);
-    if importer_args.next().as_deref() == Some(std::ffi::OsStr::new("import-raycast")) {
+    let importer = importer_args.next();
+    if importer.as_deref() == Some(std::ffi::OsStr::new("import-clipboard")) {
+        if let Err(error) = clipboard_cli::run(importer_args.collect()) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if importer.as_deref() == Some(std::ffi::OsStr::new("import-raycast")) {
         if let Err(failure) = raycast_cli::run(importer_args.collect()) {
             eprintln!("{}", failure.message);
             std::process::exit(failure.code);
