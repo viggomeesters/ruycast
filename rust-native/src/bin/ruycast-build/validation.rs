@@ -398,7 +398,6 @@ fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "rust-native/scripts",
         "rust-native/examples/ui_completion.rs",
         "rust/src",
-        "scripts/import-clipboard.py",
         "Tests/test_cli.py",
         "scripts/benchmark-host.py",
     ] {

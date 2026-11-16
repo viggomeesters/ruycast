@@ -482,7 +482,6 @@ scripts/check-settings-locked.sh
 scripts/check-settings.sh
 scripts/check-signing.py
 scripts/check.sh
-scripts/import-clipboard.py
 scripts/install.py
 scripts/install.sh
 scripts/local_signing.py
