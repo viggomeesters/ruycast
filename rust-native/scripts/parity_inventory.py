@@ -32,7 +32,7 @@ def ast_parser():
     global _AST_PARSER
     if _AST_PARSER is None:
         target=REPO/'.build/delivery-tools'
-        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/bin/ruycast-build/parity_families.rs','rust-native/resources/parity-families.json','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
+        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/bin/ruycast-build/parity_families.rs','rust-native/src/bin/ruycast-build/parity_sources.rs','rust-native/resources/parity-families.json','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
         hashes={name:sha(REPO/name) for name in sources}
         command=['cargo','build','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','parity-ast']
         run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
@@ -94,14 +94,20 @@ def rust_contract_families(modules,test_inventory):
     if value['definitionsSHA256']!=hashlib.sha256(GROUPS_BYTES).hexdigest():raise RuntimeError('Contract family definitions changed since load')
     return value['contractFamilies']
 
+def rust_reference_sources(reference):
+    command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-sources','--repo',str(REPO),'--reference',str(reference.resolve())]
+    run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
+    if run.returncode:raise RuntimeError(run.stderr)
+    value=json.loads(run.stdout)
+    if value['definitionsSHA256']!=hashlib.sha256(GROUPS_BYTES).hexdigest():raise RuntimeError('Contract family definitions changed since load')
+    return value['sourceFiles']
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--reference',type=Path,required=True);parser.add_argument('--out',type=Path,required=True);args=parser.parse_args()
-    paths=[p for p in sorted((REPO/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(REPO).parts)]
-    reference=[p for p in sorted((args.reference/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(args.reference).parts)]
-    if {str(p.relative_to(REPO)) for p in paths}!={str(p.relative_to(args.reference)) for p in reference}:raise RuntimeError('Production source inventories differ from accepted release checkout')
+    source_files=rust_reference_sources(args.reference)
+    paths=[REPO/path for path in source_files]
     ast_parser()
-    current=[p for p in sorted((REPO/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(REPO).parts)]
-    if current!=paths:raise RuntimeError('Production source inventory changed during parser bootstrap')
+    if rust_reference_sources(args.reference)!=source_files:raise RuntimeError('Production/reference sources changed during parser bootstrap')
     sdk=subprocess.check_output(['xcrun','--show-sdk-path'],text=True).strip()
     driver=subprocess.run(['swiftc','-###','-typecheck','Sources/RuycastApp/FeatureState.swift'],cwd=REPO,capture_output=True,text=True,check=True)
     driver_args=shlex.split(driver.stdout+driver.stderr);plugins=[]
@@ -111,13 +117,9 @@ def main():
     for module in sorted({p.parent.name for p in paths}):
         declarations,context=parse_module(module,[p for p in paths if p.parent.name==module],sdk,plugins)
         parsed.update(declarations);compiler_context.append(context)
-    modules={};owners={name:g['id'] for g in GROUPS for name in g['files']};duplicate=[name for g in GROUPS for name in g['files'] if sum(name in x['files'] for x in GROUPS)!=1]
-    if duplicate:raise RuntimeError('Ambiguous module ownership: '+str(duplicate))
-    for path in paths:
-        name=path.stem;relative=str(path.relative_to(REPO));ref=args.reference/relative
-        if name not in owners:raise RuntimeError('Unclassified production module: '+relative)
-        if sha(path)!=sha(ref):raise RuntimeError('Reference source differs: '+relative)
-        modules[relative]=dict(sha256=sha(path),contractFamily=owners[name],declarations=parsed[relative])
+    modules=rust_reference_sources(args.reference)
+    if modules!=source_files:raise RuntimeError('Production/reference sources changed during compiler inventory')
+    for relative,value in modules.items():value['declarations']=parsed[relative]
     test_inventory=rust_test_candidates()
     groups=rust_contract_families(modules,test_inventory)
     wire_inventory=rust_wire_inventory()
