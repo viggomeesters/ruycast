@@ -131,17 +131,6 @@ class SnippetEffects(unittest.TestCase):
             if not committed:self.assertEqual(self.writes(h),[])
             self.assertNotIn('snippet.fixture',h.cli('usage')['result'])
 
-    def test_disconnect_and_quit_cancel_owned_timers_and_never_post_late(self):
-        for action in ['disconnect','quit']:
-            h=self.host(command('Owned'));stream=h.connect();stream.sendall(b'{"op":"execute","id":"snipfixture"}\n')
-            self.wait_event(h,'snippet-activate')
-            if action=='disconnect':
-                stream.close();self.done(h);time.sleep(.2);self.assertEqual(self.posts(h),[])
-                self.assertEqual(h.rpc(dict(op='status'))['result']['snippetTransactionsPending'],0)
-            else:
-                self.assertTrue(h.rpc(dict(op='quit'))['ok']);out,err=h.process.communicate(timeout=3)
-                stream.close();self.assertEqual(h.process.returncode,0,out.decode()+err.decode());self.assertEqual(self.posts(h),[])
-
     def test_transport_expiry_preserves_snippet_commit_truth_when_owner_is_busy(self):
         for phase,committed in [('prepare',False),('write',True)]:
             h=self.host(command('Owned'),flags=['hold-'+phase],dispatch=350);results=[];busy=[]

@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    io::Write,
     path::PathBuf,
     sync::mpsc,
     thread,
@@ -254,6 +255,53 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
             .map(|key| if *key == 9 { 1 << 20 } else { 0 })
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn disconnect_and_quit_cancel_owned_timers_and_never_post_late() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for action in ["disconnect", "quit"] {
+        let mut host = hidden_host("Owned");
+        let mut stream = host.connect(Duration::from_secs(3));
+        stream
+            .write_all(b"{\"op\":\"execute\",\"id\":\"snipfixture\"}\n")
+            .unwrap();
+        wait_event(&mut host, "snippet-activate", |_| true);
+        if action == "disconnect" {
+            drop(stream);
+            done(&host);
+            thread::sleep(Duration::from_millis(200));
+            let trace = trace(&host);
+            assert!(!trace.iter().any(|event| event["phase"] == "snippet-post"));
+            let status = host.rpc(&json!({"op":"status"}));
+            assert_eq!(status["result"]["snippetTransactionsPending"], 0);
+            save("disconnected-caller", &status, &trace);
+        } else {
+            let response = host.rpc(&json!({"op":"quit"}));
+            assert_eq!(response["ok"], true);
+            let quit_start = Instant::now();
+            let output = host.wait_exit(Duration::from_secs(3), false);
+            let quit_elapsed = quit_start.elapsed();
+            assert!(quit_elapsed < Duration::from_secs(3));
+            drop(stream);
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let trace = trace(&host);
+            assert!(!trace.iter().any(|event| event["phase"] == "snippet-post"));
+            save(
+                "quit-owner",
+                &json!({"response":response,"exitCode":output.status.code(),"killFallback":false,"quitElapsedMs":quit_elapsed.as_millis()}),
+                &trace,
+            );
+        }
+    }
 }
 
 #[test]
