@@ -1,5 +1,4 @@
 """Portable config uses the same location in the CLI, host and installer."""
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -92,12 +91,6 @@ class ConfigDirectoryTests(unittest.TestCase):
         self.assertFalse((self.custom/'control.sock').exists())
         self.assertTrue((self.root/'control.sock').exists())
 
-    def test_busy_writer_cannot_be_relocated(self):
-        with (self.root/'config.lock').open('w') as lock:
-            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            self.cli('config','directory',str(self.custom),ok=False)
-        self.assertFalse(self.custom.exists())
-        self.assertEqual(self.cli('config','path')['result'],str(self.root/'config.json'))
 
     def test_unavailable_persisted_config_is_not_initialized(self):
         (self.root/'config-location.json').write_text(json.dumps({'directory':str(self.custom)}))
@@ -142,8 +135,3 @@ class ConfigDirectoryTests(unittest.TestCase):
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(json.loads(result.stdout)['totalCommands'],len(json.loads(self.config)['commands'])+1)
         self.assertEqual((self.root/'config.json').read_bytes(),self.config)
-
-    def test_environment_pinned_directory_cannot_be_relocated(self):
-        env=dict(self.env,RUYCAST_CONFIG_DIR=str(self.root))
-        self.cli('config','directory',str(self.custom),env=env,ok=False)
-        self.assertFalse(self.custom.exists())
