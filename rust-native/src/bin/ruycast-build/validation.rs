@@ -172,7 +172,10 @@ capture-process|c|test --manifest-path rust-native/Cargo.toml --features test-to
 capture-bytes-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_bytes_process --locked
 capture-cli-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test capture_cli_process --locked
 rich-process-rust|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test rich_process --locked
-clipboard-import-parser|p|Tests/test_clipboard_import.py
+clipboard-import-text-identity|c|test --manifest-path rust-native/Cargo.toml --lib --locked clipboard_import::tests::text_stable_identity_dedup_and_date -- --exact
+clipboard-import-file-references|c|test --manifest-path rust-native/Cargo.toml --lib --locked clipboard_import::tests::files_are_references_and_missing_images_explicit -- --exact
+clipboard-import-invalid-input|c|test --manifest-path rust-native/Cargo.toml --lib --locked clipboard_import::tests::malformed_oversize_and_unsupported -- --exact
+clipboard-import-batches|c|test --manifest-path rust-native/Cargo.toml --lib --locked clipboard_import::tests::batches_are_bounded_ordered_and_retry_stable -- --exact
 benchmark-contract-1|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_ignores_external_configuration_with_500_commands -- --ignored --exact
 benchmark-contract-2|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_rejects_changed_cli_and_quits_gracefully -- --ignored --exact
 temporal-contract-1|c|test --manifest-path rust-native/Cargo.toml --bin ruycast-build --locked compat::temporal_contract_tests::final_consumer_keeps_artifacts_leased_through_actual_receipt_publication -- --ignored --exact
@@ -222,11 +225,7 @@ fn matrix(target: &str) -> Result<Vec<Step>> {
             "s" if fields[0] == "rust-only-policy" && fields[2] == "rust-only-policy" => {
                 vec![RUST_POLICY_ALIAS.into(), "--root".into(), ".".into()]
             }
-            "p" => {
-                let mut args=vec!["python3".into(), fields[2].into()];
-                if fields[0]=="clipboard-import-parser" {args.push("-v".into());}
-                args
-            },
+            "p" => vec!["python3".into(), fields[2].into()],
             "c" => {
                 let mut args = vec!["cargo".to_owned()];
                 args.extend(fields[2].split_whitespace().map(str::to_owned));
@@ -399,7 +398,6 @@ fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "rust-native/scripts",
         "rust-native/examples/ui_completion.rs",
         "rust/src",
-        "Tests/test_clipboard_import.py",
         "scripts/import-clipboard.py",
         "Tests/test_cli.py",
         "scripts/benchmark-host.py",
@@ -690,17 +688,6 @@ fn step(
     }
     if let Some(inputs) = &normal_host { check_normal_host_inputs(root, receipt, inputs)?; }
     selected_step_output(&entry.name, &captured.stdout)?;
-    if entry.name=="clipboard-import-parser" {
-        let text=std::str::from_utf8(&captured.stderr).map_err(error)?;
-        let cases=["test_text_stable_identity_dedup_and_date","test_files_are_references_and_missing_images_explicit",
-            "test_malformed_oversize_and_unsupported","test_bounded_batches_and_retry_identity"];
-        if cases.iter().any(|case|text.lines().filter(|line|line.starts_with(&format!("{case} ("))&&line.ends_with(") ... ok")).count()!=1)
-            ||text.lines().filter(|line|line.contains(" ... ")).count()!=4
-            ||!text.lines().any(|line|line.starts_with("Ran 4 tests in "))
-            ||!text.lines().any(|line|line=="OK") {
-            return Err("All four public clipboard parser cases must actually pass without skips.".into());
-        }
-    }
     for (source, alias) in &entry.copies {
         compatibility_copy(root, source, alias, copies)?;
     }
@@ -1051,6 +1038,21 @@ pub(super) fn rust_policy_result(stdout: &[u8]) -> Result<serde_json::Value> {
 }
 fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
     if matches!(name, "rust-only-policy" | "rust-only-policy-final") { rust_policy_result(stdout)?; }
+    let clipboard_case = match name {
+        "clipboard-import-text-identity" => Some("clipboard_import::tests::text_stable_identity_dedup_and_date"),
+        "clipboard-import-file-references" => Some("clipboard_import::tests::files_are_references_and_missing_images_explicit"),
+        "clipboard-import-invalid-input" => Some("clipboard_import::tests::malformed_oversize_and_unsupported"),
+        "clipboard-import-batches" => Some("clipboard_import::tests::batches_are_bounded_ordered_and_retry_stable"),
+        _ => None,
+    };
+    if let Some(case) = clipboard_case {
+        let text = std::str::from_utf8(stdout).map_err(error)?;
+        if text.lines().filter(|line| *line == format!("test {case} ... ok")).count() != 1
+            || !text.lines().any(|line| line.starts_with("test result: ok. 1 passed; 0 failed; 0 ignored;"))
+        {
+            return Err("The selected clipboard Rust test must run exactly once without skips.".into());
+        }
+    }
     if name == "dashboard-presentation-process" {
         let text = std::str::from_utf8(stdout).map_err(error)?;
         for case in ["populated_top30_hash_ties_names_samples_errors_and_legacy", "elapsed_hours_retention_dst_and_calendar_year"] {
@@ -2382,7 +2384,19 @@ mod tests {
         assert!(policy.arguments.windows(2).any(|pair|pair==["--test","rust_only_policy"]));
         assert!(!steps.iter().any(|step| step.arguments.iter().any(|arg| arg.ends_with("rust_only_policy.py"))));
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 143);
+        assert_eq!(steps.len(), 146);
+        for (name, case) in [
+            ("clipboard-import-text-identity", "text_stable_identity_dedup_and_date"),
+            ("clipboard-import-file-references", "files_are_references_and_missing_images_explicit"),
+            ("clipboard-import-invalid-input", "malformed_oversize_and_unsupported"),
+            ("clipboard-import-batches", "batches_are_bounded_ordered_and_retry_stable"),
+        ] {
+            let step = steps.iter().find(|step| step.name == name).unwrap();
+            assert!(step.arguments.iter().any(|argument| argument == "--lib"));
+            assert!(step.arguments.iter().any(|argument| argument.ends_with(case)));
+            assert!(step.arguments.iter().any(|argument| argument == "--exact"));
+            assert!(!step.arguments.iter().any(|argument| argument.contains("Tests/test_clipboard_import.py")));
+        }
         let history_build = steps.iter().position(|step| step.name == "clipboard-history-sdk-build").unwrap();
         for name in ["clipboard-history-host-process"] {
             assert!(history_build < steps.iter().position(|step| step.name == name).unwrap());
@@ -2563,7 +2577,10 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         assert_eq!(names.len(), steps.len());
         for required in [
-            "clipboard-import-parser",
+            "clipboard-import-text-identity",
+            "clipboard-import-file-references",
+            "clipboard-import-invalid-input",
+            "clipboard-import-batches",
             "benchmark-contract-1", "benchmark-contract-2",
             "temporal-contract-1", "temporal-contract-2", "temporal-contract-3",
             "temporal-contract-4", "temporal-contract-5",
@@ -2656,6 +2673,9 @@ mod tests {
         assert!(selected_step_output("core-unit", b"test result: ok. 0 passed; 0 failed;").is_err());
         assert!(selected_step_output("core-unit", b"test tests::other ... ok\ntest result: ok. 1 passed; 0 failed;").is_err());
         assert!(selected_step_output("core-unit", b"test tests::command_sides_are_independent ... ok\ntest result: ok. 1 passed; 0 failed;").is_ok());
+        assert!(selected_step_output("clipboard-import-text-identity", b"test clipboard_import::tests::text_stable_identity_dedup_and_date ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 512 filtered out;").is_ok());
+        assert!(selected_step_output("clipboard-import-text-identity", b"test result: ok. 0 passed; 0 failed; 0 ignored; 513 filtered out;").is_err());
+        assert!(selected_step_output("clipboard-import-text-identity", b"test clipboard_import::tests::other ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 512 filtered out;").is_err());
         let settings = serde_json::json!({"ok":true,"settings":true,"themes":2,"tabsPerTheme":7,"renders":20,"hyperLeftAndCommandK":true,"disabledSnippetListed":true,"independentManagementQuery":true,"visibleWindowOpened":false,"physicalInput":false});
         let html = serde_json::json!({"ok":true,"richModes":2,"blankParagraphSamples":7,"hyperlinkImport":true,"noTextTables":true,"clipboardAccessed":false,"visibleWindowOpened":false,"desktopInputSent":false});
         let render = serde_json::json!({"ok":true,"renderUpdates":true,"themes":2,"originalFramesPerTheme":12,"captures":26,"watchedTheme":true,"pendingQuery":true,"selectionImageChanged":true,"independentQueries":true,"visibleWindowOpened":false,"physicalInput":false});
