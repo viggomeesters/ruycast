@@ -1,7 +1,7 @@
 //! Read-only export normalization. No host, socket or history writer.
 use super::{error, raycast_cli};
 use ruycast_native::clipboard_import;
-use serde_json::{json, Value};
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{ffi::OsString, path::PathBuf};
 
@@ -28,9 +28,9 @@ pub(super) fn run(args: Vec<OsString>) -> Result<(), String> {
     }
     let raw = raycast_cli::input(&PathBuf::from(export))
         .map_err(|_| "Clipboard import input unavailable; source unchanged.")?;
-    let data: Value = serde_json::from_slice(&raw)
+    let parsed = clipboard_import::parse_export(&raw)
         .map_err(|_| "Invalid clipboard export JSON; source unchanged.")?;
-    let normalized = clipboard_import::normalize(&data, maximum).map_err(error)?;
+    let normalized = clipboard_import::normalize_parsed(&parsed, maximum).map_err(error)?;
     println!(
         "{}",
         json!({"sourceSHA256":format!("{:x}",Sha256::digest(&raw)),"counts":normalized.counts,"candidates":normalized.items.len(),"applied":false,"scope":"timezone-aware ISO normalization; references and image counts only"})
