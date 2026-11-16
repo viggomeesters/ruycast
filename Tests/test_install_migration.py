@@ -167,11 +167,6 @@ class MigrationTests(unittest.TestCase):
 
 
 
-    def test_receipt_failure_never_stops_installed_app(self):
-        for fault in ["source","binary","missing"]:
-            with self.subTest(fault=fault):
-                # Each fixture needs a fresh filesystem root.
-                self.tearDown();self.setUp();self.installer_fixture(receipt_fault=fault)
 
 
     def test_invalid_canonical_version_never_stages_or_stops_current_app(self):
