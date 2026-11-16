@@ -325,7 +325,6 @@ rust-native/tests/fixtures/analytics_limits_reference.json
 rust-native/tests/fixtures/analytics_write_shim.rs
 rust-native/tests/app_picker_identity_process.rs
 rust-native/tests/applications_discovery_process.rs
-rust-native/tests/bridge_process.py
 rust-native/tests/bridge_process.rs
 rust-native/tests/caps_process.rs
 rust-native/tests/fixtures/caps_sdk.rs
