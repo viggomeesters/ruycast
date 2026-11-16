@@ -199,6 +199,8 @@ rust-native/src/bin/ruycast-build/parity_bootstrap.rs
 rust-native/src/bin/ruycast-build/parity_toolchain.rs
 rust-native/src/bin/ruycast-build/parity_report.rs
 rust-native/src/bin/ruycast-build/parity_inventory.rs
+rust-native/src/bin/ruycast-build/sample_performance.rs
+rust-native/tests/fixtures/performance_sampler_probe.rs
 rust-native/src/bin/ruycast-build/version.rs
 rust-native/src/bin/ruycast-source.rs
 rust-native/src/bin/ruycast-source/policy.rs
@@ -492,7 +494,6 @@ scripts/perf-probe.rs
 scripts/prepare-public.py
 scripts/prepare_release.py
 scripts/product_version.py
-scripts/sample-performance.py
 rust-native/src/bin/macos_effects_probe.rs
 rust-native/src/bin/private_results_fixture.rs
 rust-native/src/builtin_effects.rs
