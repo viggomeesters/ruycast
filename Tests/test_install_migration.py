@@ -8,7 +8,7 @@ import unittest
 
 REPO=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(REPO/'scripts'))
-from install_support import OLD_ID,profile_paths,migrate_profile,check_profile_paths,set_cli_link,require_owned_bundle,require_owned_link
+from install_support import OLD_ID,require_owned_bundle
 
 class MigrationTests(unittest.TestCase):
     def setUp(self):
@@ -39,20 +39,6 @@ class MigrationTests(unittest.TestCase):
             preserve_personal_bridge(repo,installed,stage)
 
 
-    def test_conflicting_profiles_and_links_are_preserved(self):
-        old,new=profile_paths(self.root);old.mkdir(parents=True);new.mkdir()
-        (old/'config.json').write_text('old');(new/'config.json').write_text('new')
-        with self.assertRaisesRegex(RuntimeError,'Both profiles'):migrate_profile(old,new)
-        self.assertEqual((old/'config.json').read_text(),'old');self.assertEqual((new/'config.json').read_text(),'new')
-        link=self.root/'ruycast';link.write_text('user executable')
-        with self.assertRaisesRegex(RuntimeError,'non-symlink'):set_cli_link(link,'/some/target')
-        self.assertEqual(link.read_text(),'user executable')
-    def test_unrelated_cli_symlink_is_not_hijacked(self):
-        other=self.root/'other-tool';other.write_text('user executable')
-        link=self.root/'ruycast';link.symlink_to(other)
-        with self.assertRaisesRegex(RuntimeError,'Unrelated CLI symlink'):set_cli_link(link,self.root/'Ruycast.app/Contents/Resources/ruycast')
-        self.assertEqual(link.resolve(),other)
-        self.assertEqual(other.read_text(),'user executable')
 
     def test_wrong_bundle_identity_refused(self):
         app=self.root/'Rustcast.app';(app/'Contents').mkdir(parents=True)

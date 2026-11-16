@@ -904,6 +904,40 @@ fn installer_owned_profile_filesystem_selected_config_hash_is_separate_from_runt
 }
 
 #[test]
+fn installer_owned_profile_filesystem_conflicts_and_unrelated_cli_are_preserved() {
+    let f = Fixture::new();
+    let (old, new) = profile::paths(&f.o, true);
+    stdfs::create_dir_all(&old).unwrap();
+    stdfs::create_dir(&new).unwrap();
+    stdfs::write(old.join("config.json"), b"old").unwrap();
+    stdfs::write(new.join("config.json"), b"new").unwrap();
+    assert!(profile::migrate(&old, &new)
+        .unwrap_err()
+        .contains("Both profiles"));
+    assert_eq!(stdfs::read(old.join("config.json")).unwrap(), b"old");
+    assert_eq!(stdfs::read(new.join("config.json")).unwrap(), b"new");
+    let link = f.root.join("ruycast");
+    let target = f.root.join("Ruycast.app/Contents/Resources/ruycast");
+    stdfs::write(&link, b"user executable").unwrap();
+    assert!(profile::link(&link, std::slice::from_ref(&target))
+        .unwrap_err()
+        .contains("non-symlink"));
+    assert!(profile::set_link(&link, &target, None).is_err());
+    assert_eq!(stdfs::read(&link).unwrap(), b"user executable");
+    stdfs::remove_file(&link).unwrap();
+    let other = f.root.join("other-tool");
+    stdfs::write(&other, b"user executable").unwrap();
+    symlink(&other, &link).unwrap();
+    assert!(profile::link(&link, std::slice::from_ref(&target))
+        .unwrap_err()
+        .contains("Unrelated CLI symlink"));
+    assert!(profile::set_link(&link, &target, None).is_err());
+    assert_eq!(stdfs::read_link(&link).unwrap(), other);
+    assert_eq!(stdfs::canonicalize(&link).unwrap(), other);
+    assert_eq!(stdfs::read(&other).unwrap(), b"user executable");
+}
+
+#[test]
 fn installer_owned_profile_lock_is_exclusive_and_released_after_owner_drop() {
     let f = Fixture::new();
     let path = f.root.join("instance.lock");
