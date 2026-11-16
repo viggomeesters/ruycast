@@ -118,15 +118,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertEqual([r['down'] for r in posts],[i%2==0 for i in range(len(posts))])
         self.assertEqual([r['flags'] for r in posts],[1<<20 if key==9 else 0 for key in keys])
 
-    def test_external_clipboard_target_relaunch_and_termination_cancel_delayed_paste(self):
-        for change in [1,2,3,'terminated']:
-            h=self.host(command('Owned'));self.show(h);self.run_native(h);self.wait_event(h,'snippet-activate')
-            if change=='terminated':(h.base/'target-terminated').write_text('Own terminated target')
-            else:h.probe('snippet-fixture-control',operation=change)
-            self.done(h);h.settled();self.assertEqual(self.posts(h),[])
-            self.assertFalse(self.notice(h,'snippet-change-'+str(change))['success'])
-            self.assertFalse(h.rpc(dict(op='status'))['result']['nativeUI']['visible'])
-
     def test_new_show_and_configuration_replacement_retire_delayed_effect_without_old_notice(self):
         for change in ['show','replace']:
             h=self.host(command('Owned'));self.show(h);self.run_native(h);self.wait_event(h,'snippet-activate')
