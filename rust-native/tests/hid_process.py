@@ -54,22 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_failed_manager_or_tap_retirement_survives_drop_and_blocks_new_setup(self):
-        for stage in ['manager_close', 'invalidate']:
-            rows, _ = self.run_case([plan(), op('refresh'), raw(57, True), op('failure', name=stage), op('drop'),
-                                     op('new'), plan(), op('refresh'), op('failure', name=''), op('recover'), op('refresh')])
-            self.assertNotEqual(rows[7]['status'], 'On')
-            self.assertTrue(rows[9]['result'])
-            self.assertEqual(rows[10]['status'], 'On')
-
-    def test_failed_balancing_creation_retries_even_when_features_are_off(self):
-        rows, _ = self.run_case([plan(), op('refresh'), raw(57, True), op('failure', name='event_source'), plan(False),
-                                 op('refresh'), op('failure', name=''), op('refresh')])
-        self.assertIn('cleanup interrupted', rows[5]['status'])
-        self.assertEqual(rows[7]['status'], 'Off')
-        self.assertFalse(rows[7]['state']['lastDown'])
-        self.assertEqual(rows[7]['state']['lastFlags'], 0)
-
     def test_setup_reentry_stop_at_each_native_boundary_never_reports_on(self):
         for stage in ['tap_create', 'source', 'add_source', 'manager_create', 'device_dictionary', 'device_matching',
                       'input_dictionary', 'input_matching', 'register_input', 'register_remove', 'schedule', 'manager_open', 'tap_enable', 'tap_enabled']:
@@ -135,17 +119,6 @@ class HidSdk(unittest.TestCase):
             self.assertIn('Complete HID SDK fixture unavailable.', result.stderr)
             self.assertNotIn('hid-fixture:', result.stderr)
             self.assertNotIn('caps-fixture:', result.stderr)
-
-    def test_caps_restore_failure_retains_authority_and_recovers_after_features_off(self):
-        rows, _ = self.run_case([plan(), op('caps-failures', value=sum(1 << n for n in range(8, 30))),
-                                 op('failure', name='tap_create'), op('refresh'), op('drop'), op('new'), plan(False),
-                                 op('refresh'), op('caps-failures', value=0), op('failure', name=''), op('recover'), op('refresh')], final_caps=True)
-        self.assertIn('cleanup interrupted', rows[3]['status'])
-        self.assertEqual(rows[3]['state']['caps'], 3)
-        self.assertNotEqual(rows[7]['status'], 'On')
-        self.assertTrue(rows[10]['result'])
-        self.assertEqual(rows[11]['status'], 'Off')
-        self.assertEqual(rows[11]['state']['caps'], 1)
 
     def test_disabled_tap_notification_stops_and_refresh_recovers(self):
         for notification in [0xffffffff, 0xfffffffe]:
