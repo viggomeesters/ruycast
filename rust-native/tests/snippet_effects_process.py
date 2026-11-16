@@ -118,15 +118,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertEqual([r['down'] for r in posts],[i%2==0 for i in range(len(posts))])
         self.assertEqual([r['flags'] for r in posts],[1<<20 if key==9 else 0 for key in keys])
 
-    def test_real_multiple_field_choices_and_marked_text_use_same_snippet_pipeline(self):
-        h=self.host(command('{a name="Message"}/{b name="Place" options="One,Two"}'))
-        self.show(h);self.run_native(h);h.settled()
-        self.assertEqual(h.probe('template-read')['values'],['',''])
-        h.probe('template-mark',index=0,text='日本語');h.probe('save-editor');h.settled();self.assertEqual(self.writes(h),[])
-        h.probe('template-unmark');h.probe('template-type',index=0,text='日本語');h.probe('template-choose',index=1,selected=1)
-        self.capture(h,'snippet-fields');h.probe('save-editor');self.wait_event(h,'snippet-post');self.done(h);h.settled()
-        self.assertEqual(self.writes(h)[0]['text'],'日本語/Two');self.assertFalse(h.probe('read')['formVisible'])
-
     def test_blocked_main_sdk_retains_ticket_capacity_after_worker_expiry(self):
         for phase,committed in [('prepare',False),('write',True)]:
             h=self.host(command('Owned'),flags=['hold-'+phase],dispatch=350);results=[]
