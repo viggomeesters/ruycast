@@ -196,6 +196,7 @@ rust-native/src/bin/ruycast-build/parity_wire.rs
 rust-native/src/bin/ruycast-build/parity_families.rs
 rust-native/src/bin/ruycast-build/parity_sources.rs
 rust-native/src/bin/ruycast-build/parity_compile.rs
+rust-native/src/bin/ruycast-build/parity_bootstrap.rs
 rust-native/src/bin/ruycast-build/version.rs
 rust-native/src/bin/ruycast-source.rs
 rust-native/src/bin/ruycast-source/policy.rs
