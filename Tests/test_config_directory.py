@@ -69,24 +69,7 @@ class ConfigDirectoryTests(unittest.TestCase):
         result=subprocess.run([str(HOST),'--init-config'],env=env,capture_output=True,text=True,check=True)
         self.assertEqual(json.loads(result.stdout)['path'],str(override/'config.json'))
 
-    def test_offline_relocation_preserves_bytes_and_runtime_files(self):
-        (self.root/'clipboard.json').write_text('[]')
-        self.cli('config','directory',str(self.custom))
-        self.assertEqual((self.custom/'config.json').read_bytes(),self.config)
-        self.assertEqual(self.cli('config','path')['result'],str(self.custom/'config.json'))
-        self.assertEqual(sorted(x.name for x in self.custom.iterdir()),['config.json'])
-        self.assertTrue((self.root/'clipboard.json').exists())
-        self.assertEqual((self.root/'config.json').read_bytes(),self.config)  # recovery copy
-        self.cli('config','set','clipboard.limit','51')
-        self.assertEqual(json.loads((self.custom/'config.json').read_text())['clipboard']['limit'],51)
-        self.assertEqual((self.root/'config.json').read_bytes(),self.config)
 
-    def test_existing_destination_is_not_overwritten(self):
-        self.custom.mkdir(parents=True)
-        target=self.custom/'config.json';target.write_bytes(self.config+b'\n')
-        self.cli('config','directory',str(self.custom),ok=False)
-        self.assertEqual(target.read_bytes(),self.config+b'\n')
-        self.assertFalse((self.root/'config-location.json').exists())
 
     def test_invalid_selector_never_falls_back_to_stale_config(self):
         for content in ['{',json.dumps({'directory':'relative'}),json.dumps({'directory':'/missing/ruycast-config'})]:

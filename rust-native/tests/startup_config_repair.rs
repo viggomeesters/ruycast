@@ -1,10 +1,13 @@
 //! Offline owned configuration contract; never starts AppKit or global services.
+#[path = "support/child_output.rs"]
+mod child_output;
 use serde_json::{json, Value};
 use std::{
     fs,
     os::unix::fs::DirBuilderExt,
     path::PathBuf,
-    process::{Command, Output},
+    process::{Command, Output, Stdio},
+    time::Duration,
     sync::atomic::{AtomicU64, Ordering},
 };
 struct Fixture {
@@ -72,6 +75,14 @@ fn value(output: Output, ok: bool) -> Value {
     );
     assert_eq!(output.status.success(), ok);
     v
+}
+fn bounded_value(command: &mut Command, ok: bool) -> Value {
+    let output = child_output::wait(
+        command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap(),
+        Duration::from_secs(10),
+    );
+    assert_eq!(output.status.code(), Some(if ok { 0 } else { 1 }));
+    value(output, ok)
 }
 #[test]
 fn both_profile_and_config_aliases_select_the_same_owned_write_target() {
@@ -218,13 +229,12 @@ fn offline_cli_relocation_retains_source_and_refuses_existing_target() {
     f.source();
     let original = fs::read(f.root.join("config.json")).unwrap();
     fs::write(f.root.join("history.keep"), b"local").unwrap();
-    let destination = f.base.join("dest");
-    let output = value(
+    fs::write(f.root.join("clipboard.json"), b"[]").unwrap();
+    let destination = f.base.join("Synced vault with spaces/.appdata/ruycast");
+    let output = bounded_value(
         f.command(false)
             .args(["config", "directory"])
-            .arg(&destination)
-            .output()
-            .unwrap(),
+            .arg(&destination),
         true,
     );
     assert_eq!(
@@ -236,31 +246,37 @@ fn offline_cli_relocation_retains_source_and_refuses_existing_target() {
     assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
     assert_eq!(fs::read(destination.join("config.json")).unwrap(), original);
     assert!(!destination.join("history.keep").exists());
+    assert_eq!(fs::read(f.root.join("clipboard.json")).unwrap(), b"[]");
+    let names = fs::read_dir(&destination)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<Vec<_>>();
+    assert_eq!(names, [std::ffi::OsString::from("config.json")]);
+    bounded_value(
+        f.command(false)
+            .args(["config", "set", "clipboard.limit", "51"]),
+        true,
+    );
+    let edited: Value =
+        serde_json::from_slice(&fs::read(destination.join("config.json")).unwrap()).unwrap();
+    assert_eq!(edited["clipboard"]["limit"], 51);
+    assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
     assert_eq!(
-        value(
-            f.command(false).args(["config", "path"]).output().unwrap(),
-            true
-        )["result"],
+        bounded_value(f.command(false).args(["config", "path"]), true)["result"],
         json!(destination.join("config.json"))
     );
-    value(
+    bounded_value(
         f.command(false)
             .args(["config", "directory"])
-            .arg(&destination)
-            .output()
-            .unwrap(),
+            .arg(&destination),
         true,
     );
     let selector = fs::read(f.root.join("config-location.json")).unwrap();
     let blocked = f.base.join("blocked");
     fs::create_dir(&blocked).unwrap();
     fs::write(blocked.join("config.json"), b"preserve").unwrap();
-    value(
-        f.command(false)
-            .args(["config", "directory"])
-            .arg(&blocked)
-            .output()
-            .unwrap(),
+    bounded_value(
+        f.command(false).args(["config", "directory"]).arg(&blocked),
         false,
     );
     assert_eq!(fs::read(blocked.join("config.json")).unwrap(), b"preserve");
@@ -268,7 +284,24 @@ fn offline_cli_relocation_retains_source_and_refuses_existing_target() {
         fs::read(f.root.join("config-location.json")).unwrap(),
         selector
     );
+    let fresh = Fixture::new();
+    fresh.source();
+    let existing = fresh.base.join("Synced vault with spaces/.appdata/ruycast");
+    fs::create_dir_all(&existing).unwrap();
+    let mut authored = include_bytes!("../../config/default.json").to_vec();
+    authored.push(b'\n');
+    fs::write(existing.join("config.json"), &authored).unwrap();
+    bounded_value(
+        fresh
+            .command(false)
+            .args(["config", "directory"])
+            .arg(&existing),
+        false,
+    );
+    assert_eq!(fs::read(existing.join("config.json")).unwrap(), authored);
+    assert!(!fresh.root.join("config-location.json").exists());
 }
+
 #[test]
 fn missing_invalid_and_overridden_sources_fail_before_creation() {
     for invalid in [false, true] {
