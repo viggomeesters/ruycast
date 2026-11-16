@@ -431,21 +431,44 @@ fn in_place_edit_is_seen_by_five_second_fallback() {
 }
 #[test]
 fn external_selector_rebinds_observation_to_portable_directory() {
-    let host = host(true);
-    let portable = host.base.join("portable");
-    fs::create_dir(&portable).unwrap();
-    fs::set_permissions(&portable, fs::Permissions::from_mode(0o700)).unwrap();
-    fs::write(
-        portable.join("config.json"),
-        serde_json::to_vec(&default_config()).unwrap(),
+    let mut host = host(false);
+    let mut stale = ruycast_native::profile::ConfigStore::open(
+        ruycast_native::profile::ProfilePaths::new(host.profile.clone(), host.base.clone(), None),
     )
     .unwrap();
+    let original = fs::read(&host.config).unwrap();
+    host.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(5));
+    let portable = host.base.join("Synced vault with spaces/.appdata/ruycast");
+    fs::create_dir_all(&portable).unwrap();
+    fs::set_permissions(&portable, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::write(portable.join("config.json"), &original).unwrap();
     host.replace(
         &json!({"directory":portable}),
         Some(&host.profile.join("config-location.json")),
     );
-    host.wait(|s| s["configPath"] == portable.join("config.json").to_str().unwrap());
     let mut changed = default_config();
+    changed["clipboard"]["limit"] = json!(51);
+    let error = match stale.save(&changed) {
+        Ok(_) => panic!("stale selected-file owner must refuse the write"),
+        Err(error) => error,
+    };
+    assert!(error.contains("Configuration changed"), "{error}");
+    assert_eq!(stale.file, host.config);
+    assert_eq!(stale.snapshot(), original);
+    assert_eq!(fs::read(portable.join("config.json")).unwrap(), original);
+    assert_eq!(fs::read(&host.config).unwrap(), original);
+    // The Rust host intentionally adopts a valid selector. The frozen Swift
+    // test's immediate CLI refusal/old host path are not timing-independent here.
+    host.wait(|s| s["configPath"] == portable.join("config.json").to_str().unwrap());
+    assert_eq!(fs::read(portable.join("config.json")).unwrap(), original);
+    assert_eq!(
+        host.cli(&["config", "set", "clipboard.limit", "51"])["ok"],
+        true
+    );
+    let mut changed: Value =
+        serde_json::from_slice(&fs::read(portable.join("config.json")).unwrap()).unwrap();
+    assert_eq!(changed["clipboard"]["limit"], 51);
+    assert_eq!(fs::read(&host.config).unwrap(), original);
     changed["theme"] = json!("light");
     host.replace(&changed, Some(&portable.join("config.json")));
     host.wait(|s| s["theme"] == "light");
@@ -453,7 +476,14 @@ fn external_selector_rebinds_observation_to_portable_directory() {
         serde_json::from_slice::<Value>(&fs::read(&host.config).unwrap()).unwrap(),
         default_config()
     );
+    assert_eq!(fs::read(&host.config).unwrap(), original);
+    assert_eq!(
+        unsafe { libc::kill(host.process.as_ref().unwrap().id() as i32, libc::SIGTERM) },
+        0
+    );
+    host.wait_exit(Duration::from_secs(6), false);
 }
+
 #[test]
 fn selector_size_bound_and_recovery_keep_valid_state() {
     let host = host(true);
