@@ -82,7 +82,14 @@ fn wait_file(host: &Bridge, name: &str) {
 }
 
 fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
-    configured_host(command(target), flags, clipboard, Entry::HeadlessTest, true)
+    configured_host(
+        command(target),
+        flags,
+        clipboard,
+        Entry::HeadlessTest,
+        true,
+        None,
+    )
 }
 fn command(target: &str) -> Value {
     json!({"id":"snippet.fixture", "title":"Snippet Fixture", "kind":"snippet", "target":target, "aliases":["snipfixture"]})
@@ -95,7 +102,21 @@ fn hidden_host_options(target: &str, flags: &[&str], complete: bool) -> Bridge {
 }
 fn hidden_command_host(command: Value, flags: &[&str], complete: bool) -> Bridge {
     let host = Bridge {
-        host: configured_host(command, flags, None, Entry::HiddenTest, complete),
+        host: configured_host(command, flags, None, Entry::HiddenTest, complete, None),
+    };
+    host.settled(|_| true);
+    host
+}
+fn hidden_host_dispatch(target: &str, flags: &[&str], dispatch_ms: u64) -> Bridge {
+    let host = Bridge {
+        host: configured_host(
+            command(target),
+            flags,
+            None,
+            Entry::HiddenTest,
+            true,
+            Some(dispatch_ms),
+        ),
     };
     host.settled(|_| true);
     host
@@ -106,6 +127,7 @@ fn configured_host(
     clipboard: Option<&str>,
     entry: Entry,
     complete: bool,
+    dispatch_ms: Option<u64>,
 ) -> Host {
     let mut host = Host::new(Config::current(), false);
     let original = std::env::var_os("RUYCAST_TEST_SNIPPET_EFFECTS_SDK")
@@ -150,6 +172,12 @@ fn configured_host(
     if complete {
         host.env
             .insert("RUYCAST_NATIVE_TEST_SNIPPET".into(), "1".into());
+    }
+    if let Some(dispatch_ms) = dispatch_ms {
+        host.env.insert(
+            "RUYCAST_NATIVE_TEST_DISPATCH_MS".into(),
+            dispatch_ms.to_string().into(),
+        );
     }
     if matches!(entry, Entry::HiddenTest) {
         host.env
@@ -316,6 +344,48 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
             .map(|key| if *key == 9 { 1 << 20 } else { 0 })
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn blocked_main_sdk_retains_ticket_capacity_after_worker_expiry() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for (phase, committed) in [("prepare", false), ("write", true)] {
+        let flag = format!("hold-{phase}");
+        let host = hidden_host_dispatch("Owned", &[&flag], 350);
+        let mut request = HeldRequest::new(&host, json!({"op":"execute","id":"snipfixture"}));
+        wait_file(&host, &format!("{phase}-entered"));
+        assert_eq!(host.rpc(&json!({"op":"status"}))["ok"], true);
+        let result = request.response(Duration::from_secs(2));
+        assert_eq!(result["ok"], false);
+        assert_eq!(
+            result
+                .get("actionCompleted")
+                .cloned()
+                .unwrap_or(json!(false)),
+            json!(committed)
+        );
+        let pending = host.wait(|status| status["snippetRequestsRunning"] == 0);
+        assert_eq!(pending["snippetTransactionsPending"], 1);
+        request.release();
+        let retired = host.wait(|status| status["snippetTransactionsPending"] == 0);
+        let trace = trace(&host);
+        assert!(!trace.iter().any(|event| event["phase"] == "snippet-post"));
+        if !committed {
+            assert!(!trace.iter().any(|event| event["phase"] == "snippet-write"));
+        }
+        let usage = host.cli(&["usage"]);
+        assert!(!usage["result"]
+            .as_object()
+            .unwrap()
+            .contains_key("snippet.fixture"));
+        save(
+            &format!("held-ticket-{phase}"),
+            &json!({"result":result,"pending":pending,"retired":retired,"usage":usage}),
+            &trace,
+        );
+    }
 }
 
 #[test]
