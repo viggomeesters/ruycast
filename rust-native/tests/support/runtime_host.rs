@@ -285,9 +285,16 @@ impl Host {
         self.start_entry(Entry::HeadlessTest);
     }
     pub fn start_entry(&mut self, entry: Entry) {
-        let (argument, timeout) = match entry {
-            Entry::HeadlessTest => ("--headless-test", Duration::from_secs(6)),
-            Entry::HiddenTest => ("--native-hidden", Duration::from_secs(8)),
+        let timeout = match entry {
+            Entry::HeadlessTest => Duration::from_secs(6),
+            Entry::HiddenTest => Duration::from_secs(8),
+        };
+        self.start_entry_with_timeout(entry, timeout);
+    }
+    pub fn start_entry_with_timeout(&mut self, entry: Entry, timeout: Duration) {
+        let argument = match entry {
+            Entry::HeadlessTest => "--headless-test",
+            Entry::HiddenTest => "--native-hidden",
         };
         assert!(self.process.is_none());
         let mut child = self

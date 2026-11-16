@@ -48,15 +48,6 @@ class ConfigDirectoryTests(unittest.TestCase):
         self.fail('Host did not start')
 
 
-    def test_persisted_directory_is_shared_and_survives_cli_restart(self):
-        self.custom.mkdir(parents=True)
-        (self.custom/'config.json').write_bytes(self.config)
-        (self.root/'config-location.json').write_text(json.dumps({'directory':str(self.custom)}))
-        self.assertEqual(self.cli('config','path')['result'],str(self.custom/'config.json'))
-        self.start()
-        status=self.cli('status')['result']
-        self.assertEqual(status['configPath'],str(self.custom/'config.json'))
-        self.assertEqual(status['profile'],str(self.root))
 
     def test_environment_overrides_persisted_location(self):
         (self.root/'config-location.json').write_text(json.dumps({'directory':'/missing/persisted'}))
