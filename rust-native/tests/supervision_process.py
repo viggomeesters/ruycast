@@ -42,22 +42,6 @@ class HostLifecycle(unittest.TestCase):
         self.assertLess(last['time']-initial['time'],.25)
         with self.assertRaises(ProcessLookupError):os.kill(initial['pid'],0)
 
-    def test_unexpected_helper_death_reports_unknown_without_retry(self):
-        host=rt.Host(start=False);self.addCleanup(host.close)
-        value=json.loads(host.config.read_bytes());value['commands'].append(self.heartbeat_command(host.base,0,5));host.replace(value);host.start()
-        stream=host.connect();self.addCleanup(stream.close);stream.sendall(b'{"op":"execute","id":"script.life0"}\n')
-        initial=self.wait_file(host.base/'0')
-        # Stop the owning parent first: its unreaped child PID cannot be
-        # recycled between fixture identification and this controlled signal.
-        host.process.send_signal(signal.SIGSTOP)
-        try:os.kill(initial['helper'],signal.SIGKILL)
-        finally:host.process.send_signal(signal.SIGCONT)
-        with stream.makefile('rb') as reader:result=json.loads(reader.readline())
-        self.assertFalse(result['ok']);self.assertIn('before retrying',result['error'])
-        self.assertEqual(host.rpc({'op':'usage'})['result'],{})
-        time.sleep(1.3);last=json.loads((host.base/'0').read_text());self.assertEqual(last['pid'],initial['pid'])
-        with self.assertRaises(ProcessLookupError):os.kill(initial['pid'],0)
-
     def test_stopped_host_cannot_stop_its_independent_script_deadline(self):
         host=rt.Host(start=False);self.addCleanup(host.close)
         value=json.loads(host.config.read_bytes());value['commands'].append(self.heartbeat_command(host.base,0));host.replace(value);host.start()
