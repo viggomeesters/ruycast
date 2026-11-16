@@ -59,14 +59,4 @@ class ClipboardHistory(unittest.TestCase):
         (h.profile/'clipboard-preview-hold').unlink();time.sleep(.15);self.capture(h,f'image-{width}-{theme}')
         image=self.items(h)[0];(h.profile/image['dataFile']).unlink()
         h.probe('query',query='no-match');h.settled();h.probe('query',query='Image');h.settled();time.sleep(.15);error=self.capture(h,f'error-{width}-{theme}');self.assertTrue(any('unavailable' in t.lower() for t in error['screenText']))
- def test_native_preferences_save_is_revision_guarded_and_validated(self):
-    h=self.host();self.assertTrue(h.rpc(dict(op='show',mode='settings'))['ok'])
-    h.wait(lambda s:s['managementUI']['visible'] and s['managementUI']['revision']==s['managementUI']['appliedRevision'])
-    def probe(action,**fields):
-        response=h.rpc(dict(op='native.test',surface='settings',action=action,**fields));self.assertTrue(response['ok'],response);return response['result']
-    probe('clipboard-preferences');h.wait(lambda s:s['managementUI']['tab']=='clipboard');time.sleep(.05)
-    view=probe('screenshot');shutil.copy2(h.profile/'native-settings-probe.png',OUT/'preferences-light.png');(OUT/'preferences-light.json').write_text(json.dumps(view,indent=2))
-    before=json.loads(h.config.read_text());probe('clipboard-preferences-save',limit=0);time.sleep(.15);self.assertEqual(json.loads(h.config.read_text()),before)
-    probe('clipboard-preferences-save',limit=12,retentionDays=7,excludedApps=['dev.fixture.private']);h.wait(lambda s:s['configurationRevision']>0 and not s['configurationUpdating'])
-    actual=json.loads(h.config.read_text())['clipboard'];self.assertEqual(actual['limit'],12);self.assertEqual(actual['retentionDays'],7);self.assertEqual(actual['excludedApps'],['dev.fixture.private'])
 if __name__=='__main__':unittest.main(verbosity=2)

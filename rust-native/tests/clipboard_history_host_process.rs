@@ -294,3 +294,60 @@ fn test_cli_import_export_search_copy_paste_delete_clear() {
     );
     assert_eq!(h.cli(&["clipboard", "clear"])["result"]["count"], 0);
 }
+
+fn settings_probe(h: &Bridge, action: &str, mut fields: Value) -> Value {
+    fields["op"] = json!("native.test");
+    fields["surface"] = json!("settings");
+    fields["action"] = json!(action);
+    let response = h.rpc(&fields);
+    assert_eq!(response["ok"], true, "{response}");
+    response["result"].clone()
+}
+#[test]
+fn test_native_preferences_save_is_revision_guarded_and_validated() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
+    let h = host(json!({}));
+    assert_eq!(h.rpc(&json!({"op":"show", "mode":"settings"}))["ok"], true);
+    h.wait(|s| {
+        s["managementUI"]["visible"] == true
+            && s["managementUI"]["revision"] == s["managementUI"]["appliedRevision"]
+    });
+    settings_probe(&h, "clipboard-preferences", json!({}));
+    h.wait(|s| s["managementUI"]["tab"] == "clipboard");
+    thread::sleep(Duration::from_millis(50));
+    let view = settings_probe(&h, "screenshot", json!({}));
+    let output = runtime_host::root().join("rust-native/target/clipboard-evidence");
+    fs::create_dir_all(&output).unwrap();
+    fs::copy(
+        h.profile.join("native-settings-probe.png"),
+        output.join("preferences-light.png"),
+    )
+    .unwrap();
+    fs::write(
+        output.join("preferences-light.json"),
+        serde_json::to_vec_pretty(&view).unwrap(),
+    )
+    .unwrap();
+    let before: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    settings_probe(&h, "clipboard-preferences-save", json!({"limit":0}));
+    thread::sleep(Duration::from_millis(150));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&fs::read(&h.config).unwrap()).unwrap(),
+        before
+    );
+    settings_probe(
+        &h,
+        "clipboard-preferences-save",
+        json!({"limit":12, "retentionDays":7, "excludedApps":["dev.fixture.private"]}),
+    );
+    h.wait(|s| {
+        s["configurationRevision"].as_u64().unwrap() > 0 && s["configurationUpdating"] == false
+    });
+    let actual: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    assert_eq!(actual["clipboard"]["limit"], 12);
+    assert_eq!(actual["clipboard"]["retentionDays"], 7);
+    assert_eq!(
+        actual["clipboard"]["excludedApps"],
+        json!(["dev.fixture.private"])
+    );
+}
