@@ -24,6 +24,14 @@ fn hash(path: &Path) -> String {
     format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
 }
 fn run_case(name: &str, operations: Value, final_caps: bool) -> Value {
+    run_case_with_trace(name, operations, 0, final_caps).0
+}
+fn run_case_with_trace(
+    name: &str,
+    operations: Value,
+    environment: u32,
+    final_caps: bool,
+) -> (Value, String) {
     let probe = Path::new(env!("CARGO_BIN_EXE_hid-probe"));
     assert!(probe.is_absolute() && probe.is_file());
     let artifact = std::env::var_os("RUYCAST_TEST_HID_SHIM")
@@ -61,7 +69,8 @@ fn run_case(name: &str, operations: Value, final_caps: bool) -> Value {
     let input = owned.0.join("input.json");
     fs::write(
         &input,
-        serde_json::to_vec(&json!({"operations":operations,"original":true,"env":0})).unwrap(),
+        serde_json::to_vec(&json!({"operations":operations,"original":true,"env":environment}))
+            .unwrap(),
     )
     .unwrap();
     let child = Command::new(probe)
@@ -86,7 +95,7 @@ fn run_case(name: &str, operations: Value, final_caps: bool) -> Value {
         fs::create_dir_all(&directory).unwrap();
         fs::write(PathBuf::from(directory).join(format!("hid-sdk-{name}.json")),serde_json::to_vec_pretty(&json!({"data":data,"trace":trace,"probe":{"path":probe,"sha256":hash(probe)},"sdk":{"path":artifact,"sha256":sdk_hash,"privateCopyHashChecked":true},"timeoutSeconds":10})).unwrap()).unwrap();
     }
-    data["rows"].clone()
+    (data["rows"].clone(), trace)
 }
 #[test]
 fn hyper_physical_down_up_flags_and_balanced_stop() {
@@ -236,4 +245,86 @@ fn scroll_and_mouse_cancel_modifier_taps_with_native_types() {
         rows.as_array().unwrap().last().unwrap()["actions"],
         json!([{"generation":1,"canonical":"ctrl+left-control","action":"tap"}])
     );
+}
+
+#[test]
+fn identical_plan_generation_preserves_held_physical_and_hardware() {
+    let (rows, trace) = run_case_with_trace(
+        "same-plan-generation",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+            {"op":"plan","hyper":true,"generation":2}, {"op":"refresh"},
+            {"op":"event","type":10,"key":0,"flags":0}
+        ]),
+        0,
+        false,
+    );
+    assert_eq!(
+        rows.as_array().unwrap().last().unwrap()["result"]["flags"],
+        HYPER
+    );
+    assert_eq!(trace.matches("hid-fixture:manager_create\n").count(), 1);
+}
+
+#[test]
+fn generated_events_pass_unmodified_and_secure_input_recovers() {
+    let rows = run_case(
+        "generated-secure-recovery",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+            {"op":"event","type":10,"key":0,"flags":1_u64<<16,"tag":0x5255535443415354_i64},
+            {"op":"env","value":1}, {"op":"event","type":10,"key":0,"flags":CMD|16},
+            {"op":"refresh"}, {"op":"env","value":0}, {"op":"refresh"}
+        ]),
+        false,
+    );
+    assert_eq!(rows[3]["result"]["flags"], 1_u64 << 16);
+    assert_eq!(rows[5]["result"]["flags"], CMD | 16);
+    assert_eq!(rows[6]["status"], "Paused during secure input");
+    assert_eq!(rows[8]["status"], "On");
+}
+
+#[test]
+fn off_sleep_and_environment_precedence_short_circuit_discovery() {
+    let (rows, trace) = run_case_with_trace(
+        "off-precedence",
+        json!([
+            {"op":"plan","hyper":false}, {"op":"refresh"}
+        ]),
+        15,
+        true,
+    );
+    assert_eq!(rows.as_array().unwrap().last().unwrap()["status"], "Off");
+    assert!(!trace.contains("hid-fixture:raycast"));
+    for (environment, expected) in [
+        (15, "Quit Raycast"),
+        (7, "Paused during secure"),
+        (6, "Allow Accessibility"),
+        (4, "Allow Input Monitoring"),
+    ] {
+        let (rows, _) = run_case_with_trace(
+            &format!("environment-{environment}"),
+            json!([
+                {"op":"plan","hyper":true}, {"op":"refresh"}
+            ]),
+            environment,
+            true,
+        );
+        assert!(rows.as_array().unwrap().last().unwrap()["status"]
+            .as_str()
+            .unwrap()
+            .contains(expected));
+    }
+    let (rows, trace) = run_case_with_trace(
+        "sleep-precedence",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"sleep","value":true}, {"op":"refresh"}
+        ]),
+        0,
+        true,
+    );
+    assert_eq!(rows.as_array().unwrap().last().unwrap()["status"], "Paused");
+    assert!(!trace.contains("hid-fixture:raycast"));
 }
