@@ -273,18 +273,6 @@ class SnippetEffects(unittest.TestCase):
         h.probe('snippet-fixture-control',operation=2);self.done(h);h.settled()
         self.assertEqual([r['key'] for r in self.posts(h)],[9,9]);self.assertFalse(self.notice(h,'snippet-cursor-target-changed')['success'])
 
-    def test_unchanged_cli_on_gui_host_receives_original_success_shape_after_event_phase(self):
-        h=self.host(command('PRIVATE [Guide](https://example.com)',snippetOutput='teams'))
-        self.show(h)
-        result=h.cli('run','snipfixture')
-        self.assertEqual(result,dict(ok=True,result=dict(state='pasted')))
-        self.assert_keys(self.posts(h),[9,9])
-        self.assertEqual(self.writes(h)[0]['text'],'PRIVATE Guide')
-        self.assertIn('<p style="margin:0">PRIVATE <a href=',self.writes(h)[0]['html'])
-        raw=(h.profile/'command-log.json').read_text()
-        self.assertNotIn('PRIVATE',raw);self.assertNotIn('https://example.com',raw)
-        self.assertEqual(h.cli('usage')['result']['snippet.fixture'],1)
-
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

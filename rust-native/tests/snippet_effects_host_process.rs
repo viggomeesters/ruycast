@@ -20,20 +20,26 @@ use std::{
 static HOST_SCENARIOS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
-    configured_host(target, flags, clipboard, Entry::HeadlessTest, true)
+    configured_host(command(target), flags, clipboard, Entry::HeadlessTest, true)
+}
+fn command(target: &str) -> Value {
+    json!({"id":"snippet.fixture", "title":"Snippet Fixture", "kind":"snippet", "target":target, "aliases":["snipfixture"]})
 }
 fn hidden_host(target: &str) -> Bridge {
     hidden_host_options(target, &[], true)
 }
 fn hidden_host_options(target: &str, flags: &[&str], complete: bool) -> Bridge {
+    hidden_command_host(command(target), flags, complete)
+}
+fn hidden_command_host(command: Value, flags: &[&str], complete: bool) -> Bridge {
     let host = Bridge {
-        host: configured_host(target, flags, None, Entry::HiddenTest, complete),
+        host: configured_host(command, flags, None, Entry::HiddenTest, complete),
     };
     host.settled(|_| true);
     host
 }
 fn configured_host(
-    target: &str,
+    command: Value,
     flags: &[&str],
     clipboard: Option<&str>,
     entry: Entry,
@@ -60,10 +66,7 @@ fn configured_host(
         Sha256::digest(fs::read(&copy).unwrap())
     );
     let mut config = default_config();
-    config["commands"].as_array_mut().unwrap().push(json!({
-        "id":"snippet.fixture", "title":"Snippet Fixture", "kind":"snippet",
-        "target":target, "aliases":["snipfixture"]
-    }));
+    config["commands"].as_array_mut().unwrap().push(command);
     host.replace(&config, None);
     for (key, value) in [
         ("DYLD_INSERT_LIBRARIES", copy.into_os_string()),
@@ -142,6 +145,83 @@ fn configured_host(
     host
 }
 
+fn show(host: &Bridge) {
+    assert_eq!(
+        host.rpc(&json!({"op":"show","query":"snipfixture"}))["ok"],
+        true
+    );
+    host.settled(|status| status["nativeUI"]["visible"] == true);
+}
+
+fn assert_keys(posts: &[&Value], keys: &[u64]) {
+    assert_eq!(
+        posts
+            .iter()
+            .map(|event| event["key"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        keys
+    );
+    assert!(posts.iter().all(|event| event["mainThread"] == true
+        && event["pid"] == 4260
+        && event["tag"] == 0x52554859504552_u64));
+    assert_eq!(
+        posts
+            .iter()
+            .map(|event| event["down"].as_bool().unwrap())
+            .collect::<Vec<_>>(),
+        (0..posts.len())
+            .map(|index| index % 2 == 0)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        posts
+            .iter()
+            .map(|event| event["flags"].as_u64().unwrap())
+            .collect::<Vec<_>>(),
+        keys.iter()
+            .map(|key| if *key == 9 { 1 << 20 } else { 0 })
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn unchanged_cli_on_gui_host_receives_original_success_shape_after_event_phase() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut command = command("PRIVATE [Guide](https://example.com)");
+    command["snippetOutput"] = json!("teams");
+    let host = hidden_command_host(command, &[], true);
+    show(&host);
+    let result = host.cli(&["run", "snipfixture"]);
+    assert_eq!(result, json!({"ok":true,"result":{"state":"pasted"}}));
+    let trace = trace(&host);
+    let posts: Vec<_> = trace
+        .iter()
+        .filter(|event| event["phase"] == "snippet-post")
+        .collect();
+    assert_keys(&posts, &[9, 9]);
+    let writes: Vec<_> = trace
+        .iter()
+        .filter(|event| event["phase"] == "snippet-write")
+        .collect();
+    assert_eq!(writes[0]["text"], "PRIVATE Guide");
+    assert!(writes[0]["html"]
+        .as_str()
+        .unwrap()
+        .contains("<p style=\"margin:0\">PRIVATE <a href="));
+    let raw = fs::read_to_string(host.profile.join("command-log.json")).unwrap();
+    assert!(!raw.contains("PRIVATE"));
+    assert!(!raw.contains("https://example.com"));
+    let usage = host.cli(&["usage"]);
+    assert_eq!(usage["result"]["snippet.fixture"], 1);
+    save(
+        "gui-cli-private-payload",
+        &json!({"result":result,"usage":usage,"payloadAbsentFromCommandLog":true}),
+        &trace,
+    );
+}
+
 #[test]
 fn gui_missing_target_and_incomplete_fixture_never_mutate_board() {
     let _scenario = HOST_SCENARIOS
@@ -162,11 +242,7 @@ fn gui_missing_target_and_incomplete_fixture_never_mutate_board() {
         ),
     ] {
         let host = hidden_host_options("Plain", flags, complete);
-        assert_eq!(
-            host.rpc(&json!({"op":"show","query":"snipfixture"}))["ok"],
-            true
-        );
-        host.settled(|status| status["nativeUI"]["visible"] == true);
+        show(&host);
         let response = host.rpc(&json!({"op":"execute","id":"snipfixture"}));
         assert_eq!(response["ok"], false);
         assert!(response["error"].as_str().unwrap().contains(error));
