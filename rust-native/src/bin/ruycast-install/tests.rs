@@ -988,6 +988,24 @@ fn installer_owned_personal_adapter_installed_bytes_preserved_and_link_refused()
 }
 
 #[test]
+fn installer_owned_bundle_identity_refuses_unrelated_app_without_mutation() {
+    let f = Fixture::new();
+    let app = f.root.join("Rustcast.app");
+    stdfs::create_dir_all(app.join("Contents")).unwrap();
+    let path = app.join("Contents/Info.plist");
+    let before =
+        tools::plist_bytes(&json!({"CFBundleIdentifier":"org.unrelated.rustcast"})).unwrap();
+    stdfs::write(&path, &before).unwrap();
+    let mut runner = f.runner();
+    assert!(transaction::bundle(&app, OLD_ID, &mut runner)
+        .unwrap_err()
+        .contains("Unrelated app identity"));
+    assert!(app.exists());
+    assert_eq!(stdfs::read(path).unwrap(), before);
+    assert!(!runner.stopped());
+}
+
+#[test]
 fn installer_owned_profile_lock_is_exclusive_and_released_after_owner_drop() {
     let f = Fixture::new();
     let path = f.root.join("instance.lock");

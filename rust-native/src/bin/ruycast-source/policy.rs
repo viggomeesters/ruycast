@@ -124,7 +124,6 @@ Tests/test_cli.py
 Tests/test_clipboard_import.py
 Tests/test_config_activation.py
 Tests/test_config_directory.py
-Tests/test_install_migration.py
 Tests/test_local_signing.py
 Tests/test_package_app.py
 Tests/test_private_storage.py
@@ -486,7 +485,6 @@ scripts/import-clipboard.py
 scripts/import-raycast.py
 scripts/install.py
 scripts/install.sh
-scripts/install_support.py
 scripts/local_signing.py
 scripts/package-app.py
 scripts/perf-probe.rs

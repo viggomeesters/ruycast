@@ -11,7 +11,7 @@ fn ensure(path: &Path) -> Result<()> {
     }
     Ok(())
 }
-fn bundle(path: &Path, id: &str, r: &mut dyn tools::Runner) -> Result<Option<Value>> {
+pub(super) fn bundle(path: &Path, id: &str, r: &mut dyn tools::Runner) -> Result<Option<Value>> {
     match std::fs::symlink_metadata(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(err(e)),
