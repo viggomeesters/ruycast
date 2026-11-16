@@ -14,6 +14,10 @@ path = "tests/fixtures/auto_quit_audio_probe.rs"
 required-features = ["test-tools"]
 
 [[bin]]
+name = "parity-ast"
+path = "src/bin/parity_ast.rs"
+
+[[bin]]
 name = "rust-only-policy"
 path = "src/bin/rust_only_policy.rs"
 

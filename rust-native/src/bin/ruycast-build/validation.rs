@@ -519,6 +519,15 @@ fn rust_policy_inputs(root: &Path, target: &str, copies: &BTreeMap<String, serde
     }
     Ok(inputs)
 }
+pub(super) fn parity_ast_snapshot(root:&Path,expected:&str)->Result<serde_json::Value> {
+    if expected.len()!=64||!expected.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)){return Err("Invalid expected AST parser digest.".into());}
+    let bytes=regular_bytes(&root.join(".build/delivery-tools/debug/parity-ast"))?;
+    if format!("{:x}",Sha256::digest(&bytes))!=expected{return Err("AST parser build artifact changed before binding.".into());}
+    let artifact=format!(".build/delivery-tools/parity-ast-artifacts/{expected}");
+    publish_rust_policy_snapshot(&root.join(&artifact),&bytes,expected,||Ok(()))?;
+    if digest(&root.join(&artifact))?!=expected{return Err("AST parser snapshot changed.".into());}
+    Ok(serde_json::json!({"artifact":artifact,"sha256":expected}))
+}
 pub(super) fn publish_rust_policy_snapshot(path: &Path, bytes: &[u8], sha: &str, before_link: impl FnOnce() -> Result<()>) -> Result<()> {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
@@ -2341,6 +2350,16 @@ mod tests {
         assert_eq!(fs::metadata(&path).unwrap().ino(),winner.get());
         assert_eq!(fs::read(&path).unwrap(),bytes);
         assert_eq!(fs::read_dir(path.parent().unwrap()).unwrap().count(),1);
+    }
+    #[test]
+    fn parity_ast_snapshot_refuses_mutable_drift_and_source_or_snapshot_links() {
+        use std::os::unix::fs::symlink;
+        let fixture=super::super::tests::Fixture::new();let root=&fixture.0;
+        let source=root.join(".build/delivery-tools/debug/parity-ast");fs::create_dir_all(source.parent().unwrap()).unwrap();fs::write(&source,b"owned parser fixture").unwrap();let sha=digest(&source).unwrap();
+        let binding=parity_ast_snapshot(root,&sha).unwrap();let snapshot=root.join(binding["artifact"].as_str().unwrap());
+        fs::write(&source,b"changed parser fixture").unwrap();assert!(parity_ast_snapshot(root,&sha).is_err());
+        fs::remove_file(&source).unwrap();let other=root.join("owned-parser");fs::write(&other,b"owned parser fixture").unwrap();symlink(&other,&source).unwrap();assert!(parity_ast_snapshot(root,&sha).is_err());
+        fs::remove_file(&source).unwrap();fs::write(&source,b"owned parser fixture").unwrap();fs::remove_file(&snapshot).unwrap();symlink(&other,&snapshot).unwrap();assert!(parity_ast_snapshot(root,&sha).is_err());assert_eq!(fs::read(&other).unwrap(),b"owned parser fixture");
     }
     #[test]
     fn rust_policy_matrix_output_requires_successful_actual_json() {
