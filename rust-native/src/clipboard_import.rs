@@ -1,6 +1,5 @@
-//! Pure text/link export normalization. No history, pasteboard, filesystem or
-//! transport access. File/image normalization and the importer caller remain
-//! Python-owned until their independent migration; reject those rows here.
+//! Export normalization with file metadata only: never read referenced contents,
+//! create image pixels, access the pasteboard or write clipboard history.
 use chrono::{DateTime, Datelike, SecondsFormat, Timelike, Utc};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -18,10 +17,70 @@ fn canonical_numbers(value: &Value) -> bool {
         _ => true,
     }
 }
+#[derive(Clone, Copy)]
+enum Asset {
+    Missing,
+    File,
+    Other,
+}
+fn asset(path: &str) -> Asset {
+    match std::fs::metadata(path) {
+        Ok(info) => {
+            if info.is_file() {
+                Asset::File
+            } else {
+                Asset::Other
+            }
+        }
+        // pathlib's exists/is_file (the active Python 3.14 route) return false
+        // for OSError/ValueError, including inaccessible paths and NUL images.
+        Err(_) => Asset::Missing,
+    }
+}
+// pathlib's lexical POSIX form removes empty/dot segments, preserves '..' and
+// exactly two leading slashes. It never resolves a symlink or opens a target.
+fn posix_path(raw: &str) -> String {
+    let prefix = if raw.starts_with("//") && !raw.starts_with("///") {
+        "//"
+    } else if raw.starts_with('/') {
+        "/"
+    } else {
+        ""
+    };
+    let parts: Vec<_> = raw
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect();
+    let path = format!("{prefix}{}", parts.join("/"));
+    if path.is_empty() {
+        ".".into()
+    } else {
+        path
+    }
+}
+fn file_uri(path: &str) -> String {
+    let mut uri = String::from("file://");
+    for byte in path.bytes() {
+        if byte.is_ascii_alphanumeric() || b"/_.-~".contains(&byte) {
+            uri.push(byte as char);
+        } else {
+            use std::fmt::Write;
+            write!(uri, "%{byte:02X}").unwrap();
+        }
+    }
+    uri
+}
 
-/// Initial text-only building block, not a replacement for the Python importer.
+/// Initial normalization building block, not a replacement for the Python importer.
 /// Dates currently use RFC3339; broader Python fromisoformat inputs remain open.
-pub fn normalize_text(data: &Value, max_text_bytes: i64) -> Result<Normalized, String> {
+pub fn normalize(data: &Value, max_text_bytes: i64) -> Result<Normalized, String> {
+    normalize_with_metadata(data, max_text_bytes, asset)
+}
+fn normalize_with_metadata(
+    data: &Value,
+    max_text_bytes: i64,
+    mut metadata: impl FnMut(&str) -> Asset,
+) -> Result<Normalized, String> {
     let empty = json!({});
     let package = data
         .get("builtin_package_clipboardHistory")
@@ -57,11 +116,30 @@ pub fn normalize_text(data: &Value, max_text_bytes: i64) -> Result<Normalized, S
             *counts.get_mut("invalid").unwrap() += 1;
             continue;
         }
-        match row.get("category").and_then(Value::as_str) {
-            Some("file" | "image") => {
-                return Err("File/image normalization is not migrated.".into())
+        let category = row.get("category").and_then(Value::as_str);
+        match category {
+            Some("image") => {
+                let path = match row.get("filePath") {
+                    None => "",
+                    Some(Value::String(path)) => path,
+                    _ => {
+                        *counts.get_mut("invalid").unwrap() += 1;
+                        continue;
+                    }
+                };
+                let state = if path.starts_with('/') {
+                    metadata(&posix_path(path))
+                } else {
+                    Asset::Missing
+                };
+                let key = match state {
+                    Asset::File => "unsupportedImageAssets",
+                    _ => "missingImageAssets",
+                };
+                *counts.get_mut(key).unwrap() += 1;
+                continue;
             }
-            Some("text" | "link") => {}
+            Some("text" | "link" | "file") => {}
             _ => {
                 *counts.get_mut("unsupported").unwrap() += 1;
                 continue;
@@ -93,6 +171,26 @@ pub fn normalize_text(data: &Value, max_text_bytes: i64) -> Result<Normalized, S
         }
         let canonical = serde_json::to_vec(row).map_err(|error| error.to_string())?;
         let id = format!("raycast-{:x}", Sha256::digest(canonical));
+        let mut item = json!({"id":id,"text":text,"source":source,"date":date.with_timezone(&Utc).to_rfc3339_opts(SecondsFormat::Secs,true)});
+        if category == Some("file") {
+            let Some(path) = row
+                .get("filePath")
+                .and_then(Value::as_str)
+                .filter(|path| path.starts_with('/') && !path.contains(['\0', '\n']))
+            else {
+                *counts.get_mut("invalid").unwrap() += 1;
+                continue;
+            };
+            let path = posix_path(path);
+            if matches!(metadata(&path), Asset::Missing) {
+                *counts.get_mut("missingFileReferences").unwrap() += 1;
+            }
+            let name = path.rsplit('/').next().unwrap();
+            item["text"] = json!(format!("Files: {name}"));
+            item["contentType"] = json!("files");
+            item["fileURLs"] = json!([file_uri(&path)]);
+        }
+        let text = item["text"].as_str().unwrap();
         if text.is_empty()
             || max_text_bytes < 0
             || text.len() as u64 > max_text_bytes as u64
@@ -105,8 +203,14 @@ pub fn normalize_text(data: &Value, max_text_bytes: i64) -> Result<Normalized, S
             *counts.get_mut("duplicate").unwrap() += 1;
             continue;
         }
-        items.push(json!({"id":id,"text":text,"source":source,"date":date.with_timezone(&Utc).to_rfc3339_opts(SecondsFormat::Secs,true)}));
-        *counts.get_mut("text").unwrap() += 1;
+        items.push(item);
+        *counts
+            .get_mut(if category == Some("file") {
+                "files"
+            } else {
+                "text"
+            })
+            .unwrap() += 1;
     }
     items.sort_by(|left, right| {
         (right["date"].as_str(), right["id"].as_str())
@@ -128,11 +232,11 @@ mod tests {
     fn text_stable_identity_dedup_and_date() {
         let input = data(vec![row(), row()]);
         let unchanged = input.clone();
-        let result = normalize_text(&input, 100_000).unwrap();
+        let result = normalize(&input, 100_000).unwrap();
         assert_eq!(result.items.len(), 1);
         assert_eq!(
             result.items,
-            normalize_text(&data(vec![row()]), 100_000).unwrap().items
+            normalize(&data(vec![row()]), 100_000).unwrap().items
         );
         assert_eq!(result.counts["duplicate"], 1);
         assert_eq!(result.items[0]["date"], "2026-10-25T00:00:00Z");
@@ -148,7 +252,7 @@ mod tests {
         invalid["createdAt"] = json!("bad");
         let mut unsupported = row();
         unsupported["category"] = json!("encrypted");
-        let result = normalize_text(&data(vec![invalid, unsupported, row()]), 1).unwrap();
+        let result = normalize(&data(vec![invalid, unsupported, row()]), 1).unwrap();
         assert!(result.items.is_empty());
         assert_eq!(
             (
@@ -160,11 +264,81 @@ mod tests {
         );
     }
     #[test]
+    fn files_are_references_and_missing_images_explicit() {
+        let mut file = row();
+        file["category"] = json!("file");
+        file["filePath"] = json!("/nonexistent/synthetic file.txt");
+        let mut image = row();
+        image["category"] = json!("image");
+        image["filePath"] = json!("/nonexistent/synthetic.png");
+        let result =
+            normalize_with_metadata(&data(vec![file, image]), 100_000, |_| Asset::Missing).unwrap();
+        assert_eq!(
+            result.items[0]["fileURLs"],
+            json!(["file:///nonexistent/synthetic%20file.txt"])
+        );
+        assert_eq!(result.counts["missingImageAssets"], 1);
+        assert_eq!(result.counts["files"], 1);
+        assert_eq!(result.counts["missingFileReferences"], 1);
+        assert_eq!(result.items[0]["text"], "Files: synthetic file.txt");
+        assert_eq!(result.items[0]["contentType"], "files");
+    }
+    #[test]
+    fn file_and_image_metadata_never_substitutes_contents_or_unsafe_paths() {
+        let file = |path: Value| {
+            let mut value = row();
+            value["category"] = json!("file");
+            value["filePath"] = path;
+            value
+        };
+        let image = |path: Value| json!({"category":"image","filePath":path});
+        let rows = vec![
+            file(json!("//owned//./Å %#?.txt/")),
+            file(json!("relative")),
+            file(json!("/bad\nname")),
+            file(json!("/bad\0name")),
+            file(Value::Null),
+            image(json!("relative.png")),
+            image(json!("/image")),
+            image(json!("/directory")),
+            image(Value::Null),
+        ];
+        let result = normalize_with_metadata(&data(rows), 100_000, |path| match path {
+            "//owned/Å %#?.txt" => Asset::Other,
+            "/image" => Asset::File,
+            "/directory" => Asset::Other,
+            _ => panic!("unexpected metadata probe: {path}"),
+        })
+        .unwrap();
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(
+            result.items[0]["fileURLs"],
+            json!(["file:////owned/%C3%85%20%25%23%3F.txt"])
+        );
+        assert_eq!(result.counts["invalid"], 5);
+        assert_eq!(result.counts["unsupportedImageAssets"], 1);
+        assert_eq!(result.counts["missingImageAssets"], 2);
+        assert_eq!(result.counts["missingFileReferences"], 0);
+        let nul = normalize(
+            &data(vec![file(json!("/bad\0name")), image(json!("/bad\0name"))]),
+            100_000,
+        )
+        .unwrap();
+        assert_eq!(nul.counts["invalid"], 1);
+        assert_eq!(nul.counts["missingImageAssets"], 1);
+        assert!(nul.items.is_empty());
+        let small =
+            normalize_with_metadata(&data(vec![file(json!("/missing"))]), 1, |_| Asset::Missing)
+                .unwrap();
+        assert_eq!(small.counts["oversized"], 1);
+        assert_eq!(small.counts["missingFileReferences"], 1);
+    }
+    #[test]
     fn floating_metadata_never_changes_python_identity_silently() {
         for literal in ["1e20", "1e-7", "1.0", "-0.0"] {
             let mut value = row();
             value["extra"] = serde_json::from_str(literal).unwrap();
-            assert!(normalize_text(&data(vec![value]), 100_000)
+            assert!(normalize(&data(vec![value]), 100_000)
                 .err()
                 .unwrap()
                 .contains("numeric metadata"));
@@ -184,7 +358,7 @@ mod tests {
             value["createdAt"] = json!(date);
             rows.push(value);
         }
-        let result = normalize_text(&data(rows), 100_000).unwrap();
+        let result = normalize(&data(rows), 100_000).unwrap();
         assert_eq!(result.counts["invalid"], 5);
         assert_eq!(result.items.len(), 1);
         assert_eq!(result.items[0]["date"], "2026-10-25T00:00:00Z");
