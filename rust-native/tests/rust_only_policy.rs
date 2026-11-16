@@ -218,3 +218,85 @@ fn non_utf8_cli_root_is_a_json_refusal() {
     );
     assert_eq!(output.status.code(), Some(2));
 }
+
+#[test]
+fn test_legacy_change_addition_removal_and_package_edit_fail() {
+    let mut fixtures = Vec::new();
+    for mutation in ["change", "add", "remove", "package"] {
+        let fixture = Fixture::new();
+        match mutation {
+            "change" => fixture.write("Sources/Legacy.swift", "// changed\n"),
+            "add" => fixture.write("Sources/NewHost.swift", "// new\n"),
+            "remove" => fs::remove_file(fixture.0.join("Sources/Legacy.swift")).unwrap(),
+            _ => fixture.write("Package.swift", "// new Swift target\n"),
+        }
+        assert_eq!(verify(&fixture.0)["ok"], false, "{mutation}");
+        fixtures.push(fixture);
+    }
+}
+
+#[test]
+fn test_non_rust_runtime_or_sidecar_host_fails() {
+    let mut fixtures = Vec::new();
+    for path in [
+        "rust-native/src/bridge.swift",
+        "rust-native/src/bridge.m",
+        "rust/src/bridge.py",
+        "rust-native/NewHost.swift",
+        "rust-native/web/runtime.js",
+        "rust/NewHost.swift",
+        "rust-native/NewHost.rb",
+        "rust/NewHost.go",
+        "rust-native/NewHost.sh",
+    ] {
+        let fixture = Fixture::new();
+        fixture.write(path, "// forbidden product code\n");
+        assert_eq!(verify(&fixture.0)["ok"], false, "{path}");
+        fixtures.push(fixture);
+    }
+}
+
+#[test]
+fn test_symlink_and_missing_or_weakened_lock_fail_closed() {
+    use std::os::unix::fs::symlink;
+    // Match unittest cleanup: all five independent owned trees survive until completion.
+    let mut fixtures = Vec::new();
+    let fixture = Fixture::new();
+    let file = fixture.0.join("Sources/Legacy.swift");
+    let content = fs::read(&file).unwrap();
+    fs::remove_file(&file).unwrap();
+    let other = fixture.0.join("old.swift");
+    fs::write(&other, content).unwrap();
+    symlink(&other, &file).unwrap();
+    assert_eq!(verify(&fixture.0)["ok"], false);
+    fixtures.push(fixture);
+    let fixture = Fixture::new();
+    symlink(
+        fixture.0.join("rust/src/lib.rs"),
+        fixture.0.join("rust-native/src/alias.rs"),
+    )
+    .unwrap();
+    assert_eq!(verify(&fixture.0)["ok"], false);
+    fixtures.push(fixture);
+    let fixture = Fixture::new();
+    let external = fixture.0.join("foreign");
+    fs::create_dir(&external).unwrap();
+    fs::write(external.join("Host.swift"), "// own symlink fixture").unwrap();
+    symlink(&external, fixture.0.join("rust-native/host")).unwrap();
+    assert_eq!(verify(&fixture.0)["ok"], false);
+    fixtures.push(fixture);
+    let fixture = Fixture::new();
+    fs::remove_file(fixture.0.join("rust-native/swift-reference-lock.json")).unwrap();
+    assert_eq!(verify(&fixture.0)["ok"], false);
+    fixtures.push(fixture);
+    let fixture = Fixture::new();
+    let lock = fixture.0.join("rust-native/swift-reference-lock.json");
+    let mut value: Value = serde_json::from_slice(&fs::read(&lock).unwrap()).unwrap();
+    value["files"]
+        .as_object_mut()
+        .unwrap()
+        .remove("Package.swift");
+    fs::write(lock, serde_json::to_vec(&value).unwrap()).unwrap();
+    assert_eq!(verify(&fixture.0)["ok"], false);
+    fixtures.push(fixture);
+}
