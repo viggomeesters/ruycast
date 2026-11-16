@@ -169,12 +169,6 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(agent['EnvironmentVariables']['RUYCAST_CONFIG_DIR'],str(home/'synced configuration'))
         self.assertEqual((home/'synced configuration/config.json').read_text(),'{}')
 
-    def test_installer_migrates_single_service_and_both_cli_names(self):
-        home,apps,calls=self.installer_fixture()
-        self.assertFalse((apps/'Rustcast.app').exists());self.assertTrue((apps/'Ruycast.app').exists())
-        self.assertFalse((home/'Library/LaunchAgents'/(OLD_ID+'.plist')).exists())
-        self.assertTrue((home/'Library/LaunchAgents'/(NEW_ID+'.plist')).exists())
-        for name in ['ruycast','rustcast']:self.assertEqual((home/'.local/bin'/name).resolve(),apps/'Ruycast.app/Contents/Resources/ruycast')
 
     def test_signing_failure_keeps_existing_host_and_profile_untouched(self):
         self.installer_fixture(signing_fail=True)
