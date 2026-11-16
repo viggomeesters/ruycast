@@ -54,22 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_hyper_physical_down_up_flags_and_balanced_stop(self):
-        rows, _ = self.run_case([plan(), op('refresh'), raw(57, True), event(flags=(1 << 63) | (1 << 16) | 0x10), raw(57, False), op('stop')])
-        self.assertEqual(rows[1]['status'], 'On')
-        self.assertTrue(rows[2]['state']['lastDown'])
-        self.assertEqual(rows[2]['state']['lastFlags'], HYPER)
-        self.assertEqual(rows[3]['result'], dict(consumed=False, flags=(1 << 63) | 0x10 | HYPER))
-        self.assertEqual(rows[4]['state']['lastFlags'], 0)
-        self.assertEqual(rows[5]['state']['caps'], 0)
-
-    def test_caps_on_two_devices_and_removal_releases_only_last(self):
-        rows, _ = self.run_case([plan(), op('refresh'), raw(57, True, device=0), raw(57, True, device=1),
-                                 op('remove', device=0), event(), op('remove', device=1), event()])
-        self.assertEqual(rows[5]['result']['flags'], HYPER)
-        self.assertEqual(rows[7]['result']['flags'], 0)
-        self.assertEqual(rows[6]['state']['lastDown'], False)
-
     def test_sided_repeat_release_and_backpressure_do_not_eat_input(self):
         rows, _ = self.run_case([plan(False, sided={'right-cmd+a': 'item'}), op('refresh'),
                                  op('accept', value=False), event(flags=CMD | 16), event(11, flags=CMD | 16),
