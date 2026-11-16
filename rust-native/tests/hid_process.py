@@ -74,12 +74,6 @@ class HidSdk(unittest.TestCase):
             self.assertNotIn('hid-fixture:', result.stderr)
             self.assertNotIn('caps-fixture:', result.stderr)
 
-    def test_disabled_tap_notification_stops_and_refresh_recovers(self):
-        for notification in [0xffffffff, 0xfffffffe]:
-            rows, _ = self.run_case([plan(), op('refresh'), raw(57, True), event(notification), op('refresh')])
-            self.assertNotEqual(rows[3]['status'], 'On')
-            self.assertEqual(rows[4]['status'], 'On')
-            self.assertFalse(rows[4]['state']['lastDown'])
 
 
 if __name__ == '__main__':

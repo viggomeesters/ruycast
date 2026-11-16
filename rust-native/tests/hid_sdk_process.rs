@@ -570,3 +570,21 @@ fn gate_reentry_with_running_true_cannot_post_or_return_stale_hyper() {
     assert_eq!(last["result"], json!({"consumed":false,"flags":original}));
     assert_eq!(last["state"]["lastDown"], false);
 }
+
+#[test]
+fn disabled_tap_notification_stops_and_refresh_recovers() {
+    for notification in [0xffff_ffff_u32, 0xffff_fffe_u32] {
+        let rows = run_case(
+            &format!("tap-disabled-{notification}"),
+            json!([
+                {"op":"plan","hyper":true}, {"op":"refresh"},
+                {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+                {"op":"event","type":notification,"key":0,"flags":0}, {"op":"refresh"}
+            ]),
+            false,
+        );
+        assert_ne!(rows[3]["status"], "On");
+        assert_eq!(rows[4]["status"], "On");
+        assert_eq!(rows[4]["state"]["lastDown"], false);
+    }
+}
