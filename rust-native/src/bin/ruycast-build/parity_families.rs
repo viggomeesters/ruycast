@@ -101,6 +101,16 @@ fn assemble(root: &Path, groups: Vec<Family>, input: Input) -> Result<Vec<Value>
         Ok(row)
     }).collect()
 }
+pub(super) fn metadata(root: &Path) -> Result<(BTreeSet<String>, String)> {
+    let bytes = regular_bytes(&root.join(DEFINITIONS))?;
+    let groups = definitions(&bytes)?;
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let selectors = groups.into_iter().flat_map(|group| group.tests).collect();
+    if digest(&root.join(DEFINITIONS))? != hash {
+        return Err("Contract family definitions changed.".into());
+    }
+    Ok((selectors, hash))
+}
 pub(super) fn owners(root: &Path) -> Result<(BTreeMap<String, String>, String)> {
     let bytes = regular_bytes(&root.join(DEFINITIONS))?;
     let hash = format!("{:x}", Sha256::digest(&bytes));
