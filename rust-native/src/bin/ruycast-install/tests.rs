@@ -606,7 +606,16 @@ fn installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop()
             _ => unreachable!(),
         }
         let mut r = f.runner();
-        assert!(owned_install(&f.o, &mut r).is_err(), "{fault}");
+        let error = owned_install(&f.o, &mut r).unwrap_err();
+        if ["binary", "source", "missing-receipt"].contains(&fault) {
+            assert_eq!(error, "Rust release verification failed; run scripts/install.sh to create a fresh prepared build.");
+            assert_eq!(r.calls.len(), 1, "{fault}: {:?}", r.calls);
+            let (program, args, _) = &r.calls[0];
+            assert!(program.ends_with("cargo"));
+            assert!(args.windows(2).any(|pair| pair == ["--", "verify"]));
+            assert!(!f.o.apps.join("Ruycast.app").exists());
+            assert!(!old.is_symlink());
+        }
         assert!(!r.stopped(), "{fault}");
         if fault != "linked-selector" {
             assert_eq!(profile::hashes(&old, None, &f.o.home).unwrap(), before);
