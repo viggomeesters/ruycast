@@ -161,7 +161,6 @@ rust-native/.gitignore
 rust-native/Cargo.lock
 rust-native/Cargo.toml
 rust-native/README.md
-rust-native/scripts/check_rust_only.py
 rust-native/scripts/parity_inventory.py
 rust-native/src/actions.rs
 rust-native/src/activity.rs
