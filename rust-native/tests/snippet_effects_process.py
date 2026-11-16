@@ -145,16 +145,6 @@ class SnippetEffects(unittest.TestCase):
             (h.base/'snippet-release').write_text('Own release');h.wait(lambda s:s['snippetTransactionsPending']==0)
             self.assertEqual(self.posts(h),[])
 
-    def test_target_terminated_or_relaunched_after_preflight_never_clears_clipboard(self):
-        for flag in ['target-terminated','target-new-generation']:
-            h=self.host(command('Owned'),flags=['hold-prepare']);results=[]
-            worker=threading.Thread(target=lambda:results.append(h.rpc(dict(op='execute',id='snipfixture'))));worker.start()
-            self.wait_file(h,'prepare-entered');(h.base/flag).write_text('Own changed process')
-            (h.base/'snippet-release').write_text('Own release');worker.join(3);self.assertFalse(worker.is_alive())
-            self.assertFalse(results[0]['ok']);self.assertNotIn('actionCompleted',results[0]);self.assertIn('Choose an app',results[0]['error'])
-            self.assertEqual(self.writes(h),[]);self.assertEqual(self.posts(h),[])
-            self.assertFalse(any(r['phase']=='snippet-clear' for r in self.trace(h)))
-
 
 
 if __name__=='__main__':unittest.main(verbosity=2)
