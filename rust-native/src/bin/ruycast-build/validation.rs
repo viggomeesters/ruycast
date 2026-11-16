@@ -519,7 +519,7 @@ fn rust_policy_inputs(root: &Path, target: &str, copies: &BTreeMap<String, serde
     }
     Ok(inputs)
 }
-fn publish_rust_policy_snapshot(path: &Path, bytes: &[u8], sha: &str, before_link: impl FnOnce() -> Result<()>) -> Result<()> {
+pub(super) fn publish_rust_policy_snapshot(path: &Path, bytes: &[u8], sha: &str, before_link: impl FnOnce() -> Result<()>) -> Result<()> {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -1030,16 +1030,18 @@ const DASHBOARD_EXPORT_CASES: [&str; 5] = [
             "close_before_commit_revokes_destination_without_feedback_to_reopened_window",
             "commit_entered_before_close_keeps_published_outcome_and_retires_feedback",
 ];
-fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
-    if matches!(name, "rust-only-policy" | "rust-only-policy-final") {
-        let value: serde_json::Value = serde_json::from_slice(stdout).map_err(error)?;
+pub(super) fn rust_policy_result(stdout: &[u8]) -> Result<serde_json::Value> {
+    let value: serde_json::Value = serde_json::from_slice(stdout).map_err(error)?;
         if value["ok"] != true || value["policy"] != "Rust-only new product code"
             || value["productionReady"] != false || value["errors"] != serde_json::json!([])
             || value["frozenLegacyFiles"].as_u64().is_none() || value["rustRuntimeFiles"].as_u64().is_none()
             || value["lockSHA256"].as_str().is_none_or(|sha| sha.len()!=64 || !sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))) {
             return Err("Rust policy must emit its actual successful fail-closed JSON result.".into());
         }
-    }
+    Ok(value)
+}
+fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
+    if matches!(name, "rust-only-policy" | "rust-only-policy-final") { rust_policy_result(stdout)?; }
     if name == "dashboard-presentation-process" {
         let text = std::str::from_utf8(stdout).map_err(error)?;
         for case in ["populated_top30_hash_ties_names_samples_errors_and_legacy", "elapsed_hours_retention_dst_and_calendar_year"] {

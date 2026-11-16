@@ -15,6 +15,7 @@ struct CoreReceipt {
     outcome: String,
     production_accepted: bool,
     swift_compatibility: SwiftCompatibility,
+    policy: CorePolicyEvidence,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -68,6 +69,123 @@ fn verify_swift_compatibility(root: &Path, binding: &SwiftCompatibility, artifac
     }
     Ok(())
 }
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+struct PolicyArtifact {
+    target: String, build_source: String, path: String, sha256: String, build_command: Vec<String>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+struct PolicyInvocation { arguments: Vec<String>, result: serde_json::Value }
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+struct CorePolicyEvidence { artifact: PolicyArtifact, before: PolicyInvocation, after: PolicyInvocation, inputs: BTreeMap<String,PolicyInput> }
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all="camelCase", deny_unknown_fields)]
+struct PolicyInput { kind:String, sha256:Option<String>, link_target:Option<String> }
+#[derive(Clone, Copy)]
+enum PolicyTree { Legacy, Runtime, Product }
+fn policy_input_name(root:&Path,path:&Path)->Result<String> {
+    path.strip_prefix(root).map_err(error)?.to_str().map(str::to_owned).ok_or("Unrepresentable policy input path.".into())
+}
+fn record_policy_input(root:&Path,path:&Path,kind:&str,bytes:bool,link:bool,values:&mut BTreeMap<String,PolicyInput>)->Result<()> {
+    let target=if link {Some(fs::read_link(path).map_err(error)?.to_str().ok_or("Unrepresentable policy input link.")?.to_owned())} else {None};
+    values.insert(policy_input_name(root,path)?,PolicyInput{kind:kind.into(),sha256:if bytes{Some(digest(path)?)}else{None},link_target:target});Ok(())
+}
+fn policy_input_tree(root:&Path,path:&Path,tree:PolicyTree,values:&mut BTreeMap<String,PolicyInput>)->Result<()> {
+    policy_input_name(root,path)?;
+    let metadata=fs::symlink_metadata(path).map_err(error)?;
+    let ignored=matches!(tree,PolicyTree::Product)&&path.file_name().is_some_and(|name|name==".DS_Store")&&!path.is_dir();
+    if metadata.is_symlink() {
+        if ignored {return record_policy_input(root,path,"ignored-file-symlink",false,true,values);}
+        return Err("Linked policy input cannot qualify a core receipt.".into());
+    }
+    if metadata.is_dir() {
+        record_policy_input(root,path,"directory",false,false,values)?;
+        for entry in fs::read_dir(path).map_err(error)? {policy_input_tree(root,&entry.map_err(error)?.path(),tree,values)?;}
+    } else if metadata.is_file() {
+        let ignored=ignored||(matches!(tree,PolicyTree::Runtime)&&path.file_name().is_some_and(|name|name==".DS_Store"));
+        record_policy_input(root,path,if ignored{"ignored-file"}else{"file"},!ignored,false,values)?;
+    } else if ignored {record_policy_input(root,path,"ignored-nonregular",false,false,values)?;}
+    else {return Err("Nonregular policy input cannot qualify a core receipt.".into());}
+    Ok(())
+}
+fn core_policy_footprint(root:&Path)->Result<BTreeMap<String,PolicyInput>> {
+    let mut values=BTreeMap::new();
+    let legacy=fs::symlink_metadata(root.join("Sources")).map_err(error)?;
+    if legacy.is_symlink()||!legacy.is_dir(){return Err("Legacy policy root must be a real directory.".into());}
+    for name in ["Package.swift","rust-native/swift-reference-lock.json"] {if !fs::symlink_metadata(root.join(name)).map_err(error)?.is_file(){return Err("Policy lock and package must be regular files.".into());}}
+    for name in ["Sources","Package.swift","rust-native/swift-reference-lock.json"] {policy_input_tree(root,&root.join(name),PolicyTree::Legacy,&mut values)?;}
+    for name in ["rust/src","rust-native/src"] {
+        let path=root.join(name);let metadata=fs::symlink_metadata(&path).map_err(error)?;
+        if metadata.is_symlink()||!metadata.is_dir(){return Err("Runtime policy root must be a real directory.".into());}
+        policy_input_tree(root,&path,PolicyTree::Runtime,&mut values)?;
+    }
+    for name in ["rust","rust-native"] {
+        let product=root.join(name);let metadata=fs::symlink_metadata(&product).map_err(error)?;
+        if metadata.is_symlink()||!metadata.is_dir(){return Err("Product policy root must be a real directory.".into());}
+        record_policy_input(root,&product,"directory",false,false,&mut values)?;
+        for tooling in ["tests","scripts"] {if product.join(tooling).is_symlink(){return Err("Tooling policy link cannot qualify a core receipt.".into());}}
+        for entry in fs::read_dir(&product).map_err(error)? {
+            let path=entry.map_err(error)?.path();let relative=policy_input_name(root,&path)?;
+            let name=path.file_name().unwrap().to_str().ok_or("Unrepresentable policy input name.")?;
+            if path.is_dir()&&["target","tests","scripts","src",".git"].contains(&name) {
+                if name!="src" {record_policy_input(root,&path,if path.is_symlink(){"pruned-directory-symlink"}else{"pruned-directory"},false,path.is_symlink(),&mut values)?;}
+                continue;
+            }
+            policy_input_tree(root,&path,PolicyTree::Product,&mut values).map_err(|e|format!("{relative}: {e}"))?;
+        }
+    } Ok(values)
+}
+fn core_policy_build_command(target: &str) -> Result<Vec<String>> {
+    artifact_paths(target)?;
+    Ok(["cargo","build","--quiet","--manifest-path","rust-native/Cargo.toml","--target-dir",".build/oracle-policy","--target",target,"--bin","rust-only-policy","--locked","--offline"].into_iter().map(str::to_owned).collect())
+}
+fn bind_core_policy_artifact(root: &Path, target: &str) -> Result<PolicyArtifact> {
+    let command=core_policy_build_command(target)?;
+    let source=format!(".build/oracle-policy/{target}/debug/rust-only-policy");
+    let bytes=regular_bytes(&root.join(&source))?;
+    let sha=format!("{:x}",Sha256::digest(&bytes));
+    let path=format!(".build/oracle-policy-artifacts/{sha}");
+    validation::publish_rust_policy_snapshot(&root.join(&path),&bytes,&sha,||Ok(()))?;
+    let artifact=PolicyArtifact{target:target.into(),build_source:source,path,sha256:sha,build_command:command};
+    check_core_policy_artifact(root,&artifact)?;Ok(artifact)
+}
+fn check_core_policy_artifact(root: &Path, artifact: &PolicyArtifact) -> Result<()> {
+    if artifact.build_command!=core_policy_build_command(&artifact.target)?
+        || artifact.build_source!=format!(".build/oracle-policy/{}/debug/rust-only-policy",artifact.target)
+        || artifact.sha256.len()!=64 || !artifact.sha256.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))
+        || artifact.path!=format!(".build/oracle-policy-artifacts/{}",artifact.sha256)
+        || digest(&root.join(&artifact.path))?!=artifact.sha256 {
+        return Err("Pure core policy artifact or original build binding changed.".into());
+    } Ok(())
+}
+fn core_policy_arguments(artifact: &PolicyArtifact)->Vec<String> {vec![artifact.path.clone(),"--root".into(),".".into()]}
+fn execute_core_policy(root:&Path,lease:&BuildLock,artifact:&PolicyArtifact,phase:&str)->Result<PolicyInvocation> {
+    if !matches!(phase,"before"|"after") {return Err("Unknown core policy phase.".into());}
+    check_core_policy_artifact(root,artifact)?;
+    let arguments=core_policy_arguments(artifact);let value=tool_capture(root,lease,&arguments)?;
+    let prefix=root.join(format!(".build/receipts/pure-core-policy-{phase}"));
+    ruycast_native::private_storage::write(&prefix.with_extension("stdout"),&value.stdout,true)?;
+    ruycast_native::private_storage::write(&prefix.with_extension("stderr"),&value.stderr,true)?;
+    check_core_policy_artifact(root,artifact)?;
+    if !value.status.success() {return Err(format!("Rust core policy {phase} refused; inspect its stdout/stderr receipt logs."));}
+    let result=validation::rust_policy_result(&value.stdout)?;
+    Ok(PolicyInvocation{arguments,result})
+}
+fn check_core_policy_evidence(root:&Path,policy:&CorePolicyEvidence)->Result<()> {
+    if policy.inputs!=core_policy_footprint(root)? {return Err("Core policy input path/type/content footprint changed.".into());}
+    check_core_policy_artifact(root,&policy.artifact)?;
+    for (phase, invocation) in [("before",&policy.before),("after",&policy.after)] {
+        if invocation.arguments!=core_policy_arguments(&policy.artifact) {return Err("Pure core policy caller changed.".into());}
+        validation::rust_policy_result(&serde_json::to_vec(&invocation.result).map_err(error)?)?;
+        let logged:serde_json::Value=serde_json::from_slice(&regular_bytes(&root.join(format!(".build/receipts/pure-core-policy-{phase}.stdout")))?).map_err(error)?;
+        if logged!=invocation.result {return Err("Pure core policy log differs from its receipt.".into());}
+    }
+    if policy.before.result!=policy.after.result || policy.before.result["lockSHA256"]!=digest(&root.join("rust-native/swift-reference-lock.json"))? {
+        return Err("Pure core policy inputs changed between gates.".into());
+    } Ok(())
+}
 fn core_sources(root: &Path) -> Result<BTreeMap<String, String>> {
     let mut values = BTreeMap::new();
     for name in [
@@ -79,12 +197,19 @@ fn core_sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "rust/Cargo.toml",
         "rust/Cargo.lock",
         "rust/src",
+        "Sources",
+        "rust-native/src",
+        "rust-native/src/bin/rust_only_policy.rs",
+        "rust-native/Cargo.toml",
+        "rust-native/Cargo.lock",
+        "rust-native/swift-reference-lock.json",
+        "rust-toolchain.toml",
     ] {
         validation::source_folder(root, &root.join(name), &mut values)?;
     }
     Ok(values)
 }
-fn tool(root: &Path, lease: &BuildLock, args: &[String]) -> Result<String> {
+fn tool_capture(root: &Path, lease: &BuildLock, args: &[String]) -> Result<process::Captured> {
     lease.validate()?;
     let mut command = Command::new(&args[0]);
     command.args(&args[1..]).current_dir(root);
@@ -103,6 +228,10 @@ fn tool(root: &Path, lease: &BuildLock, args: &[String]) -> Result<String> {
         std::time::Duration::from_secs(180),
         16 * 1024 * 1024,
     )?;
+    Ok(value)
+}
+fn tool(root: &Path, lease: &BuildLock, args: &[String]) -> Result<String> {
+    let value=tool_capture(root,lease,args)?;
     if !value.status.success() {
         return Err(format!(
             "Historical pure oracle tool failed: {}",
@@ -143,15 +272,11 @@ fn data_copy(root: &Path, source: &Path, destination: &Path) -> Result<()> {
 }
 pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     let before = core_sources(root)?;
+    let policy_inputs=core_policy_footprint(root)?;
     let target = host_target(root)?;
-    tool(
-        root,
-        lease,
-        &[
-            "python3".into(),
-            "rust-native/scripts/check_rust_only.py".into(),
-        ],
-    )?;
+    tool(root,lease,&core_policy_build_command(&target)?)?;
+    let policy_artifact=bind_core_policy_artifact(root,&target)?;
+    let policy_before=execute_core_policy(root,lease,&policy_artifact,"before")?;
     let mut commands = vec![
         vec![
             "cargo",
@@ -225,14 +350,9 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
     data_copy(root, &modulemap, &compatibility_modulemap)?;
     let binary = bin_path.join("LauncherCoreChecks");
     regular_file(&binary)?;
-    tool(
-        root,
-        lease,
-        &[
-            "python3".into(),
-            "rust-native/scripts/check_rust_only.py".into(),
-        ],
-    )?;
+    let policy_after=execute_core_policy(root,lease,&policy_artifact,"after")?;
+    let policy=CorePolicyEvidence{artifact:policy_artifact,before:policy_before,after:policy_after,inputs:policy_inputs};
+    check_core_policy_evidence(root,&policy)?;
     let parent = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join(".build/oracle-fixtures"));
@@ -292,8 +412,9 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
             digest(path)?,
         );
     }
+    artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
     verify_swift_compatibility(root, &swift_compatibility, &artifacts)?;
-    let receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v2".into(),scope:"Frozen LauncherCoreChecks: Foundation data/owned filesystem and actual linked Rust ABI; no RuycastApp/AppKit/startup/desktop claim".into(),sources:before,artifacts,commands,outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility};
+    let receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v3".into(),scope:"Frozen LauncherCoreChecks: Foundation data/owned filesystem and actual linked Rust ABI; no RuycastApp/AppKit/startup/desktop claim".into(),sources:before,artifacts,commands,outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility,policy};
     lease.validate()?;
     let path = root.join(".build/receipts/pure-core-oracle.json");
     ruycast_native::private_storage::write(
@@ -371,14 +492,18 @@ pub(super) fn verify_core(root: &Path, lease: &BuildLock) -> Result<serde_json::
         &root.join(".build/receipts/pure-core-oracle.json"),
     )?)
     .map_err(error)?;
-    if receipt.schema != "ruycast.pure-core-oracle.v2"
+    if receipt.schema != "ruycast.pure-core-oracle.v3"
         || receipt.production_accepted
         || receipt.sources != core_sources(root)?
-        || receipt.artifacts.len() != 5
+        || receipt.artifacts.len() != 6
         || receipt.outcome != "Core behavior checks passed"
     {
         return Err("Pure CoreChecks oracle receipt is invalid or stale.".into());
     }
+    check_core_policy_evidence(root,&receipt.policy)?;
+    let architecture=match receipt.policy.artifact.target.as_str(){"aarch64-apple-darwin"=>"arm64-apple-macosx","x86_64-apple-darwin"=>"x86_64-apple-macosx",_=>return Err("Unexpected policy target.".into())};
+    if receipt.artifacts.get(&receipt.policy.artifact.path)!=Some(&receipt.policy.artifact.sha256)
+        || receipt.swift_compatibility.architecture!=architecture {return Err("Core policy lost its actual artifact/architecture role.".into());}
     verify_swift_compatibility(root, &receipt.swift_compatibility, &receipt.artifacts)?;
     for (name, expected) in &receipt.artifacts {
         if Path::new(name).is_absolute()
@@ -1646,6 +1771,94 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    fn core_policy_fixture() -> super::super::tests::Fixture {
+        let fixture=super::super::tests::Fixture::new();let root=&fixture.0;
+        for name in ["Sources/LauncherModels","Sources/LauncherCore","Sources/CRuycastCore","Tests/LauncherCoreTests"] {fs::create_dir_all(root.join(name)).unwrap();}
+        for name in ["Sources/Legacy.swift","Package.swift","rust-toolchain.toml"] {fs::write(root.join(name),b"// owned policy fixture").unwrap();}
+        fs::create_dir_all(root.join("rust-native/src/bin")).unwrap();
+        fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/bin/rust_only_policy.rs"),root.join("rust-native/src/bin/rust_only_policy.rs")).unwrap();
+        let files=["Sources/Legacy.swift","Package.swift"].into_iter().map(|name|(name,digest(&root.join(name)).unwrap())).collect::<BTreeMap<_,_>>();
+        fs::write(root.join("rust-native/swift-reference-lock.json"),serde_json::to_vec(&serde_json::json!({"schema":"ruycast.rust-only-reference-lock.v1","legacy_roots":["Sources"],"runtime_roots":["rust/src","rust-native/src"],"files":files})).unwrap()).unwrap();
+        let binary=std::env::var_os("RUYCAST_TEST_POLICY_CLI").map(PathBuf::from).unwrap_or_else(||Path::new(env!("CARGO_MANIFEST_DIR")).join("target/debug/rust-only-policy"));
+        assert!(binary.is_absolute()&&binary.is_file());
+        let destination=root.join(".build/oracle-policy/aarch64-apple-darwin/debug/rust-only-policy");
+        fs::create_dir_all(destination.parent().unwrap()).unwrap();fs::copy(binary,destination).unwrap();fixture
+    }
+    #[test]
+    fn core_rust_policy_snapshot_preserves_actual_calls_after_rebuild_and_fails_closed() {
+        let fixture=core_policy_fixture();let root=&fixture.0;
+        let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
+        let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
+        assert!(artifact.build_command.windows(2).any(|pair|pair==["--bin","rust-only-policy"]));
+        assert!(artifact.build_command.iter().any(|arg|arg=="--locked"));assert!(artifact.build_command.iter().any(|arg|arg=="--offline"));
+        let before=execute_core_policy(root,&lease,&artifact,"before").unwrap();
+        fs::write(root.join(&artifact.build_source),b"legitimate mutable rebuild").unwrap();
+        let after=execute_core_policy(root,&lease,&artifact,"after").unwrap();
+        let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};check_core_policy_evidence(root,&policy).unwrap();
+        let mut altered=policy.clone();altered.after.arguments[0]=altered.artifact.build_source.clone();assert!(check_core_policy_evidence(root,&altered).is_err());
+        altered=policy.clone();altered.after.result["productionReady"]=serde_json::json!(true);assert!(check_core_policy_evidence(root,&altered).is_err());
+        fs::write(root.join("Sources/Legacy.swift"),b"changed legacy fixture").unwrap();
+        assert!(execute_core_policy(root,&lease,&policy.artifact,"after").is_err());
+        let failed:serde_json::Value=serde_json::from_slice(&fs::read(root.join(".build/receipts/pure-core-policy-after.stdout")).unwrap()).unwrap();
+        assert_eq!(failed["ok"],false);assert!(!root.join(".build/receipts/pure-core-oracle.json").exists());
+        assert!(check_core_policy_evidence(root,&policy).is_err());
+    }
+    #[test]
+    fn core_rust_policy_v3_receipt_requires_current_policy_source_artifact_and_both_gates() {
+        let fixture=core_policy_fixture();let root=&fixture.0;
+        let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
+        let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
+        let before=execute_core_policy(root,&lease,&artifact,"before").unwrap();let after=execute_core_policy(root,&lease,&artifact,"after").unwrap();
+        let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};let mut artifacts=BTreeMap::new();
+        for name in [".build/archive.a",".build/alias.a",".build/module.modulemap",".build/swift/debug/CRuycastCore.build/module.modulemap",".build/LauncherCoreChecks"] {
+            fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();artifacts.insert(name.into(),digest(&root.join(name)).unwrap());
+        }
+        artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
+        let mut receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v3".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy};
+        let path=root.join(".build/receipts/pure-core-oracle.json");
+        let save=|value:&CoreReceipt|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
+        save(&receipt);verify_core(root,&lease).unwrap();
+        for (name,allowed) in [("rust-native/NewHost.swift",false),("rust-native/web/runtime.js",false),("rust-native/build.rs",true),("rust-native/__pycache__/hidden.py",false),("rust/src/__pycache__/host.py",false),("Sources/__pycache__/hidden.swift",false)] {
+            let path=root.join(name);fs::create_dir_all(path.parent().unwrap()).unwrap();fs::write(&path,b"// own footprint regression fixture").unwrap();
+            assert!(verify_core(root,&lease).is_err(),"{name}");
+            let captured=tool_capture(root,&lease,&core_policy_arguments(&receipt.policy.artifact)).unwrap();
+            let result:serde_json::Value=serde_json::from_slice(&captured.stdout).unwrap();
+            assert_eq!(result["ok"],allowed,"{name}");assert_eq!(captured.status.success(),allowed,"{name}");
+            fs::remove_file(&path).unwrap();let mut parent=path.parent().unwrap();
+            while parent!=root {if fs::remove_dir(parent).is_err(){break;}parent=parent.parent().unwrap();}
+            verify_core(root,&lease).unwrap();
+        }
+        receipt.schema="ruycast.pure-core-oracle.v2".into();save(&receipt);assert!(verify_core(root,&lease).is_err());
+        receipt.schema="ruycast.pure-core-oracle.v3".into();save(&receipt);
+        let mut missing=serde_json::to_value(&receipt).unwrap();missing.as_object_mut().unwrap().remove("policy");
+        fs::write(&path,serde_json::to_vec(&missing).unwrap()).unwrap();assert!(verify_core(root,&lease).is_err());
+        save(&receipt);fs::write(root.join("rust-native/src/main.rs"),b"changed bound runtime fixture").unwrap();assert!(verify_core(root,&lease).is_err());
+    }
+    #[test]
+    fn core_rust_policy_footprint_keeps_pruning_and_refuses_tooling_links() {
+        use std::os::unix::fs::symlink;
+        let fixture=core_policy_fixture();let root=&fixture.0;
+        fs::create_dir_all(root.join("rust-native/scripts")).unwrap();
+        let before=core_policy_footprint(root).unwrap();
+        fs::create_dir_all(root.join("rust-native/scripts/__pycache__")).unwrap();
+        fs::write(root.join("rust-native/scripts/__pycache__/owned.py"),b"// owned ignored tooling data").unwrap();
+        assert_eq!(serde_json::to_value(&before).unwrap(),serde_json::to_value(core_policy_footprint(root).unwrap()).unwrap());
+        fs::remove_dir_all(root.join("rust-native/scripts")).unwrap();
+        fs::create_dir(root.join("owned-link-target")).unwrap();
+        symlink(root.join("owned-link-target"),root.join("rust-native/scripts")).unwrap();
+        assert!(core_policy_footprint(root).is_err());
+    }
+    #[test]
+    fn core_rust_policy_snapshot_artifact_and_build_recipe_cannot_be_rebound() {
+        use std::os::unix::fs::PermissionsExt;
+        let fixture=core_policy_fixture();let root=&fixture.0;
+        let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
+        let mut changed=artifact.clone();changed.build_command[0]="python3".into();assert!(check_core_policy_artifact(root,&changed).is_err());
+        changed=artifact.clone();changed.path=changed.build_source.clone();assert!(check_core_policy_artifact(root,&changed).is_err());
+        let path=root.join(&artifact.path);fs::set_permissions(&path,fs::Permissions::from_mode(0o700)).unwrap();fs::write(&path,b"changed own snapshot").unwrap();
+        assert!(check_core_policy_artifact(root,&artifact).is_err());
+    }
+
     #[test]
     fn native_profile_crosswalk_binds_actual_rust_case_and_inputs() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-visual-assets").unwrap();
