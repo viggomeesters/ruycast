@@ -424,7 +424,6 @@ rust-native/tests/native_check_entrypoint.rs
 rust-native/tests/native_process.rs
 rust-native/tests/native_snippet_choice_process.rs
 rust-native/tests/rich_process.rs
-rust-native/tests/runtime_process.py
 rust-native/tests/runtime_process.rs
 rust-native/tests/rust_only_policy.rs
 rust-native/tests/fixtures/script_fault_shim.rs
