@@ -297,6 +297,12 @@ A run uses the existing bounded script runner, with a default five-minute timeou
 CLI: search with `ruycast search --mode shortcuts`, then execute the returned command ID. Saved aliases and hotkeys work after restart without discovery. Removing a saved binding command restores automatic discovery of that original shortcut; it does not delete the shortcut from macOS.
 
 
+## Raycast import
+
+`ruycast-build import-raycast EXPORT --cli PATH` reports import counts. Add `--apply` to publish through the CLI's atomic writer using the SHA-256 of the loaded configuration bytes. The temporary command file has mode `0600` and is removed after success or failure.
+
+`--config` selects the read snapshot; the CLI's active configuration remains the write destination. Expected SHA protects bytes, not path identity: if a selector changes to a different file with identical bytes, apply writes that active file while leaving the loaded source unchanged.
+
 ## Snippet output
 
 Snippet commands accept optional `snippetOutput`: `plain` (the default), `teams`, or `html`. The editor exposes these as Plain text, Teams and Mail (HTML). Rich modes interpret Markdown links such as `[Guide](https://example.com)` and place HTML plus a plain text fallback on the clipboard. Teams uses ordinary HTML paragraphs with explicit empty paragraphs for blank lines, without table elements; mail uses HTML line breaks. Text and link attributes are escaped, and links support HTTPS, HTTP and mailto. Raw HTML is treated as text. The source, keyword, aliases and hotkey remain editable. Choose Link… with a selection or a caret inside an existing link to add or edit its text and URL.
