@@ -237,6 +237,51 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
 }
 
 #[test]
+fn postcommit_failures_retire_input_and_use_passive_notice() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for (fault, needle) in [
+        ("fail-write", "clipboard may have changed"),
+        ("activation-noop", "target app did not activate"),
+        ("fail-event", "input events"),
+    ] {
+        let mut host = hidden_command_host(command("{message}"), &[fault], true);
+        show(&host);
+        run_native(&host);
+        host.settled(|_| true);
+        host.probe("run-inline-type", json!({"text":"Owned text"}));
+        run_native(&host);
+        wait_event(&mut host, "snippet-clear", |_| true);
+        done(&host);
+        host.settled(|_| true);
+        let notice = notice(&host, &format!("snippet-{fault}"));
+        assert_eq!(notice["success"], false);
+        assert!(notice["text"].as_str().unwrap().contains(needle));
+        assert_eq!(host.probe("read", json!({}))["runInputInline"], false);
+        assert_eq!(host.probe("read", json!({}))["formVisible"], false);
+        let trace = trace(&host);
+        assert!(!trace.iter().any(|event| event["phase"] == "snippet-post"));
+        if fault != "fail-write" {
+            assert_eq!(
+                host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
+                false
+            );
+        }
+        let usage = host.cli(&["usage"]);
+        assert!(!usage["result"]
+            .as_object()
+            .unwrap()
+            .contains_key("snippet.fixture"));
+        save(
+            &format!("postcommit-{fault}"),
+            &json!({"notice":notice,"usage":usage}),
+            &trace,
+        );
+    }
+}
+
+#[test]
 fn preparation_failures_keep_the_input_draft_and_never_clear() {
     let _scenario = HOST_SCENARIOS
         .lock()

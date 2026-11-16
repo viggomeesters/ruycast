@@ -118,17 +118,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertEqual([r['down'] for r in posts],[i%2==0 for i in range(len(posts))])
         self.assertEqual([r['flags'] for r in posts],[1<<20 if key==9 else 0 for key in keys])
 
-    def test_postcommit_failures_retire_input_and_use_passive_notice(self):
-        for fault,needle in [('fail-write','clipboard may have changed'),('activation-noop','target app did not activate'),('fail-event','input events')]:
-            h=self.host(command('{message}'),flags=[fault]);self.show(h);self.run_native(h)
-            h.settled();h.probe('run-inline-type',text='Owned text');self.run_native(h)
-            self.wait_event(h,'snippet-clear');self.done(h);h.settled()
-            notice=self.notice(h,'snippet-'+fault);self.assertFalse(notice['success']);self.assertIn(needle,notice['text'])
-            self.assertFalse(h.probe('read')['runInputInline']);self.assertFalse(h.probe('read')['formVisible'])
-            self.assertEqual(self.posts(h),[])
-            if fault!='fail-write':self.assertFalse(h.rpc(dict(op='status'))['result']['nativeUI']['visible'])
-            self.assertNotIn('snippet.fixture',h.cli('usage')['result'])
-
     def test_external_clipboard_target_relaunch_and_termination_cancel_delayed_paste(self):
         for change in [1,2,3,'terminated']:
             h=self.host(command('Owned'));self.show(h);self.run_native(h);self.wait_event(h,'snippet-activate')
