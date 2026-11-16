@@ -234,13 +234,6 @@ class SnippetEffects(unittest.TestCase):
                 self.assertTrue(h.rpc(dict(op='quit'))['ok']);out,err=h.process.communicate(timeout=3)
                 stream.close();self.assertEqual(h.process.returncode,0,out.decode()+err.decode());self.assertEqual(self.posts(h),[])
 
-    def test_clipboard_demand_and_validation_error_priority_match_existing_pipeline(self):
-        h=self.host(command('{missing} {clipboard}'),headless=True,flags=['deny-ax'],clipboard='Own input')
-        result=h.rpc(dict(op='execute',id='snipfixture'))
-        self.assertFalse(result['ok']);self.assertIn('missing',result['error'])
-        self.assertTrue((h.base/'clipboard-read').exists());self.assertEqual(self.writes(h),[])
-        self.assertFalse(any(r['phase']=='snippet-trust' for r in self.trace(h)))
-
     def test_management_run_preserves_management_and_hides_only_palette_peer(self):
         h=self.host(command('Settings'));self.show(h,'safari');h.cli('show','settings')
         h.wait(lambda s:s['managementUI']['revision']==s['managementUI']['appliedRevision'] and s['managementUI']['visible'])
@@ -311,10 +304,8 @@ class SnippetEffects(unittest.TestCase):
         self.assertNotIn('PRIVATE',raw);self.assertNotIn('https://example.com',raw)
         self.assertEqual(h.cli('usage')['result']['snippet.fixture'],1)
 
-    def test_ax_headless_missing_target_and_incomplete_fixture_never_mutate_board(self):
-        for headless,flags,complete,error in [(True,(),True,'Choose an app'),
-                                              (True,('deny-ax',),True,'Allow Ruycast'),
-                                              (False,('missing-target',),True,'Choose an app'),
+    def test_gui_missing_target_and_incomplete_fixture_never_mutate_board(self):
+        for headless,flags,complete,error in [(False,('missing-target',),True,'Choose an app'),
                                               (False,(),False,'Complete snippet fixture')]:
             h=self.host(command('Plain'),headless=headless,flags=flags,complete=complete)
             if not headless:self.show(h)

@@ -115,6 +115,8 @@ settings-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --featur
 clipboard-text-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_text_process --locked
 native-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_keyboard_process --locked
 native-choice-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_choice_host_process --locked
+snippet-effects-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example snippet-effects-fixture --locked
+snippet-effects-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_effects_host_process --locked
 snippet-effects-process|p|rust-native/tests/snippet_effects_process.py
 native-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_open_basic_process --locked
 app-picker-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test app_picker_identity_process --locked
@@ -448,6 +450,14 @@ fn supervision_fault_environment(root: &Path, target: &str, command: &mut Comman
     command.env("RUYCAST_TEST_SUPERVISION_SHIM", artifact);
     Ok(())
 }
+fn snippet_effects_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
+    artifact_paths(target)?;
+    let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libsnippet_effects_fixture.dylib");
+    owned_path(root, &artifact)?;
+    regular_bytes(&artifact)?;
+    command.env("RUYCAST_TEST_SNIPPET_EFFECTS_SDK", artifact);
+    Ok(())
+}
 fn step(
     root: &Path,
     lease: &BuildLock,
@@ -463,6 +473,9 @@ fn step(
     sanitized(&mut command, root, lease, fixture)?;
     if entry.name == "supervision-fault-process" {
         supervision_fault_environment(root, &receipt.target, &mut command)?;
+    }
+    if matches!(entry.name.as_str(), "snippet-effects-host-process" | "snippet-effects-process") {
+        snippet_effects_environment(root, &receipt.target, &mut command)?;
     }
     if entry.name == "startup-process" {
         let (artifact, sha) = keyboard_fixture(root)?;
@@ -1450,6 +1463,22 @@ mod tests {
         assert!(supervision_fault_environment(root, target, &mut command).is_err());
     }
     #[test]
+    fn snippet_effects_environment_requires_the_exact_matrix_artifact() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let target = "aarch64-apple-darwin";
+        let mut command = Command::new("cargo");
+        assert!(snippet_effects_environment(root, target, &mut command).is_err());
+        let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libsnippet_effects_fixture.dylib");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, b"owned nonexecutable SDK fixture").unwrap();
+        snippet_effects_environment(root, target, &mut command).unwrap();
+        assert_eq!(command.get_envs().find(|(key, _)| *key == "RUYCAST_TEST_SNIPPET_EFFECTS_SDK").unwrap().1, Some(artifact.as_os_str()));
+        fs::remove_file(&artifact).unwrap();
+        std::os::unix::fs::symlink(root.join("outside"), &artifact).unwrap();
+        assert!(snippet_effects_environment(root, target, &mut command).is_err());
+    }
+    #[test]
     fn keyboard_receipt_sources_match_both_consumers_and_reject_drift() {
         let fixture = super::super::tests::Fixture::new();
         let root = &fixture.0;
@@ -1816,7 +1845,13 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 139);
+        assert_eq!(steps.len(), 141);
+        let snippet_sdk = steps.iter().position(|step| step.name == "snippet-effects-sdk-build").unwrap();
+        let snippet_host = steps.iter().position(|step| step.name == "snippet-effects-host-process").unwrap();
+        let snippet_remaining = steps.iter().position(|step| step.name == "snippet-effects-process").unwrap();
+        assert!(snippet_sdk < snippet_host && snippet_host < snippet_remaining);
+        assert!(steps[snippet_sdk].arguments.windows(2).any(|pair| pair == ["--example", "snippet-effects-fixture"]));
+        assert!(steps[snippet_host].arguments.windows(2).any(|pair| pair == ["--test", "snippet_effects_host_process"]));
         let supervision_probe = steps.iter().position(|step|step.name=="supervision-probe-build").unwrap();
         let supervision_framing = steps.iter().position(|step|step.name=="supervision-framing-process").unwrap();
         assert!(supervision_probe < supervision_framing);
