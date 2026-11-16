@@ -180,6 +180,26 @@ fn done(host: &Bridge) -> Value {
     host.wait(|status| status["snippetRequestsRunning"] == 0 && status["openRequestsRunning"] == 0)
 }
 
+fn capture(host: &Bridge, name: &str) -> Value {
+    let value = host.probe("screenshot", json!({}));
+    let image = host.profile.join("native-probe.png");
+    assert!(fs::read(&image).unwrap().starts_with(b"\x89PNG\r\n\x1a\n"));
+    if let Some(directory) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
+        let output = PathBuf::from(directory)
+            .parent()
+            .unwrap()
+            .join("native-snippets");
+        fs::create_dir_all(&output).unwrap();
+        fs::copy(image, output.join(format!("{name}.png"))).unwrap();
+        fs::write(
+            output.join(format!("{name}.json")),
+            serde_json::to_vec_pretty(&value).unwrap(),
+        )
+        .unwrap();
+    }
+    value
+}
+
 fn notice(host: &Bridge, name: &str) -> Value {
     let value = host.probe("notice-screenshot", json!({}));
     let image = host.profile.join("native-notice-probe.png");
@@ -233,6 +253,47 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
         keys.iter()
             .map(|key| if *key == 9 { 1 << 20 } else { 0 })
             .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn real_multiple_field_choices_and_marked_text_use_same_snippet_pipeline() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut host = hidden_host("{a name=\"Message\"}/{b name=\"Place\" options=\"One,Two\"}");
+    show(&host);
+    run_native(&host);
+    host.settled(|_| true);
+    let initial = host.probe("template-read", json!({}));
+    assert_eq!(initial["values"], json!(["", ""]));
+    host.probe("template-mark", json!({"index":0,"text":"日本語"}));
+    host.probe("save-editor", json!({}));
+    host.settled(|_| true);
+    let marked_trace = trace(&host);
+    assert!(!marked_trace
+        .iter()
+        .any(|event| event["phase"] == "snippet-write"));
+    host.probe("template-unmark", json!({}));
+    host.probe("template-type", json!({"index":0,"text":"日本語"}));
+    host.probe("template-choose", json!({"index":1,"selected":1}));
+    let screenshot = capture(&host, "snippet-fields");
+    host.probe("save-editor", json!({}));
+    wait_event(&mut host, "snippet-post", |_| true);
+    done(&host);
+    host.settled(|_| true);
+    let trace = trace(&host);
+    let write = trace
+        .iter()
+        .find(|event| event["phase"] == "snippet-write")
+        .unwrap();
+    assert_eq!(write["text"], "日本語/Two");
+    let view = host.probe("read", json!({}));
+    assert_eq!(view["formVisible"], false);
+    save(
+        "multiple-field-input",
+        &json!({"initial":initial,"markedTrace":marked_trace,"screenshot":screenshot,"view":view}),
+        &trace,
     );
 }
 
