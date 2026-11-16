@@ -588,3 +588,38 @@ fn disabled_tap_notification_stops_and_refresh_recovers() {
         assert_eq!(rows[4]["state"]["lastDown"], false);
     }
 }
+
+#[test]
+fn unmatched_and_nonkey_callbacks_do_not_clone_or_allocate_the_binding_plan() {
+    let mut bindings = serde_json::Map::new();
+    for side in ["left-cmd", "right-cmd"] {
+        for modifiers in [
+            "",
+            "ctrl+",
+            "alt+",
+            "shift+",
+            "ctrl+alt+",
+            "ctrl+shift+",
+            "alt+shift+",
+            "ctrl+alt+shift+",
+        ] {
+            for key in "abcdefghijklmnopqrstuvwxyz".chars() {
+                bindings.insert(
+                    format!("{modifiers}{side}+{key}"),
+                    json!(format!("item.{key}")),
+                );
+            }
+        }
+    }
+    let rows = run_case(
+        "callback-allocation-budget",
+        json!([
+            {"op":"plan","hyper":false,"sided":bindings}, {"op":"refresh"}, {"op":"allocation-events","count":1000}
+        ]),
+        true,
+    );
+    assert_eq!(
+        rows.as_array().unwrap().last().unwrap()["result"],
+        json!({"rustAllocations":0,"callbacks":3000})
+    );
+}

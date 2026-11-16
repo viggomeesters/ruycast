@@ -54,15 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_unmatched_and_nonkey_callbacks_do_not_clone_or_allocate_the_binding_plan(self):
-        bindings = {}
-        for side in ['left-cmd', 'right-cmd']:
-            for modifiers in ['', 'ctrl+', 'alt+', 'shift+', 'ctrl+alt+', 'ctrl+shift+', 'alt+shift+', 'ctrl+alt+shift+']:
-                for key in 'abcdefghijklmnopqrstuvwxyz':
-                    bindings[modifiers + side + '+' + key] = 'item.' + key
-        rows, _ = self.run_case([plan(False, sided=bindings), op('refresh'), op('allocation-events', count=1000)], final_caps=True)
-        self.assertEqual(rows[-1]['result'], dict(rustAllocations=0, callbacks=3000))
-
     def test_missing_or_absent_sdk_table_never_falls_back(self):
         for library in ['missing', None]:
             env = dict(os.environ)
