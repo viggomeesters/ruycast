@@ -7,7 +7,7 @@ use std::{ffi::OsString, path::PathBuf};
 
 pub(super) fn run(args: Vec<OsString>) -> Result<(), String> {
     if args.len() == 1 && args[0] == "--help" {
-        println!("ruycast-build import-clipboard EXPORT [--max-text-bytes INTEGER]\nRead-only normalization with RFC3339 dates. Files remain references; images are counted without reading pixels. Apply is not migrated.");
+        println!("ruycast-build import-clipboard EXPORT [--max-text-bytes INTEGER]\nRead-only normalization with timezone-aware Python ISO dates. Files remain references; images are counted without reading pixels. Apply is not migrated.");
         return Ok(());
     }
     let mut args = args.into_iter();
@@ -33,7 +33,7 @@ pub(super) fn run(args: Vec<OsString>) -> Result<(), String> {
     let normalized = clipboard_import::normalize(&data, maximum).map_err(error)?;
     println!(
         "{}",
-        json!({"sourceSHA256":format!("{:x}",Sha256::digest(&raw)),"counts":normalized.counts,"candidates":normalized.items.len(),"applied":false,"scope":"RFC3339 normalization; references and image counts only"})
+        json!({"sourceSHA256":format!("{:x}",Sha256::digest(&raw)),"counts":normalized.counts,"candidates":normalized.items.len(),"applied":false,"scope":"timezone-aware ISO normalization; references and image counts only"})
     );
     Ok(())
 }
