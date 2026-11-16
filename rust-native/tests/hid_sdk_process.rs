@@ -436,3 +436,77 @@ fn caps_restore_failure_retains_authority_and_recovers_after_features_off() {
     assert_eq!(rows[11]["status"], "Off");
     assert_eq!(rows[11]["state"]["caps"], 1);
 }
+
+#[test]
+fn setup_reentry_stop_at_each_native_boundary_never_reports_on() {
+    for stage in [
+        "tap_create",
+        "source",
+        "add_source",
+        "manager_create",
+        "device_dictionary",
+        "device_matching",
+        "input_dictionary",
+        "input_matching",
+        "register_input",
+        "register_remove",
+        "schedule",
+        "manager_open",
+        "tap_enable",
+        "tap_enabled",
+    ] {
+        let rows = run_case(
+            &format!("setup-reentry-{stage}"),
+            json!([
+                {"op":"plan","hyper":true}, {"op":"hook","name":stage,"mode":"stop"}, {"op":"refresh"}
+            ]),
+            true,
+        );
+        let last = rows.as_array().unwrap().last().unwrap();
+        assert_ne!(last["status"], "On", "{stage}");
+        assert_eq!(last["state"]["allocated"], 0, "{stage}");
+        assert_eq!(last["state"]["caps"], 1, "{stage}");
+    }
+}
+
+#[test]
+fn hyper_emission_reentry_does_not_post_stale_down_or_leave_modifiers() {
+    for stage in [
+        "event_source",
+        "keyboard_event",
+        "set_type",
+        "set_flags",
+        "set_field",
+        "post",
+    ] {
+        let rows = run_case(
+            &format!("emission-reentry-{stage}"),
+            json!([
+                {"op":"plan","hyper":true}, {"op":"refresh"}, {"op":"hook","name":stage,"mode":"stop"},
+                {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7}, {"op":"refresh"}, {"op":"stop"}
+            ]),
+            false,
+        );
+        let last = rows.as_array().unwrap().last().unwrap();
+        assert_eq!(last["state"]["lastDown"], false, "{stage}");
+        assert_eq!(last["state"]["lastFlags"], 0, "{stage}");
+        assert_eq!(last["state"]["caps"], 0, "{stage}");
+    }
+}
+
+#[test]
+fn event_flags_restore_after_setter_reentry_stop() {
+    let original = (1_u64 << 63) | CMD | 16;
+    let rows = run_case(
+        "setter-reentry-flags",
+        json!([
+            {"op":"plan","hyper":true,"sided":{"right-cmd+a":"side"}}, {"op":"refresh"},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+            {"op":"hook","name":"set_flags","mode":"stop"}, {"op":"event","type":10,"key":0,"flags":original}
+        ]),
+        false,
+    );
+    let last = rows.as_array().unwrap().last().unwrap();
+    assert_eq!(last["result"], json!({"consumed":false,"flags":original}));
+    assert_eq!(last["actions"], json!([]));
+}
