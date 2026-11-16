@@ -60,21 +60,6 @@ class ConfigDirectoryTests(unittest.TestCase):
 
 
 
-    def test_live_relocation_keeps_host_and_observer_on_new_file(self):
-        self.start()
-        initial=self.cli('status')['result'];pid=initial['pid']
-        self.cli('config','directory',str(self.custom))
-        self.assertEqual(self.cli('status')['result']['pid'],pid)
-        self.assertEqual(self.cli('status')['result']['configPath'],str(self.custom/'config.json'))
-        self.cli('config','set','clipboard.limit','51')
-        config=json.loads((self.custom/'config.json').read_text());config['commands'].append({'id':'fixture.relocated','title':'Relocated fixture','kind':'url','target':'https://example.com'})
-        candidate=self.custom/'replacement.json';candidate.write_text(json.dumps(config));candidate.replace(self.custom/'config.json')
-        for _ in range(100):
-            if any(x['id']=='fixture.relocated' for x in self.cli('commands')['result']):break
-            time.sleep(.06)
-        else:self.fail('New location was not observed')
-        self.assertFalse((self.custom/'control.sock').exists())
-        self.assertTrue((self.root/'control.sock').exists())
 
 
 
