@@ -146,10 +146,10 @@ fn configured_host(
 }
 
 fn show(host: &Bridge) {
-    assert_eq!(
-        host.rpc(&json!({"op":"show","query":"snipfixture"}))["ok"],
-        true
-    );
+    show_query(host, "snipfixture");
+}
+fn show_query(host: &Bridge, query: &str) {
+    assert_eq!(host.rpc(&json!({"op":"show","query":query}))["ok"], true);
     host.settled(|status| status["nativeUI"]["visible"] == true);
 }
 
@@ -234,6 +234,48 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
             .map(|key| if *key == 9 { 1 << 20 } else { 0 })
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn new_show_and_configuration_replacement_retire_delayed_effect_without_old_notice() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for change in ["show", "replace"] {
+        let mut host = hidden_host("Owned");
+        show(&host);
+        run_native(&host);
+        wait_event(&mut host, "snippet-activate", |_| true);
+        let mut snapshots = json!({});
+        if change == "show" {
+            show_query(&host, "safari");
+        } else {
+            let mut config: Value =
+                serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+            config["commands"]
+                .as_array_mut()
+                .unwrap()
+                .last_mut()
+                .unwrap()["target"] = json!("Replacement");
+            host.replace(&config, None);
+            snapshots["reload"] = host.cli(&["reload"]);
+        }
+        done(&host);
+        host.settled(|_| true);
+        thread::sleep(Duration::from_millis(200));
+        let trace = trace(&host);
+        assert!(!trace.iter().any(|event| event["phase"] == "snippet-post"));
+        if change == "show" {
+            let status = host.rpc(&json!({"op":"status"}));
+            assert_eq!(status["result"]["nativeUI"]["visible"], true);
+            let view = host.probe("read", json!({}));
+            assert_eq!(view["input"], "safari");
+            let notice = host.probe("notice-read", json!({}));
+            assert_eq!(notice["present"], false);
+            snapshots = json!({"status":status,"view":view,"notice":notice});
+        }
+        save(&format!("retired-effect-{change}"), &snapshots, &trace);
+    }
 }
 
 #[test]
