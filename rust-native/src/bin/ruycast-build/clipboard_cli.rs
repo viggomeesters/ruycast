@@ -11,7 +11,7 @@ use std::{
 
 pub(super) fn run(args: Vec<OsString>) -> Result<(), String> {
     if args.len() == 1 && args[0] == "--help" {
-        println!("ruycast-build import-clipboard EXPORT [--max-text-bytes INTEGER] [--apply] [--socket PATH]\nDry run reports counts only. --apply sends bounded batches through the host clipboard writer.");
+        println!("ruycast-build import-clipboard [EXPORT] [--max-text-bytes INTEGER] [--apply] [--socket PATH]\nEXPORT defaults to ~/.local/state/raycast-export-trial-20261020/post-import-20261021-083502.json. Dry run reports counts only. --apply sends bounded batches through the host clipboard writer.");
         return Ok(());
     }
     let report = process(args)?;
@@ -20,37 +20,15 @@ pub(super) fn run(args: Vec<OsString>) -> Result<(), String> {
 }
 
 fn process(args: Vec<OsString>) -> Result<Value, String> {
-    let mut args = args.into_iter();
-    let export = args
-        .next()
-        .filter(|value| !value.is_empty())
-        .ok_or("Export path required.")?;
-    let mut maximum = 100_000;
-    let mut apply = false;
-    let mut socket = None;
-    while let Some(arg) = args.next() {
-        if arg == "--apply" {
-            apply = true;
-            continue;
-        }
-        if arg == "--socket" {
-            socket = Some(PathBuf::from(args.next().ok_or("Socket path required.")?));
-            continue;
-        }
-        if arg != "--max-text-bytes" {
-            return Err("Unsupported clipboard import option; source unchanged.".into());
-        }
-        maximum = args
-            .next()
-            .and_then(|value| value.into_string().ok())
-            .and_then(|value| value.parse::<i64>().ok())
-            .ok_or("Integer text limit required.")?;
-    }
-    let raw = raycast_cli::input(&PathBuf::from(export))
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| objc2_foundation::NSHomeDirectory().to_string().into());
+    let options = parse_options(args, Some(&home))?;
+    let raw = raycast_cli::input(&options.export)
         .map_err(|_| "Clipboard import input unavailable; source unchanged.")?;
     let parsed = clipboard_import::parse_export(&raw)
         .map_err(|_| "Invalid clipboard export JSON; source unchanged.")?;
-    let normalized = clipboard_import::normalize_parsed(&parsed, maximum).map_err(error)?;
+    let normalized = clipboard_import::normalize_parsed(&parsed, options.maximum).map_err(error)?;
     let source_hash = format!("{:x}", Sha256::digest(&raw));
     let mut report = json!({
         "sourceSHA256": source_hash.clone(),
@@ -60,10 +38,10 @@ fn process(args: Vec<OsString>) -> Result<Value, String> {
         "policy": "Host settings determine retention, exclusions, size limits and history capacity.",
         "scope": "timezone-aware ISO normalization; references and image counts only"
     });
-    if apply {
-        let socket = match socket {
+    if options.apply {
+        let socket = match options.socket {
             Some(path) => path,
-            None => default_socket()?,
+            None => default_socket_for(&home),
         };
         let (batch_count, host_counts) = apply_batches(&normalized.items, &source_hash, &socket)?;
         report["applied"] = json!(true);
@@ -73,11 +51,88 @@ fn process(args: Vec<OsString>) -> Result<Value, String> {
     Ok(report)
 }
 
-fn default_socket() -> Result<PathBuf, String> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .map(|home| home.join(".config/ruycast/control.sock"))
-        .ok_or_else(|| "Home directory unavailable; specify --socket.".into())
+struct Options {
+    export: PathBuf,
+    maximum: i64,
+    apply: bool,
+    socket: Option<PathBuf>,
+}
+
+fn parse_options(args: Vec<OsString>, home: Option<&Path>) -> Result<Options, String> {
+    let mut args = args.into_iter();
+    let mut export = None;
+    let mut maximum = 100_000;
+    let mut apply = false;
+    let mut socket = None;
+    let mut positional = false;
+    while let Some(arg) = args.next() {
+        if !positional && arg == "--" {
+            positional = true;
+            continue;
+        }
+        if !positional && arg == "--apply" {
+            apply = true;
+            continue;
+        }
+        if !positional && arg == "--socket" {
+            let value = args
+                .next()
+                .filter(|value| !value.as_encoded_bytes().starts_with(b"-"));
+            socket = Some(PathBuf::from(value.ok_or("Socket path required.")?));
+            continue;
+        }
+        if !positional && arg == "--max-text-bytes" {
+            maximum = args
+                .next()
+                .and_then(|value| value.into_string().ok())
+                .and_then(|value| value.parse::<i64>().ok())
+                .ok_or("Integer text limit required.")?;
+            continue;
+        }
+        if !positional {
+            if let Some(value) = arg
+                .to_str()
+                .and_then(|value| value.strip_prefix("--socket="))
+            {
+                socket = Some(PathBuf::from(value));
+                continue;
+            }
+            if let Some(value) = arg
+                .to_str()
+                .and_then(|value| value.strip_prefix("--max-text-bytes="))
+            {
+                maximum = value
+                    .parse::<i64>()
+                    .map_err(|_| "Integer text limit required.")?;
+                continue;
+            }
+            if arg.as_encoded_bytes().starts_with(b"-") && !raycast_cli::negative_number(&arg) {
+                return Err("Unsupported clipboard import option; source unchanged.".into());
+            }
+        }
+        if export.is_some() {
+            return Err("Only one clipboard export path is supported.".into());
+        }
+        export = Some(PathBuf::from(arg));
+    }
+    let export = match export {
+        Some(path) => path,
+        None => default_export_for(home.ok_or("Home directory unavailable; specify EXPORT.")?),
+    };
+    Ok(Options {
+        export,
+        maximum,
+        apply,
+        socket,
+    })
+}
+
+fn default_export_for(home: &Path) -> PathBuf {
+    home.join(".local/state/raycast-export-trial-20261020/post-import-20261021-083502.json")
+}
+
+fn default_socket_for(home: &Path) -> PathBuf {
+    home.join(".config/ruycast/control.sock")
 }
 
 fn apply_batches(
@@ -185,6 +240,58 @@ mod tests {
         assert_eq!(report["applied"], false);
         assert_eq!(report["candidates"], 1);
         assert_eq!(fs::read(&source.0).unwrap(), bytes);
+    }
+
+    #[test]
+    fn optional_export_matches_python_default_and_option_order() {
+        let home = Path::new("/fixture/home");
+        let options = parse_options(
+            vec![
+                "--apply".into(),
+                "--max-text-bytes=-7".into(),
+                "--socket=/fixture/control.sock".into(),
+                "/fixture/export.json".into(),
+            ],
+            Some(home),
+        )
+        .unwrap();
+        assert_eq!(options.export, PathBuf::from("/fixture/export.json"));
+        assert_eq!(options.maximum, -7);
+        assert!(options.apply);
+        assert_eq!(options.socket, Some(PathBuf::from("/fixture/control.sock")));
+
+        let defaulted = parse_options(vec!["--apply".into()], Some(home)).unwrap();
+        assert_eq!(
+            defaulted.export,
+            PathBuf::from("/fixture/home/.local/state/raycast-export-trial-20261020/post-import-20261021-083502.json")
+        );
+        assert_eq!(
+            default_export_for(home),
+            defaulted.export,
+            "default path remains home-relative"
+        );
+        assert_eq!(
+            default_socket_for(home),
+            PathBuf::from("/fixture/home/.config/ruycast/control.sock")
+        );
+
+        let explicit_without_home = parse_options(
+            vec![
+                "/fixture/export.json".into(),
+                "--apply".into(),
+                "--socket".into(),
+                "/fixture/control.sock".into(),
+            ],
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            explicit_without_home.socket,
+            Some(PathBuf::from("/fixture/control.sock"))
+        );
+
+        let negative_path = parse_options(vec!["-1".into()], Some(home)).unwrap();
+        assert_eq!(negative_path.export, PathBuf::from("-1"));
     }
 
     #[test]

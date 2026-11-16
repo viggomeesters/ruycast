@@ -41,7 +41,7 @@ fn home() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| NSHomeDirectory().to_string().into())
 }
-fn negative_number(value: &OsStr) -> bool {
+pub(super) fn negative_number(value: &OsStr) -> bool {
     let Some(value) = value.to_str().and_then(|s| s.strip_prefix('-')) else {
         return false;
     };
