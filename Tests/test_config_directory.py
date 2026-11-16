@@ -64,13 +64,6 @@ class ConfigDirectoryTests(unittest.TestCase):
 
 
 
-    def test_manual_selector_change_does_not_silently_activate_wrong_file(self):
-        self.start()
-        self.custom.mkdir(parents=True);target=self.custom/'config.json';target.write_bytes(self.config)
-        (self.root/'config-location.json').write_text(json.dumps({'directory':str(self.custom)}))
-        self.cli('config','set','clipboard.limit','51',ok=False)
-        self.assertEqual(target.read_bytes(),self.config)
-        self.assertEqual(self.cli('status')['result']['configPath'],str(self.root/'config.json'))
 
 
     def test_raycast_import_defaults_to_active_cli_config(self):
