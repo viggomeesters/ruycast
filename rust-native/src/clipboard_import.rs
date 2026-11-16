@@ -3,8 +3,21 @@
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, SecondsFormat, Utc};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Range;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::{Read, Write},
+    ops::Range,
+    os::{
+        fd::{AsRawFd, FromRawFd, OwnedFd},
+        unix::{
+            ffi::OsStrExt,
+            fs::{FileTypeExt, MetadataExt},
+            net::UnixStream,
+        },
+    },
+    path::Path,
+    time::Instant,
+};
 
 pub struct Normalized {
     pub items: Vec<Value>,
@@ -18,6 +31,7 @@ pub struct ParsedExport {
 
 const CLIPBOARD_BATCH_ITEMS: usize = 100;
 const CLIPBOARD_BATCH_MAX_WIRE: usize = 1_000_000;
+const CLIPBOARD_TRANSPORT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Build deterministic, bounded clipboard import requests without contacting the host.
 pub fn batches(items: &[Value], source_hash: &str) -> Result<Vec<Value>, String> {
@@ -46,6 +60,220 @@ pub fn batches(items: &[Value], source_hash: &str) -> Result<Vec<Value>, String>
         requests.push(clipboard_request(&batch, source_hash)?);
     }
     Ok(requests)
+}
+
+/// Send one batch through an owned Ruycast control socket and return its result.
+pub fn send_request(path: &Path, request: &Value) -> Result<Value, String> {
+    let metadata = path
+        .symlink_metadata()
+        .map_err(|_| "Ruycast control socket is not an owned socket.")?;
+    if !metadata.file_type().is_socket() || metadata.uid() != unsafe { libc::geteuid() } {
+        return Err("Ruycast control socket is not an owned socket.".into());
+    }
+
+    let deadline = Instant::now()
+        .checked_add(CLIPBOARD_TRANSPORT_TIMEOUT)
+        .ok_or("Ruycast clipboard import deadline is unavailable.")?;
+    let mut stream = connect_bounded(path, deadline)?;
+
+    let mut bytes = python_json(request, false)?.into_bytes();
+    if bytes.len() >= CLIPBOARD_BATCH_MAX_WIRE {
+        return Err("Clipboard import request exceeds its transport limit.".into());
+    }
+    bytes.push(b'\n');
+    let mut sent = 0;
+    while sent < bytes.len() {
+        remaining(deadline)?;
+        match stream.write(&bytes[sent..]) {
+            Ok(0) => {
+                return Err(
+                    "Ruycast clipboard import failed; the host result may be unknown.".into(),
+                );
+            }
+            Ok(count) => sent += count,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                wait_ready(&stream, libc::POLLOUT, deadline)?;
+            }
+            Err(_) => {
+                return Err(
+                    "Ruycast clipboard import failed; the host result may be unknown.".into(),
+                );
+            }
+        }
+    }
+
+    let mut response = Vec::new();
+    let mut chunk = [0; 65_536];
+    loop {
+        remaining(deadline)?;
+        let count = match stream.read(&mut chunk) {
+            Ok(count) => count,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                wait_ready(&stream, libc::POLLIN, deadline)?;
+                continue;
+            }
+            Err(_) => {
+                return Err(
+                    "Ruycast clipboard import failed; the host result may be unknown.".into(),
+                );
+            }
+        };
+        if count == 0 {
+            break;
+        }
+        response.extend_from_slice(&chunk[..count]);
+        if response.len() >= CLIPBOARD_BATCH_MAX_WIRE {
+            return Err("Ruycast import response exceeds its limit.".into());
+        }
+        if response.contains(&b'\n') {
+            break;
+        }
+    }
+    let line = response
+        .split(|byte| *byte == b'\n')
+        .next()
+        .unwrap_or_default();
+    let reply: Value = serde_json::from_slice(line)
+        .map_err(|_| "Ruycast clipboard import returned an invalid response.")?;
+    if reply["ok"] != true {
+        return Err("Ruycast rejected clipboard import; source export is unchanged.".into());
+    }
+    Ok(reply.get("result").cloned().unwrap_or_else(|| json!({})))
+}
+
+fn connect_bounded(path: &Path, deadline: Instant) -> Result<UnixStream, String> {
+    let path = path.as_os_str().as_bytes();
+    let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    if path.is_empty() || path.contains(&0) || path.len() >= address.sun_path.len() {
+        return Err("Ruycast control socket path is invalid.".into());
+    }
+    address.sun_family = libc::AF_UNIX as _;
+    for (destination, source) in address.sun_path.iter_mut().zip(path.iter().copied()) {
+        *destination = source as libc::c_char;
+    }
+    #[cfg(target_vendor = "apple")]
+    {
+        address.sun_len = (std::mem::offset_of!(libc::sockaddr_un, sun_path) + path.len() + 1)
+            .try_into()
+            .map_err(|_| "Ruycast control socket path is invalid.")?;
+    }
+    let address_length: libc::socklen_t =
+        (std::mem::offset_of!(libc::sockaddr_un, sun_path) + path.len() + 1)
+            .try_into()
+            .map_err(|_| "Ruycast control socket path is invalid.")?;
+    let descriptor = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM, 0) };
+    if descriptor < 0 {
+        return Err("Could not connect to Ruycast control socket.".into());
+    }
+    let owned = unsafe { OwnedFd::from_raw_fd(descriptor) };
+    let flags = unsafe { libc::fcntl(owned.as_raw_fd(), libc::F_GETFL) };
+    if flags < 0
+        || unsafe { libc::fcntl(owned.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0
+        || unsafe { libc::fcntl(owned.as_raw_fd(), libc::F_SETFD, libc::FD_CLOEXEC) } < 0
+    {
+        return Err("Could not prepare Ruycast control socket.".into());
+    }
+    #[cfg(target_vendor = "apple")]
+    {
+        let no_signal: libc::c_int = 1;
+        if unsafe {
+            libc::setsockopt(
+                owned.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_NOSIGPIPE,
+                (&no_signal as *const libc::c_int).cast(),
+                std::mem::size_of_val(&no_signal) as _,
+            )
+        } != 0
+        {
+            return Err("Could not prepare Ruycast control socket.".into());
+        }
+    }
+    let connected = unsafe {
+        libc::connect(
+            owned.as_raw_fd(),
+            (&address as *const libc::sockaddr_un).cast(),
+            address_length,
+        )
+    };
+    if connected != 0 {
+        let error = std::io::Error::last_os_error();
+        if !matches!(
+            error.raw_os_error(),
+            Some(libc::EINPROGRESS | libc::EALREADY | libc::EINTR | libc::EAGAIN)
+        ) {
+            return Err("Could not connect to Ruycast control socket.".into());
+        }
+        loop {
+            let timeout = remaining(deadline)?;
+            let millis = timeout.as_nanos().div_ceil(1_000_000).min(i32::MAX as u128) as i32;
+            let mut descriptor = libc::pollfd {
+                fd: owned.as_raw_fd(),
+                events: libc::POLLOUT,
+                revents: 0,
+            };
+            let result = unsafe { libc::poll(&mut descriptor, 1, millis) };
+            if result == 0 {
+                return Err("Ruycast clipboard import timed out.".into());
+            }
+            if result < 0 {
+                if std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err("Could not connect to Ruycast control socket.".into());
+            }
+            let mut socket_error = 0;
+            let mut length = std::mem::size_of_val(&socket_error) as libc::socklen_t;
+            let result = unsafe {
+                libc::getsockopt(
+                    owned.as_raw_fd(),
+                    libc::SOL_SOCKET,
+                    libc::SO_ERROR,
+                    (&mut socket_error as *mut i32).cast(),
+                    &mut length,
+                )
+            };
+            if result != 0 || socket_error != 0 {
+                return Err("Could not connect to Ruycast control socket.".into());
+            }
+            break;
+        }
+    }
+    Ok(UnixStream::from(owned))
+}
+
+fn wait_ready(stream: &UnixStream, events: i16, deadline: Instant) -> Result<(), String> {
+    loop {
+        let timeout = remaining(deadline)?;
+        let millis = timeout.as_nanos().div_ceil(1_000_000).min(i32::MAX as u128) as i32;
+        let mut descriptor = libc::pollfd {
+            fd: stream.as_raw_fd(),
+            events,
+            revents: 0,
+        };
+        let result = unsafe { libc::poll(&mut descriptor, 1, millis) };
+        if result == 0 {
+            return Err("Ruycast clipboard import timed out.".into());
+        }
+        if result < 0 {
+            if std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            return Err("Ruycast clipboard import transport failed.".into());
+        }
+        if descriptor.revents & (events | libc::POLLERR | libc::POLLHUP) != 0 {
+            return Ok(());
+        }
+    }
+}
+
+fn remaining(deadline: Instant) -> Result<std::time::Duration, String> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|duration| !duration.is_zero())
+        .ok_or_else(|| "Ruycast clipboard import timed out.".into())
 }
 
 fn clipboard_request(items: &[Value], source_hash: &str) -> Result<Value, String> {
@@ -870,6 +1098,33 @@ fn normalize_with_metadata_and_marker(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        fs,
+        io::{BufRead, BufReader, Write},
+        os::unix::{fs::symlink, net::UnixListener},
+        thread,
+    };
+
+    struct TestSocketPath(std::path::PathBuf);
+
+    impl Drop for TestSocketPath {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+
+    fn socket_path() -> TestSocketPath {
+        let root = std::env::var_os("RUYCAST_CLIPBOARD_SOCKET_TEST_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(std::env::temp_dir);
+        fs::create_dir_all(&root).unwrap();
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        TestSocketPath(root.join(format!("ruyc-{}-{nonce}.sock", std::process::id())))
+    }
+
     fn row() -> Value {
         json!({"category":"text","text":"Synthetic content","applicationPath":"/Applications/Fixture.app","createdAt":"2026-10-25T00:00:00Z"})
     }
@@ -915,12 +1170,10 @@ mod tests {
             .flat_map(|request| request["items"].as_array().unwrap())
             .collect();
         assert_eq!(batched.len(), items.len());
-        assert!(
-            batched
-                .iter()
-                .zip(&items)
-                .all(|(actual, expected)| *actual == expected)
-        );
+        assert!(batched
+            .iter()
+            .zip(&items)
+            .all(|(actual, expected)| *actual == expected));
 
         let count_limited = vec![json!({"id":"stable","text":"x"}); 101];
         let count_batches = batches(&count_limited, &source_hash).unwrap();
@@ -952,6 +1205,98 @@ mod tests {
             json!({"id":"2","text":"b".repeat(400_000)}),
         ];
         assert_eq!(batches(&split, &source_hash).unwrap().len(), 2);
+    }
+    #[test]
+    fn clipboard_transport_sends_a_line_and_accepts_eof_after_json() {
+        let path = socket_path();
+        let listener = UnixListener::bind(&path.0).unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = String::new();
+            BufReader::new(stream.try_clone().unwrap())
+                .read_line(&mut request)
+                .unwrap();
+            assert!(request.ends_with('\n'));
+            let value: Value = serde_json::from_str(&request).unwrap();
+            assert_eq!(value["op"], "clipboard.import");
+            assert_eq!(value["batchID"], "retry-identity");
+            stream
+                .write_all(br#"{"ok":true,"result":{"accepted":3}}"#)
+                .unwrap();
+        });
+        let result = send_request(
+            &path.0,
+            &json!({"op":"clipboard.import","batchID":"retry-identity"}),
+        )
+        .unwrap();
+        assert_eq!(result, json!({"accepted":3}));
+        server.join().unwrap();
+    }
+    #[test]
+    fn clipboard_transport_redacts_host_errors() {
+        let path = socket_path();
+        let listener = UnixListener::bind(&path.0).unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = String::new();
+            BufReader::new(stream.try_clone().unwrap())
+                .read_line(&mut request)
+                .unwrap();
+            stream
+                .write_all(br#"{"ok":false,"error":"private clipboard contents"}"#)
+                .unwrap();
+        });
+        let error = send_request(&path.0, &json!({"op":"clipboard.import"})).unwrap_err();
+        assert_eq!(
+            error,
+            "Ruycast rejected clipboard import; source export is unchanged."
+        );
+        assert!(!error.contains("private"));
+        server.join().unwrap();
+    }
+    #[test]
+    fn clipboard_transport_rejects_regular_files_and_symlink_paths() {
+        let regular = socket_path();
+        fs::write(&regular.0, b"not a socket").unwrap();
+        assert!(send_request(&regular.0, &json!({"op":"clipboard.import"})).is_err());
+
+        let target = socket_path();
+        let listener = UnixListener::bind(&target.0).unwrap();
+        let link = socket_path();
+        symlink(&target.0, &link.0).unwrap();
+        assert_eq!(
+            send_request(&link.0, &json!({"op":"clipboard.import"})).unwrap_err(),
+            "Ruycast control socket is not an owned socket."
+        );
+        drop(listener);
+    }
+    #[test]
+    fn clipboard_transport_redacts_connection_refusals() {
+        let path = socket_path();
+        let listener = UnixListener::bind(&path.0).unwrap();
+        drop(listener);
+        let error = send_request(&path.0, &json!({"op":"clipboard.import"})).unwrap_err();
+        assert_eq!(error, "Could not connect to Ruycast control socket.");
+    }
+    #[test]
+    fn clipboard_transport_rejects_responses_at_the_wire_limit() {
+        let path = socket_path();
+        let listener = UnixListener::bind(&path.0).unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = String::new();
+            BufReader::new(stream.try_clone().unwrap())
+                .read_line(&mut request)
+                .unwrap();
+            stream
+                .write_all(&vec![b'x'; CLIPBOARD_BATCH_MAX_WIRE])
+                .unwrap();
+        });
+        assert_eq!(
+            send_request(&path.0, &json!({"op":"clipboard.import"})).unwrap_err(),
+            "Ruycast import response exceeds its limit."
+        );
+        server.join().unwrap();
     }
     #[test]
     fn text_stable_identity_dedup_and_date() {
