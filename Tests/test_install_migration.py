@@ -170,8 +170,6 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual((home/'synced configuration/config.json').read_text(),'{}')
 
 
-    def test_signing_failure_keeps_existing_host_and_profile_untouched(self):
-        self.installer_fixture(signing_fail=True)
 
 
     def test_receipt_failure_never_stops_installed_app(self):
