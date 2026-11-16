@@ -1,14 +1,22 @@
-//! Rust dry-run I/O. Apply remains explicitly refused until its CAS writer lands.
+//! Rust importer I/O. Publication goes through the existing CLI's CAS writer.
 use super::*;
 use objc2_foundation::{NSBundle, NSHomeDirectory, NSString, NSURL};
 use ruycast_native::raycast_import::{self, Application, Options as Mapping};
 use serde_json::Value;
 use std::{
     ffi::{OsStr, OsString},
+    io::Write,
+    os::{
+        fd::{AsRawFd, FromRawFd},
+        unix::{
+            ffi::{OsStrExt, OsStringExt},
+            fs::PermissionsExt,
+        },
+    },
     time::Duration,
 };
 const LIMIT: u64 = 256 * 1024 * 1024;
-const HELP:&str="ruycast-build import-raycast EXPORT [--config FILE] [--cli PATH] [--include-snippets] [--include-templates]\nDry run only; configuration is never written.";
+const HELP:&str="ruycast-build import-raycast EXPORT [--config FILE] [--cli PATH] [--apply] [--include-snippets] [--include-templates]\nWithout --apply, configuration is never written. Apply targets the CLI active configuration; the expected SHA checks bytes, not path identity.";
 struct Options {
     export: PathBuf,
     config: Option<PathBuf>,
@@ -251,15 +259,112 @@ fn applications(data: &Value, dirs: &[PathBuf]) -> Result<BTreeMap<String, Appli
     }
     Ok(apps)
 }
-fn execute(options: Options) -> Result<Value> {
-    if options.apply {
-        return Err(
-            "Apply is unavailable in this dry-run command; no configuration changed.".into(),
-        );
+struct PrivateCommands {
+    path: PathBuf,
+    device: u64,
+    inode: u64,
+    removed: bool,
+}
+impl PrivateCommands {
+    fn create(parent: &Path, commands: &[Value]) -> Result<Self> {
+        let mut template = std::ffi::CString::new(
+            parent
+                .join(".raycast-import-XXXXXX.json")
+                .as_os_str()
+                .as_bytes(),
+        )
+        .map_err(error)?
+        .into_bytes_with_nul();
+        let descriptor = unsafe { libc::mkstemps(template.as_mut_ptr().cast(), 5) };
+        if descriptor < 0 {
+            return Err(error(std::io::Error::last_os_error()));
+        }
+        let mut file = unsafe { File::from_raw_fd(descriptor) };
+        template.pop();
+        let metadata = file.metadata().map_err(error)?;
+        let mut temporary = Self {
+            path: PathBuf::from(OsString::from_vec(template)),
+            device: metadata.dev(),
+            inode: metadata.ino(),
+            removed: false,
+        };
+        let result = (|| {
+            if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFD, libc::FD_CLOEXEC) } < 0 {
+                return Err(error(std::io::Error::last_os_error()));
+            }
+            file.set_permissions(fs::Permissions::from_mode(0o600))
+                .map_err(error)?;
+            file.write_all(&serde_json::to_vec(commands).map_err(error)?)
+                .map_err(error)
+        })();
+        drop(file);
+        if let Err(failure) = result {
+            let cleanup = temporary.remove();
+            return Err(match cleanup {
+                Ok(()) => failure,
+                Err(cleanup) => format!("{failure}; {cleanup}"),
+            });
+        }
+        Ok(temporary)
     }
+    fn owned(&self) -> bool {
+        fs::symlink_metadata(&self.path)
+            .is_ok_and(|m| m.is_file() && m.dev() == self.device && m.ino() == self.inode)
+    }
+    fn remove(&mut self) -> Result<()> {
+        if !self.owned() {
+            return Err("Private import staging file changed; preserved.".into());
+        }
+        fs::remove_file(&self.path).map_err(error)?;
+        self.removed = true;
+        Ok(())
+    }
+}
+impl Drop for PrivateCommands {
+    fn drop(&mut self) {
+        if !self.removed && self.owned() {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+fn publish(cli: &Path, config: &Path, original: &[u8], commands: &[Value]) -> Result<()> {
+    let mut temporary =
+        PrivateCommands::create(config.parent().unwrap_or(Path::new(".")), commands)?;
+    let mut reference = OsString::from("@");
+    reference.push(&temporary.path);
+    let mut command = Command::new(cli);
+    command.args([
+        OsString::from("config"),
+        "set".into(),
+        "commands".into(),
+        reference,
+        "--expect-sha256".into(),
+        format!("{:x}", Sha256::digest(original)).into(),
+    ]);
+    let outcome =
+        process::capture(command, Duration::from_secs(10), 1024 * 1024).and_then(|output| {
+            if output.status.success() {
+                Ok(())
+            } else {
+                Err(format!(
+                    "{}{}",
+                    String::from_utf8_lossy(&output.stdout),
+                    String::from_utf8_lossy(&output.stderr)
+                ))
+            }
+        });
+    let cleanup = temporary.remove();
+    match (outcome, cleanup) {
+        (Ok(()), result) => result,
+        (Err(failure), Ok(())) => Err(failure),
+        (Err(failure), Err(cleanup)) => Err(format!("{failure}; {cleanup}")),
+    }
+}
+fn execute(options: Options) -> Result<Value> {
     let path = options.config.map_or_else(|| active(&options.cli), Ok)?;
     let data: Value = serde_json::from_slice(&input(&options.export)?).map_err(error)?;
-    let config: Value = serde_json::from_slice(&input(&path)?).map_err(error)?;
+    let original = input(&path)?;
+    let config: Value = serde_json::from_slice(&original).map_err(error)?;
     let dirs = [
         PathBuf::from("/Applications"),
         PathBuf::from("/System/Applications"),
@@ -267,7 +372,11 @@ fn execute(options: Options) -> Result<Value> {
         home().join("Applications"),
     ];
     let apps = applications(&data, &dirs)?;
-    Ok(raycast_import::prepare(&config, &data, &apps, &options.mapping)?.summary(false))
+    let prepared = raycast_import::prepare(&config, &data, &apps, &options.mapping)?;
+    if options.apply {
+        publish(&options.cli, &path, &original, &prepared.commands)?;
+    }
+    Ok(prepared.summary(options.apply))
 }
 pub(super) fn run(args: Vec<OsString>) -> std::result::Result<(), Failure> {
     let options = parse(args).map_err(|message| Failure { code: 2, message })?;
@@ -300,17 +409,46 @@ mod tests {
         assert!(parse(vec!["--help".into()]).unwrap().is_none());
     }
     #[test]
-    fn apply_refuses_before_reading_or_running_any_caller() {
-        let options = Options {
-            export: "/not/read".into(),
-            config: None,
-            cli: "/not/executed".into(),
-            mapping: Mapping::default(),
-            apply: true,
-        };
-        assert!(execute(options)
-            .unwrap_err()
-            .contains("no configuration changed"));
+    fn private_commands_are_0600_cleaned_and_replacements_are_preserved() {
+        let fixture = crate::tests::Fixture::new();
+        let commands = [serde_json::json!({"private":"owned fixture"})];
+        let temporary = PrivateCommands::create(&fixture.0, &commands).unwrap();
+        let path = temporary.path.clone();
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&fs::read(&path).unwrap()).unwrap(),
+            serde_json::json!(commands)
+        );
+        drop(temporary);
+        assert!(!path.exists());
+        let mut temporary = PrivateCommands::create(&fixture.0, &commands).unwrap();
+        let path = temporary.path.clone();
+        let retained_inode = File::open(&path).unwrap();
+        fs::remove_file(&path).unwrap();
+        fs::write(&path, b"external replacement").unwrap();
+        assert!(temporary.remove().is_err());
+        drop(temporary);
+        assert_eq!(fs::read(&path).unwrap(), b"external replacement");
+        drop(retained_inode);
+        let config = fixture.0.join("config.json");
+        fs::write(&config, b"{}").unwrap();
+        assert!(publish(Path::new("/not/executed"), &config, b"{}", &commands).is_err());
+        assert_eq!(fs::read(config).unwrap(), b"{}");
+        assert_eq!(
+            fs::read_dir(&fixture.0)
+                .unwrap()
+                .filter(|entry| entry
+                    .as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".raycast-import-"))
+                .count(),
+            1
+        );
     }
     #[test]
     fn unrelated_nonstring_plist_title_does_not_abort_requested_discovery() {
@@ -425,12 +563,105 @@ mod tests {
             ],
         );
         assert_eq!(refused.status.code(), Some(1));
-        assert!(String::from_utf8_lossy(&refused.stderr).contains("no configuration changed"));
+        assert!(!refused.stderr.is_empty());
         assert_eq!(
             fs::read(selected.join("config.json")).unwrap(),
             selected_bytes
         );
         assert_eq!(fs::read(profile.join("config.json")).unwrap(), original);
-        assert_eq!(fs::read_to_string(export).unwrap(), data);
+        assert_eq!(fs::read_to_string(&export).unwrap(), data);
+        let stale = fixture.0.join("stale-config.json");
+        fs::write(&stale, &selected_bytes).unwrap();
+        let mut incoming: Value = serde_json::from_str(&data).unwrap();
+        incoming["builtin_package_quicklinks"]["quicklinks"] = serde_json::json!([{"uuid":"OWNED","name":"Owned import","url":"https://example.com/imported"}]);
+        fs::write(&export, serde_json::to_vec(&incoming).unwrap()).unwrap();
+        let applied = invoke(
+            &tool,
+            &[
+                "import-raycast".into(),
+                export.clone().into_os_string(),
+                "--apply".into(),
+                "--cli".into(),
+                cli.clone().into_os_string(),
+            ],
+        );
+        assert_eq!(
+            applied.status.code(),
+            Some(0),
+            "{}",
+            String::from_utf8_lossy(&applied.stderr)
+        );
+        let report: Value = serde_json::from_slice(&applied.stdout).unwrap();
+        assert_eq!(report["applied"], true);
+        assert_eq!(report["imported"]["quicklinks"], 1);
+        let published = fs::read(selected.join("config.json")).unwrap();
+        let config: Value = serde_json::from_slice(&published).unwrap();
+        assert!(config["commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["id"] == "link.owned"));
+        // Preserve and expose the legacy byte-CAS boundary: another active
+        // path with identical bytes is not distinguished by expected SHA.
+        let alternate = fixture.0.join("alternate-active");
+        fs::create_dir(&alternate).unwrap();
+        fs::write(alternate.join("config.json"), &published).unwrap();
+        fs::write(
+            profile.join("config-location.json"),
+            serde_json::to_vec(&serde_json::json!({"directory":alternate})).unwrap(),
+        )
+        .unwrap();
+        incoming["builtin_package_quicklinks"]["quicklinks"] = serde_json::json!([{"uuid":"BOUNDARY","name":"Same bytes boundary","url":"https://example.com/boundary"}]);
+        fs::write(&export, serde_json::to_vec(&incoming).unwrap()).unwrap();
+        let same_bytes = invoke(
+            &tool,
+            &[
+                "import-raycast".into(),
+                export.clone().into_os_string(),
+                "--apply".into(),
+                "--config".into(),
+                selected.join("config.json").into_os_string(),
+                "--cli".into(),
+                cli.clone().into_os_string(),
+            ],
+        );
+        assert_eq!(same_bytes.status.code(), Some(0));
+        assert_eq!(fs::read(selected.join("config.json")).unwrap(), published);
+        let alternate_bytes = fs::read(alternate.join("config.json")).unwrap();
+        assert!(
+            serde_json::from_slice::<Value>(&alternate_bytes).unwrap()["commands"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|c| c["id"] == "link.boundary")
+        );
+        let stale_attempt = invoke(
+            &tool,
+            &[
+                "import-raycast".into(),
+                export.into_os_string(),
+                "--apply".into(),
+                "--config".into(),
+                stale.clone().into_os_string(),
+                "--cli".into(),
+                cli.into_os_string(),
+            ],
+        );
+        assert_eq!(stale_attempt.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&stale_attempt.stderr).contains("changed"));
+        assert_eq!(fs::read(selected.join("config.json")).unwrap(), published);
+        assert_eq!(
+            fs::read(alternate.join("config.json")).unwrap(),
+            alternate_bytes
+        );
+        assert_eq!(fs::read(stale).unwrap(), selected_bytes);
+        assert_eq!(fs::read(profile.join("config.json")).unwrap(), original);
+        for directory in [&selected, &alternate, &fixture.0] {
+            assert!(!fs::read_dir(directory).unwrap().any(|entry| entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".raycast-import-")));
+        }
     }
 }
