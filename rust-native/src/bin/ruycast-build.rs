@@ -25,6 +25,8 @@ mod preparation;
 mod process;
 #[path = "ruycast-build/public_source.rs"]
 mod public_source;
+#[path = "ruycast-build/test_catalog.rs"]
+mod test_catalog;
 #[path = "ruycast-build/validation.rs"]
 mod validation;
 #[path = "ruycast-build/version.rs"]
@@ -476,6 +478,12 @@ fn run() -> Result<()> {
     if args.len() == 1 && matches!(args[0].as_str(), "--help" | "-h") {
         println!("{USAGE}");
         return Ok(());
+    }
+    if args.len()==5&&args[0]=="parity-tests"&&args[1]=="--repo"&&args[3]=="--selectors" {
+        if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
+        let root=Path::new(&args[2]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
+        let selectors:std::collections::BTreeSet<String>=serde_json::from_str(&args[4]).map_err(error)?;
+        let value=test_catalog::run(&root,&lease,selectors)?;println!("{value}");return Ok(());
     }
     if args.len()==5 && args[0]=="parity-ast-snapshot" && args[1]=="--repo" && args[3]=="--sha256" {
         if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
