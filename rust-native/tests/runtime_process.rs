@@ -373,6 +373,34 @@ fn persisted_directory_is_shared_between_cli_and_owned_host_startup() {
 }
 
 #[test]
+fn owned_host_restart_uses_relocated_configuration() {
+    let mut host = host(false);
+    let portable = host.base.join("Synced vault with spaces/.appdata/ruycast");
+    let original = fs::read(&host.config).unwrap();
+    assert_eq!(
+        host.cli(&["config", "directory", portable.to_str().unwrap()])["ok"],
+        true
+    );
+    for _ in 0..2 {
+        host.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(5));
+        let response = host.cli(&["status"]);
+        assert_eq!(response["ok"], true);
+        assert_eq!(
+            response["result"]["configPath"],
+            json!(portable.join("config.json"))
+        );
+        assert_eq!(fs::read(&host.config).unwrap(), original);
+        assert_eq!(fs::read(portable.join("config.json")).unwrap(), original);
+        // Terminate only this unreaped owned child, as the original test did.
+        assert_eq!(
+            unsafe { libc::kill(host.process.as_ref().unwrap().id() as i32, libc::SIGTERM) },
+            0
+        );
+        host.wait_exit(Duration::from_secs(6), false);
+    }
+}
+
+#[test]
 fn atomic_replace_invalid_last_good_and_recovery() {
     let host = host(true);
     let mut changed = default_config();

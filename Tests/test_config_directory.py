@@ -78,13 +78,6 @@ class ConfigDirectoryTests(unittest.TestCase):
 
 
 
-    def test_host_restart_uses_relocated_configuration(self):
-        self.cli('config','directory',str(self.custom))
-        self.start()
-        self.assertEqual(self.cli('status')['result']['configPath'],str(self.custom/'config.json'))
-        self.process.terminate();self.process.wait(timeout=6);self.process=None
-        self.start()
-        self.assertEqual(self.cli('status')['result']['configPath'],str(self.custom/'config.json'))
 
     def test_manual_selector_change_does_not_silently_activate_wrong_file(self):
         self.start()
