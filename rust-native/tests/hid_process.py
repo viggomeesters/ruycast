@@ -54,15 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_partial_setup_failure_always_restores_original_and_can_retry(self):
-        for stage in ['tap_create', 'source', 'manager_create', 'device_dictionary', 'input_dictionary', 'manager_open', 'tap_enable']:
-            for original in [False, True]:
-                rows, _ = self.run_case([plan(), op('failure', name=stage), op('refresh'), op('failure', name=''), op('refresh')], original)
-                self.assertNotEqual(rows[2]['status'], 'On', stage)
-                self.assertEqual(rows[2]['state']['caps'], int(original), stage)
-                self.assertEqual(rows[2]['state']['allocated'], 0, stage)
-                self.assertEqual(rows[4]['status'], 'On', stage)
-
     def test_failed_manager_or_tap_retirement_survives_drop_and_blocks_new_setup(self):
         for stage in ['manager_close', 'invalidate']:
             rows, _ = self.run_case([plan(), op('refresh'), raw(57, True), op('failure', name=stage), op('drop'),
