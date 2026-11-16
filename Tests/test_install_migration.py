@@ -163,11 +163,6 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(data_hashes(home/'.config/ruycast'),before)
         self.assertTrue(profile.is_symlink())
         return home,apps,calls
-    def test_installer_pins_explicit_configuration_for_login_startup(self):
-        home,apps,calls=self.installer_fixture(config_override=True)
-        agent=plistlib.loads((home/'Library/LaunchAgents'/(NEW_ID+'.plist')).read_bytes())
-        self.assertEqual(agent['EnvironmentVariables']['RUYCAST_CONFIG_DIR'],str(home/'synced configuration'))
-        self.assertEqual((home/'synced configuration/config.json').read_text(),'{}')
 
 
 

@@ -746,39 +746,89 @@ fn installer_owned_borrowed_lease_root_and_stage_final_namespace_guards() {
 
 #[test]
 fn installer_owned_explicit_app_profile_config_and_relative_legacy_alias() {
-    let mut f = Fixture::new();
-    f.signer();
-    f.o.apps = f.root.join("separate app directory");
-    f.o.profile = Some(f.root.join("separate runtime"));
-    let selected = f.root.join("synced config");
-    stdfs::create_dir(&selected).unwrap();
-    stdfs::write(
-        selected.join("config.json"),
-        serde_json::to_vec(&rustcast_core::default_config()).unwrap(),
-    )
-    .unwrap();
-    f.o.config = Some(selected.display().to_string());
-    let mut r = f.runner();
-    owned_install(&f.o, &mut r).unwrap();
-    let registration = tools::plist(
-        &mut r,
-        &f.o.home
-            .join(format!("Library/LaunchAgents/{NEW_ID}.plist")),
-    )
-    .unwrap();
-    assert_eq!(
-        registration["EnvironmentVariables"]["RUYCAST_CONFIG_DIR"],
-        json!(selected)
-    );
-    assert_eq!(
-        registration["EnvironmentVariables"]["RUYCAST_HOME"],
-        json!(f.o.profile)
-    );
-    let old = f.root.join("legacy-profile");
-    let new = f.root.join("new-profile");
-    stdfs::create_dir(&new).unwrap();
-    symlink("new-profile", &old).unwrap();
-    assert_eq!(profile::active(&old, &new).unwrap(), new);
+    for (legacy, sparse) in [(false, false), (true, false), (false, true), (true, true)] {
+        let mut f = Fixture::new();
+        f.signer();
+        f.o.apps = f.root.join("separate app directory");
+        if legacy {
+            f.legacy();
+        }
+        if !legacy {
+            f.o.profile = Some(f.root.join("separate runtime"));
+        }
+        let selected = f.root.join("synced config");
+        stdfs::create_dir(&selected).unwrap();
+        let authored = if sparse {
+            b"{}".to_vec()
+        } else {
+            let mut bytes = serde_json::to_vec_pretty(&rustcast_core::default_config()).unwrap();
+            bytes.extend_from_slice(b" \n");
+            bytes
+        };
+        stdfs::write(selected.join("config.json"), &authored).unwrap();
+        f.o.config = Some(selected.display().to_string());
+        let unknown = f.o.repo.join(".dist/Ruycast.app");
+        stdfs::create_dir_all(&unknown).unwrap();
+        stdfs::write(unknown.join("user-file"), b"keep me").unwrap();
+        let config_before = stdfs::read(selected.join("config.json")).unwrap();
+        let old_profile = f.o.home.join(".config/rustcast");
+        let legacy_hashes = legacy
+            .then(|| profile::hashes(&old_profile, f.o.config.as_deref(), &f.o.home).unwrap());
+        let mut r = f.runner();
+        let result = owned_install(&f.o, &mut r);
+        assert_eq!(
+            stdfs::read(selected.join("config.json")).unwrap(),
+            config_before
+        );
+        assert_eq!(stdfs::read(unknown.join("user-file")).unwrap(), b"keep me");
+        if sparse {
+            assert!(result.unwrap_err().contains("missing field `version`"));
+            assert!(!r.stopped());
+            assert!(!f.o.apps.join("Ruycast.app").exists());
+            if let Some(before) = legacy_hashes {
+                assert!(f.o.apps.join("Rustcast.app").is_dir());
+                assert!(!old_profile.is_symlink());
+                assert_eq!(
+                    profile::hashes(&old_profile, f.o.config.as_deref(), &f.o.home).unwrap(),
+                    before
+                );
+            }
+            continue;
+        }
+        result.unwrap();
+        let registration = tools::plist(
+            &mut r,
+            &f.o.home
+                .join(format!("Library/LaunchAgents/{NEW_ID}.plist")),
+        )
+        .unwrap();
+        assert_eq!(
+            registration["EnvironmentVariables"]["RUYCAST_CONFIG_DIR"],
+            json!(selected)
+        );
+        assert_eq!(
+            registration["EnvironmentVariables"]["RUYCAST_HOME"],
+            json!(f
+                .o
+                .profile
+                .clone()
+                .unwrap_or_else(|| f.o.home.join(".config/ruycast")))
+        );
+        if let Some(before) = legacy_hashes {
+            let migrated = f.o.home.join(".config/ruycast");
+            assert_eq!(
+                profile::hashes(&migrated, f.o.config.as_deref(), &f.o.home).unwrap(),
+                before
+            );
+            assert!(old_profile.is_symlink());
+            assert_eq!(stdfs::canonicalize(&old_profile).unwrap(), migrated);
+        }
+        let old = f.root.join("legacy-profile");
+        let new = f.root.join("new-profile");
+        stdfs::create_dir(&new).unwrap();
+        symlink("new-profile", &old).unwrap();
+        assert_eq!(profile::active(&old, &new).unwrap(), new);
+    }
 }
 
 #[test]
