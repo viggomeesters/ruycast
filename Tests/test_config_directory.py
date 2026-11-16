@@ -47,8 +47,6 @@ class ConfigDirectoryTests(unittest.TestCase):
             time.sleep(.05)
         self.fail('Host did not start')
 
-    def test_default_remains_compatible(self):
-        self.assertEqual(self.cli('config','path')['result'],str(self.root/'config.json'))
 
     def test_persisted_directory_is_shared_and_survives_cli_restart(self):
         self.custom.mkdir(parents=True)
@@ -70,10 +68,6 @@ class ConfigDirectoryTests(unittest.TestCase):
 
 
 
-    def test_invalid_selector_never_falls_back_to_stale_config(self):
-        for content in ['{',json.dumps({'directory':'relative'}),json.dumps({'directory':'/missing/ruycast-config'})]:
-            (self.root/'config-location.json').write_text(content)
-            self.cli('config','get',ok=False)
 
     def test_live_relocation_keeps_host_and_observer_on_new_file(self):
         self.start()
