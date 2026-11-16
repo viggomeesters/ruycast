@@ -14,34 +14,8 @@ import stat
 
 REPO=Path(__file__).resolve().parents[2]
 
-def group(id,files,rust,tests,contract,remaining):
-    return dict(id=id,files=files.split(),rust=rust.split(),tests=tests.split(),contract=contract,remaining=remaining)
-
-GROUPS=[
-    group('shared-domain-kernel','RustBridge','','foundation keyboard template snippet','Reuse existing typed Rust validation, shortcut grammar, search/history/geometry with current serialization/CLI compatibility; remove unnecessary C-ABI/JSON inside final Rust process.','Complete typed crosswalk and source-bound parity for every current domain API.'),
-    group('catalog-ranking','CommandProjection CommandSearchIndex SearchRanking','catalog ranking session','applications runtime','Stable catalog IDs, enabled/scoped filtering, aliases/Unicode/typo behavior, complete ordered recency and rank ties.','Full ranked system-provider/main Safari merge, whole-product parity and equivalent scale measurements.'),
-    group('profile-configuration','Files Models ConfigurationLocation','profile private_storage config_effects configuration_jobs','foundation runtime inline','Current profile aliases/environment/portable mapping, ACL-aware private publication, last-good config, external edits, atomic/durable outcomes and staged runtime effects.','Full configuration-field/runtime/CLI matrix, all new native effects and final relocation/readback parity.'),
-    group('transport-runtime','ControlServer ReplySink LockedValue BackgroundWork MainRunLoop FeatureState AppState','control runtime connected supervision main_services','runtime bridge cli_open','One authority for GUI/CLI; leases through physical retirement, bounded admission/frames/deadlines, cancellation, callbacks/main-thread isolation and ordered adopted snapshots.','Every wire operation, shutdown/launch modes, optional adapters and complete retained-state/lifecycle resource acceptance.'),
-    group('launcher-native-ui','Palette PaletteGeometry PaletteSearchField LauncherResults Appearance AppBrand CommandGlyph CommandIcons WebsiteIcons ShortcutBadge NativeEditCommands','native native_model native_surface presentation recorder','bridge native applications','Native placement/focus/theme, keyboard/IME/mouse/scroll/selection, icons/groups/badges/loading/empty/error and native Edit/Undo/Redo compatibility including0.8.26.','All visual/placement/menu-bar/permission/provider states and excluded physical/display/Spaces/accessibility evidence remain separate.'),
-    group('actions-bindings','PaletteActions ShortcutRecorder','actions native_surface keyboard_service','actions input_actions native_keyboard','Selected-ID Actions, direct Set Alias/Hotkey, conflict/clear/cancel/save, independent recording, metadata/privacy and dirty-draft lifetime.','Full provider-specific actions and remaining hook/Hyper interaction; physical focus/hardware behavior unpassed.'),
-    group('management-editors','Management CommandEditor CaptureTextEditor SnippetTextEditor','library native_editor native_library native_template','editor creation library inline capture','Saved/discovered-command management, full fields and merging, inline transitions/typing/Undo/composition/cancel, rich snippet/link/line-number controls and capture.','All general Settings/permission controls, rich snippet editing and complete baseline editor behavior; not just current forms.'),
-    group('scripts-choices-input','ScriptChoices TaskDateInput ScriptChoiceView Templates','execution script_result script_session templates template_form','script template input rich script_result','Literal arguments, deadlines/output/process groups, provider choices/details, input/date/project fields, owned cancellation and logs.','All builtin/private-provider/date and selection contracts, all CLI/GUI entries and complete error/timeout presentation.'),
-    group('clipboard-snippet-output','SnippetOutput SnippetClipboard','snippet_output snippet_clipboard paste native_paste','snippet snippet_effects','Plain/Teams/HTML/labeled links, cursor positions, prepare/write/own-capture/hide/target/paste ownership and partial/unknown outcomes.','Final native/permission acceptance, keyword integration and complete app data compatibility; ordinary expansion preserves clipboard.'),
-    group('global-keyboard','KeyboardState Hotkeys HyperKey','hotkeys keyboard_service carbon_hotkeys keyboard_state native_keyboard','keyboard native_keyboard hid_state','Staged Carbon/sided/modifier/Hyper, physical devices, secure input, permission/session/tap recovery, Caps restoration and recorder arbitration.','HID/Quartz SDK service, partial-failure resource retirement, accepted-generation integration and physical boundaries; pure state differential is not service acceptance.'),
-    group('keyword-expansion','SnippetMatcher SnippetExpander SnippetChoice','','snippet','Suffix/keyword matching, deletion/replacement, choices, variables, secure typing, generated-event tags and teardown.','Keyword observer/matcher/choices/focus expansion integration and all error/resource/privacy paths are still required.'),
-    group('clipboard-history','ClipboardPreview ClipboardSearch ClipboardStore','','','Capture/change tracking/source exclusions/private types/pause, text/image/file storage, dedup/retention/assets, async latest search, preview/copy/paste/delete/import/export transactions.','Complete native capture/history/backend/UI and current data/CLI compatibility.'),
-    group('system-provider-session','SystemSearchSession SystemServices','','','Bounded demand-only provider requests, cancellation/absolute deadlines, command identity stores, fresh effect consent and no late selection substitution.','All provider integration and lifetime contracts, including Search Files/mdfind scopes, literal escaping/control-character rejection, bounded output and cancellation.'),
-    group('window-layout','WindowPlacement WindowRead WindowManager','','','Current layouts/displays/restore state, AX role/process/object identity, minimized restoration and bounded retry without same-title fallback.','Full native window-layout integration and eligible isolated SDK/model tests; excluded physical display tests unpassed.'),
-    group('window-search','WindowSearch','','','Window discovery/scoping, stable actionable identity, token lifetime and revalidation.','Dedicated window-search port; issue85 main-search feature remains separate.'),
-    group('menu-search','MenuActions SystemAccessibility','','','Frontmost app menu path/title/shortcut/enabled state, accessibility identity and revalidation before execution.','Complete native menu provider and action port.'),
-    group('safari-tabs','BrowserTabs','','','Safari demand-only discovery, main/dedicated search, separate token stores, absolute deadlines, cancellation, permission policy and documented identity limits.','Complete native Safari provider/main merge. Issue83 exact-alias priority remains separate.'),
-    group('apple-shortcuts','AppleShortcuts','','','UUID discovery/execution, duplicate labels, saved shortcut binding and privacy.','Complete native provider and preference parity.'),
-    group('utilities-secrets','Utilities','','','Saved/text/username histories, safe password generation, same Keychain service/account, concealed pasteboard types and no secrets in logs.','Complete utility providers, imports, data/security/CLI and UI integration.'),
-    group('processes-monitor','SystemMonitor ResourceSampler MonitorPerformance ProcessIcon','','','Process/CPU/memory/wakeup snapshots, process ordering/actions/confirmation and icons; worker-bound bounded sampling.','Complete monitor/process provider/UI and performance telemetry.'),
-    group('analytics-logs','AnalyticsStore AnalyticsDashboard CommandLog','activity','execution script_result','Actual command logs, usage/error/timing storage, summaries, retention/disable/export/reset and privacy.','Full analytics persistence/dashboard/wire parity and end-to-end timings, beyond current command logs/usage.'),
-    group('f1-resource','PerformanceTrace PerformanceSoak','','','Equivalent full workloads, startup/build/size/idle/fault timing,10k checkpoints and settled memory growth with original budgets.','Full comparable optimized product measurements; model/component evidence is not whole-app gain.'),
-    group('startup-release','ProductVersion PublicPreview main','','','Bundle/version ownership, launch/menu-bar/CLI discovery, privacy export, Rust-only packaging and source release/checksum/install/signing/config/permissions readback.','Complete build without Swift production dependency, reviewed public delivery/install/readback; retain current app until accepted.'),
-]
+GROUPS_BYTES=(REPO/'rust-native/resources/parity-families.json').read_bytes()
+GROUPS=json.loads(GROUPS_BYTES)
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 _AST_PARSER=None
@@ -58,7 +32,7 @@ def ast_parser():
     global _AST_PARSER
     if _AST_PARSER is None:
         target=REPO/'.build/delivery-tools'
-        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
+        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/bin/ruycast-build/parity_families.rs','rust-native/resources/parity-families.json','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
         hashes={name:sha(REPO/name) for name in sources}
         command=['cargo','build','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','parity-ast']
         run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
@@ -111,6 +85,15 @@ def rust_wire_inventory():
     if run.returncode:raise RuntimeError(run.stderr)
     return json.loads(run.stdout)
 
+def rust_contract_families(modules,test_inventory):
+    command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-families','--repo',str(REPO)]
+    payload=dict(sourceFamilies={path:value['contractFamily'] for path,value in modules.items()},testInventory=test_inventory)
+    run=subprocess.run(command,input=json.dumps(payload),cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
+    if run.returncode:raise RuntimeError(run.stderr)
+    value=json.loads(run.stdout)
+    if value['definitionsSHA256']!=hashlib.sha256(GROUPS_BYTES).hexdigest():raise RuntimeError('Contract family definitions changed since load')
+    return value['contractFamilies']
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--reference',type=Path,required=True);parser.add_argument('--out',type=Path,required=True);args=parser.parse_args()
     paths=[p for p in sorted((REPO/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(REPO).parts)]
@@ -136,14 +119,7 @@ def main():
         if sha(path)!=sha(ref):raise RuntimeError('Reference source differs: '+relative)
         modules[relative]=dict(sha256=sha(path),contractFamily=owners[name],declarations=parsed[relative])
     test_inventory=rust_test_candidates()
-    groups=[]
-    for g in GROUPS:
-        row=dict(g);row['files']=[p for p,v in modules.items() if v['contractFamily']==g['id']]
-        row['rustSources']=[str(p.relative_to(REPO)) for name in g['rust'] for p in [REPO/'rust-native/src'/f'{name}.rs'] if p.exists()]
-        row['testCandidates']={target['source']:test_inventory['testCandidates'][target['source']] for target in test_inventory['targets'] if any(name in g['tests'] for name in target['selectors'])}
-        row['testCandidateGaps']=[name for name in g['tests'] if name in test_inventory['unresolvedSelectors']]
-        row['acceptance']='Not accepted as a complete family. Candidate source/test crosswalk; compiler inventory and test names do not prove behavioral parity.'
-        groups.append(row)
+    groups=rust_contract_families(modules,test_inventory)
     wire_inventory=rust_wire_inventory()
     if wire_inventory['sources']['Sources/RuycastApp/AppState.swift']!=modules['Sources/RuycastApp/AppState.swift']['sha256']:raise RuntimeError('Wire source differs from compiler/reference source')
     wire=wire_inventory['wireOperations']

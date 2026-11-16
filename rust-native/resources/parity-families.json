@@ -1,0 +1,375 @@
+[
+  {
+    "id": "shared-domain-kernel",
+    "files": [
+      "RustBridge"
+    ],
+    "rust": [],
+    "tests": [
+      "foundation",
+      "keyboard",
+      "template",
+      "snippet"
+    ],
+    "contract": "Reuse existing typed Rust validation, shortcut grammar, search/history/geometry with current serialization/CLI compatibility; remove unnecessary C-ABI/JSON inside final Rust process.",
+    "remaining": "Complete typed crosswalk and source-bound parity for every current domain API."
+  },
+  {
+    "id": "catalog-ranking",
+    "files": [
+      "CommandProjection",
+      "CommandSearchIndex",
+      "SearchRanking"
+    ],
+    "rust": [
+      "catalog",
+      "ranking",
+      "session"
+    ],
+    "tests": [
+      "applications",
+      "runtime"
+    ],
+    "contract": "Stable catalog IDs, enabled/scoped filtering, aliases/Unicode/typo behavior, complete ordered recency and rank ties.",
+    "remaining": "Full ranked system-provider/main Safari merge, whole-product parity and equivalent scale measurements."
+  },
+  {
+    "id": "profile-configuration",
+    "files": [
+      "Files",
+      "Models",
+      "ConfigurationLocation"
+    ],
+    "rust": [
+      "profile",
+      "private_storage",
+      "config_effects",
+      "configuration_jobs"
+    ],
+    "tests": [
+      "foundation",
+      "runtime",
+      "inline"
+    ],
+    "contract": "Current profile aliases/environment/portable mapping, ACL-aware private publication, last-good config, external edits, atomic/durable outcomes and staged runtime effects.",
+    "remaining": "Full configuration-field/runtime/CLI matrix, all new native effects and final relocation/readback parity."
+  },
+  {
+    "id": "transport-runtime",
+    "files": [
+      "ControlServer",
+      "ReplySink",
+      "LockedValue",
+      "BackgroundWork",
+      "MainRunLoop",
+      "FeatureState",
+      "AppState"
+    ],
+    "rust": [
+      "control",
+      "runtime",
+      "connected",
+      "supervision",
+      "main_services"
+    ],
+    "tests": [
+      "runtime",
+      "bridge",
+      "cli_open"
+    ],
+    "contract": "One authority for GUI/CLI; leases through physical retirement, bounded admission/frames/deadlines, cancellation, callbacks/main-thread isolation and ordered adopted snapshots.",
+    "remaining": "Every wire operation, shutdown/launch modes, optional adapters and complete retained-state/lifecycle resource acceptance."
+  },
+  {
+    "id": "launcher-native-ui",
+    "files": [
+      "Palette",
+      "PaletteGeometry",
+      "PaletteSearchField",
+      "LauncherResults",
+      "Appearance",
+      "AppBrand",
+      "CommandGlyph",
+      "CommandIcons",
+      "WebsiteIcons",
+      "ShortcutBadge",
+      "NativeEditCommands"
+    ],
+    "rust": [
+      "native",
+      "native_model",
+      "native_surface",
+      "presentation",
+      "recorder"
+    ],
+    "tests": [
+      "bridge",
+      "native",
+      "applications"
+    ],
+    "contract": "Native placement/focus/theme, keyboard/IME/mouse/scroll/selection, icons/groups/badges/loading/empty/error and native Edit/Undo/Redo compatibility including0.8.26.",
+    "remaining": "All visual/placement/menu-bar/permission/provider states and excluded physical/display/Spaces/accessibility evidence remain separate."
+  },
+  {
+    "id": "actions-bindings",
+    "files": [
+      "PaletteActions",
+      "ShortcutRecorder"
+    ],
+    "rust": [
+      "actions",
+      "native_surface",
+      "keyboard_service"
+    ],
+    "tests": [
+      "actions",
+      "input_actions",
+      "native_keyboard"
+    ],
+    "contract": "Selected-ID Actions, direct Set Alias/Hotkey, conflict/clear/cancel/save, independent recording, metadata/privacy and dirty-draft lifetime.",
+    "remaining": "Full provider-specific actions and remaining hook/Hyper interaction; physical focus/hardware behavior unpassed."
+  },
+  {
+    "id": "management-editors",
+    "files": [
+      "Management",
+      "CommandEditor",
+      "CaptureTextEditor",
+      "SnippetTextEditor"
+    ],
+    "rust": [
+      "library",
+      "native_editor",
+      "native_library",
+      "native_template"
+    ],
+    "tests": [
+      "editor",
+      "creation",
+      "library",
+      "inline",
+      "capture"
+    ],
+    "contract": "Saved/discovered-command management, full fields and merging, inline transitions/typing/Undo/composition/cancel, rich snippet/link/line-number controls and capture.",
+    "remaining": "All general Settings/permission controls, rich snippet editing and complete baseline editor behavior; not just current forms."
+  },
+  {
+    "id": "scripts-choices-input",
+    "files": [
+      "ScriptChoices",
+      "TaskDateInput",
+      "ScriptChoiceView",
+      "Templates"
+    ],
+    "rust": [
+      "execution",
+      "script_result",
+      "script_session",
+      "templates",
+      "template_form"
+    ],
+    "tests": [
+      "script",
+      "template",
+      "input",
+      "rich",
+      "script_result"
+    ],
+    "contract": "Literal arguments, deadlines/output/process groups, provider choices/details, input/date/project fields, owned cancellation and logs.",
+    "remaining": "All builtin/private-provider/date and selection contracts, all CLI/GUI entries and complete error/timeout presentation."
+  },
+  {
+    "id": "clipboard-snippet-output",
+    "files": [
+      "SnippetOutput",
+      "SnippetClipboard"
+    ],
+    "rust": [
+      "snippet_output",
+      "snippet_clipboard",
+      "paste",
+      "native_paste"
+    ],
+    "tests": [
+      "snippet",
+      "snippet_effects"
+    ],
+    "contract": "Plain/Teams/HTML/labeled links, cursor positions, prepare/write/own-capture/hide/target/paste ownership and partial/unknown outcomes.",
+    "remaining": "Final native/permission acceptance, keyword integration and complete app data compatibility; ordinary expansion preserves clipboard."
+  },
+  {
+    "id": "global-keyboard",
+    "files": [
+      "KeyboardState",
+      "Hotkeys",
+      "HyperKey"
+    ],
+    "rust": [
+      "hotkeys",
+      "keyboard_service",
+      "carbon_hotkeys",
+      "keyboard_state",
+      "native_keyboard"
+    ],
+    "tests": [
+      "keyboard",
+      "native_keyboard",
+      "hid_state"
+    ],
+    "contract": "Staged Carbon/sided/modifier/Hyper, physical devices, secure input, permission/session/tap recovery, Caps restoration and recorder arbitration.",
+    "remaining": "HID/Quartz SDK service, partial-failure resource retirement, accepted-generation integration and physical boundaries; pure state differential is not service acceptance."
+  },
+  {
+    "id": "keyword-expansion",
+    "files": [
+      "SnippetMatcher",
+      "SnippetExpander",
+      "SnippetChoice"
+    ],
+    "rust": [],
+    "tests": [
+      "snippet"
+    ],
+    "contract": "Suffix/keyword matching, deletion/replacement, choices, variables, secure typing, generated-event tags and teardown.",
+    "remaining": "Keyword observer/matcher/choices/focus expansion integration and all error/resource/privacy paths are still required."
+  },
+  {
+    "id": "clipboard-history",
+    "files": [
+      "ClipboardPreview",
+      "ClipboardSearch",
+      "ClipboardStore"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Capture/change tracking/source exclusions/private types/pause, text/image/file storage, dedup/retention/assets, async latest search, preview/copy/paste/delete/import/export transactions.",
+    "remaining": "Complete native capture/history/backend/UI and current data/CLI compatibility."
+  },
+  {
+    "id": "system-provider-session",
+    "files": [
+      "SystemSearchSession",
+      "SystemServices"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Bounded demand-only provider requests, cancellation/absolute deadlines, command identity stores, fresh effect consent and no late selection substitution.",
+    "remaining": "All provider integration and lifetime contracts, including Search Files/mdfind scopes, literal escaping/control-character rejection, bounded output and cancellation."
+  },
+  {
+    "id": "window-layout",
+    "files": [
+      "WindowPlacement",
+      "WindowRead",
+      "WindowManager"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Current layouts/displays/restore state, AX role/process/object identity, minimized restoration and bounded retry without same-title fallback.",
+    "remaining": "Full native window-layout integration and eligible isolated SDK/model tests; excluded physical display tests unpassed."
+  },
+  {
+    "id": "window-search",
+    "files": [
+      "WindowSearch"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Window discovery/scoping, stable actionable identity, token lifetime and revalidation.",
+    "remaining": "Dedicated window-search port; issue85 main-search feature remains separate."
+  },
+  {
+    "id": "menu-search",
+    "files": [
+      "MenuActions",
+      "SystemAccessibility"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Frontmost app menu path/title/shortcut/enabled state, accessibility identity and revalidation before execution.",
+    "remaining": "Complete native menu provider and action port."
+  },
+  {
+    "id": "safari-tabs",
+    "files": [
+      "BrowserTabs"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Safari demand-only discovery, main/dedicated search, separate token stores, absolute deadlines, cancellation, permission policy and documented identity limits.",
+    "remaining": "Complete native Safari provider/main merge. Issue83 exact-alias priority remains separate."
+  },
+  {
+    "id": "apple-shortcuts",
+    "files": [
+      "AppleShortcuts"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "UUID discovery/execution, duplicate labels, saved shortcut binding and privacy.",
+    "remaining": "Complete native provider and preference parity."
+  },
+  {
+    "id": "utilities-secrets",
+    "files": [
+      "Utilities"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Saved/text/username histories, safe password generation, same Keychain service/account, concealed pasteboard types and no secrets in logs.",
+    "remaining": "Complete utility providers, imports, data/security/CLI and UI integration."
+  },
+  {
+    "id": "processes-monitor",
+    "files": [
+      "SystemMonitor",
+      "ResourceSampler",
+      "MonitorPerformance",
+      "ProcessIcon"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Process/CPU/memory/wakeup snapshots, process ordering/actions/confirmation and icons; worker-bound bounded sampling.",
+    "remaining": "Complete monitor/process provider/UI and performance telemetry."
+  },
+  {
+    "id": "analytics-logs",
+    "files": [
+      "AnalyticsStore",
+      "AnalyticsDashboard",
+      "CommandLog"
+    ],
+    "rust": [
+      "activity"
+    ],
+    "tests": [
+      "execution",
+      "script_result"
+    ],
+    "contract": "Actual command logs, usage/error/timing storage, summaries, retention/disable/export/reset and privacy.",
+    "remaining": "Full analytics persistence/dashboard/wire parity and end-to-end timings, beyond current command logs/usage."
+  },
+  {
+    "id": "f1-resource",
+    "files": [
+      "PerformanceTrace",
+      "PerformanceSoak"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Equivalent full workloads, startup/build/size/idle/fault timing,10k checkpoints and settled memory growth with original budgets.",
+    "remaining": "Full comparable optimized product measurements; model/component evidence is not whole-app gain."
+  },
+  {
+    "id": "startup-release",
+    "files": [
+      "ProductVersion",
+      "PublicPreview",
+      "main"
+    ],
+    "rust": [],
+    "tests": [],
+    "contract": "Bundle/version ownership, launch/menu-bar/CLI discovery, privacy export, Rust-only packaging and source release/checksum/install/signing/config/permissions readback.",
+    "remaining": "Complete build without Swift production dependency, reviewed public delivery/install/readback; retain current app until accepted."
+  }
+]
