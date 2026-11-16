@@ -23,6 +23,7 @@ const SOURCES: &[&str] = &[
     "rust-toolchain.toml",
     "rust-native/scripts/parity_inventory.py",
     "rust-native/src/bin/ruycast-build/parity_bootstrap.rs",
+    "rust-native/src/bin/ruycast-build/parity_toolchain.rs",
 ];
 fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
     SOURCES
@@ -66,7 +67,7 @@ fn monotonic_nanos() -> Result<u64> {
         .and_then(|v| v.checked_add(nanos))
         .ok_or("Monotonic parser deadline overflow.".into())
 }
-fn inner_budget(deadline: u64) -> Result<Duration> {
+pub(super) fn inner_budget(deadline: u64) -> Result<Duration> {
     let remaining = deadline
         .checked_sub(monotonic_nanos()?)
         .and_then(|v| v.checked_sub(5_000_000_000))
