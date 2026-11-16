@@ -281,6 +281,7 @@ rust-native/src/profile_io_abi.rs
 rust-native/src/performance_trace.rs
 rust-native/src/performance_signposts.rs
 rust-native/src/ranking.rs
+rust-native/src/raycast_import.rs
 rust-native/src/recorder.rs
 rust-native/src/request_values.rs
 rust-native/src/responder_edit.rs
