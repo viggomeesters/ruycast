@@ -25,6 +25,8 @@ mod preparation;
 mod process;
 #[path = "ruycast-build/public_source.rs"]
 mod public_source;
+#[path = "ruycast-build/parity_inventory.rs"]
+mod parity_inventory;
 #[path = "ruycast-build/parity_report.rs"]
 mod parity_report;
 #[path = "ruycast-build/parity_toolchain.rs"]
@@ -492,6 +494,18 @@ fn run() -> Result<()> {
     if args.len() == 1 && matches!(args[0].as_str(), "--help" | "-h") {
         println!("{USAGE}");
         return Ok(());
+    }
+    if args.first().is_some_and(|value|value=="parity-inventory") {
+        args.remove(0);
+        if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build parity-inventory --repo ROOT --reference CHECKOUT --out MATRIX [--deadline-nanos MONOTONIC_NS]");return Ok(());}
+        let parsed=(||->Result<(PathBuf,PathBuf,PathBuf,u64)>{
+            let root=PathBuf::from(compat::option(&mut args,&["--repo"])?.ok_or("--repo is required")?);let reference=PathBuf::from(compat::option(&mut args,&["--reference"])?.ok_or("--reference is required")?);let out=PathBuf::from(compat::option(&mut args,&["--out"])?.ok_or("--out is required")?);
+            let deadline=compat::option(&mut args,&["--deadline-nanos"])?.map(|value|value.parse::<u64>().map_err(error)).transpose()?.unwrap_or(parity_bootstrap::monotonic_nanos()?.checked_add(600_000_000_000).ok_or("Inventory deadline overflow")?);
+            if !args.is_empty()||!root.is_absolute(){return Err("Unknown arguments or nonabsolute --repo".into());}Ok((root,reference,out,deadline))
+        })();
+        let (root,reference,out,deadline)=match parsed{Ok(value)=>value,Err(message)=>{eprintln!("{message}");std::process::exit(2)}};
+        let root=root.canonicalize().map_err(error)?;let reference=reference.canonicalize().map_err(error)?;let out=if out.is_absolute(){out}else{std::env::current_dir().map_err(error)?.join(out)};let lease=BuildLock::acquire(&root)?;
+        let value=parity_inventory::run(&root,&lease,&reference,&out,deadline)?;println!("{value}");return Ok(());
     }
     if args.len()==3&&args[0]=="parity-report"&&args[1]=="--repo" {
         if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}

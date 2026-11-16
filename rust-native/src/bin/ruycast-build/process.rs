@@ -6,6 +6,23 @@ use std::{
     process::{Child, Command, ExitStatus, Stdio},
     time::{Duration, Instant},
 };
+thread_local! {static OUTER_DEADLINE:std::cell::Cell<Option<u64>>=const{std::cell::Cell::new(None)};}
+pub(super) fn with_deadline<T>(
+    deadline: u64,
+    run: impl FnOnce() -> Result<T, String>,
+) -> Result<T, String> {
+    super::parity_bootstrap::inner_budget(deadline)?;
+    struct Restore(Option<u64>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            OUTER_DEADLINE.with(|value| value.set(self.0));
+        }
+    }
+    let prior = OUTER_DEADLINE
+        .with(|value| value.replace(Some(value.get().map_or(deadline, |old| old.min(deadline)))));
+    let _restore = Restore(prior);
+    run()
+}
 pub(super) struct Captured {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
@@ -199,6 +216,12 @@ fn capture_stream(
     timeout: Duration,
     settings: Capture,
 ) -> Result<Captured, String> {
+    let timeout = OUTER_DEADLINE.with(|value| match value.get() {
+        Some(deadline) => {
+            super::parity_bootstrap::inner_budget(deadline).map(|remaining| timeout.min(remaining))
+        }
+        None => Ok(timeout),
+    })?;
     let Capture {
         input,
         out,
@@ -316,6 +339,18 @@ mod tests {
             }
             _ => panic!("unknown owned mode"),
         }
+    }
+    #[test]
+    fn scoped_deadline_caps_child_and_restores_after_error() {
+        let now = super::super::parity_bootstrap::monotonic_nanos().unwrap();
+        let start = Instant::now();
+        let result = with_deadline(now + 5_100_000_000, || {
+            capture(command("hold"), Duration::from_secs(5), 65536)
+        });
+        assert!(result.err().unwrap().contains("timed out"));
+        assert!(start.elapsed() < Duration::from_secs(2));
+        assert!(OUTER_DEADLINE.with(|value| value.get()).is_none());
+        assert!(capture(command("streams"), Duration::from_secs(5), 65536).is_ok());
     }
     #[test]
     fn streaming_output_is_capped_without_memory_retention() {

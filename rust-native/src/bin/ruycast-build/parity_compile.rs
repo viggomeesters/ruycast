@@ -30,7 +30,7 @@ const REQUIRED_SOURCES: &[&str] = &[
     "rust-native/src/bin/ruycast-build/parity_compile.rs",
     "rust-native/src/bin/ruycast-build/process.rs",
     "rust-native/src/bin/ruycast-build/preparation.rs",
-    "rust-native/scripts/parity_inventory.py",
+    "rust-native/src/bin/ruycast-build/parity_inventory.rs",
 ];
 pub(super) fn validate_parser(root: &Path, binding: &Value) -> Result<()> {
     let parser: Parser = serde_json::from_value(binding.clone()).map_err(error)?;

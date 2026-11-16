@@ -21,7 +21,7 @@ const SOURCES: &[&str] = &[
     "rust/Cargo.toml",
     "rust/Cargo.lock",
     "rust-toolchain.toml",
-    "rust-native/scripts/parity_inventory.py",
+    "rust-native/src/bin/ruycast-build/parity_inventory.rs",
     "rust-native/src/bin/ruycast-build/parity_bootstrap.rs",
     "rust-native/src/bin/ruycast-build/parity_toolchain.rs",
     "rust-native/src/bin/ruycast-build/parity_report.rs",
@@ -57,7 +57,7 @@ struct Request {
     binding: Option<Value>,
     deadline_nanos: u64,
 }
-fn monotonic_nanos() -> Result<u64> {
+pub(super) fn monotonic_nanos() -> Result<u64> {
     let mut time: libc::timespec = unsafe { std::mem::zeroed() };
     if unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut time) } != 0 {
         return Err(error(std::io::Error::last_os_error()));

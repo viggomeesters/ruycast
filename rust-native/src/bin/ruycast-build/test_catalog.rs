@@ -125,7 +125,7 @@ fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "rust/Cargo.lock",
         "rust-toolchain.toml",
         "config/default.json",
-        "rust-native/scripts/parity_inventory.py",
+        "rust-native/resources/parity-families.json",
     ] {
         source_tree(root, &root.join(name), &mut values)?;
     }
