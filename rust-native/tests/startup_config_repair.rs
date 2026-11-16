@@ -399,6 +399,48 @@ fn offline_cli_and_host_initializer_refuse_unavailable_persisted_config() {
 }
 
 #[test]
+fn offline_cli_and_host_initializer_refuse_parent_component_after_symlink() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    f.source();
+    let original = fs::read(f.root.join("config.json")).unwrap();
+    let elsewhere = f.base.join("elsewhere/child");
+    fs::create_dir_all(&elsewhere).unwrap();
+    let link = f.base.join("link");
+    symlink(&elsewhere, &link).unwrap();
+    let path = format!("{}/../ruycast", link.display());
+    let refusal = bounded_value(
+        f.command(false)
+            .env("RUYCAST_CONFIG_DIR", &path)
+            .args(["config", "path"]),
+        false,
+    );
+    assert!(refusal["error"]
+        .as_str()
+        .unwrap()
+        .contains("without '..' components"));
+    let paths = ruycast_native::profile::ProfilePaths::new(
+        f.root.clone(),
+        f.base.clone(),
+        Some(path.clone()),
+    );
+    assert!(paths
+        .initialize()
+        .unwrap_err()
+        .contains("without '..' components"));
+    let refusal = bounded_value(f.command(false).args(["config", "directory", &path]), false);
+    assert!(refusal["error"]
+        .as_str()
+        .unwrap()
+        .contains("without '..' components"));
+    assert!(!elsewhere.parent().unwrap().join("ruycast").exists());
+    assert!(!f.base.join("ruycast").exists());
+    assert_eq!(fs::read_link(link).unwrap(), elsewhere);
+    assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
+    assert!(!f.root.join("config-location.json").exists());
+}
+
+#[test]
 fn missing_invalid_and_overridden_sources_fail_before_creation() {
     for invalid in [false, true] {
         let f = Fixture::new();

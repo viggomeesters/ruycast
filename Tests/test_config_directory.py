@@ -87,16 +87,6 @@ class ConfigDirectoryTests(unittest.TestCase):
         self.assertEqual(target.read_bytes(),self.config)
         self.assertEqual(self.cli('status')['result']['configPath'],str(self.root/'config.json'))
 
-    def test_parent_component_after_symlink_is_rejected_by_cli_and_host(self):
-        elsewhere=self.base/'elsewhere'/'child';elsewhere.mkdir(parents=True)
-        link=self.base/'link';link.symlink_to(elsewhere,target_is_directory=True)
-        path=str(link)+'/../ruycast'
-        env=dict(self.env,RUYCAST_CONFIG_DIR=path)
-        self.cli('config','path',env=env,ok=False)
-        result=subprocess.run([str(HOST),'--init-config'],env=env,capture_output=True,text=True)
-        self.assertNotEqual(result.returncode,0)
-        self.cli('config','directory',path,ok=False)
-        self.assertFalse((elsewhere.parent/'ruycast').exists())
 
     def test_raycast_import_defaults_to_active_cli_config(self):
         self.cli('config','directory',str(self.custom))
