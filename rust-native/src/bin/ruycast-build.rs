@@ -930,6 +930,16 @@ mod tests {
             .all(|name| name.starts_with(".build/full-rust-debug/") && name.contains("/debug/")));
         assert!(verify_under_lease(&fixture.0, "debug", &lease).is_ok());
         assert!(verify_under_lease(&fixture.0, "release", &lease).is_ok());
+        let version_path = fixture.0.join("rust/src/product_version.rs");
+        let version_before = fs::read(&version_path).unwrap();
+        fs::write(&version_path, b"invalid canonical source").unwrap();
+        for configuration in ["release", "debug"] {
+            let error = verify_under_lease(&fixture.0, configuration, &lease)
+                .err().expect("invalid canonical version must refuse the real build authority");
+            assert!(error.contains("one canonical"), "{error}");
+        }
+        assert_eq!(fs::read(&version_path).unwrap(), b"invalid canonical source");
+        fs::write(&version_path, version_before).unwrap();
         fs::write(
             fixture.0.join("config/default.json"),
             b"{\"ownedChange\":true}",

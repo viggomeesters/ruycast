@@ -561,6 +561,7 @@ fn installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop()
         "binary",
         "source",
         "missing-receipt",
+        "canonical-version",
         "unrelated-link",
         "linked-app",
         "linked-selector",
@@ -585,6 +586,12 @@ fn installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop()
                     .join(".build/full-rust-release/development-build.json"),
             )
             .unwrap(),
+            "canonical-version" => {
+                let path = f.o.repo.join("rust/src/product_version.rs");
+                stdfs::write(&path, include_bytes!("../../../../rust/src/product_version.rs")).unwrap();
+                f.build();
+                stdfs::write(path, b"invalid canonical source").unwrap();
+            }
             "unrelated-link" => {
                 stdfs::write(f.root.join("unrelated-tool"), b"unrelated").unwrap();
                 symlink(
@@ -607,7 +614,7 @@ fn installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop()
         }
         let mut r = f.runner();
         let error = owned_install(&f.o, &mut r).unwrap_err();
-        if ["binary", "source", "missing-receipt"].contains(&fault) {
+        if ["binary", "source", "missing-receipt", "canonical-version"].contains(&fault) {
             assert_eq!(error, "Rust release verification failed; run scripts/install.sh to create a fresh prepared build.");
             assert_eq!(r.calls.len(), 1, "{fault}: {:?}", r.calls);
             let (program, args, _) = &r.calls[0];
