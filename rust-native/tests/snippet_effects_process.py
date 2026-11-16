@@ -155,17 +155,6 @@ class SnippetEffects(unittest.TestCase):
             self.assertEqual(self.writes(h),[]);self.assertEqual(self.posts(h),[])
             self.assertFalse(any(r['phase']=='snippet-clear' for r in self.trace(h)))
 
-    def test_cursor_cap_is_exact_and_target_change_after_paste_prevents_cursor_events(self):
-        h=self.host(command('{cursor}'+'x'*10001))
-        result=h.rpc(dict(op='execute',id='snipfixture'),timeout=15)
-        self.assertTrue(result['ok']);posts=self.posts(h)
-        self.assertEqual(len(posts),20002);self.assert_keys(posts,[9,9]+[123]*20000)
-        self.assertEqual(len(self.writes(h)[0]['text']),10001)
-        h=self.host(command('A{cursor}😀end'));self.show(h);self.run_native(h)
-        self.wait_event(h,'snippet-post',lambda r:r['key']==9 and not r['down'])
-        h.probe('snippet-fixture-control',operation=2);self.done(h);h.settled()
-        self.assertEqual([r['key'] for r in self.posts(h)],[9,9]);self.assertFalse(self.notice(h,'snippet-cursor-target-changed')['success'])
-
 
 
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -258,6 +258,59 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
 }
 
 #[test]
+fn cursor_cap_is_exact_and_target_change_after_paste_prevents_cursor_events() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let first_host = hidden_host(&format!("{{cursor}}{}", "x".repeat(10_001)));
+    let result = first_host.rpc_timeout(
+        &json!({"op":"execute","id":"snipfixture"}),
+        Duration::from_secs(15),
+    );
+    assert_eq!(result["ok"], true);
+    let first_trace = trace(&first_host);
+    let posts: Vec<_> = first_trace
+        .iter()
+        .filter(|event| event["phase"] == "snippet-post")
+        .collect();
+    assert_eq!(posts.len(), 20_002);
+    let mut keys = vec![9, 9];
+    keys.resize(20_002, 123);
+    assert_keys(&posts, &keys);
+    let write = first_trace
+        .iter()
+        .find(|event| event["phase"] == "snippet-write")
+        .unwrap();
+    let written_length = write["text"].as_str().unwrap().chars().count();
+    assert_eq!(written_length, 10_001);
+    save(
+        "cursor-cap",
+        &json!({"result":result,"postCount":posts.len(),"writtenCharacterCount":written_length}),
+        &first_trace,
+    );
+
+    let mut host = hidden_host("A{cursor}😀end");
+    show(&host);
+    run_native(&host);
+    wait_event(&mut host, "snippet-post", |event| {
+        event["key"] == 9 && event["down"] == false
+    });
+    host.probe("snippet-fixture-control", json!({"operation":2}));
+    done(&host);
+    host.settled(|_| true);
+    let trace = trace(&host);
+    let keys: Vec<_> = trace
+        .iter()
+        .filter(|event| event["phase"] == "snippet-post")
+        .map(|event| event["key"].as_u64().unwrap())
+        .collect();
+    assert_eq!(keys, vec![9, 9]);
+    let notice = notice(&host, "snippet-cursor-target-changed");
+    assert_eq!(notice["success"], false);
+    save("cursor-target-changed", &notice, &trace);
+}
+
+#[test]
 fn disconnect_and_quit_cancel_owned_timers_and_never_post_late() {
     let _scenario = HOST_SCENARIOS
         .lock()
