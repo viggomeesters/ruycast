@@ -941,7 +941,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_lifecycle_process.rs", include_bytes!("../../../tests/library_lifecycle_process.rs"), "4f3d417117826cd22f64e233a5c27609402a4a41f5029b1e54ce6de6907c92ad"),
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
@@ -987,7 +986,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_lifecycle_process.rs", include_bytes!("../../../tests/library_lifecycle_process.rs"), "4f3d417117826cd22f64e233a5c27609402a4a41f5029b1e54ce6de6907c92ad"),
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
@@ -1015,7 +1013,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/library_lifecycle_process.rs", include_bytes!("../../../tests/library_lifecycle_process.rs"), "4f3d417117826cd22f64e233a5c27609402a4a41f5029b1e54ce6de6907c92ad"),
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
-            ("rust-native/tests/bridge_process.py", include_bytes!("../../../tests/bridge_process.py"), "1d6c5f6f8143f9e6f4a642cd8d32e14b4d243baa24f3079fa62b4723fdaffac4"),
             ("rust-native/tests/bridge_process.rs", include_bytes!("../../../tests/bridge_process.rs"), "5e281d85d5122f4758e648ce78133657377df963c3fedf827a17b609e778ec3d"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
@@ -2124,14 +2121,14 @@ mod tests {
             .find(|gate| gate.id == "--check-interactions")
             .unwrap();
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 49);
+        assert_eq!(inputs.len(), 46);
         assert_eq!(
             inputs
                 .iter()
                 .map(|entry| entry.0)
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            49
+            46
         );
         let source = std::str::from_utf8(
             inputs
@@ -2175,15 +2172,13 @@ mod tests {
             "--check-actions-menu",
             "--check-interactions",
         ] {
-            let (_, bytes, expected) = settings_sources(id)
-                .iter()
-                .find(|entry| entry.0 == "rust-native/tests/bridge_process.py")
-                .unwrap();
-            assert_eq!(
-                format!("{:x}", Sha256::digest(bytes)),
-                *expected,
-                "{id}: shared Python fixture remains visible"
-            );
+            let inputs=settings_sources(id);
+            assert!(!inputs.iter().any(|entry|entry.0.ends_with(".py")),"{id}: retired Python helper must not remain an input");
+            for path in ["rust-native/tests/support/native_bridge.rs","rust-native/tests/support/runtime_host.rs","rust-native/tests/support/status_rpc.rs","rust-native/tests/support/child_output.rs"] {
+                let (_,bytes,expected)=inputs.iter().find(|entry|entry.0==path).unwrap();
+                assert_eq!(format!("{:x}",Sha256::digest(bytes)),*expected,"{id}: {path}");
+            }
+
         }
     }
     #[test]
