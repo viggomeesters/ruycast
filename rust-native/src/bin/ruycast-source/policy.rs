@@ -182,6 +182,7 @@ rust-native/src/bin/keyword_probe.rs
 rust-native/src/bin/manager_probe.rs
 rust-native/src/bin/native_snippet_choice_probe.rs
 rust-native/src/bin/ruycast-build.rs
+rust-native/src/bin/rust_only_policy.rs
 rust-native/src/bin/ruycast-build/candidate.rs
 rust-native/src/bin/ruycast-build/compat.rs
 rust-native/src/bin/ruycast-build/macho.rs
@@ -418,6 +419,7 @@ rust-native/tests/rich_process.rs
 rust-native/tests/runtime_process.py
 rust-native/tests/runtime_process.rs
 rust-native/tests/rust_only_policy.py
+rust-native/tests/rust_only_policy.rs
 rust-native/tests/fixtures/script_fault_shim.rs
 rust-native/tests/script_basic_process.rs
 rust-native/tests/script_fault_process.rs

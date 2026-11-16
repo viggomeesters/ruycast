@@ -29,16 +29,7 @@ class RustOnly(unittest.TestCase):
         (root / policy.LOCK).write_text(json.dumps(lock))
         return root
 
-    def test_real_repository_current_freeze_passes(self):
-        result = policy.verify(ROOT.parent)
-        self.assertTrue(result["ok"], result)
-        self.assertGreater(result["frozenLegacyFiles"], 2)
 
-    def test_rust_changes_and_new_rust_files_remain_allowed(self):
-        root = self.fixture()
-        (root / "rust-native/src/main.rs").write_text("fn main() {}\n")
-        (root / "rust/src/new.rs").write_text("pub fn execute() {}\n")
-        self.assertTrue(policy.verify(root)["ok"])
 
     def test_legacy_change_addition_removal_and_package_edit_fail(self):
         for mutation in ["change", "add", "remove", "package"]:
@@ -66,14 +57,6 @@ class RustOnly(unittest.TestCase):
                 file.write_text("// forbidden product code\n")
                 self.assertFalse(policy.verify(root)["ok"])
 
-    def test_test_oracles_and_build_tools_are_not_product_logic(self):
-        root = self.fixture()
-        for path in ["rust-native/tests/oracle.swift", "rust-native/tests/sdk.m",
-                     "rust-native/scripts/check.py"]:
-            file = root / path
-            file.parent.mkdir(parents=True, exist_ok=True)
-            file.write_text("// own test fixture\n")
-        self.assertTrue(policy.verify(root)["ok"])
 
     def test_symlink_and_missing_or_weakened_lock_fail_closed(self):
         root = self.fixture()
