@@ -1,6 +1,9 @@
 //! Rust importer I/O. Publication goes through the existing CLI's CAS writer.
 use super::*;
-use objc2_foundation::{NSBundle, NSHomeDirectory, NSString, NSURL};
+use objc2_foundation::{
+    NSArray, NSBundle, NSCharacterSet, NSHomeDirectory, NSJSONSerialization, NSJSONWritingOptions,
+    NSString, NSURL,
+};
 use ruycast_native::raycast_import::{self, Application, Options as Mapping};
 use serde_json::Value;
 use std::{
@@ -38,6 +41,18 @@ fn home() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| NSHomeDirectory().to_string().into())
 }
+fn negative_number(value: &OsStr) -> bool {
+    let Some(value) = value.to_str().and_then(|s| s.strip_prefix('-')) else {
+        return false;
+    };
+    let digits = NSCharacterSet::decimalDigitCharacterSet();
+    let decimal = |text: &str| text.chars().all(|c| digits.longCharacterIsMember(c as u32));
+    if let Some((whole, fraction)) = value.split_once('.') {
+        decimal(whole) && !fraction.is_empty() && decimal(fraction)
+    } else {
+        !value.is_empty() && decimal(value)
+    }
+}
 fn parse(args: Vec<OsString>) -> std::result::Result<Option<Options>, String> {
     let names = [
         "--config",
@@ -62,11 +77,22 @@ fn parse(args: Vec<OsString>) -> std::result::Result<Option<Options>, String> {
         if !positional && (arg == OsStr::new("-h") || arg == OsStr::new("--help")) {
             return Ok(None);
         }
-        if !positional && arg.as_encoded_bytes().starts_with(b"-") {
-            let text = arg.to_str().ok_or("Unrecognized non-UTF8 option.")?;
-            let (key, inline) = text
-                .split_once('=')
-                .map_or((text, None), |(k, v)| (k, Some(OsString::from(v))));
+        if !positional
+            && arg != OsStr::new("-")
+            && !negative_number(&arg)
+            && arg.as_encoded_bytes().starts_with(b"-")
+        {
+            let bytes = arg.as_bytes();
+            let (key, inline) = bytes
+                .iter()
+                .position(|b| *b == b'=')
+                .map_or((bytes, None), |i| {
+                    (
+                        &bytes[..i],
+                        Some(OsString::from_vec(bytes[i + 1..].to_vec())),
+                    )
+                });
+            let key = std::str::from_utf8(key).map_err(|_| "Unrecognized non-UTF8 option.")?;
             let matches = names
                 .iter()
                 .filter(|name| **name == key || name.starts_with(key))
@@ -87,7 +113,10 @@ fn parse(args: Vec<OsString>) -> std::result::Result<Option<Options>, String> {
                         let v = args
                             .next()
                             .ok_or_else(|| format!("{key} requires a path."))?;
-                        if v.as_encoded_bytes().starts_with(b"-") {
+                        if v != OsStr::new("-")
+                            && !negative_number(&v)
+                            && v.as_encoded_bytes().starts_with(b"-")
+                        {
                             return Err(format!("{key} requires a path."));
                         }
                         v
@@ -170,6 +199,9 @@ fn active(cli: &Path) -> Result<PathBuf> {
     let mut command = Command::new(cli);
     command.args(["config", "path"]);
     let capture = process::capture(command, Duration::from_secs(10), 1024 * 1024)?;
+    std::io::stderr()
+        .write_all(&capture.stderr)
+        .map_err(error)?;
     if !capture.status.success() {
         return Err("Active configuration CLI failed.".into());
     }
@@ -240,18 +272,41 @@ fn applications(data: &Value, dirs: &[PathBuf]) -> Result<BTreeMap<String, Appli
                 continue;
             }
             let mut metadata = serde_json::Map::new();
+            let mut non_json = std::collections::BTreeSet::new();
             for key in ["CFBundleDisplayName", "CFBundleName"] {
                 if let Some(value) = info.objectForKey(&NSString::from_str(key)) {
-                    let value = value
-                        .downcast::<NSString>()
-                        .map_err(|_| "Invalid application title metadata.".to_string())?;
-                    metadata.insert(key.into(), Value::String(value.to_string()));
+                    let wrapper = NSArray::from_slice(&[&*value]);
+                    // This is an immutable plist object inside a known NSArray.
+                    // Non-JSON values (date/data) count in dry run but cannot be applied.
+                    let valid = unsafe { NSJSONSerialization::isValidJSONObject(&wrapper) };
+                    let converted = if valid {
+                        let bytes = unsafe {
+                            NSJSONSerialization::dataWithJSONObject_options_error(
+                                &wrapper,
+                                NSJSONWritingOptions::empty(),
+                            )
+                        }
+                        .map_err(error)?;
+                        let mut values: Vec<Value> =
+                            serde_json::from_slice(&bytes.to_vec()).map_err(error)?;
+                        values.pop().unwrap()
+                    } else {
+                        non_json.insert(key);
+                        Value::Null
+                    };
+                    metadata.insert(key.into(), converted);
                 }
             }
+            let title = if metadata.contains_key("CFBundleDisplayName") {
+                "CFBundleDisplayName"
+            } else {
+                "CFBundleName"
+            };
             apps.insert(
                 id.to_string(),
                 Application {
                     path,
+                    non_json_title: non_json.contains(title),
                     metadata: Value::Object(metadata),
                 },
             );
@@ -374,6 +429,9 @@ fn execute(options: Options) -> Result<Value> {
     let apps = applications(&data, &dirs)?;
     let prepared = raycast_import::prepare(&config, &data, &apps, &options.mapping)?;
     if options.apply {
+        if prepared.non_json_title {
+            return Err("Application title is not JSON serializable.".into());
+        }
         publish(&options.cli, &path, &original, &prepared.commands)?;
     }
     Ok(prepared.summary(options.apply))
@@ -407,6 +465,51 @@ mod tests {
         assert!(parse(vec!["export".into(), "--apply=yes".into()]).is_err());
         assert!(parse(vec![]).is_err());
         assert!(parse(vec!["--help".into()]).unwrap().is_none());
+    }
+    #[test]
+    fn parser_keeps_unicode_decimal_paths_os_bytes_and_argparse_boundaries() {
+        for value in ["-", "-1", "-.2", "-١", "-١.٢"] {
+            assert_eq!(
+                parse(vec![value.into()]).unwrap().unwrap().export,
+                PathBuf::from(value)
+            );
+            assert_eq!(
+                parse(vec!["export".into(), "--config".into(), value.into()])
+                    .unwrap()
+                    .unwrap()
+                    .config,
+                Some(PathBuf::from(value))
+            );
+        }
+        let bytes = b"--config=owned-\xff.json".to_vec();
+        let parsed = parse(vec!["export".into(), OsString::from_vec(bytes)])
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            parsed.config.unwrap().as_os_str().as_bytes(),
+            b"owned-\xff.json"
+        );
+        assert_eq!(
+            parse(vec!["export".into()]).unwrap().unwrap().cli,
+            home().join(".local/bin/ruycast")
+        );
+        assert_eq!(
+            parse(vec!["--".into(), "--literal".into()])
+                .unwrap()
+                .unwrap()
+                .export,
+            PathBuf::from("--literal")
+        );
+        assert_eq!(
+            parse(vec!["export".into(), "--con=file".into()])
+                .unwrap()
+                .unwrap()
+                .config,
+            Some(PathBuf::from("file"))
+        );
+        assert!(parse(vec!["export".into(), "--include".into()]).is_err());
+        assert!(parse(vec!["export".into(), "--config".into(), "--apply".into()]).is_err());
+        assert!(parse(vec!["export".into(), "-Ⅳ".into()]).is_err());
     }
     #[test]
     fn private_commands_are_0600_cleaned_and_replacements_are_preserved() {
@@ -458,6 +561,12 @@ mod tests {
         for (name, id, title) in [
             ("Wanted", "owned.wanted", "<string>Wanted</string>"),
             ("Other", "owned.other", "<integer>42</integer>"),
+            ("Date", "owned.date", "<date>2024-01-01T00:00:00Z</date>"),
+            (
+                "Unused",
+                "owned.unused",
+                "<string>Good</string><key>CFBundleName</key><date>2024-01-01T00:00:00Z</date>",
+            ),
         ] {
             let contents = directory.join(format!("{name}.app/Contents"));
             fs::create_dir_all(contents.join("MacOS")).unwrap();
@@ -469,6 +578,26 @@ mod tests {
         assert_eq!(
             found["owned.wanted"].metadata["CFBundleDisplayName"],
             "Wanted"
+        );
+        let data = serde_json::json!({"builtin_package_rootSearch":{"rootSearch":[{"key":"owned.other","type":"systemApp","alias":"o"},{"key":"owned.date","type":"systemApp","alias":"d"},{"key":"owned.unused","type":"systemApp","alias":"u"}]},"raycast_user_activity":{"activityInfo":[]},"builtin_package_quicklinks":{"quicklinks":[]}});
+        let found = applications(&data, &[fixture.0.join("Applications")]).unwrap();
+        assert_eq!(found["owned.other"].metadata["CFBundleDisplayName"], 42);
+        assert!(found["owned.date"].non_json_title);
+        assert!(!found["owned.unused"].non_json_title);
+        let prepared = raycast_import::prepare(
+            &serde_json::json!({"commands":[]}),
+            &data,
+            &found,
+            &Mapping::default(),
+        )
+        .unwrap();
+        assert_eq!(prepared.counts["apps"], 3);
+        assert!(prepared.non_json_title);
+        let existing = serde_json::json!({"commands":[{"id":"existing","kind":"app","target":"owned.date","title":"Existing"}]});
+        assert!(
+            !raycast_import::prepare(&existing, &data, &found, &Mapping::default())
+                .unwrap()
+                .non_json_title
         );
     }
     #[test]
