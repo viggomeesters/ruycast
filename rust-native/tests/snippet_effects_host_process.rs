@@ -1,14 +1,35 @@
-//! Real headless execute caller with private Rust SDK and named clipboard fixtures.
+//! Real headless/hidden host callers with private Rust SDK and named clipboard fixtures.
 #![cfg(feature = "test-tools")]
 #[allow(dead_code)]
-#[path = "support/runtime_host.rs"]
-mod runtime_host;
-use runtime_host::{default_config, Config, Host};
+#[path = "support/native_bridge.rs"]
+mod native_bridge;
+use native_bridge::{runtime_host, Bridge};
+use runtime_host::{default_config, Config, Entry, Host};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+    sync::mpsc,
+    thread,
+    time::{Duration, Instant},
+};
+
+// Preserve original unittest/matrix sequencing; the three callers inside one scenario remain concurrent.
+static HOST_SCENARIOS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
+    configured_host(target, flags, clipboard, Entry::HeadlessTest)
+}
+fn hidden_host(target: &str) -> Bridge {
+    let host = Bridge {
+        host: configured_host(target, &[], None, Entry::HiddenTest),
+    };
+    host.settled(|_| true);
+    host
+}
+fn configured_host(target: &str, flags: &[&str], clipboard: Option<&str>, entry: Entry) -> Host {
     let mut host = Host::new(Config::current(), false);
     let original = std::env::var_os("RUYCAST_TEST_SNIPPET_EFFECTS_SDK")
         .map(PathBuf::from)
@@ -41,10 +62,21 @@ fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
             "RUYCAST_WORKSPACE_FIXTURE_HOME",
             host.base.as_os_str().to_owned(),
         ),
-        ("RUYCAST_NATIVE_TEST_CLIPBOARD_GUARD", "1".into()),
+        (
+            "RUYCAST_NATIVE_TEST_CLIPBOARD_GUARD",
+            match entry {
+                Entry::HeadlessTest => "1",
+                Entry::HiddenTest => "trace",
+            }
+            .into(),
+        ),
         ("RUYCAST_NATIVE_TEST_SNIPPET", "1".into()),
     ] {
         host.env.insert(key.into(), value);
+    }
+    if matches!(entry, Entry::HiddenTest) {
+        host.env
+            .insert("RUYCAST_NATIVE_TEST_REQUIRE_HIDE".into(), "1".into());
     }
     if let Some(text) = clipboard {
         host.env
@@ -60,6 +92,7 @@ fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
         let sources = [
             "rust-native/tests/snippet_effects_host_process.rs",
             "rust-native/tests/support/runtime_host.rs",
+            "rust-native/tests/support/native_bridge.rs",
             "rust-native/tests/fixtures/workspace_sdk.rs",
             "rust-native/tests/fixtures/snippet_effects_sdk.rs",
             "rust-native/tests/fixtures/snippet_effects_fixture.rs",
@@ -87,14 +120,103 @@ fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
         .into_iter()
         .map(|(path, label)| runtime_host::bind_artifact(path, label))
         .collect::<BTreeMap<_, _>>();
-        fs::write(PathBuf::from(directory).join("snippet-effects-host-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"sdkCopyHashChecked":true,"scope":"Owned headless hosts, named clipboard and synthetic target processes; no desktop effects"})).unwrap()).unwrap();
+        fs::write(PathBuf::from(directory).join("snippet-effects-host-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"sdkCopyHashChecked":true,"scope":"Owned headless and prohibited/offscreen hidden hosts, named clipboard and synthetic target processes; no desktop effects"})).unwrap()).unwrap();
     }
-    host.start();
+    host.start_entry(entry);
     host.env
         .remove(std::ffi::OsStr::new("DYLD_INSERT_LIBRARIES"));
     host.env
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
     host
+}
+
+#[test]
+fn cli_uses_current_app_without_show_and_refreshes_after_external_switch() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let host = hidden_host("CLI");
+    let first = host.cli(&["run", "snipfixture"]);
+    assert_eq!(first, json!({"ok":true,"result":{"state":"pasted"}}));
+    let pids = |events: &[Value]| {
+        events
+            .iter()
+            .filter(|event| event["phase"] == "snippet-post")
+            .map(|event| event["pid"].as_u64().unwrap())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(pids(&trace(&host)), vec![4260, 4260]);
+    host.probe("snippet-fixture-control", json!({"operation":2}));
+    let second = host.cli(&["run", "snipfixture"]);
+    assert_eq!(second["ok"], true);
+    let trace = trace(&host);
+    assert_eq!(pids(&trace), vec![4260, 4260, 4261, 4261]);
+    save(
+        "cli-current-target",
+        &json!({"first":first,"second":second}),
+        &trace,
+    );
+}
+
+#[test]
+fn three_concurrent_cli_requests_keep_payload_until_own_paste_completes() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let host = hidden_host("{x}");
+    let mut workers = Vec::new();
+    for value in ["First", "Second", "Third"] {
+        let socket = host.socket();
+        let (sender, receiver) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let response = runtime_host::status_rpc::request(
+                &socket,
+                &json!({"op":"execute","id":"snipfixture","values":{"x":value}}),
+                Instant::now() + Duration::from_secs(3),
+            )
+            .unwrap();
+            sender.send(response).unwrap();
+        });
+        workers.push((worker, receiver));
+    }
+    let mut results = Vec::new();
+    for (worker, receiver) in workers {
+        results.push(
+            receiver
+                .recv_timeout(Duration::from_secs(5))
+                .expect("Own snippet caller did not finish"),
+        );
+        worker.join().unwrap();
+    }
+    assert_eq!(
+        results,
+        vec![json!({"ok":true,"result":{"state":"pasted"}}); 3]
+    );
+    let trace = trace(&host);
+    let phases: Vec<_> = trace
+        .iter()
+        .filter_map(|event| {
+            let phase = event["phase"].as_str().unwrap();
+            ["snippet-write", "snippet-post"]
+                .contains(&phase)
+                .then_some(phase)
+        })
+        .collect();
+    assert_eq!(
+        phases,
+        ["snippet-write", "snippet-post", "snippet-post"].repeat(3)
+    );
+    let texts: BTreeSet<_> = trace
+        .iter()
+        .filter(|event| event["phase"] == "snippet-write")
+        .map(|event| event["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(texts, BTreeSet::from(["First", "Second", "Third"]));
+    assert_eq!(
+        host.rpc(&json!({"op":"status"}))["result"]["snippetTransactionsPending"],
+        0
+    );
+    save("concurrent-callers", &json!(results), &trace);
 }
 
 fn trace(host: &Host) -> Vec<Value> {
@@ -119,6 +241,9 @@ fn save(name: &str, response: &Value, trace: &[Value]) {
 }
 #[test]
 fn clipboard_demand_and_validation_error_priority_match_existing_pipeline() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let host = host("{missing} {clipboard}", &["deny-ax"], Some("Own input"));
     let response = host.rpc(&json!({"op":"execute","id":"snipfixture"}));
     assert_eq!(response["ok"], false);
@@ -131,6 +256,9 @@ fn clipboard_demand_and_validation_error_priority_match_existing_pipeline() {
 }
 #[test]
 fn headless_missing_target_and_denied_ax_never_mutate_board() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     for (name, flags, error) in [
         ("missing-target", &[][..], "Choose an app"),
         ("denied-ax", &["deny-ax"][..], "Allow Ruycast"),
