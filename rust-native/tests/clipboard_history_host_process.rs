@@ -244,3 +244,53 @@ fn test_capture_text_files_image_and_private_own_activation_filters() {
     );
     assert!(!h.profile.join("control.sock").exists());
 }
+
+#[test]
+fn test_cli_import_export_search_copy_paste_delete_clear() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
+    let h = host(json!({}));
+    let values = json!([{"id":"raycast-clip", "text":"Synthetic CLI Å", "date":chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(), "source":"fixture"}]);
+    let file = h.base.join("import.json");
+    fs::write(&file, serde_json::to_vec(&values).unwrap()).unwrap();
+    assert_eq!(
+        h.cli(&["clipboard", "import", &format!("@{}", file.display())])["result"]["accepted"],
+        1
+    );
+    assert_eq!(
+        h.cli(&["clipboard", "list", "cli å"])["result"][0]["id"],
+        "raycast-clip"
+    );
+    assert_eq!(
+        h.cli(&["clipboard", "export"])["result"],
+        h.cli(&["clipboard", "list"])["result"]
+    );
+    assert_eq!(
+        h.cli(&["clipboard", "copy", "raycast-clip"])["result"]["state"],
+        "copied"
+    );
+    thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        items(&h)
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["id"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!("raycast-clip")]
+    );
+    assert_eq!(h.rpc(&json!({"op":"show", "mode":"clipboard"}))["ok"], true);
+    h.settled(|s| s["nativeUI"]["visible"] == true);
+    assert_eq!(
+        h.cli(&["clipboard", "paste", "raycast-clip"])["result"]["state"],
+        "copied"
+    );
+    h.wait(|s| s["snippetRequestsRunning"] == 0);
+    let trace = fs::read_to_string(h.base.join("workspace-trace.jsonl")).unwrap();
+    assert!(trace.contains("snippet-post"));
+    assert!(!trace.contains("unexpected-general"));
+    assert_eq!(
+        h.cli(&["clipboard", "delete", "raycast-clip"])["result"]["count"],
+        0
+    );
+    assert_eq!(h.cli(&["clipboard", "clear"])["result"]["count"], 0);
+}
