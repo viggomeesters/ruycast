@@ -1095,6 +1095,7 @@ fn installer_owned_legacy_migration_preserves_authored_state_and_both_cli_names(
     f.signer();
     let old = f.o.home.join(".config/rustcast");
     let before = profile::hashes(&old, None, &f.o.home).unwrap();
+    let unknown=f.o.repo.join(".dist/Ruycast.app");stdfs::create_dir_all(&unknown).unwrap();stdfs::write(unknown.join("user-file"),b"keep me").unwrap();
     let mut r = f.runner();
     let value = owned_install(&f.o, &mut r).unwrap();
     assert_eq!(value["preservedDataHashes"], json!(before));
@@ -1107,6 +1108,11 @@ fn installer_owned_legacy_migration_preserves_authored_state_and_both_cli_names(
         .file_type()
         .is_symlink());
     assert!(!f.o.apps.join("Rustcast.app").exists());
+    assert!(f.o.apps.join("Ruycast.app").is_dir());
+    let agents=f.o.home.join("Library/LaunchAgents");assert!(!agents.join(format!("{OLD_ID}.plist")).exists());assert!(agents.join(format!("{NEW_ID}.plist")).is_file());
+    assert_eq!(stdfs::canonicalize(&old).unwrap(),stdfs::canonicalize(f.o.home.join(".config/ruycast")).unwrap());
+    assert_eq!(stdfs::read(unknown.join("user-file")).unwrap(),b"keep me");
+
     for name in ["ruycast", "rustcast"] {
         assert_eq!(
             stdfs::read_link(f.o.home.join(".local/bin").join(name)).unwrap(),
