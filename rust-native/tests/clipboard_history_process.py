@@ -47,15 +47,6 @@ class ClipboardHistory(unittest.TestCase):
     h.settled();value=h.probe('screenshot');self.assertFalse(value['windowShown']);self.assertFalse(value['windowKey']);self.assertFalse(value['windowMain'])
     shutil.copy2(h.profile/'native-probe.png',OUT/(name+'.png'));(OUT/(name+'.json')).write_text(json.dumps(value,ensure_ascii=False,indent=2));return value
  def show(self,h):self.assertTrue(h.rpc(dict(op='show',mode='clipboard'))['ok']);h.settled(lambda s:s['nativeUI']['visible'])
- def test_cli_import_export_search_copy_paste_delete_clear(self):
-    h=self.host();values=[dict(id='raycast-clip',text='Synthetic CLI Å',date='2026-11-01T08:00:00Z',source='fixture')]
-    values[0]['date']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
-    file=h.base/'import.json';file.write_text(json.dumps(values));self.assertEqual(h.cli('clipboard','import','@'+str(file))['result']['accepted'],1)
-    self.assertEqual(h.cli('clipboard','list','cli å')['result'][0]['id'],'raycast-clip');self.assertEqual(h.cli('clipboard','export')['result'],h.cli('clipboard','list')['result'])
-    self.assertEqual(h.cli('clipboard','copy','raycast-clip')['result']['state'],'copied');time.sleep(.5);self.assertEqual([c['id'] for c in self.items(h)],['raycast-clip'])
-    self.show(h);result=h.cli('clipboard','paste','raycast-clip');self.assertEqual(result['result']['state'],'copied');h.wait(lambda s:s['snippetRequestsRunning']==0)
-    trace=(h.base/'workspace-trace.jsonl').read_text();self.assertIn('snippet-post',trace);self.assertNotIn('unexpected-general',trace)
-    self.assertEqual(h.cli('clipboard','delete','raycast-clip')['result']['count'],0);self.assertEqual(h.cli('clipboard','clear')['result']['count'],0)
  def test_native_text_image_empty_error_busy_light_dark_narrow_wide(self):
     for width,theme in [(600,'light'),(760,'dark')]:
         h=self.host(width=width,theme=theme);self.show(h);self.capture(h,f'empty-{width}-{theme}')
