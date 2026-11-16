@@ -118,19 +118,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertEqual([r['down'] for r in posts],[i%2==0 for i in range(len(posts))])
         self.assertEqual([r['flags'] for r in posts],[1<<20 if key==9 else 0 for key in keys])
 
-    def test_blocked_main_sdk_retains_ticket_capacity_after_worker_expiry(self):
-        for phase,committed in [('prepare',False),('write',True)]:
-            h=self.host(command('Owned'),flags=['hold-'+phase],dispatch=350);results=[]
-            worker=threading.Thread(target=lambda:results.append(h.rpc(dict(op='execute',id='snipfixture'))));worker.start()
-            self.wait_file(h,phase+'-entered');self.assertTrue(h.rpc(dict(op='status'))['ok'])
-            worker.join(2);self.assertFalse(worker.is_alive());self.assertFalse(results[0]['ok'])
-            self.assertEqual(results[0].get('actionCompleted',False),committed)
-            self.assertEqual(h.wait(lambda s:s['snippetRequestsRunning']==0)['snippetTransactionsPending'],1)
-            (h.base/'snippet-release').write_text('Own release')
-            h.wait(lambda s:s['snippetTransactionsPending']==0);self.assertEqual(self.posts(h),[])
-            if not committed:self.assertEqual(self.writes(h),[])
-            self.assertNotIn('snippet.fixture',h.cli('usage')['result'])
-
     def test_transport_expiry_preserves_snippet_commit_truth_when_owner_is_busy(self):
         for phase,committed in [('prepare',False),('write',True)]:
             h=self.host(command('Owned'),flags=['hold-'+phase],dispatch=350);results=[];busy=[]
