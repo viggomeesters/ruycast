@@ -20,6 +20,67 @@ use std::{
 // Preserve original unittest/matrix sequencing; the three callers inside one scenario remain concurrent.
 static HOST_SCENARIOS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+// Own the worker and release the synthetic SDK barrier before joining during unwinding.
+// Each worker's real socket operation retains the original three-second RPC deadline.
+struct HeldRequest {
+    release_path: PathBuf,
+    response: mpsc::Receiver<Result<Value, String>>,
+    worker: Option<thread::JoinHandle<()>>,
+}
+impl HeldRequest {
+    fn new(host: &Bridge, request: Value) -> Self {
+        let socket = host.socket();
+        let release_path = host.base.join("snippet-release");
+        let (sender, response) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let result = runtime_host::status_rpc::request(
+                &socket,
+                &request,
+                Instant::now() + Duration::from_secs(3),
+            )
+            .map_err(|error| error.to_string());
+            let _ = sender.send(result);
+        });
+        Self {
+            release_path,
+            response,
+            worker: Some(worker),
+        }
+    }
+    fn release(&self) {
+        fs::write(&self.release_path, "Own release").unwrap();
+    }
+    fn response(&mut self, timeout: Duration) -> Value {
+        let deadline = Instant::now() + timeout;
+        let result = self
+            .response
+            .recv_timeout(timeout)
+            .expect("Own snippet caller did not finish");
+        self.worker.take().unwrap().join().unwrap();
+        assert!(
+            Instant::now() < deadline,
+            "Own snippet worker did not retire before deadline"
+        );
+        result.expect("Own snippet RPC failed")
+    }
+}
+impl Drop for HeldRequest {
+    fn drop(&mut self) {
+        let _ = fs::write(&self.release_path, "Own release");
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+fn wait_file(host: &Bridge, name: &str) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !host.base.join(name).exists() {
+        assert!(Instant::now() < deadline, "Own barrier absent: {name}");
+        thread::sleep(Duration::from_millis(5));
+    }
+}
+
 fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
     configured_host(command(target), flags, clipboard, Entry::HeadlessTest, true)
 }
@@ -255,6 +316,60 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
             .map(|key| if *key == 9 { 1 << 20 } else { 0 })
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn held_request_unwind_releases_owned_barrier_and_retires_worker() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let host = hidden_host_options("Owned", &["hold-prepare"], true);
+    let mut cleanup_started = None;
+    let failure = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _request = HeldRequest::new(&host, json!({"op":"execute","id":"snipfixture"}));
+        wait_file(&host, "prepare-entered");
+        cleanup_started = Some(Instant::now());
+        panic!("Own held-request unwind probe");
+    }))
+    .unwrap_err();
+    assert_eq!(
+        failure.downcast_ref::<&str>().copied(),
+        Some("Own held-request unwind probe")
+    );
+    let cleanup_elapsed = cleanup_started.unwrap().elapsed();
+    assert!(cleanup_elapsed < Duration::from_secs(3));
+    assert!(host.base.join("snippet-release").is_file());
+    let status = host.wait(|status| {
+        status["snippetTransactionsPending"] == 0 && status["snippetRequestsRunning"] == 0
+    });
+    save(
+        "held-request-unwind",
+        &json!({"status":status,"cleanupElapsedMs":cleanup_elapsed.as_millis(),"ownBarrierReleased":true}),
+        &trace(&host),
+    );
+}
+
+#[test]
+fn target_terminated_or_relaunched_after_preflight_never_clears_clipboard() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for flag in ["target-terminated", "target-new-generation"] {
+        let host = hidden_host_options("Owned", &["hold-prepare"], true);
+        let mut request = HeldRequest::new(&host, json!({"op":"execute","id":"snipfixture"}));
+        wait_file(&host, "prepare-entered");
+        fs::write(host.base.join(flag), "Own changed process").unwrap();
+        request.release();
+        let result = request.response(Duration::from_secs(3));
+        assert_eq!(result["ok"], false);
+        assert!(!result.as_object().unwrap().contains_key("actionCompleted"));
+        assert!(result["error"].as_str().unwrap().contains("Choose an app"));
+        let trace = trace(&host);
+        for phase in ["snippet-write", "snippet-post", "snippet-clear"] {
+            assert!(!trace.iter().any(|event| event["phase"] == phase));
+        }
+        save(&format!("preflight-{flag}"), &result, &trace);
+    }
 }
 
 #[test]
