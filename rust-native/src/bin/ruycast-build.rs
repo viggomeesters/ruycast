@@ -477,6 +477,11 @@ fn run() -> Result<()> {
         println!("{USAGE}");
         return Ok(());
     }
+    if args.len()==5 && args[0]=="parity-ast-snapshot" && args[1]=="--repo" && args[3]=="--sha256" {
+        if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
+        let root=Path::new(&args[2]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
+        let value=validation::parity_ast_snapshot(&root,&args[4])?;lease.validate()?;println!("{value}");return Ok(());
+    }
     if args.len() == 5
         && args[0] == "gate-inventory"
         && args[1] == "--repo"

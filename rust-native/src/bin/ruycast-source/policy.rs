@@ -181,6 +181,7 @@ rust-native/src/bin/manager_probe.rs
 rust-native/src/bin/native_snippet_choice_probe.rs
 rust-native/src/bin/ruycast-build.rs
 rust-native/src/bin/rust_only_policy.rs
+rust-native/src/bin/parity_ast.rs
 rust-native/src/bin/ruycast-build/candidate.rs
 rust-native/src/bin/ruycast-build/compat.rs
 rust-native/src/bin/ruycast-build/macho.rs

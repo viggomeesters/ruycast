@@ -7,10 +7,12 @@ import argparse
 import ast
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
+import stat
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -44,8 +46,43 @@ GROUPS=[
 ]
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+_AST_PARSER=None
+def parser_sha(path):
+    prefix=REPO
+    for part in path.relative_to(REPO).parts:
+        prefix=prefix/part
+        if stat.S_ISLNK(prefix.lstat().st_mode):raise RuntimeError('Linked AST parser input')
+    descriptor=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+    with os.fdopen(descriptor,'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):raise RuntimeError('AST parser must be a regular file')
+        return hashlib.sha256(stream.read()).hexdigest()
+def ast_parser():
+    global _AST_PARSER
+    if _AST_PARSER is None:
+        target=REPO/'.build/delivery-tools'
+        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
+        hashes={name:sha(REPO/name) for name in sources}
+        command=['cargo','build','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','parity-ast']
+        run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
+        if run.returncode:raise RuntimeError(run.stderr)
+        expected=parser_sha(target/'debug/parity-ast')
+        command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','ruycast-build','--','parity-ast-snapshot','--repo',str(REPO),'--sha256',expected]
+        run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
+        if run.returncode:raise RuntimeError(run.stderr)
+        binding=json.loads(run.stdout)
+        if binding!={'artifact':f'.build/delivery-tools/parity-ast-artifacts/{expected}','sha256':expected}:raise RuntimeError('Invalid AST parser snapshot binding')
+        binary=REPO/binding['artifact']
+        if hashes!={name:sha(REPO/name) for name in sources} or parser_sha(binary)!=expected:raise RuntimeError('AST parser inputs changed during build/publication')
+        binding['sources']=hashes
+        _AST_PARSER=(binary,binding)
+    binary,binding=_AST_PARSER
+    if parser_sha(binary)!=binding['sha256'] or any(sha(REPO/name)!=value for name,value in binding['sources'].items()):raise RuntimeError('AST parser source/snapshot changed')
+    return _AST_PARSER
+
 def parse_module(module,paths,sdk,plugins):
+    binary,binding=ast_parser()
     all_paths=sorted((REPO/'Sources'/module).glob('*.swift'))
+    before={str(p.relative_to(REPO)):sha(p) for p in all_paths}
     cmd=['swiftc','-frontend','-dump-ast','-whole-module-optimization','-sdk',sdk,'-swift-version','6','-module-name',module,'-I','.build/swift/debug/Modules','-I','.build/swift/debug/CRuycastCore.build']
     cmd+=plugins
     if module!='RuycastApp':cmd+=['-parse-as-library']
@@ -54,18 +91,15 @@ def parse_module(module,paths,sdk,plugins):
         else:cmd+=[str(p.relative_to(REPO))]
     run=subprocess.run(cmd,cwd=REPO,capture_output=True,text=True,timeout=90)
     if run.returncode:raise RuntimeError(run.stderr)
-    seen=set(re.findall(r'\(source_file "([^"\n]+)"',run.stdout,re.MULTILINE))
-    expected={str(p.relative_to(REPO)) for p in paths}
-    if seen!=expected:raise RuntimeError('Compiler did not produce all requested source ASTs: '+str(expected-seen))
-    declarations={name:[] for name in expected}
-    pattern=r'\((func_decl|constructor_decl|destructor_decl|var_decl|class_decl|struct_decl|enum_decl|protocol) [^\n]*?range=\[([^\]]+)\][^\n]*?"([^"\n]+)"'
-    for match in re.finditer(pattern,run.stdout):
-        source=match[2].split(':',1)[0]
-        if source in declarations:declarations[source].append(dict(kind=match[1],range=match[2],name=match[3]))
-    for path,items in declarations.items():
-        declarations[path]=list({(item['kind'],item['range'],item['name']):item for item in items}.values())
+    expected=sorted(str(p.relative_to(REPO)) for p in paths)
+    if parser_sha(binary)!=binding['sha256']:raise RuntimeError('AST parser snapshot changed before execution')
+    parser=subprocess.run([str(binary),*[part for name in expected for part in ['--source',name]]],input=run.stdout,cwd=REPO,capture_output=True,text=True,timeout=10)
+    if parser.returncode:raise RuntimeError(parser.stderr)
+    if parser_sha(binary)!=binding['sha256'] or any(sha(REPO/name)!=value for name,value in binding['sources'].items()):raise RuntimeError('AST parser source/artifact changed during inventory')
+    parsed=json.loads(parser.stdout);declarations=parsed['declarations']
     context={str(p.relative_to(REPO)):sha(p) for p in all_paths}
-    return declarations,dict(command=cmd,inputHashes=context,exitCode=run.returncode,diagnostics=run.stderr.strip(),sourceASTs=len(seen))
+    if context!=before:raise RuntimeError('Compiler source inputs changed during inventory')
+    return declarations,dict(command=cmd,inputHashes=context,exitCode=run.returncode,diagnostics=run.stderr.strip(),sourceASTs=parsed['sourceASTs'],astParser=binding)
 def test_methods(path):
     if not path.exists():return []
     tree=ast.parse(path.read_text());return sorted(n.name for n in ast.walk(tree) if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name.startswith('test_'))
@@ -75,6 +109,9 @@ def main():
     paths=[p for p in sorted((REPO/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(REPO).parts)]
     reference=[p for p in sorted((args.reference/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(args.reference).parts)]
     if {str(p.relative_to(REPO)) for p in paths}!={str(p.relative_to(args.reference)) for p in reference}:raise RuntimeError('Production source inventories differ from accepted release checkout')
+    ast_parser()
+    current=[p for p in sorted((REPO/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(REPO).parts)]
+    if current!=paths:raise RuntimeError('Production source inventory changed during parser bootstrap')
     sdk=subprocess.check_output(['xcrun','--show-sdk-path'],text=True).strip()
     driver=subprocess.run(['swiftc','-###','-typecheck','Sources/RuycastApp/FeatureState.swift'],cwd=REPO,capture_output=True,text=True,check=True)
     driver_args=shlex.split(driver.stdout+driver.stderr);plugins=[]
