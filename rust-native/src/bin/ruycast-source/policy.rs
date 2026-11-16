@@ -191,6 +191,7 @@ rust-native/src/bin/ruycast-build/process.rs
 rust-native/src/bin/ruycast-build/public_source.rs
 rust-native/src/bin/ruycast-build/validation.rs
 rust-native/src/bin/ruycast-build/test_catalog.rs
+rust-native/src/bin/ruycast-build/parity_wire.rs
 rust-native/src/bin/ruycast-build/version.rs
 rust-native/src/bin/ruycast-source.rs
 rust-native/src/bin/ruycast-source/policy.rs
