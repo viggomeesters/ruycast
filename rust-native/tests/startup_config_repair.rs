@@ -350,6 +350,30 @@ fn offline_cli_busy_writer_and_environment_pin_refuse_relocation() {
 }
 
 #[test]
+fn offline_cli_default_path_and_invalid_selectors_never_use_stale_config() {
+    let f = Fixture::new();
+    f.source();
+    let original = fs::read(f.root.join("config.json")).unwrap();
+    assert_eq!(
+        bounded_value(f.command(false).args(["config", "path"]), true)["result"],
+        json!(f.root.join("config.json"))
+    );
+    let missing = f.base.join("missing/ruycast-config");
+    for content in [
+        "{".to_owned(),
+        serde_json::to_string(&json!({"directory":"relative"})).unwrap(),
+        serde_json::to_string(&json!({"directory":missing})).unwrap(),
+    ] {
+        let selector = f.root.join("config-location.json");
+        fs::write(&selector, &content).unwrap();
+        bounded_value(f.command(false).args(["config", "get"]), false);
+        assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
+        assert_eq!(fs::read_to_string(selector).unwrap(), content);
+        assert!(!missing.exists());
+    }
+}
+
+#[test]
 fn missing_invalid_and_overridden_sources_fail_before_creation() {
     for invalid in [false, true] {
         let f = Fixture::new();
