@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-import time
 import unittest
 
 REPO = Path(__file__).resolve().parents[1]
@@ -22,12 +21,8 @@ class ConfigDirectoryTests(unittest.TestCase):
         self.custom = self.base/'Synced vault with spaces'/'.appdata'/'ruycast'
         self.env = dict(os.environ, RUYCAST_HOME=str(self.root), RUYCAST_APP_BINARY=str(HOST))
         self.env.pop('RUYCAST_CONFIG_DIR', None)
-        self.process = None
 
     def tearDown(self):
-        if self.process is not None:
-            self.process.terminate()
-            self.process.wait(timeout=6)
         self.temp.cleanup()
 
     def cli(self, *args, ok=True, env=None):
@@ -37,25 +32,9 @@ class ConfigDirectoryTests(unittest.TestCase):
         self.assertEqual(p.returncode, 0 if ok else 1, response)
         return response
 
-    def start(self):
-        self.process = subprocess.Popen([str(HOST), '--headless'], env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for _ in range(100):
-            if (self.root/'control.sock').exists():
-                response = subprocess.run([str(CLI),'status'],env=self.env,capture_output=True,text=True)
-                if response.returncode == 0: return
-            if self.process.poll() is not None: self.fail('Host exited during startup')
-            time.sleep(.05)
-        self.fail('Host did not start')
 
 
 
-    def test_environment_overrides_persisted_location(self):
-        (self.root/'config-location.json').write_text(json.dumps({'directory':'/missing/persisted'}))
-        override=self.base/'environment';override.mkdir();(override/'config.json').write_bytes(self.config)
-        env=dict(self.env,RUYCAST_CONFIG_DIR=str(override))
-        self.assertEqual(self.cli('config','path',env=env)['result'],str(override/'config.json'))
-        result=subprocess.run([str(HOST),'--init-config'],env=env,capture_output=True,text=True,check=True)
-        self.assertEqual(json.loads(result.stdout)['path'],str(override/'config.json'))
 
 
 

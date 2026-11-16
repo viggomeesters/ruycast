@@ -48,6 +48,8 @@ Config changes are observed through a coalescing directory watcher (including at
 
 A valid external `config-location.json` change rebinds the Rust host to the selected configuration. Writers holding an older `ConfigStore` snapshot refuse to save; after rebinding, CLI edits apply to the selected file and preserve the previous file. The retired Python manual-selector case expected the frozen Swift host to keep its old path and reject an immediate CLI edit; those timing-dependent expectations are not the current Rust contract.
 
+The Rust host's offline `--init-config` mode uses the same profile and configuration override authority as startup, creates only a missing selected configuration and returns `{ok, path}` without starting native services. The installer uses this mode before stopping an existing app; the CLI's `config init` follows the same override precedence. The remaining Python config-directory test depends on the Raycast importer tracked in #161.
+
 External app opening reports macOS acceptance; it does not claim that remote pages finished loading. Script success requires a zero exit status. Output is drained while retaining at most 64 KiB per stream. Scripts receive no shell interpolation and run in a fresh process group; the runner terminates the group at completion or timeout, including descendants retaining stdout/stderr. Window moves read the resulting frame and report app-enforced constraints. Clipboard paste verifies that the intended app activated before emitting Command–V.
 
 ## Native design
