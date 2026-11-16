@@ -348,6 +348,31 @@ fn raw_nullable_or_invalid_command_arrays_preserve_last_good() {
     );
 }
 #[test]
+fn persisted_directory_is_shared_between_cli_and_owned_host_startup() {
+    let mut host = host(false);
+    let portable = host.base.join("Synced vault with spaces/.appdata/ruycast");
+    fs::create_dir_all(&portable).unwrap();
+    let original = fs::read(&host.config).unwrap();
+    fs::write(portable.join("config.json"), &original).unwrap();
+    fs::write(
+        host.profile.join("config-location.json"),
+        serde_json::to_vec(&json!({"directory":portable})).unwrap(),
+    )
+    .unwrap();
+    let selected = portable.join("config.json");
+    assert_eq!(host.cli(&["config", "path"])["result"], json!(selected));
+    host.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(5));
+    let status = host.cli(&["status"])["result"].clone();
+    assert_eq!(status["configPath"], json!(selected));
+    assert_eq!(status["profile"], json!(host.profile));
+    assert_eq!(fs::read(&host.config).unwrap(), original);
+    assert_eq!(fs::read(selected).unwrap(), original);
+    // Match the original six-second teardown bound on this exact owned child.
+    host.process.as_mut().unwrap().kill().unwrap();
+    host.wait_exit(Duration::from_secs(6), true);
+}
+
+#[test]
 fn atomic_replace_invalid_last_good_and_recovery() {
     let host = host(true);
     let mut changed = default_config();
