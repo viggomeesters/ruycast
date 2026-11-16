@@ -20,16 +20,25 @@ use std::{
 static HOST_SCENARIOS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn host(target: &str, flags: &[&str], clipboard: Option<&str>) -> Host {
-    configured_host(target, flags, clipboard, Entry::HeadlessTest)
+    configured_host(target, flags, clipboard, Entry::HeadlessTest, true)
 }
 fn hidden_host(target: &str) -> Bridge {
+    hidden_host_options(target, &[], true)
+}
+fn hidden_host_options(target: &str, flags: &[&str], complete: bool) -> Bridge {
     let host = Bridge {
-        host: configured_host(target, &[], None, Entry::HiddenTest),
+        host: configured_host(target, flags, None, Entry::HiddenTest, complete),
     };
     host.settled(|_| true);
     host
 }
-fn configured_host(target: &str, flags: &[&str], clipboard: Option<&str>, entry: Entry) -> Host {
+fn configured_host(
+    target: &str,
+    flags: &[&str],
+    clipboard: Option<&str>,
+    entry: Entry,
+    complete: bool,
+) -> Host {
     let mut host = Host::new(Config::current(), false);
     let original = std::env::var_os("RUYCAST_TEST_SNIPPET_EFFECTS_SDK")
         .map(PathBuf::from)
@@ -70,9 +79,12 @@ fn configured_host(target: &str, flags: &[&str], clipboard: Option<&str>, entry:
             }
             .into(),
         ),
-        ("RUYCAST_NATIVE_TEST_SNIPPET", "1".into()),
     ] {
         host.env.insert(key.into(), value);
+    }
+    if complete {
+        host.env
+            .insert("RUYCAST_NATIVE_TEST_SNIPPET".into(), "1".into());
     }
     if matches!(entry, Entry::HiddenTest) {
         host.env
@@ -128,6 +140,42 @@ fn configured_host(target: &str, flags: &[&str], clipboard: Option<&str>, entry:
     host.env
         .remove(std::ffi::OsStr::new("RUYCAST_WORKSPACE_FIXTURE_HOME"));
     host
+}
+
+#[test]
+fn gui_missing_target_and_incomplete_fixture_never_mutate_board() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for (name, flags, complete, error) in [
+        (
+            "gui-missing-target",
+            &["missing-target"][..],
+            true,
+            "Choose an app",
+        ),
+        (
+            "gui-incomplete-fixture",
+            &[][..],
+            false,
+            "Complete snippet fixture",
+        ),
+    ] {
+        let host = hidden_host_options("Plain", flags, complete);
+        assert_eq!(
+            host.rpc(&json!({"op":"show","query":"snipfixture"}))["ok"],
+            true
+        );
+        host.settled(|status| status["nativeUI"]["visible"] == true);
+        let response = host.rpc(&json!({"op":"execute","id":"snipfixture"}));
+        assert_eq!(response["ok"], false);
+        assert!(response["error"].as_str().unwrap().contains(error));
+        let trace = trace(&host);
+        for phase in ["snippet-write", "snippet-post", "snippet-clear"] {
+            assert!(!trace.iter().any(|event| event["phase"] == phase));
+        }
+        save(name, &response, &trace);
+    }
 }
 
 #[test]
