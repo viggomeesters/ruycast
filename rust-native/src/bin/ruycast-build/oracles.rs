@@ -161,11 +161,20 @@ fn check_core_policy_artifact(root: &Path, artifact: &PolicyArtifact) -> Result<
     } Ok(())
 }
 fn core_policy_arguments(artifact: &PolicyArtifact)->Vec<String> {vec![artifact.path.clone(),"--root".into(),".".into()]}
+#[derive(Clone, Copy)]
+enum PolicyLane { Core, Headless }
+impl PolicyLane { fn prefix(self)->&'static str {match self{Self::Core=>"pure-core",Self::Headless=>"pure-headless"}} }
 fn execute_core_policy(root:&Path,lease:&BuildLock,artifact:&PolicyArtifact,phase:&str)->Result<PolicyInvocation> {
+    execute_oracle_policy(root,lease,artifact,PolicyLane::Core,phase)
+}
+fn check_core_policy_evidence(root:&Path,policy:&CorePolicyEvidence)->Result<()> {
+    check_oracle_policy_evidence(root,policy,PolicyLane::Core)
+}
+fn execute_oracle_policy(root:&Path,lease:&BuildLock,artifact:&PolicyArtifact,lane:PolicyLane,phase:&str)->Result<PolicyInvocation> {
     if !matches!(phase,"before"|"after") {return Err("Unknown core policy phase.".into());}
     check_core_policy_artifact(root,artifact)?;
     let arguments=core_policy_arguments(artifact);let value=tool_capture(root,lease,&arguments)?;
-    let prefix=root.join(format!(".build/receipts/pure-core-policy-{phase}"));
+    let prefix=root.join(format!(".build/receipts/{}-policy-{phase}",lane.prefix()));
     ruycast_native::private_storage::write(&prefix.with_extension("stdout"),&value.stdout,true)?;
     ruycast_native::private_storage::write(&prefix.with_extension("stderr"),&value.stderr,true)?;
     check_core_policy_artifact(root,artifact)?;
@@ -173,13 +182,13 @@ fn execute_core_policy(root:&Path,lease:&BuildLock,artifact:&PolicyArtifact,phas
     let result=validation::rust_policy_result(&value.stdout)?;
     Ok(PolicyInvocation{arguments,result})
 }
-fn check_core_policy_evidence(root:&Path,policy:&CorePolicyEvidence)->Result<()> {
+fn check_oracle_policy_evidence(root:&Path,policy:&CorePolicyEvidence,lane:PolicyLane)->Result<()> {
     if policy.inputs!=core_policy_footprint(root)? {return Err("Core policy input path/type/content footprint changed.".into());}
     check_core_policy_artifact(root,&policy.artifact)?;
     for (phase, invocation) in [("before",&policy.before),("after",&policy.after)] {
         if invocation.arguments!=core_policy_arguments(&policy.artifact) {return Err("Pure core policy caller changed.".into());}
         validation::rust_policy_result(&serde_json::to_vec(&invocation.result).map_err(error)?)?;
-        let logged:serde_json::Value=serde_json::from_slice(&regular_bytes(&root.join(format!(".build/receipts/pure-core-policy-{phase}.stdout")))?).map_err(error)?;
+        let logged:serde_json::Value=serde_json::from_slice(&regular_bytes(&root.join(format!(".build/receipts/{}-policy-{phase}.stdout",lane.prefix())))?).map_err(error)?;
         if logged!=invocation.result {return Err("Pure core policy log differs from its receipt.".into());}
     }
     if policy.before.result!=policy.after.result || policy.before.result["lockSHA256"]!=digest(&root.join("rust-native/swift-reference-lock.json"))? {
@@ -1568,6 +1577,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct HeadlessReceipt {
     schema: String,
+    policy: CorePolicyEvidence,
+    core_receipt_sha256: String,
     sources: BTreeMap<String, String>,
     artifacts: BTreeMap<String, String>,
     outcomes: BTreeMap<String, serde_json::Value>,
@@ -1581,16 +1592,15 @@ fn headless_sources(root: &Path) -> Result<BTreeMap<String, String>> {
     Ok(values)
 }
 pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
-    verify_core(root, lease)?;
+    let core=verify_core(root, lease)?;
+    let core_receipt_sha256=digest(&root.join(".build/receipts/pure-core-oracle.json"))?;
     let before = headless_sources(root)?;
-    tool(
-        root,
-        lease,
-        &[
-            "python3".into(),
-            "rust-native/scripts/check_rust_only.py".into(),
-        ],
-    )?;
+    let policy_inputs=core_policy_footprint(root)?;
+    let target=host_target(root)?;
+    if core["policy"]["artifact"]["target"]!=target {return Err("Headless policy requires its current host core-v3 receipt.".into());}
+    tool(root,lease,&core_policy_build_command(&target)?)?;
+    let policy_artifact=bind_core_policy_artifact(root,&target)?;
+    let policy_before=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"before")?;
     let archive = root.join(".build/rust/release/librustcast_core.a");
     let archive_hash = digest(&archive)?;
     let scratch = format!(".build/oracle-swift/{archive_hash}");
@@ -1631,14 +1641,9 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
     }
     let binary = bin_path.join("RuycastApp");
     let binary_hash = digest(&binary)?;
-    tool(
-        root,
-        lease,
-        &[
-            "python3".into(),
-            "rust-native/scripts/check_rust_only.py".into(),
-        ],
-    )?;
+    let policy_after=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"after")?;
+    let policy=CorePolicyEvidence{artifact:policy_artifact,before:policy_before,after:policy_after,inputs:policy_inputs};
+    check_oracle_policy_evidence(root,&policy,PolicyLane::Headless)?;
     if headless_sources(root)? != before || digest(&archive)? != archive_hash {
         return Err("Frozen oracle source or static library changed before entry.".into());
     }
@@ -1703,6 +1708,7 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
         return Err("Frozen oracle inputs changed during branch checks.".into());
     }
     verify_core(root, lease)?;
+    if digest(&root.join(".build/receipts/pure-core-oracle.json"))?!=core_receipt_sha256 {return Err("Core-v3 receipt changed during headless checks.".into());}
     let mut artifacts = BTreeMap::new();
     for path in [&archive, &binary] {
         artifacts.insert(
@@ -1714,7 +1720,8 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
             digest(path)?,
         );
     }
-    let receipt=HeadlessReceipt{schema:"ruycast.pre-main-headless-oracles.v1".into(),sources:before,artifacts,outcomes,commands,scope:"Exact frozen --check-search/--check-concurrency branches before AppDelegate; fresh owned HOME/TMPDIR/RUYCAST_HOME; no other flags, normal startup, status, UI, global SDK or account-lookup acceptance".into(),production_accepted:false};
+    artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
+    let receipt=HeadlessReceipt{schema:"ruycast.pre-main-headless-oracles.v2".into(),policy,core_receipt_sha256,sources:before,artifacts,outcomes,commands,scope:"Exact frozen --check-search/--check-concurrency branches before AppDelegate; fresh owned HOME/TMPDIR/RUYCAST_HOME; no other flags, normal startup, status, UI, global SDK or account-lookup acceptance".into(),production_accepted:false};
     lease.validate()?;
     ruycast_native::private_storage::write(
         &root.join(".build/receipts/pre-main-headless-oracles.json"),
@@ -1725,14 +1732,18 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
 }
 pub(super) fn verify_headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     lease.validate()?;
+    let core=verify_core(root,lease)?;
+    let core_sha=digest(&root.join(".build/receipts/pure-core-oracle.json"))?;
     let receipt: HeadlessReceipt = serde_json::from_slice(&regular_bytes(
         &root.join(".build/receipts/pre-main-headless-oracles.json"),
     )?)
     .map_err(error)?;
-    if receipt.schema != "ruycast.pre-main-headless-oracles.v1"
+    if receipt.schema != "ruycast.pre-main-headless-oracles.v2"
+        || receipt.core_receipt_sha256!=core_sha
+        || receipt.policy.artifact.target!=core["policy"]["artifact"]["target"]
         || receipt.production_accepted
         || receipt.sources != headless_sources(root)?
-        || receipt.artifacts.len() != 2
+        || receipt.artifacts.len() != 3
         || receipt.outcomes.len() != 2
         || ["--check-search", "--check-concurrency"]
             .iter()
@@ -1745,6 +1756,8 @@ pub(super) fn verify_headless(root: &Path, lease: &BuildLock) -> Result<serde_js
     {
         return Err("Frozen pre-main branch receipt is invalid or stale.".into());
     }
+    check_oracle_policy_evidence(root,&receipt.policy,PolicyLane::Headless)?;
+    if receipt.artifacts.get(&receipt.policy.artifact.path)!=Some(&receipt.policy.artifact.sha256) {return Err("Headless policy snapshot artifact role changed.".into());}
     for (name, expected) in &receipt.artifacts {
         if Path::new(name).is_absolute()
             || Path::new(name)
@@ -1756,6 +1769,7 @@ pub(super) fn verify_headless(root: &Path, lease: &BuildLock) -> Result<serde_js
         }
     }
     verify_core(root, lease)?;
+    if digest(&root.join(".build/receipts/pure-core-oracle.json"))?!=receipt.core_receipt_sha256 {return Err("Headless core-v3 dependency changed during verification.".into());}
     serde_json::to_value(receipt).map_err(error)
 }
 pub(super) fn require_complete(kind: &str) -> Result<()> {
@@ -1783,6 +1797,60 @@ mod tests {
         assert!(binary.is_absolute()&&binary.is_file());
         let destination=root.join(".build/oracle-policy/aarch64-apple-darwin/debug/rust-only-policy");
         fs::create_dir_all(destination.parent().unwrap()).unwrap();fs::copy(binary,destination).unwrap();fixture
+    }
+    fn owned_headless_policy_receipt(root:&Path,lease:&BuildLock)->HeadlessReceipt {
+        let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
+        let before=execute_core_policy(root,lease,&artifact,"before").unwrap();let after=execute_core_policy(root,lease,&artifact,"after").unwrap();
+        let core_policy=CorePolicyEvidence{artifact:artifact.clone(),before,after,inputs:core_policy_footprint(root).unwrap()};
+        let core_logs=["before","after"].map(|phase|fs::read(root.join(format!(".build/receipts/pure-core-policy-{phase}.stdout"))).unwrap());
+        let mut artifacts=BTreeMap::new();
+        for name in [".build/rust/release/librustcast_core.a",".build/metadata-archive.a",".build/metadata-module.modulemap",".build/swift/debug/CRuycastCore.build/module.modulemap",".build/metadata-CoreChecks"] {
+            fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();artifacts.insert(name.into(),digest(&root.join(name)).unwrap());
+        }
+        artifacts.insert(artifact.path.clone(),artifact.sha256.clone());
+        let core=CoreReceipt{schema:"ruycast.pure-core-oracle.v3".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy:core_policy};
+        fs::write(root.join(".build/receipts/pure-core-oracle.json"),serde_json::to_vec(&core).unwrap()).unwrap();verify_core(root,lease).unwrap();
+        let before=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"before").unwrap();
+        let after=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"after").unwrap();
+        for (index,phase) in ["before","after"].into_iter().enumerate(){assert_eq!(fs::read(root.join(format!(".build/receipts/pure-core-policy-{phase}.stdout"))).unwrap(),core_logs[index]);}
+        verify_core(root,lease).unwrap();
+        let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};
+        let mut artifacts=BTreeMap::new();
+        let host=".build/metadata-headless-host";fs::write(root.join(host),b"owned nonexecutable receipt fixture").unwrap();
+        for path in [".build/rust/release/librustcast_core.a",host] {artifacts.insert(path.into(),digest(&root.join(path)).unwrap());}
+        artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
+        HeadlessReceipt{schema:"ruycast.pre-main-headless-oracles.v2".into(),core_receipt_sha256:digest(&root.join(".build/receipts/pure-core-oracle.json")).unwrap(),policy,sources:headless_sources(root).unwrap(),artifacts,outcomes:BTreeMap::from([("--check-search".into(),serde_json::json!({"ok":true})),("--check-concurrency".into(),serde_json::json!({"ok":true}))]),commands:vec![],scope:"owned metadata fixture only; no genuine Swift branch execution".into(),production_accepted:false}
+    }
+    #[test]
+    fn headless_rust_policy_logs_and_exact_core_v3_dependency_remain_separate() {
+        let fixture=core_policy_fixture();let root=&fixture.0;let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
+        let receipt=owned_headless_policy_receipt(root,&lease);let path=root.join(".build/receipts/pre-main-headless-oracles.json");
+        fs::write(&path,serde_json::to_vec(&receipt).unwrap()).unwrap();verify_headless(root,&lease).unwrap();
+        let core=root.join(".build/receipts/pure-core-oracle.json");let original=fs::read(&core).unwrap();let mut changed=original.clone();changed.push(b'\n');fs::write(&core,&changed).unwrap();
+        verify_core(root,&lease).unwrap();assert!(verify_headless(root,&lease).is_err());
+        fs::write(&core,&original).unwrap();verify_headless(root,&lease).unwrap();
+        fs::remove_file(&core).unwrap();assert!(verify_headless(root,&lease).is_err());assert!(headless(root,&lease).is_err());
+        assert!(!root.join(".build/oracle-swift").exists());
+    }
+    #[test]
+    fn headless_rust_policy_v2_rejects_old_receipts_missing_gates_and_stale_footprints() {
+        let fixture=core_policy_fixture();let root=&fixture.0;let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
+        let receipt=owned_headless_policy_receipt(root,&lease);let good=serde_json::to_value(&receipt).unwrap();let path=root.join(".build/receipts/pre-main-headless-oracles.json");
+        let save=|value:&serde_json::Value|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
+        save(&good);verify_headless(root,&lease).unwrap();
+        for mutation in ["old-schema","missing-policy","core-digest","mutable-artifact","different-after-caller","bad-result","missing-footprint"] {
+            let mut changed=good.clone();match mutation {
+                "old-schema"=>changed["schema"]=serde_json::json!("ruycast.pre-main-headless-oracles.v1"),
+                "missing-policy"=>{changed.as_object_mut().unwrap().remove("policy");},
+                "core-digest"=>changed["coreReceiptSha256"]=serde_json::json!("0".repeat(64)),
+                "mutable-artifact"=>changed["policy"]["artifact"]["path"]=changed["policy"]["artifact"]["buildSource"].clone(),
+                "different-after-caller"=>changed["policy"]["after"]["arguments"][0]=changed["policy"]["artifact"]["buildSource"].clone(),
+                "bad-result"=>changed["policy"]["after"]["result"]["productionReady"]=serde_json::json!(true),
+                _=>changed["policy"]["inputs"]=serde_json::json!({}),
+            }
+            save(&changed);assert!(verify_headless(root,&lease).is_err(),"{mutation}");
+        }
+        save(&good);verify_headless(root,&lease).unwrap();
     }
     #[test]
     fn core_rust_policy_snapshot_preserves_actual_calls_after_rebuild_and_fails_closed() {
