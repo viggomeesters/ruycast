@@ -303,6 +303,53 @@ fn offline_cli_relocation_retains_source_and_refuses_existing_target() {
 }
 
 #[test]
+fn offline_cli_busy_writer_and_environment_pin_refuse_relocation() {
+    use std::os::{fd::AsRawFd, unix::fs::OpenOptionsExt};
+    for pinned in [false, true] {
+        let f = Fixture::new();
+        f.source();
+        let original = fs::read(f.root.join("config.json")).unwrap();
+        let destination = f.base.join("Synced vault with spaces/.appdata/ruycast");
+        let lock = if pinned {
+            None
+        } else {
+            let file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(f.root.join("config.lock"))
+                .unwrap();
+            assert_eq!(
+                unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) },
+                0
+            );
+            Some(file)
+        };
+        let mut command = f.command(false);
+        if pinned {
+            command.env("RUYCAST_CONFIG_DIR", &f.root);
+        }
+        let refusal = bounded_value(
+            command.args(["config", "directory"]).arg(&destination),
+            false,
+        );
+        assert!(refusal["error"].as_str().unwrap().contains(if pinned {
+            "RUYCAST_CONFIG_DIR controls"
+        } else {
+            "Configuration is being saved"
+        }));
+        drop(lock);
+        assert!(!destination.exists());
+        assert!(!f.root.join("config-location.json").exists());
+        assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
+        assert_eq!(
+            bounded_value(f.command(false).args(["config", "path"]), true)["result"],
+            json!(f.root.join("config.json"))
+        );
+    }
+}
+
+#[test]
 fn missing_invalid_and_overridden_sources_fail_before_creation() {
     for invalid in [false, true] {
         let f = Fixture::new();
