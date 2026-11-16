@@ -175,12 +175,6 @@ class MigrationTests(unittest.TestCase):
         self.assertFalse((home/'Library/LaunchAgents'/(OLD_ID+'.plist')).exists())
         self.assertTrue((home/'Library/LaunchAgents'/(NEW_ID+'.plist')).exists())
         for name in ['ruycast','rustcast']:self.assertEqual((home/'.local/bin'/name).resolve(),apps/'Ruycast.app/Contents/Resources/ruycast')
-    def test_failed_bootstrap_restores_old_app_cli_and_registration(self):
-        home,apps,calls=self.installer_fixture(fail=True)
-        self.assertTrue((apps/'Rustcast.app').exists());self.assertFalse((apps/'Ruycast.app').exists())
-        self.assertEqual((home/'.local/bin/rustcast').resolve(),apps/'Rustcast.app/Contents/Resources/rustcast')
-        self.assertFalse((home/'.local/bin/ruycast').exists())
-        self.assertTrue(any(c[:2]==['launchctl','bootstrap'] and c[-1].endswith(OLD_ID+'.plist') for c in calls))
 
     def test_signing_failure_keeps_existing_host_and_profile_untouched(self):
         self.installer_fixture(signing_fail=True)
@@ -199,9 +193,3 @@ class MigrationTests(unittest.TestCase):
 
     def test_invalid_canonical_version_never_stages_or_stops_current_app(self):
         self.installer_fixture(version_source_fault=True)
-
-    def test_wrong_running_version_restores_old_app_and_registration(self):
-        home,apps,calls=self.installer_fixture(version_fail=True)
-        self.assertTrue((apps/'Rustcast.app').exists());self.assertFalse((apps/'Ruycast.app').exists())
-        self.assertEqual((home/'.local/bin/rustcast').resolve(),apps/'Rustcast.app/Contents/Resources/rustcast')
-        self.assertTrue(any(c[:2]==['launchctl','bootstrap'] and c[-1].endswith(OLD_ID+'.plist') for c in calls))

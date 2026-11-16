@@ -1122,9 +1122,13 @@ fn installer_owned_failures_rollback_or_fail_before_stopping_without_config_chan
         f.signer();
         let old = f.o.home.join(".config/rustcast");
         let before = profile::hashes(&old, None, &f.o.home).unwrap();
+        let unknown=f.o.repo.join(".dist/Ruycast.app");stdfs::create_dir_all(&unknown).unwrap();stdfs::write(unknown.join("user-file"),b"keep me").unwrap();
+        let original_cli=stdfs::read_link(f.o.home.join(".local/bin/rustcast")).unwrap();
         let mut r = f.runner();
         r.fault = Some(fault);
-        assert!(owned_install(&f.o, &mut r).is_err(), "{fault}");
+        let error=owned_install(&f.o,&mut r).unwrap_err();
+        if fault=="bootstrap"{assert!(error.contains("bootstrap"),"{error}");}
+        if fault=="version"{assert!(error.contains("host")&&error.contains("version"),"{error}");}
         let profile = if old.is_dir() && !old.is_symlink() {
             old
         } else {
@@ -1133,6 +1137,14 @@ fn installer_owned_failures_rollback_or_fail_before_stopping_without_config_chan
         assert_eq!(profile::hashes(&profile, None, &f.o.home).unwrap(), before);
         assert!(f.o.apps.join("Rustcast.app").exists());
         assert!(!f.o.apps.join("Ruycast.app").exists());
+        assert_eq!(stdfs::read(unknown.join("user-file")).unwrap(),b"keep me");
+        if ["bootstrap","version"].contains(&fault) {
+            assert_eq!(stdfs::read_link(f.o.home.join(".local/bin/rustcast")).unwrap(),original_cli);
+            assert!(stdfs::symlink_metadata(f.o.home.join(".local/bin/ruycast")).is_err());
+            let alias=f.o.home.join(".config/rustcast");let migrated=f.o.home.join(".config/ruycast");assert!(alias.is_symlink());assert_eq!(stdfs::canonicalize(&alias).unwrap(),stdfs::canonicalize(&migrated).unwrap());assert_eq!(profile::hashes(&migrated,None,&f.o.home).unwrap(),before);
+            assert!(f.o.home.join(format!("Library/LaunchAgents/{OLD_ID}.plist")).is_file());
+        }
+
         if ["sign", "source"].contains(&fault) {
             assert!(!r.stopped(), "{fault}");
         } else {
