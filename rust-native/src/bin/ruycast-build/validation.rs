@@ -40,6 +40,7 @@ const SYSTEM_UI_SOURCES: &[&str] = &[
 const MATRIX: &str = r#"
 rust-only-policy|p|rust-native/scripts/check_rust_only.py
 rust-only-policy-tests|p|rust-native/tests/rust_only_policy.py
+rust-only-policy-rust-tests|c|test --manifest-path rust-native/Cargo.toml --test rust_only_policy --locked
 core-unit|c|test --manifest-path rust/Cargo.toml --locked
 unit|c|test --manifest-path rust-native/Cargo.toml --locked
 clippy-default|c|clippy --manifest-path rust-native/Cargo.toml --locked --all-targets -- -D warnings
@@ -2093,8 +2094,11 @@ mod tests {
     fn complete_ordered_matrix_keeps_all_oracles_and_explicit_targets() {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
+        let policy = steps.iter().find(|step| step.name == "rust-only-policy-rust-tests").unwrap();
+        assert!(policy.arguments.windows(2).any(|pair|pair==["--test","rust_only_policy"]));
+        assert!(steps.iter().any(|step| step.name == "rust-only-policy-tests"));
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 142);
+        assert_eq!(steps.len(), 143);
         let history_build = steps.iter().position(|step| step.name == "clipboard-history-sdk-build").unwrap();
         for name in ["clipboard-history-host-process"] {
             assert!(history_build < steps.iter().position(|step| step.name == name).unwrap());
