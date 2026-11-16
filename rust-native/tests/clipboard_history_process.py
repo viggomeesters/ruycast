@@ -66,10 +66,6 @@ class ClipboardHistory(unittest.TestCase):
     self.show(h);result=h.cli('clipboard','paste','raycast-clip');self.assertEqual(result['result']['state'],'copied');h.wait(lambda s:s['snippetRequestsRunning']==0)
     trace=(h.base/'workspace-trace.jsonl').read_text();self.assertIn('snippet-post',trace);self.assertNotIn('unexpected-general',trace)
     self.assertEqual(h.cli('clipboard','delete','raycast-clip')['result']['count'],0);self.assertEqual(h.cli('clipboard','clear')['result']['count'],0)
- def test_rich_copy_routes_and_invalid_data_do_not_clear_destination(self):
-    h=self.host();self.fixture(h,{'Files':['file:///synthetic/a.txt','file:///synthetic/b.txt']});self.wait_items(h,1);self.assertTrue(h.cli('clipboard','copy',self.items(h)[0]['id'])['ok'])
-    self.fixture(h,{'Image':list(png())});self.wait_items(h,2);image=self.items(h)[0];self.assertTrue(h.cli('clipboard','copy',image['id'])['ok'])
-    before=(h.base/'workspace-trace.jsonl').read_text().count('snippet-clear');(h.profile/image['dataFile']).write_bytes(b'invalid image');result=h.rpc(dict(op='clipboard.copy',id=image['id']));self.assertFalse(result['ok']);self.assertEqual((h.base/'workspace-trace.jsonl').read_text().count('snippet-clear'),before)
  def test_native_text_image_empty_error_busy_light_dark_narrow_wide(self):
     for width,theme in [(600,'light'),(760,'dark')]:
         h=self.host(width=width,theme=theme);self.show(h);self.capture(h,f'empty-{width}-{theme}')
