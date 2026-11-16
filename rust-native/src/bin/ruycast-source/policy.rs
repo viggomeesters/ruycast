@@ -161,7 +161,6 @@ rust-native/.gitignore
 rust-native/Cargo.lock
 rust-native/Cargo.toml
 rust-native/README.md
-rust-native/scripts/check.py
 rust-native/scripts/check_rust_only.py
 rust-native/scripts/parity_inventory.py
 rust-native/src/actions.rs
@@ -413,6 +412,7 @@ rust-native/tests/native_choice_host_process.rs
 rust-native/tests/native_dashboard_dialog_process.rs
 rust-native/tests/native_keyboard_process.rs
 rust-native/tests/native_open_basic_process.rs
+rust-native/tests/native_check_entrypoint.rs
 rust-native/tests/native_process.rs
 rust-native/tests/native_snippet_choice_process.rs
 rust-native/tests/rich_process.rs
