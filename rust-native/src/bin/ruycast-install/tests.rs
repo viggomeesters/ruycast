@@ -1140,6 +1140,10 @@ fn installer_owned_failures_rollback_or_fail_before_stopping_without_config_chan
         let error=owned_install(&f.o,&mut r).unwrap_err();
         if fault=="bootstrap"{assert!(error.contains("bootstrap"),"{error}");}
         if fault=="version"{assert!(error.contains("host")&&error.contains("version"),"{error}");}
+        if fault == "sign" {
+            assert!(error.contains("signer unavailable"), "{error}");
+            assert!(old.is_dir() && !old.is_symlink());
+        }
         let profile = if old.is_dir() && !old.is_symlink() {
             old
         } else {
