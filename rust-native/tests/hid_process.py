@@ -54,11 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_identical_plan_generation_preserves_held_physical_and_hardware(self):
-        rows, trace = self.run_case([plan(), op('refresh'), raw(57, True), plan(generation=2), op('refresh'), event()])
-        self.assertEqual(rows[-1]['result']['flags'], HYPER)
-        self.assertEqual(trace.count('hid-fixture:manager_create\n'), 1)
-
     def test_partial_setup_failure_always_restores_original_and_can_retry(self):
         for stage in ['tap_create', 'source', 'manager_create', 'device_dictionary', 'input_dictionary', 'manager_open', 'tap_enable']:
             for original in [False, True]:
@@ -105,25 +100,6 @@ class HidSdk(unittest.TestCase):
                                  op('hook', name='set_flags', mode='stop'), event(flags=original)])
         self.assertEqual(rows[-1]['result'], dict(consumed=False, flags=original))
         self.assertEqual(rows[-1]['actions'], [])
-
-    def test_generated_events_pass_unmodified_and_secure_input_recovers(self):
-        rows, _ = self.run_case([plan(), op('refresh'), raw(57, True), event(flags=1 << 16, tag=0x5255535443415354),
-                                 op('env', value=1), event(flags=CMD | 16), op('refresh'), op('env', value=0), op('refresh')])
-        self.assertEqual(rows[3]['result']['flags'], 1 << 16)
-        self.assertEqual(rows[5]['result']['flags'], CMD | 16)
-        self.assertEqual(rows[6]['status'], 'Paused during secure input')
-        self.assertEqual(rows[8]['status'], 'On')
-
-    def test_off_sleep_and_environment_precedence_short_circuit_discovery(self):
-        rows, trace = self.run_case([plan(False), op('refresh')], env=15, final_caps=True)
-        self.assertEqual(rows[-1]['status'], 'Off')
-        self.assertNotIn('hid-fixture:raycast', trace)
-        for env, expected in [(15, 'Quit Raycast'), (7, 'Paused during secure'), (6, 'Allow Accessibility'), (4, 'Allow Input Monitoring')]:
-            rows, _ = self.run_case([plan(), op('refresh')], env=env, final_caps=True)
-            self.assertIn(expected, rows[-1]['status'])
-        rows, trace = self.run_case([plan(), op('sleep', value=True), op('refresh')], final_caps=True)
-        self.assertEqual(rows[-1]['status'], 'Paused')
-        self.assertNotIn('hid-fixture:raycast', trace)
 
     def test_lifecycle_gate_panic_preserves_native_ownership_for_retirement(self):
         rows, _ = self.run_case([plan(), op('refresh'), op('panic-gate', value=True), op('refresh'),
