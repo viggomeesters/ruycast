@@ -16,6 +16,137 @@ pub struct ParsedExport {
     numeric_marker: Option<String>,
 }
 
+const CLIPBOARD_BATCH_ITEMS: usize = 100;
+const CLIPBOARD_BATCH_MAX_WIRE: usize = 1_000_000;
+
+/// Build deterministic, bounded clipboard import requests without contacting the host.
+pub fn batches(items: &[Value], source_hash: &str) -> Result<Vec<Value>, String> {
+    let mut requests = Vec::new();
+    let mut batch = Vec::new();
+    for item in items {
+        let mut proposed = batch.clone();
+        proposed.push(item.clone());
+        let request = clipboard_request(&proposed, source_hash)?;
+        if !batch.is_empty()
+            && (proposed.len() > CLIPBOARD_BATCH_ITEMS
+                || python_json(&request, false)?.len() >= CLIPBOARD_BATCH_MAX_WIRE)
+        {
+            requests.push(clipboard_request(&batch, source_hash)?);
+            batch.clear();
+        }
+        batch.push(item.clone());
+        let request = clipboard_request(&batch, source_hash)?;
+        if batch.len() > CLIPBOARD_BATCH_ITEMS
+            || python_json(&request, false)?.len() >= CLIPBOARD_BATCH_MAX_WIRE
+        {
+            return Err("A clipboard item exceeds the import transport limit.".into());
+        }
+    }
+    if !batch.is_empty() {
+        requests.push(clipboard_request(&batch, source_hash)?);
+    }
+    Ok(requests)
+}
+
+fn clipboard_request(items: &[Value], source_hash: &str) -> Result<Value, String> {
+    let item_json = python_json(&Value::Array(items.to_vec()), true)?;
+    let batch_id = format!("{:x}", Sha256::digest(item_json.as_bytes()));
+    Ok(json!({
+        "op": "clipboard.import",
+        "sourceSHA256": source_hash,
+        "batchID": batch_id,
+        "items": items,
+    }))
+}
+
+// Python's json.dumps defaults to ensure_ascii=True and, unless compact is set,
+// inserts one space after separators. Keys are explicitly sorted for the
+// stable retry fingerprint; this does not affect the wire byte count.
+fn python_json(value: &Value, compact: bool) -> Result<String, String> {
+    let mut output = String::new();
+    append_python_json(value, &mut output, compact)?;
+    Ok(output)
+}
+
+fn append_python_json(value: &Value, output: &mut String, compact: bool) -> Result<(), String> {
+    match value {
+        Value::Null => output.push_str("null"),
+        Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
+        Value::Number(value) if value.is_f64() => {
+            let value = value
+                .as_f64()
+                .ok_or_else(|| "Invalid clipboard float value.".to_owned())?;
+            output.push_str(&python_float_literal(value)?);
+        }
+        Value::Number(value) => output.push_str(&value.to_string()),
+        Value::String(value) => append_python_string(value, output),
+        Value::Array(values) => {
+            output.push('[');
+            for (index, value) in values.iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                    if !compact {
+                        output.push(' ');
+                    }
+                }
+                append_python_json(value, output, compact)?;
+            }
+            output.push(']');
+        }
+        Value::Object(values) => {
+            output.push('{');
+            let mut entries: Vec<_> = values.iter().collect();
+            entries.sort_by(|left, right| left.0.cmp(right.0));
+            for (index, (key, value)) in entries.into_iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                    if !compact {
+                        output.push(' ');
+                    }
+                }
+                append_python_string(key, output);
+                output.push(':');
+                if !compact {
+                    output.push(' ');
+                }
+                append_python_json(value, output, compact)?;
+            }
+            output.push('}');
+        }
+    }
+    Ok(())
+}
+
+fn append_python_string(value: &str, output: &mut String) {
+    use std::fmt::Write;
+    output.push('"');
+    for character in value.chars() {
+        match character {
+            '"' => output.push_str("\\\""),
+            '\\' => output.push_str("\\\\"),
+            '\u{0008}' => output.push_str("\\b"),
+            '\u{000c}' => output.push_str("\\f"),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '\u{0000}'..='\u{001f}' => write!(output, "\\u{:04x}", character as u32).unwrap(),
+            '\u{0020}'..='\u{007e}' => output.push(character),
+            '\u{007f}'..='\u{ffff}' => write!(output, "\\u{:04x}", character as u32).unwrap(),
+            _ => {
+                let code = character as u32 - 0x1_0000;
+                write!(
+                    output,
+                    "\\u{:04x}\\u{:04x}",
+                    0xd800 + (code >> 10),
+                    0xdc00 + (code & 0x3ff)
+                )
+                .unwrap();
+            }
+        }
+    }
+    output.push('"');
+}
+
 struct NumericToken {
     range: Range<usize>,
     raw: String,
@@ -744,6 +875,83 @@ mod tests {
     }
     fn data(rows: Vec<Value>) -> Value {
         json!({"builtin_package_clipboardHistory":{"clipboardHistoryRecords":rows}})
+    }
+    #[test]
+    fn batch_retry_identity_matches_python_unicode_serialization() {
+        let items = [json!({"id":"1","text":"Å😀"})];
+        let requests = batches(&items, &"0".repeat(64)).unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0]["batchID"],
+            "2d7db1700f5b9c741037d75b5e603dff50f8b2cbe47e7d7160cb62504bacd416"
+        );
+        assert_eq!(python_json(&requests[0], false).unwrap().len(), 243);
+    }
+    #[test]
+    fn batch_retry_identity_matches_python_float_exponents() {
+        let items = [json!({"id":"1","value":1e-7})];
+        let requests = batches(&items, &"0".repeat(64)).unwrap();
+        assert_eq!(
+            requests[0]["batchID"],
+            "5b78f01a099213c1b8c6a32f454b044ac1fe0cdd8260373f4d9936f98410244e"
+        );
+        assert_eq!(python_json(&requests[0], false).unwrap().len(), 229);
+    }
+    #[test]
+    fn batches_are_bounded_ordered_and_retry_stable() {
+        let items: Vec<_> = (0..151)
+            .map(|index| json!({"id":index.to_string(),"text":"a".repeat(20_000)}))
+            .collect();
+        let source_hash = "0".repeat(64);
+        let requests = batches(&items, &source_hash).unwrap();
+        assert!(requests.len() > 2);
+        assert_eq!(requests, batches(&items, &source_hash).unwrap());
+        assert!(requests.iter().all(|request| {
+            request["items"].as_array().unwrap().len() <= CLIPBOARD_BATCH_ITEMS
+                && python_json(request, false).unwrap().len() < CLIPBOARD_BATCH_MAX_WIRE
+        }));
+        let batched: Vec<_> = requests
+            .iter()
+            .flat_map(|request| request["items"].as_array().unwrap())
+            .collect();
+        assert_eq!(batched.len(), items.len());
+        assert!(
+            batched
+                .iter()
+                .zip(&items)
+                .all(|(actual, expected)| *actual == expected)
+        );
+
+        let count_limited = vec![json!({"id":"stable","text":"x"}); 101];
+        let count_batches = batches(&count_limited, &source_hash).unwrap();
+        assert_eq!(
+            count_batches
+                .iter()
+                .map(|request| request["items"].as_array().unwrap().len())
+                .collect::<Vec<_>>(),
+            [100, 1]
+        );
+    }
+    #[test]
+    fn batch_wire_size_boundary_rejects_exact_limit_and_single_oversize() {
+        let source_hash = "0".repeat(64);
+        let last_accepted = json!({"id":"1","text":"a".repeat(999_774)});
+        let requests = batches(&[last_accepted], &source_hash).unwrap();
+        assert_eq!(
+            python_json(&requests[0], false).unwrap().len(),
+            CLIPBOARD_BATCH_MAX_WIRE - 1
+        );
+
+        let exact_limit = json!({"id":"1","text":"a".repeat(999_775)});
+        assert_eq!(
+            batches(&[exact_limit], &source_hash).unwrap_err(),
+            "A clipboard item exceeds the import transport limit."
+        );
+        let split = [
+            json!({"id":"1","text":"a".repeat(600_000)}),
+            json!({"id":"2","text":"b".repeat(400_000)}),
+        ];
+        assert_eq!(batches(&split, &source_hash).unwrap().len(), 2);
     }
     #[test]
     fn text_stable_identity_dedup_and_date() {
