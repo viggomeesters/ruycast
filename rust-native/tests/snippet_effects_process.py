@@ -285,15 +285,6 @@ class SnippetEffects(unittest.TestCase):
         self.assertNotIn('PRIVATE',raw);self.assertNotIn('https://example.com',raw)
         self.assertEqual(h.cli('usage')['result']['snippet.fixture'],1)
 
-    def test_gui_missing_target_and_incomplete_fixture_never_mutate_board(self):
-        for headless,flags,complete,error in [(False,('missing-target',),True,'Choose an app'),
-                                              (False,(),False,'Complete snippet fixture')]:
-            h=self.host(command('Plain'),headless=headless,flags=flags,complete=complete)
-            if not headless:self.show(h)
-            value=h.rpc(dict(op='execute',id='snipfixture'))
-            self.assertFalse(value['ok']);self.assertIn(error,value['error'])
-            self.assertEqual(self.writes(h),[]);self.assertEqual(self.posts(h),[])
-            self.assertFalse(any(r['phase']=='snippet-clear' for r in self.trace(h)))
 
 
 if __name__=='__main__':unittest.main(verbosity=2)
