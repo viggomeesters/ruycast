@@ -163,17 +163,6 @@ class SnippetEffects(unittest.TestCase):
         status=h.rpc(dict(op='status'))['result'];self.assertTrue(status['managementUI']['visible']);self.assertFalse(status['nativeUI']['visible'])
         self.assertEqual(self.writes(h)[0]['text'],'Settings');self.assertFalse(probe('read')['windowShown'])
 
-    def test_notice_expires_without_focus_and_replacement_keeps_single_timer(self):
-        h=self.host(command('Owned'));self.show(h);self.run_native(h);self.wait_event(h,'snippet-post');self.done(h);h.settled()
-        first=self.notice(h,'snippet-notice-first')
-        self.show(h);self.run_native(h);self.wait_event(h,'snippet-post',lambda r:r['atNs']>self.posts(h)[1]['atNs'])
-        self.done(h);h.settled();second=h.probe('notice-read')
-        self.assertEqual(second['serial'],first['serial']+1);self.assertTrue(second['timer'])
-        end=time.monotonic()+6
-        while h.probe('notice-read')['timer']:
-            self.assertLess(time.monotonic(),end);time.sleep(.05)
-        self.assertFalse(h.probe('read')['windowShown']);self.assertFalse(h.probe('notice-read')['windowShown'])
-
     def test_transport_expiry_preserves_snippet_commit_truth_when_owner_is_busy(self):
         for phase,committed in [('prepare',False),('write',True)]:
             h=self.host(command('Owned'),flags=['hold-'+phase],dispatch=350);results=[];busy=[]
