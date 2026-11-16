@@ -1538,7 +1538,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "Tests/test_local_signing.py",
             "Tests/test_package_app.py",
             "Tests/test_private_storage.py",
-            "Tests/test_product_version.py",
             "Tests/test_public_contract.py",
             "Tests/test_socket_recovery.py",
             "Tests/test_bindings_v2.py",
@@ -1567,7 +1566,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         }
     }
     Ok(
-        serde_json::json!({"schema":"ruycast.original-gate-inventory.v1","pipeline":kind,"gates":gates,"unmappedGateIDs":unresolved,"settingsCaseCrosswalk":if kind=="settings"{serde_json::to_value(SETTINGS).map_err(error)?}else{serde_json::Value::Null},"qualifiedCaseSourceBindings":if kind=="settings"{serde_json::to_value(qualified).map_err(error)?}else{serde_json::Value::Null},"requiresCurrentCompleteNativeValidation":true,"pythonModuleInventory":python_modules,"pythonDiscovery":"Every test discovered by the original Tests/test_*.py selector remains required; the optional integration modules need their own presence/safety qualification, never a blanket skip","unmappedIsFailure":true,"productionAccepted":false}),
+        serde_json::json!({"schema":"ruycast.original-gate-inventory.v1","pipeline":kind,"gates":gates,"unmappedGateIDs":unresolved,"settingsCaseCrosswalk":if kind=="settings"{serde_json::to_value(SETTINGS).map_err(error)?}else{serde_json::Value::Null},"qualifiedCaseSourceBindings":if kind=="settings"{serde_json::to_value(qualified).map_err(error)?}else{serde_json::Value::Null},"requiresCurrentCompleteNativeValidation":true,"pythonModuleInventory":python_modules,"rustRootTestCrosswalk":if kind=="check"{serde_json::json!({"Tests/test_product_version.py":{"authority":"rust/src/product_version.rs","scope":"retired historical Swift-authority test consumer; five scenario intents now covered against actual Rust authority","originalMethods":["test_reader_and_actual_swift_compiler_agree_after_one_version_edit","test_missing_linked_ambiguous_or_nonliteral_version_is_rejected","test_export_follows_changed_compiled_version","test_invalid_version_creates_no_export_or_archive","test_nonregular_source_is_rejected_without_waiting_for_a_writer"],"nativeCases":["version::tests::owned_literal_matches_the_rust_compiler_and_rejects_link_fifo_directory_or_missing","version::tests::owned_rust_literal_tokens_preserve_whitespace_and_reject_ambiguity","version::tests::changed_compiled_version_exports_and_invalid_source_leaves_no_outputs"]}})}else{serde_json::Value::Null},"pythonDiscovery":"Every test discovered by the original Tests/test_*.py selector remains required; the optional integration modules need their own presence/safety qualification, never a blanket skip","unmappedIsFailure":true,"productionAccepted":false}),
     )
 }
 #[derive(Serialize, Deserialize)]
@@ -2114,6 +2113,13 @@ mod tests {
         assert!(compact.contains(&format!("#[test]fn{}()", direct[0])));
     }
     use super::*;
+    #[test]
+    fn product_version_root_crosswalk_preserves_five_intents_and_real_rust_cases() {
+        let value=inventory("check").unwrap();assert!(!value["pythonModuleInventory"].as_array().unwrap().iter().any(|path|path=="Tests/test_product_version.py"));
+        let mapping=&value["rustRootTestCrosswalk"]["Tests/test_product_version.py"];assert_eq!(mapping["authority"],"rust/src/product_version.rs");assert_eq!(mapping["originalMethods"].as_array().unwrap().len(),5);
+        let source=include_str!("version.rs");let cases=mapping["nativeCases"].as_array().unwrap();assert_eq!(cases.len(),3);for case in cases{let name=case.as_str().unwrap().rsplit("::").next().unwrap();assert!(source.contains(&format!("fn {name}(")),"{name}");}
+        assert!(include_str!("../../../../Tests/test_install_migration.py").contains("from product_version import read_product_version"));
+    }
     #[test]
     fn bridge_rust_crosswalk_resolves_cases_and_current_shared_inputs() {
         let gate = SETTINGS

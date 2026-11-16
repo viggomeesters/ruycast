@@ -128,7 +128,6 @@ Tests/test_install_migration.py
 Tests/test_local_signing.py
 Tests/test_package_app.py
 Tests/test_private_storage.py
-Tests/test_product_version.py
 Tests/test_public_contract.py
 Tests/test_socket_recovery.py
 assets/AppIcon.icns
