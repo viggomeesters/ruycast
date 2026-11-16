@@ -136,22 +136,56 @@ fn clipboard_text_import_is_read_only_private_and_fail_closed() {
     }
     let mut file = row;
     file["category"] = json!("file");
+    let missing = f.base.join("synthetic file.txt");
+    file["filePath"] = json!(missing);
+    let image_path = f.base.join("image.bin");
+    fs::write(&image_path, b"owned image contents must never enter output").unwrap();
+    let image_alias = f.base.join("image-alias.bin");
+    std::os::unix::fs::symlink(&image_path, &image_alias).unwrap();
+    let broken_alias = f.base.join("broken-image.bin");
+    std::os::unix::fs::symlink(f.base.join("absent.bin"), &broken_alias).unwrap();
+    let image = json!({"category":"image","filePath":image_path});
+    let missing_image = json!({"category":"image","filePath":f.base.join("missing.png")});
+    let linked_image = json!({"category":"image","filePath":image_alias});
+    let broken_image = json!({"category":"image","filePath":broken_alias});
+    let directory_image = json!({"category":"image","filePath":f.base});
     fs::write(
         &export,
         serde_json::to_vec(
-            &json!({"builtin_package_clipboardHistory":{"clipboardHistoryRecords":[file]}}),
+            &json!({"builtin_package_clipboardHistory":{"clipboardHistoryRecords":[file,image,missing_image,linked_image,broken_image,directory_image]}}),
         )
         .unwrap(),
     )
     .unwrap();
     let before = fs::read(&export).unwrap();
     let output = run(&[]);
-    assert_eq!(output.status.code(), Some(1));
-    assert!(output.stdout.is_empty());
-    assert!(String::from_utf8(output.stderr)
-        .unwrap()
-        .contains("not migrated"));
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["candidates"], 1);
+    assert_eq!(report["counts"]["files"], 1);
+    assert_eq!(report["counts"]["missingFileReferences"], 1);
+    assert_eq!(report["counts"]["missingImageAssets"], 3);
+    assert_eq!(report["counts"]["unsupportedImageAssets"], 2);
+    let report = String::from_utf8(output.stdout).unwrap();
+    assert!(!report.contains("synthetic file.txt"));
+    assert!(!report.contains("image.bin"));
+    assert!(!report.contains("owned image contents"));
+    assert!(!missing.exists());
+    assert_eq!(
+        fs::read(&image_path).unwrap(),
+        b"owned image contents must never enter output"
+    );
     assert_eq!(fs::read(&export).unwrap(), before);
+    assert_eq!(fs::read_link(&image_alias).unwrap(), image_path);
+    assert!(fs::symlink_metadata(&broken_alias)
+        .unwrap()
+        .file_type()
+        .is_symlink());
     assert!(!f.root.join("clipboard.json").exists());
     assert!(!f.root.join("control.sock").exists());
 }
