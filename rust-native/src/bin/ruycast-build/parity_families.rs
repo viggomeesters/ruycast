@@ -101,6 +101,24 @@ fn assemble(root: &Path, groups: Vec<Family>, input: Input) -> Result<Vec<Value>
         Ok(row)
     }).collect()
 }
+pub(super) fn owners(root: &Path) -> Result<(BTreeMap<String, String>, String)> {
+    let bytes = regular_bytes(&root.join(DEFINITIONS))?;
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    let groups = definitions(&bytes)?;
+    let owners = groups
+        .into_iter()
+        .flat_map(|group| {
+            group
+                .files
+                .into_iter()
+                .map(move |name| (name, group.id.clone()))
+        })
+        .collect();
+    if digest(&root.join(DEFINITIONS))? != hash {
+        return Err("Contract family definitions changed.".into());
+    }
+    Ok((owners, hash))
+}
 pub(super) fn run(root: &Path, input: &str) -> Result<Value> {
     let bytes = regular_bytes(&root.join(DEFINITIONS))?;
     let hash = format!("{:x}", Sha256::digest(&bytes));
