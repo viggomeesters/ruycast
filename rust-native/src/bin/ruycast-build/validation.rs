@@ -98,6 +98,7 @@ supervision-io-process|c|test --manifest-path rust-native/Cargo.toml --features 
 supervision-protocol-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_protocol_process --locked
 supervision-fault-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example supervision-fault-shim --locked
 supervision-fault-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_fault_process --locked
+supervision-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test supervision_host_process --locked
 supervision-process|p|rust-native/tests/supervision_process.py
 script-fault-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example script-fault-shim --locked
 script-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked
@@ -1816,7 +1817,7 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 139);
+        assert_eq!(steps.len(), 140);
         let supervision_probe = steps.iter().position(|step|step.name=="supervision-probe-build").unwrap();
         let supervision_framing = steps.iter().position(|step|step.name=="supervision-framing-process").unwrap();
         assert!(supervision_probe < supervision_framing);
@@ -1824,6 +1825,10 @@ mod tests {
         assert!(supervision_probe < supervision_io);
         let supervision_protocol = steps.iter().position(|step|step.name=="supervision-protocol-process").unwrap();
         assert!(supervision_probe < supervision_protocol);
+        let supervision_host = steps.iter().position(|step|step.name=="supervision-host-process").unwrap();
+        let headless_host = steps.iter().position(|step|step.name=="headless-tools-build").unwrap();
+        assert!(supervision_probe < supervision_host && headless_host < supervision_host);
+        assert!(steps[supervision_host].arguments.windows(2).any(|pair|pair==["--test","supervision_host_process"]));
         let supervision_sdk = steps.iter().position(|step|step.name=="supervision-fault-sdk-build").unwrap();
         let supervision_fault_index = steps.iter().position(|step|step.name=="supervision-fault-process").unwrap();
         assert!(supervision_sdk < supervision_fault_index);

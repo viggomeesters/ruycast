@@ -20,6 +20,16 @@ fn main() {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     if args
         .first()
+        .is_some_and(|arg| arg == "__supervision-heartbeat")
+    {
+        assert_eq!(args.len(), 3);
+        let index: usize = args[2].to_str().unwrap().parse().unwrap();
+        assert!(index < 15);
+        heartbeat(tree_home(PathBuf::from(&args[1])), index);
+        return;
+    }
+    if args
+        .first()
         .is_some_and(|arg| arg == "__supervision-tree" || arg == "__supervision-tree-descendant")
     {
         assert_eq!(args.len(), 2);
@@ -105,4 +115,24 @@ fn tree_leader(home: PathBuf) {
         .spawn()
         .unwrap();
     std::thread::sleep(Duration::from_secs(3));
+}
+
+fn heartbeat(home: PathBuf, index: usize) {
+    let path = home.join(index.to_string());
+    let temporary = path.with_extension("tmp");
+    let deadline = Instant::now() + Duration::from_millis(1200);
+    while Instant::now() < deadline {
+        let mut time = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        assert_eq!(
+            unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut time) },
+            0
+        );
+        let value = json!({"pid":std::process::id(),"helper":unsafe {libc::getppid()},"time":time.tv_sec as f64 + time.tv_nsec as f64 / 1_000_000_000.0});
+        std::fs::write(&temporary, serde_json::to_vec(&value).unwrap()).unwrap();
+        std::fs::rename(&temporary, &path).unwrap();
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
