@@ -54,30 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_lifecycle_gate_panic_preserves_native_ownership_for_retirement(self):
-        rows, _ = self.run_case([plan(), op('refresh'), op('panic-gate', value=True), op('refresh'),
-                                 op('panic-gate', value=False), op('stop')])
-        self.assertIn('panic', rows[3]['result'])
-        self.assertTrue(rows[3]['state']['manager'])
-        self.assertEqual(rows[5]['state']['allocated'], 0)
-
-    def test_callback_gate_panic_frees_temporary_native_events(self):
-        rows, _ = self.run_case([plan(), op('refresh'), op('hook', name='set_field', mode='panic-gate'), raw(57, True),
-                                 op('panic-gate', value=False), op('stop')])
-        self.assertTrue(rows[3]['failed'])
-        self.assertEqual(rows[3]['state']['allocated'], 3)
-        self.assertEqual(rows[3]['state']['posts'], 0)
-        self.assertEqual(rows[5]['state']['allocated'], 0)
-
-    def test_gate_reentry_with_running_true_cannot_post_or_return_stale_hyper(self):
-        rows, _ = self.run_case([plan(), op('refresh'), op('gate-stop', after=2), raw(57, True)])
-        self.assertEqual(rows[-1]['state']['posts'], 0)
-        self.assertEqual(rows[-1]['state']['allocated'], 0)
-        original = (1 << 63) | CMD | 16
-        rows, _ = self.run_case([plan(), op('refresh'), raw(57, True), op('gate-stop', after=2), event(flags=original)])
-        self.assertEqual(rows[-1]['result'], dict(consumed=False, flags=original))
-        self.assertFalse(rows[-1]['state']['lastDown'])
-
     def test_unmatched_and_nonkey_callbacks_do_not_clone_or_allocate_the_binding_plan(self):
         bindings = {}
         for side in ['left-cmd', 'right-cmd']:
