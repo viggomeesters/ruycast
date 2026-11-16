@@ -88,6 +88,109 @@ fn bounded_value(command: &mut Command, ok: bool) -> Value {
     assert_eq!(output.status.code(), Some(if ok { 0 } else { 1 }));
     value(output, ok)
 }
+fn rejected_activation(external: bool) {
+    use std::io::{Read, Write};
+    use std::os::unix::net::{UnixListener, UnixStream};
+    use std::time::Instant;
+    struct OwnedCli(Option<std::process::Child>);
+    impl Drop for OwnedCli {
+        fn drop(&mut self) {
+            if let Some(child) = self.0.as_mut() {
+                if matches!(child.try_wait(), Ok(None)) {
+                    let _ = child.kill();
+                }
+                let _ = child.wait();
+            }
+        }
+    }
+    let f = Fixture::new();
+    f.source();
+    let config = f.root.join("config.json");
+    let original = fs::read(&config).unwrap();
+    let mut newer = original.clone();
+    newer.extend_from_slice(b"\n\n");
+    let listener = UnixListener::bind(f.root.join("control.sock")).unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let until = Instant::now() + Duration::from_secs(8);
+    let mut child = OwnedCli(Some(
+        f.command(false)
+            .args(["config", "set", "clipboard.limit", "51"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    ));
+    let accept = || -> UnixStream {
+        let deadline = until.min(Instant::now() + Duration::from_secs(5));
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    let left = until.saturating_duration_since(Instant::now());
+                    assert!(!left.is_zero(), "activation request deadline");
+                    stream.set_read_timeout(Some(left)).unwrap();
+                    stream.set_write_timeout(Some(left)).unwrap();
+                    return stream;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "activation accept deadline");
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("activation accept: {error}"),
+            }
+        }
+    };
+    let request = |mut stream: &UnixStream| -> Value {
+        let mut line = Vec::new();
+        for _ in 0..1024 * 1024 {
+            let left = until.saturating_duration_since(Instant::now());
+            assert!(!left.is_zero(), "activation request deadline");
+            stream.set_read_timeout(Some(left)).unwrap();
+            let mut byte = [0];
+            stream.read_exact(&mut byte).unwrap();
+            if byte[0] == b'\n' {
+                return serde_json::from_slice(&line).unwrap();
+            }
+            line.push(byte[0]);
+        }
+        panic!("activation request exceeds one MiB");
+    };
+    {
+        let mut stream = accept();
+        assert_eq!(request(&stream)["op"], "reload");
+        if external {
+            fs::write(&config, &newer).unwrap();
+        }
+        stream
+            .write_all(b"{\"ok\":false,\"error\":\"Hotkey unavailable\"}\n")
+            .unwrap();
+    }
+    if !external {
+        let mut stream = accept();
+        assert_eq!(request(&stream)["op"], "reload");
+        assert_eq!(fs::read(&config).unwrap(), original);
+        stream.write_all(b"{\"ok\":true}\n").unwrap();
+    }
+    let remaining = until.saturating_duration_since(Instant::now());
+    assert!(!remaining.is_zero(), "activation CLI deadline");
+    let output = child_output::wait(child.0.take().unwrap(), remaining);
+    assert_eq!(output.status.code(), Some(1));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["rolledBack"], !external);
+    assert_eq!(response["runtimeRecovered"], !external);
+    assert_eq!(
+        fs::read(config).unwrap(),
+        if external { newer } else { original }
+    );
+}
+#[test]
+fn rejected_candidate_restores_previous_bytes_and_runtime() {
+    rejected_activation(false);
+}
+#[test]
+fn newer_external_edit_is_never_rolled_back() {
+    rejected_activation(true);
+}
 #[test]
 fn raycast_import_defaults_to_active_cli_config() {
     let f = Fixture::new();
