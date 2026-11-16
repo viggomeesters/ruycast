@@ -8,7 +8,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import shlex
 import subprocess
 import stat
@@ -59,7 +58,7 @@ def ast_parser():
     global _AST_PARSER
     if _AST_PARSER is None:
         target=REPO/'.build/delivery-tools'
-        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
+        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
         hashes={name:sha(REPO/name) for name in sources}
         command=['cargo','build','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','parity-ast']
         run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
@@ -106,6 +105,12 @@ def rust_test_candidates():
     if run.returncode:raise RuntimeError(run.stderr)
     return json.loads(run.stdout)
 
+def rust_wire_inventory():
+    command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-wire','--repo',str(REPO),'--marker','    func handle(_ req:[String:Any],sink:ReplySink)']
+    run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
+    if run.returncode:raise RuntimeError(run.stderr)
+    return json.loads(run.stdout)
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--reference',type=Path,required=True);parser.add_argument('--out',type=Path,required=True);args=parser.parse_args()
     paths=[p for p in sorted((REPO/'Sources').rglob('*.swift')) if not any('Checks' in x for x in p.relative_to(REPO).parts)]
@@ -139,16 +144,11 @@ def main():
         row['testCandidateGaps']=[name for name in g['tests'] if name in test_inventory['unresolvedSelectors']]
         row['acceptance']='Not accepted as a complete family. Candidate source/test crosswalk; compiler inventory and test names do not prove behavioral parity.'
         groups.append(row)
-    app=(REPO/'Sources/RuycastApp/AppState.swift').read_text();handle=app[app.index('    func handle(_ req:[String:Any],sink:ReplySink)'):]
-    ops=[]
-    for line in handle.splitlines():
-        if re.match(r'\s*case "',line):
-            part=line.split(':',1)[0]
-            ops.extend(re.findall(r'"([^"\n]+)"',part))
-    native=(REPO/'rust-native/src/runtime.rs').read_text()
-    wire=[dict(operation=op,production='Sources/RuycastApp/AppState.swift:handle(_:sink:)',nativeMentionLines=[i for i,line in enumerate(native.splitlines(),1) if '"'+op+'"' in line],acceptance='Unproven full wire parity; a mention or fallback stub is not actual entry/effect/response evidence.') for op in ops]
+    wire_inventory=rust_wire_inventory()
+    if wire_inventory['sources']['Sources/RuycastApp/AppState.swift']!=modules['Sources/RuycastApp/AppState.swift']['sha256']:raise RuntimeError('Wire source differs from compiler/reference source')
+    wire=wire_inventory['wireOperations']
     head=subprocess.check_output(['git','-C',str(args.reference),'rev-parse','HEAD'],text=True).strip()
-    result=dict(schema='ruycast.full-rust.behavior-matrix.candidate.v1',scope='Current accepted0.8.26 source crosswalk; production modules, compiler-parsed declarations, explicit semantic contract families, wire operations and candidate tests. Not final full behavior acceptance.',baseline=dict(version='0.8.26',build='66',referenceCommit=head,sourceOnlyComparison=True,releaseDeliveryEvidence='.go/evidence/native-edit-shortcuts/delivery-review.json'),compilerVersion=subprocess.check_output(['swiftc','--version'],text=True).strip(),compilerContext=compiler_context,testInventory=test_inventory,importedModuleHashes={p:sha(REPO/p) for p in ['.build/swift/debug/Modules/LauncherCore.swiftmodule','.build/swift/debug/Modules/LauncherModels.swiftmodule','.build/swift/debug/CRuycastCore.build/module.modulemap']},sourceFiles=modules,contractFamilies=groups,wireOperations=wire,unclassifiedModules=[],allProductionSourcesMatchReference=True,acceptance='Pending independent semantic completeness review and criterion-level proof. No whole original checklist block is checked.',original12Retained=True,overallComplete=False)
+    result=dict(schema='ruycast.full-rust.behavior-matrix.candidate.v1',scope='Current accepted0.8.26 source crosswalk; production modules, compiler-parsed declarations, explicit semantic contract families, wire operations and candidate tests. Not final full behavior acceptance.',baseline=dict(version='0.8.26',build='66',referenceCommit=head,sourceOnlyComparison=True,releaseDeliveryEvidence='.go/evidence/native-edit-shortcuts/delivery-review.json'),compilerVersion=subprocess.check_output(['swiftc','--version'],text=True).strip(),compilerContext=compiler_context,testInventory=test_inventory,importedModuleHashes={p:sha(REPO/p) for p in ['.build/swift/debug/Modules/LauncherCore.swiftmodule','.build/swift/debug/Modules/LauncherModels.swiftmodule','.build/swift/debug/CRuycastCore.build/module.modulemap']},sourceFiles=modules,contractFamilies=groups,wireOperations=wire,wireInventory=wire_inventory,unclassifiedModules=[],allProductionSourcesMatchReference=True,acceptance='Pending independent semantic completeness review and criterion-level proof. No whole original checklist block is checked.',original12Retained=True,overallComplete=False)
     args.out.parent.mkdir(parents=True,exist_ok=True);args.out.write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(dict(modules=len(modules),declarations=sum(len(m['declarations']) for m in modules.values()),families=len(groups),wireOperations=len(wire),unclassified=0,overallComplete=False)))
 if __name__=='__main__':main()
