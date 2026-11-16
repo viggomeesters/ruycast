@@ -14,7 +14,7 @@ class PublicContractTests(unittest.TestCase):
         names=public.selected(ROOT)
         for name in names:self.assertTrue((ROOT/name).is_file(),name)
         self.assertFalse(any(n.startswith(('.go/','.build/','.git/')) or 'personal_bridge' in n or 'transition_catalog' in n for n in names))
-        self.assertIn('Tests/test_config_directory.py',names);self.assertIn('.github/pull_request_template.md',names);self.assertIn('scripts/build_receipt.py',names);self.assertIn('scripts/prepare_release.py',names);self.assertIn('rust-native/src/bin/ruycast-install/tests.rs',names);self.assertNotIn('Tests/test_install_migration.py',names);self.assertNotIn('scripts/install_support.py',names);self.assertIn('assets/hero.png',names)
+        self.assertIn('rust-native/tests/startup_config_repair.rs',names);self.assertNotIn('Tests/test_config_directory.py',names);self.assertNotIn('scripts/import-raycast.py',names);self.assertIn('.github/pull_request_template.md',names);self.assertIn('scripts/build_receipt.py',names);self.assertIn('scripts/prepare_release.py',names);self.assertIn('rust-native/src/bin/ruycast-install/tests.rs',names);self.assertNotIn('Tests/test_install_migration.py',names);self.assertNotIn('scripts/install_support.py',names);self.assertIn('assets/hero.png',names)
     def release_fixture(self,root):
         host=root/prepare_release.HOST;cli=root/prepare_release.CLI
         host.parent.mkdir(parents=True);cli.parent.mkdir(parents=True)

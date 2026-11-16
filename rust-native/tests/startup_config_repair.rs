@@ -7,8 +7,8 @@ use std::{
     os::unix::fs::DirBuilderExt,
     path::PathBuf,
     process::{Command, Output, Stdio},
-    time::Duration,
     sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
 };
 struct Fixture {
     base: PathBuf,
@@ -78,11 +78,66 @@ fn value(output: Output, ok: bool) -> Value {
 }
 fn bounded_value(command: &mut Command, ok: bool) -> Value {
     let output = child_output::wait(
-        command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap(),
+        command
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
         Duration::from_secs(10),
     );
     assert_eq!(output.status.code(), Some(if ok { 0 } else { 1 }));
     value(output, ok)
+}
+#[test]
+fn raycast_import_defaults_to_active_cli_config() {
+    let f = Fixture::new();
+    f.source();
+    let original = fs::read(f.root.join("config.json")).unwrap();
+    let custom = f.base.join("Synced vault with spaces/.appdata/ruycast");
+    bounded_value(
+        f.command(false).args(["config", "directory"]).arg(&custom),
+        true,
+    );
+    bounded_value(
+        f.command(false).args(["config", "add", &json!({"id":"fixture.portable","title":"Portable","kind":"url","target":"https://example.com"}).to_string()]),
+        true,
+    );
+    let export = f.base.join("raycast-export.json");
+    let data = serde_json::to_vec(&json!({"builtin_package_rootSearch":{"rootSearch":[]},"raycast_user_activity":{"activityInfo":[]},"builtin_package_quicklinks":{"quicklinks":[]}})).unwrap();
+    fs::write(&export, &data).unwrap();
+    let selected = fs::read(custom.join("config.json")).unwrap();
+    let output = child_output::wait(
+        Command::new(env!("CARGO_BIN_EXE_ruycast-build"))
+            .env_clear()
+            .current_dir(&f.base)
+            .env("HOME", &f.base)
+            .env("RUYCAST_HOME", &f.root)
+            .env("RUYCAST_APP_BINARY", &f.host)
+            .arg("import-raycast")
+            .arg(&export)
+            .arg("--cli")
+            .arg(&f.cli)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+        Duration::from_secs(10),
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let summary: Value = serde_json::from_slice(&output.stdout).unwrap();
+    let config: Value = serde_json::from_slice(&original).unwrap();
+    assert_eq!(
+        summary["totalCommands"],
+        config["commands"].as_array().unwrap().len() + 1
+    );
+    assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
+    assert_eq!(fs::read(custom.join("config.json")).unwrap(), selected);
+    assert_eq!(fs::read(export).unwrap(), data);
 }
 #[test]
 fn both_profile_and_config_aliases_select_the_same_owned_write_target() {
