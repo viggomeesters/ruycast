@@ -32,6 +32,10 @@ const REQUIRED_SOURCES: &[&str] = &[
     "rust-native/src/bin/ruycast-build/preparation.rs",
     "rust-native/scripts/parity_inventory.py",
 ];
+pub(super) fn validate_parser(root: &Path, binding: &Value) -> Result<()> {
+    let parser: Parser = serde_json::from_value(binding.clone()).map_err(error)?;
+    parser_binding(root, &parser)
+}
 fn parser_binding(root: &Path, parser: &Parser) -> Result<()> {
     let sha = &parser.sha256;
     if sha.len() != 64

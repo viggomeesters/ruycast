@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
-import stat
+import time
 
 REPO=Path(__file__).resolve().parents[2]
 
@@ -19,40 +19,16 @@ GROUPS=json.loads(GROUPS_BYTES)
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 _AST_PARSER=None
-def parser_sha(path):
-    prefix=REPO
-    for part in path.relative_to(REPO).parts:
-        prefix=prefix/part
-        if stat.S_ISLNK(prefix.lstat().st_mode):raise RuntimeError('Linked AST parser input')
-    descriptor=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
-    with os.fdopen(descriptor,'rb') as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):raise RuntimeError('AST parser must be a regular file')
-        return hashlib.sha256(stream.read()).hexdigest()
 def ast_parser():
     global _AST_PARSER
-    if _AST_PARSER is None:
-        target=REPO/'.build/delivery-tools'
-        sources=['rust-native/src/bin/parity_ast.rs','rust-native/src/bin/ruycast-build.rs','rust-native/src/bin/ruycast-build/validation.rs','rust-native/src/bin/ruycast-build/test_catalog.rs','rust-native/src/bin/ruycast-build/parity_wire.rs','rust-native/src/bin/ruycast-build/parity_families.rs','rust-native/src/bin/ruycast-build/parity_sources.rs','rust-native/src/bin/ruycast-build/parity_compile.rs','rust-native/src/bin/ruycast-build/process.rs','rust-native/src/bin/ruycast-build/preparation.rs','rust-native/resources/parity-families.json','rust-native/src/artifact_lease.rs','rust/src/private_storage.rs','rust-native/Cargo.toml','rust-native/Cargo.lock','rust/Cargo.toml','rust/Cargo.lock','rust-toolchain.toml','rust-native/scripts/parity_inventory.py']
-        hashes={name:sha(REPO/name) for name in sources}
-        command=['cargo','build','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','parity-ast']
-        run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
-        if run.returncode:raise RuntimeError(run.stderr)
-        expected=parser_sha(target/'debug/parity-ast')
-        command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(target),'--bin','ruycast-build','--','parity-ast-snapshot','--repo',str(REPO),'--sha256',expected]
-        run=subprocess.run(command,cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
-        if run.returncode:raise RuntimeError(run.stderr)
-        binding=json.loads(run.stdout)
-        if binding!={'artifact':f'.build/delivery-tools/parity-ast-artifacts/{expected}','sha256':expected}:raise RuntimeError('Invalid AST parser snapshot binding')
-        binary=REPO/binding['artifact']
-        if hashes!={name:sha(REPO/name) for name in sources} or parser_sha(binary)!=expected:raise RuntimeError('AST parser inputs changed during build/publication')
-        binding['sources']=hashes
-        _AST_PARSER=(binary,binding)
-    binary,binding=_AST_PARSER
-    if parser_sha(binary)!=binding['sha256'] or any(sha(REPO/name)!=value for name,value in binding['sources'].items()):raise RuntimeError('AST parser source/snapshot changed')
+    command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-parser','--repo',str(REPO)]
+    run=subprocess.run(command,input=json.dumps(dict(binding=_AST_PARSER,deadlineNanos=time.clock_gettime_ns(time.CLOCK_MONOTONIC)+420_000_000_000)),cwd=REPO,capture_output=True,text=True,timeout=420,env={**os.environ,'CARGO_INCREMENTAL':'0'})
+    if run.returncode:raise RuntimeError(run.stderr)
+    _AST_PARSER=json.loads(run.stdout)
     return _AST_PARSER
 
 def parse_module(module,paths,sdk,plugins):
-    _,binding=ast_parser()
+    binding=ast_parser()
     command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-compile','--repo',str(REPO)]
     payload=dict(module=module,paths=sorted(str(path.relative_to(REPO)) for path in paths),sdk=sdk,plugins=plugins,parser=binding)
     run=subprocess.run(command,input=json.dumps(payload),cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
