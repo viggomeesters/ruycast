@@ -17,7 +17,6 @@ REPO=Path(__file__).resolve().parents[2]
 GROUPS_BYTES=(REPO/'rust-native/resources/parity-families.json').read_bytes()
 GROUPS=json.loads(GROUPS_BYTES)
 
-def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 _AST_PARSER=None
 def ast_parser():
     global _AST_PARSER
@@ -72,6 +71,14 @@ def rust_toolchain(stage='discover'):
     sys.stderr.write(run.stderr)
     return json.loads(run.stdout)
 
+def rust_report(reference,out,modules,contexts,tests,groups,wire):
+    command=['cargo','run','--quiet','--locked','--offline','--manifest-path',str(REPO/'rust-native/Cargo.toml'),'--target-dir',str(REPO/'.build/delivery-tools'),'--bin','ruycast-build','--','parity-report','--repo',str(REPO)]
+    payload=dict(reference=str(reference.resolve()),out=str(out.absolute()),deadlineNanos=time.clock_gettime_ns(time.CLOCK_MONOTONIC)+180_000_000_000,sourceFiles=modules,compilerContext=contexts,testInventory=tests,contractFamilies=groups,wireInventory=wire)
+    run=subprocess.run(command,input=json.dumps(payload),cwd=REPO,capture_output=True,text=True,timeout=180,env={**os.environ,'CARGO_INCREMENTAL':'0'})
+    if run.returncode:raise RuntimeError(run.stderr)
+    sys.stderr.write(run.stderr)
+    return json.loads(run.stdout)
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--reference',type=Path,required=True);parser.add_argument('--out',type=Path,required=True);args=parser.parse_args()
     source_files=rust_reference_sources(args.reference)
@@ -90,9 +97,5 @@ def main():
     groups=rust_contract_families(modules,test_inventory)
     wire_inventory=rust_wire_inventory()
     if wire_inventory['sources']['Sources/RuycastApp/AppState.swift']!=modules['Sources/RuycastApp/AppState.swift']['sha256']:raise RuntimeError('Wire source differs from compiler/reference source')
-    wire=wire_inventory['wireOperations']
-    head=subprocess.check_output(['git','-C',str(args.reference),'rev-parse','HEAD'],text=True).strip()
-    result=dict(schema='ruycast.full-rust.behavior-matrix.candidate.v1',scope='Current accepted0.8.26 source crosswalk; production modules, compiler-parsed declarations, explicit semantic contract families, wire operations and candidate tests. Not final full behavior acceptance.',baseline=dict(version='0.8.26',build='66',referenceCommit=head,sourceOnlyComparison=True,releaseDeliveryEvidence='.go/evidence/native-edit-shortcuts/delivery-review.json'),compilerVersion=rust_toolchain('version')['compilerVersion'],compilerContext=compiler_context,testInventory=test_inventory,importedModuleHashes={p:sha(REPO/p) for p in ['.build/swift/debug/Modules/LauncherCore.swiftmodule','.build/swift/debug/Modules/LauncherModels.swiftmodule','.build/swift/debug/CRuycastCore.build/module.modulemap']},sourceFiles=modules,contractFamilies=groups,wireOperations=wire,wireInventory=wire_inventory,unclassifiedModules=[],allProductionSourcesMatchReference=True,acceptance='Pending independent semantic completeness review and criterion-level proof. No whole original checklist block is checked.',original12Retained=True,overallComplete=False)
-    args.out.parent.mkdir(parents=True,exist_ok=True);args.out.write_text(json.dumps(result,indent=2)+'\n')
-    print(json.dumps(dict(modules=len(modules),declarations=sum(len(m['declarations']) for m in modules.values()),families=len(groups),wireOperations=len(wire),unclassified=0,overallComplete=False)))
+    print(json.dumps(rust_report(args.reference,args.out,modules,compiler_context,test_inventory,groups,wire_inventory)))
 if __name__=='__main__':main()

@@ -24,7 +24,7 @@ struct SwiftCompatibility {
     architecture: String,
     alias_target: Option<String>,
 }
-fn swift_alias(root: &Path, architecture: &str) -> Result<Option<String>> {
+pub(super) fn swift_alias(root: &Path, architecture: &str) -> Result<Option<String>> {
     if !matches!(architecture, "arm64-apple-macosx" | "x86_64-apple-macosx") {
         return Err("Unexpected Swift oracle architecture.".into());
     }
