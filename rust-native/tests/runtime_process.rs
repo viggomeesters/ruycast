@@ -474,24 +474,72 @@ fn selector_size_bound_and_recovery_keep_valid_state() {
 }
 #[test]
 fn relocate_keeps_original_then_cli_edits_new_target() {
-    let host = host(true);
+    let mut host = host(false);
+    host.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(5));
     let original = fs::read(&host.config).unwrap();
-    let destination = host.base.join("portable");
-    let result = host.rpc(&json!({"op":"config.directory","directory":destination}));
+    let destination = host.base.join("Synced vault with spaces/.appdata/ruycast");
+    let initial = host.cli(&["status"]);
+    assert_eq!(initial["ok"], true);
+    let pid = initial["result"]["pid"].clone();
+    assert_eq!(pid, json!(host.process.as_ref().unwrap().id()));
+    let result = host.cli(&["config", "directory", destination.to_str().unwrap()]);
     assert_eq!(result["ok"], true);
     assert_eq!(result["result"]["originalRetained"], true);
+    let status = host.cli(&["status"]);
+    assert_eq!(status["ok"], true);
+    assert_eq!(status["result"]["pid"], pid);
+    assert_eq!(
+        status["result"]["configPath"],
+        json!(destination.join("config.json"))
+    );
     assert_eq!(fs::read(&host.config).unwrap(), original);
     assert_eq!(
         host.cli(&["config", "set", "clipboard.limit", "51"])["ok"],
         true
     );
-    assert_eq!(
-        serde_json::from_slice::<Value>(&fs::read(destination.join("config.json")).unwrap())
-            .unwrap()["clipboard"]["limit"],
-        51
-    );
+    let mut config: Value =
+        serde_json::from_slice(&fs::read(destination.join("config.json")).unwrap()).unwrap();
+    assert_eq!(config["clipboard"]["limit"], 51);
     assert_eq!(fs::read(&host.config).unwrap(), original);
+    config["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.relocated","title":"Relocated fixture","kind":"url","target":"https://example.com"}));
+    let candidate = destination.join("replacement.json");
+    fs::write(&candidate, serde_json::to_vec(&config).unwrap()).unwrap();
+    fs::rename(candidate, destination.join("config.json")).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(6);
+    loop {
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .expect("New location was not observed within original six-second polling budget");
+        let output = runtime_host::run(
+            host.command(&host.settings.cli).arg("commands"),
+            remaining.min(Duration::from_secs(10)),
+        );
+        assert_eq!(output.status.code(), Some(0));
+        let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(response["ok"], true);
+        if response["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|command| command["id"] == "fixture.relocated")
+        {
+            assert!(Instant::now() <= deadline);
+            break;
+        }
+        thread::sleep(
+            Duration::from_millis(60).min(deadline.saturating_duration_since(Instant::now())),
+        );
+    }
+    assert!(!destination.join("control.sock").exists());
+    assert!(host.profile.join("control.sock").exists());
+    assert_eq!(fs::read(&host.config).unwrap(), original);
+    assert_eq!(
+        unsafe { libc::kill(host.process.as_ref().unwrap().id() as i32, libc::SIGTERM) },
+        0
+    );
+    host.wait_exit(Duration::from_secs(6), false);
 }
+
 #[test]
 fn slow_incomplete_request_has_absolute_read_deadline() {
     let host = host(true);
