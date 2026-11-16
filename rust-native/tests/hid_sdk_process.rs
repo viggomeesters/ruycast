@@ -371,3 +371,68 @@ fn partial_setup_failure_always_restores_original_and_can_retry() {
         }
     }
 }
+
+#[test]
+fn failed_manager_or_tap_retirement_survives_drop_and_blocks_new_setup() {
+    for stage in ["manager_close", "invalidate"] {
+        let rows = run_case(
+            &format!("retirement-{stage}"),
+            json!([
+                {"op":"plan","hyper":true}, {"op":"refresh"},
+                {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+                {"op":"failure","name":stage}, {"op":"drop"}, {"op":"new"},
+                {"op":"plan","hyper":true}, {"op":"refresh"}, {"op":"failure","name":""},
+                {"op":"recover"}, {"op":"refresh"}
+            ]),
+            false,
+        );
+        assert_ne!(rows[7]["status"], "On");
+        assert_eq!(rows[9]["result"], true);
+        assert_eq!(rows[10]["status"], "On");
+    }
+}
+
+#[test]
+fn failed_balancing_creation_retries_even_when_features_are_off() {
+    let rows = run_case(
+        "balancing-off-retry",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+            {"op":"failure","name":"event_source"}, {"op":"plan","hyper":false},
+            {"op":"refresh"}, {"op":"failure","name":""}, {"op":"refresh"}
+        ]),
+        false,
+    );
+    assert!(rows[5]["status"]
+        .as_str()
+        .unwrap()
+        .contains("cleanup interrupted"));
+    assert_eq!(rows[7]["status"], "Off");
+    assert_eq!(rows[7]["state"]["lastDown"], false);
+    assert_eq!(rows[7]["state"]["lastFlags"], 0);
+}
+
+#[test]
+fn caps_restore_failure_retains_authority_and_recovers_after_features_off() {
+    let failures: u64 = (8..30).map(|bit| 1_u64 << bit).sum();
+    let rows = run_case(
+        "caps-restore-off-recovery",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"caps-failures","value":failures},
+            {"op":"failure","name":"tap_create"}, {"op":"refresh"}, {"op":"drop"}, {"op":"new"},
+            {"op":"plan","hyper":false}, {"op":"refresh"}, {"op":"caps-failures","value":0},
+            {"op":"failure","name":""}, {"op":"recover"}, {"op":"refresh"}
+        ]),
+        true,
+    );
+    assert!(rows[3]["status"]
+        .as_str()
+        .unwrap()
+        .contains("cleanup interrupted"));
+    assert_eq!(rows[3]["state"]["caps"], 3);
+    assert_ne!(rows[7]["status"], "On");
+    assert_eq!(rows[10]["result"], true);
+    assert_eq!(rows[11]["status"], "Off");
+    assert_eq!(rows[11]["state"]["caps"], 1);
+}
