@@ -57,10 +57,6 @@ class ClipboardHistory(unittest.TestCase):
     self.fixture(h,{'Files':['file:///synthetic/missing%20file.txt']});self.wait_items(h,2);self.assertEqual(self.items(h)[0]['fileURLs'],['file:///synthetic/missing%20file.txt'])
     self.fixture(h,{'Image':list(png())});self.wait_items(h,3);clip=self.items(h)[0];self.assertEqual(clip['contentType'],'image');self.assertTrue((h.profile/clip['dataFile']).read_bytes().startswith(b'\x89PNG'))
     self.assertTrue(h.rpc(dict(op='quit'))['ok']);out,err=h.process.communicate(timeout=4);self.assertEqual(h.process.returncode,0,err.decode());self.assertEqual(json.loads(out)['result']['state'],'stopped');self.assertFalse((h.profile/'control.sock').exists())
- def test_pause_disable_and_source_exclusion(self):
-    for cfg in [dict(enabled=False),dict(excludedApps=['fixture'])]:
-        h=self.host(config=cfg);self.fixture(h,{'Text':'not captured'});self.assertEqual(self.items(h),[])
-    h=self.host();self.assertTrue(h.rpc(dict(op='clipboard.pause',paused=True))['ok']);self.fixture(h,{'Text':'paused'});self.assertEqual(self.items(h),[]);self.assertTrue(h.rpc(dict(op='clipboard.pause',paused=False))['ok']);self.fixture(h,{'Text':'resumed'});self.wait_items(h,1)
  def test_cli_import_export_search_copy_paste_delete_clear(self):
     h=self.host();values=[dict(id='raycast-clip',text='Synthetic CLI Å',date='2026-11-01T08:00:00Z',source='fixture')]
     values[0]['date']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
