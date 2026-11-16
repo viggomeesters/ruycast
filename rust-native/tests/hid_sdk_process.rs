@@ -181,3 +181,59 @@ fn exact_canonical_route_is_preserved_when_two_bindings_share_an_id() {
         vec!["right-cmd+a", "left-cmd+a"]
     );
 }
+
+#[test]
+fn recorder_episode_without_callbacks_invalidates_taps_and_swallowed_keys() {
+    let rows = run_case(
+        "recording-epoch",
+        json!([
+            {"op":"plan","hyper":true,"modifiers":{"224":"tap"},"sided":{"right-cmd+a":"side"}},
+            {"op":"refresh"}, {"op":"input","usage":224,"down":true,"time":0,"device":0,"page":7},
+            {"op":"gate","epoch":1,"recording":true}, {"op":"gate","epoch":2},
+            {"op":"input","usage":224,"down":false,"time":0.2,"device":0,"page":7},
+            {"op":"event","type":10,"key":0,"flags":CMD|16},
+            {"op":"gate","epoch":3,"recording":true}, {"op":"event","type":11,"key":0,"flags":CMD|16},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+            {"op":"event","type":10,"key":0,"flags":CMD|16}
+        ]),
+        false,
+    );
+    assert_eq!(rows[5]["actions"], json!([]));
+    assert_eq!(rows[8]["result"]["consumed"], false);
+    assert_eq!(rows[10]["result"]["consumed"], false);
+    assert_eq!(rows[10]["result"]["flags"], HYPER | 16);
+}
+
+#[test]
+fn scroll_and_mouse_cancel_modifier_taps_with_native_types() {
+    for kind in [1, 3, 10, 22, 25] {
+        let rows = run_case(
+            &format!("modifier-interrupt-{kind}"),
+            json!([
+                {"op":"plan","hyper":false,"modifiers":{"224":"tap"}}, {"op":"refresh"},
+                {"op":"input","usage":224,"down":true,"time":0,"device":0,"page":7},
+                {"op":"event","type":kind,"key":0,"flags":0},
+                {"op":"input","usage":224,"down":false,"time":0.2,"device":0,"page":7}
+            ]),
+            true,
+        );
+        assert_eq!(
+            rows.as_array().unwrap().last().unwrap()["actions"],
+            json!([]),
+            "Native event type {kind}"
+        );
+    }
+    let rows = run_case(
+        "modifier-uninterrupted",
+        json!([
+            {"op":"plan","hyper":false,"modifiers":{"224":"tap"}}, {"op":"refresh"},
+            {"op":"input","usage":224,"down":true,"time":0,"device":0,"page":7},
+            {"op":"input","usage":224,"down":false,"time":0.5,"device":0,"page":7}
+        ]),
+        true,
+    );
+    assert_eq!(
+        rows.as_array().unwrap().last().unwrap()["actions"],
+        json!([{"generation":1,"canonical":"ctrl+left-control","action":"tap"}])
+    );
+}
