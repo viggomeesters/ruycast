@@ -374,6 +374,31 @@ fn offline_cli_default_path_and_invalid_selectors_never_use_stale_config() {
 }
 
 #[test]
+fn offline_cli_and_host_initializer_refuse_unavailable_persisted_config() {
+    let f = Fixture::new();
+    f.source();
+    let original = fs::read(f.root.join("config.json")).unwrap();
+    let missing = f.base.join("Synced vault with spaces/.appdata/ruycast");
+    let selector = f.root.join("config-location.json");
+    let content = serde_json::to_vec(&json!({"directory":missing})).unwrap();
+    fs::write(&selector, &content).unwrap();
+    let refusal = bounded_value(f.command(false).args(["config", "init"]), false);
+    assert!(refusal["error"]
+        .as_str()
+        .unwrap()
+        .contains("Selected configuration is unavailable"));
+    assert!(!missing.exists());
+    let paths = ruycast_native::profile::ProfilePaths::new(f.root.clone(), f.base.clone(), None);
+    assert!(paths
+        .initialize()
+        .unwrap_err()
+        .contains("Selected configuration is unavailable"));
+    assert!(!missing.exists());
+    assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
+    assert_eq!(fs::read(selector).unwrap(), content);
+}
+
+#[test]
 fn missing_invalid_and_overridden_sources_fail_before_creation() {
     for invalid in [false, true] {
         let f = Fixture::new();
