@@ -439,7 +439,6 @@ rust-native/tests/fixtures/snippet_faults.rs
 rust-native/tests/snippet_process.rs
 rust-native/tests/snippet_reference.json
 rust-native/tests/fixtures/supervision_fault_shim.rs
-rust-native/tests/supervision_process.py
 rust-native/tests/supervision_framing_process.rs
 rust-native/tests/supervision_io_process.rs
 rust-native/tests/supervision_protocol_process.rs
