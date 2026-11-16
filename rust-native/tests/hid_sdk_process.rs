@@ -510,3 +510,63 @@ fn event_flags_restore_after_setter_reentry_stop() {
     assert_eq!(last["result"], json!({"consumed":false,"flags":original}));
     assert_eq!(last["actions"], json!([]));
 }
+
+#[test]
+fn lifecycle_gate_panic_preserves_native_ownership_for_retirement() {
+    let rows = run_case(
+        "lifecycle-gate-panic",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"}, {"op":"panic-gate","value":true},
+            {"op":"refresh"}, {"op":"panic-gate","value":false}, {"op":"stop"}
+        ]),
+        false,
+    );
+    assert!(rows[3]["result"].as_str().unwrap().contains("panic"));
+    assert_eq!(rows[3]["state"]["manager"], true);
+    assert_eq!(rows[5]["state"]["allocated"], 0);
+}
+
+#[test]
+fn callback_gate_panic_frees_temporary_native_events() {
+    let rows = run_case(
+        "callback-gate-panic",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"}, {"op":"hook","name":"set_field","mode":"panic-gate"},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+            {"op":"panic-gate","value":false}, {"op":"stop"}
+        ]),
+        false,
+    );
+    assert_eq!(rows[3]["failed"], true);
+    assert_eq!(rows[3]["state"]["allocated"], 3);
+    assert_eq!(rows[3]["state"]["posts"], 0);
+    assert_eq!(rows[5]["state"]["allocated"], 0);
+}
+
+#[test]
+fn gate_reentry_with_running_true_cannot_post_or_return_stale_hyper() {
+    let rows = run_case(
+        "gate-running-raw",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"}, {"op":"gate-stop","after":2},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7}
+        ]),
+        false,
+    );
+    let last = rows.as_array().unwrap().last().unwrap();
+    assert_eq!(last["state"]["posts"], 0);
+    assert_eq!(last["state"]["allocated"], 0);
+    let original = (1_u64 << 63) | CMD | 16;
+    let rows = run_case(
+        "gate-running-event",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"},
+            {"op":"input","usage":57,"down":true,"time":0,"device":0,"page":7},
+            {"op":"gate-stop","after":2}, {"op":"event","type":10,"key":0,"flags":original}
+        ]),
+        false,
+    );
+    let last = rows.as_array().unwrap().last().unwrap();
+    assert_eq!(last["result"], json!({"consumed":false,"flags":original}));
+    assert_eq!(last["state"]["lastDown"], false);
+}
