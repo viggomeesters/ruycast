@@ -117,7 +117,6 @@ native-keyboard-process|c|test --manifest-path rust-native/Cargo.toml --features
 native-choice-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_choice_host_process --locked
 snippet-effects-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example snippet-effects-fixture --locked
 snippet-effects-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test snippet_effects_host_process --locked
-snippet-effects-process|p|rust-native/tests/snippet_effects_process.py
 native-open-basic-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test native_open_basic_process --locked
 app-picker-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test app_picker_identity_process --locked
 bridge-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test bridge_process --locked
@@ -474,7 +473,7 @@ fn step(
     if entry.name == "supervision-fault-process" {
         supervision_fault_environment(root, &receipt.target, &mut command)?;
     }
-    if matches!(entry.name.as_str(), "snippet-effects-host-process" | "snippet-effects-process") {
+    if entry.name == "snippet-effects-host-process" {
         snippet_effects_environment(root, &receipt.target, &mut command)?;
     }
     if entry.name == "startup-process" {
@@ -1125,6 +1124,37 @@ fn compatibility_copy(
     copies.insert(alias.into(), serde_json::json!({"source":source,"sha256":before,"purpose":"test-compatibility-only","productionAuthority":false}));
     Ok(())
 }
+const SNIPPET_EFFECTS_SOURCES: &[&str] = &[
+    "rust-native/tests/snippet_effects_host_process.rs",
+    "rust-native/tests/support/runtime_host.rs",
+    "rust-native/tests/support/native_bridge.rs",
+    "rust-native/tests/support/status_rpc.rs",
+    "rust-native/tests/support/child_output.rs",
+    "rust-native/tests/fixtures/workspace_sdk.rs",
+    "rust-native/tests/fixtures/snippet_effects_sdk.rs",
+    "rust-native/tests/fixtures/snippet_effects_fixture.rs",
+    "rust-native/Cargo.toml", "rust-native/Cargo.lock", "rust/Cargo.toml", "rust/Cargo.lock",
+    "rust-toolchain.toml", "rust-native/src/runtime.rs",
+];
+fn check_snippet_effects_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
+    check_binding(root, value)?;
+    let sources = value["sources"].as_object().ok_or("Missing snippet effects sources.")?;
+    let expected = SNIPPET_EFFECTS_SOURCES.iter().copied().collect::<std::collections::BTreeSet<_>>();
+    if value["schema"] != "ruycast.snippet-effects-bindings.v1" || value["sdkCopyHashChecked"] != true
+        || sources.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != expected {
+        return Err("Snippet effects lost its current Rust consumer or SDK source binding.".into());
+    }
+    let roles = value["artifactRoles"].as_object().ok_or("Missing snippet effects artifact roles.")?;
+    if roles.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != ["host", "cli", "sdk"].into_iter().collect() {
+        return Err("Snippet effects requires actual host, CLI and SDK artifacts.".into());
+    }
+    let paths = roles.values().map(|path| path.as_str().ok_or_else(|| "Invalid snippet effects artifact role.".to_owned())).collect::<Result<std::collections::BTreeSet<_>>>()?;
+    let artifacts = value["artifacts"].as_object().ok_or("Missing snippet effects artifacts.")?;
+    if paths.len() != 3 || artifacts.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != paths {
+        return Err("Snippet effects artifact roles do not match its actual artifact bindings.".into());
+    }
+    Ok(())
+}
 fn check_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
     for group in ["sources", "artifacts"] {
         for (name, expected) in value[group]
@@ -1259,7 +1289,8 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
                 return Err("HID reference qualification changed.".into());
             }
         }
-        check_binding(root, &value[*field])?;
+        if *field == "snippetEffects" { check_snippet_effects_binding(root, &value[*field])?; }
+        else { check_binding(root, &value[*field])?; }
     }
     let sdk = value["nativeHostSDKs"]
         .as_object()
@@ -1394,7 +1425,8 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
         } else {
             serde_json::from_slice(&raw).map_err(error)?
         };
-        check_binding(root, &binding)?;
+        if *field == "snippetEffects" { check_snippet_effects_binding(root, &binding)?; }
+        else { check_binding(root, &binding)?; }
         value[*field] = binding;
     }
     let mut sdks = BTreeMap::new();
@@ -1477,6 +1509,47 @@ mod tests {
         fs::remove_file(&artifact).unwrap();
         std::os::unix::fs::symlink(root.join("outside"), &artifact).unwrap();
         assert!(snippet_effects_environment(root, target, &mut command).is_err());
+    }
+    #[test]
+    fn snippet_effects_binding_requires_current_sources_roles_and_unchanged_bytes() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let mut sources = BTreeMap::new();
+        for name in SNIPPET_EFFECTS_SOURCES {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"owned nonexecutable source fixture").unwrap();
+            sources.insert(*name, digest(&path).unwrap());
+        }
+        let mut artifacts = BTreeMap::new();
+        let mut roles = BTreeMap::new();
+        for role in ["host", "cli", "sdk"] {
+            let name = format!("artifacts/{role}");
+            let path = root.join(&name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"owned nonexecutable artifact fixture").unwrap();
+            artifacts.insert(name.clone(), digest(&path).unwrap());
+            roles.insert(role, name);
+        }
+        let binding = serde_json::json!({"schema":"ruycast.snippet-effects-bindings.v1","sources":sources,"artifacts":artifacts,"artifactRoles":roles,"sdkCopyHashChecked":true});
+        check_snippet_effects_binding(root, &binding).unwrap();
+        let mut legacy = binding.clone();
+        legacy.as_object_mut().unwrap().remove("schema");
+        assert!(check_snippet_effects_binding(root, &legacy).is_err());
+        let mut omitted = binding.clone();
+        omitted["sources"].as_object_mut().unwrap().remove("rust-native/tests/fixtures/workspace_sdk.rs");
+        assert!(check_snippet_effects_binding(root, &omitted).is_err());
+        let mut unbound = binding.clone();
+        unbound["artifactRoles"]["sdk"] = serde_json::json!("artifacts/host");
+        assert!(check_snippet_effects_binding(root, &unbound).is_err());
+        let source = root.join("rust-native/tests/snippet_effects_host_process.rs");
+        let before = fs::read(&source).unwrap();
+        fs::write(&source, b"changed real consumer source").unwrap();
+        assert!(check_snippet_effects_binding(root, &binding).is_err());
+        fs::write(source, before).unwrap();
+        fs::write(root.join("artifacts/sdk"), b"changed real SDK artifact").unwrap();
+        assert!(check_snippet_effects_binding(root, &binding).is_err());
+        assert!(REFERENCES.contains(&("snippetEffects", "snippet-effects-bindings.json")));
     }
     #[test]
     fn keyboard_receipt_sources_match_both_consumers_and_reject_drift() {
@@ -1845,11 +1918,12 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 141);
+        assert_eq!(steps.len(), 140);
         let snippet_sdk = steps.iter().position(|step| step.name == "snippet-effects-sdk-build").unwrap();
         let snippet_host = steps.iter().position(|step| step.name == "snippet-effects-host-process").unwrap();
-        let snippet_remaining = steps.iter().position(|step| step.name == "snippet-effects-process").unwrap();
-        assert!(snippet_sdk < snippet_host && snippet_host < snippet_remaining);
+        assert!(snippet_sdk < snippet_host);
+        assert!(!steps.iter().any(|step| step.arguments.iter().any(|argument| argument.ends_with("snippet_effects_process.py"))));
+        assert!(REFERENCES.contains(&("snippetEffects", "snippet-effects-bindings.json")));
         assert!(steps[snippet_sdk].arguments.windows(2).any(|pair| pair == ["--example", "snippet-effects-fixture"]));
         assert!(steps[snippet_host].arguments.windows(2).any(|pair| pair == ["--test", "snippet_effects_host_process"]));
         let supervision_probe = steps.iter().position(|step|step.name=="supervision-probe-build").unwrap();

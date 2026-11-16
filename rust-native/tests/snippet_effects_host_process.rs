@@ -149,6 +149,7 @@ fn configured_host(
         Sha256::digest(fs::read(&original).unwrap()),
         Sha256::digest(fs::read(&copy).unwrap())
     );
+    let loaded_sdk_hash = format!("{:x}", Sha256::digest(fs::read(&copy).unwrap()));
     let mut config = default_config();
     config["commands"].as_array_mut().unwrap().push(command);
     host.replace(&config, None);
@@ -198,13 +199,17 @@ fn configured_host(
             "rust-native/tests/snippet_effects_host_process.rs",
             "rust-native/tests/support/runtime_host.rs",
             "rust-native/tests/support/native_bridge.rs",
+            "rust-native/tests/support/status_rpc.rs",
+            "rust-native/tests/support/child_output.rs",
             "rust-native/tests/fixtures/workspace_sdk.rs",
             "rust-native/tests/fixtures/snippet_effects_sdk.rs",
             "rust-native/tests/fixtures/snippet_effects_fixture.rs",
             "rust-native/Cargo.toml",
             "rust-native/Cargo.lock",
             "rust/Cargo.toml",
+            "rust/Cargo.lock",
             "rust-toolchain.toml",
+            "rust-native/src/runtime.rs",
         ]
         .into_iter()
         .map(|path| {
@@ -217,15 +222,21 @@ fn configured_host(
             )
         })
         .collect::<BTreeMap<_, _>>();
-        let artifacts = [
-            (&host.settings.host, "host"),
-            (&host.settings.cli, "cli"),
-            (&original, "snippet-effects-sdk"),
-        ]
-        .into_iter()
-        .map(|(path, label)| runtime_host::bind_artifact(path, label))
-        .collect::<BTreeMap<_, _>>();
-        fs::write(PathBuf::from(directory).join("snippet-effects-host-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"sdkCopyHashChecked":true,"scope":"Owned headless and prohibited/offscreen hidden hosts, named clipboard and synthetic target processes; no desktop effects"})).unwrap()).unwrap();
+        let mut artifacts = BTreeMap::new();
+        let mut artifact_roles = BTreeMap::new();
+        for (role, path) in [
+            ("host", &host.settings.host),
+            ("cli", &host.settings.cli),
+            ("sdk", &original),
+        ] {
+            let (bound_path, digest) = runtime_host::bind_artifact(path, role);
+            if role == "sdk" {
+                assert_eq!(digest, loaded_sdk_hash);
+            }
+            artifact_roles.insert(role, bound_path.clone());
+            artifacts.insert(bound_path, digest);
+        }
+        fs::write(PathBuf::from(directory).join("snippet-effects-bindings.json"),serde_json::to_vec_pretty(&json!({"schema":"ruycast.snippet-effects-bindings.v1","sources":sources,"artifacts":artifacts,"artifactRoles":artifact_roles,"sdkCopyHashChecked":true,"scope":"Owned headless and prohibited/offscreen hidden hosts, named clipboard and synthetic target processes; no desktop effects"})).unwrap()).unwrap();
     }
     host.start_entry(entry);
     host.env
@@ -344,6 +355,44 @@ fn assert_keys(posts: &[&Value], keys: &[u64]) {
             .map(|key| if *key == 9 { 1 << 20 } else { 0 })
             .collect::<Vec<_>>()
     );
+}
+
+#[test]
+fn transport_expiry_preserves_snippet_commit_truth_when_owner_is_busy() {
+    let _scenario = HOST_SCENARIOS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    for (phase, committed) in [("prepare", false), ("write", true)] {
+        let flag = format!("hold-{phase}");
+        let host = hidden_host_dispatch("Owned", &[&flag], 350);
+        let mut request = HeldRequest::new(&host, json!({"op":"execute","id":"snipfixture"}));
+        wait_file(&host, &format!("{phase}-entered"));
+        let mut owner = HeldRequest::new(&host, json!({"op":"workspace.fixture.delay"}));
+        wait_file(&host, "owner-open-delay-started");
+        let result = request.response(Duration::from_secs(2));
+        let owner_result = owner.response(Duration::from_secs(2));
+        assert_eq!(result["transportExpired"], true);
+        assert_eq!(result["ok"], false);
+        assert_eq!(
+            result
+                .get("actionCompleted")
+                .cloned()
+                .unwrap_or(json!(false)),
+            json!(committed)
+        );
+        if committed {
+            assert_eq!(result["code"], "snippet-outcome-unknown");
+        }
+        request.release();
+        let retired = host.wait(|status| status["snippetTransactionsPending"] == 0);
+        let trace = trace(&host);
+        assert!(!trace.iter().any(|event| event["phase"] == "snippet-post"));
+        save(
+            &format!("busy-owner-{phase}"),
+            &json!({"result":result,"ownerResult":owner_result,"retired":retired}),
+            &trace,
+        );
+    }
 }
 
 #[test]
