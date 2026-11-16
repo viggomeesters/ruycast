@@ -694,7 +694,7 @@ const SETTINGS: &[SettingsGate] = &[
         "configuration_jobs::tests::capture_retention_handshake_preserves_both_orders_and_stops_without_owner_lock",
         "native_services::check_owned_poll",
         "clipboard_rich_paste::file_and_image_paste_complete_owned_ticket_without_recapture",
-        "clipboard_history_process.ClipboardHistory.test_capture_text_files_image_and_private_own_activation_filters",
+        "clipboard_history_host_process::test_capture_text_files_image_and_private_own_activation_filters",
         "clipboard_history_host_process::test_pause_disable_and_source_exclusion",
         "runtime::inline_tests::clipboard_pipeline_admitted_maintenance_waits_for_held_capture",
         "runtime::inline_tests::clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_real_owner",
