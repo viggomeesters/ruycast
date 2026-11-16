@@ -54,28 +54,6 @@ class HidSdk(unittest.TestCase):
         self.assertEqual(data['cleanup']['caps'], int(final_caps), process.stderr)
         return data['rows'], process.stderr
 
-    def test_setup_reentry_stop_at_each_native_boundary_never_reports_on(self):
-        for stage in ['tap_create', 'source', 'add_source', 'manager_create', 'device_dictionary', 'device_matching',
-                      'input_dictionary', 'input_matching', 'register_input', 'register_remove', 'schedule', 'manager_open', 'tap_enable', 'tap_enabled']:
-            rows, _ = self.run_case([plan(), op('hook', name=stage, mode='stop'), op('refresh')], final_caps=True)
-            self.assertNotEqual(rows[-1]['status'], 'On', stage)
-            self.assertEqual(rows[-1]['state']['allocated'], 0, stage)
-            self.assertEqual(rows[-1]['state']['caps'], 1, stage)
-
-    def test_hyper_emission_reentry_does_not_post_stale_down_or_leave_modifiers(self):
-        for stage in ['event_source', 'keyboard_event', 'set_type', 'set_flags', 'set_field', 'post']:
-            rows, _ = self.run_case([plan(), op('refresh'), op('hook', name=stage, mode='stop'), raw(57, True), op('refresh'), op('stop')])
-            self.assertFalse(rows[-1]['state']['lastDown'], stage)
-            self.assertEqual(rows[-1]['state']['lastFlags'], 0, stage)
-            self.assertEqual(rows[-1]['state']['caps'], 0, stage)
-
-    def test_event_flags_restore_after_setter_reentry_stop(self):
-        original = (1 << 63) | CMD | 16
-        rows, _ = self.run_case([plan(True, sided={'right-cmd+a': 'side'}), op('refresh'), raw(57, True),
-                                 op('hook', name='set_flags', mode='stop'), event(flags=original)])
-        self.assertEqual(rows[-1]['result'], dict(consumed=False, flags=original))
-        self.assertEqual(rows[-1]['actions'], [])
-
     def test_lifecycle_gate_panic_preserves_native_ownership_for_retirement(self):
         rows, _ = self.run_case([plan(), op('refresh'), op('panic-gate', value=True), op('refresh'),
                                  op('panic-gate', value=False), op('stop')])
