@@ -89,6 +89,8 @@ caps-probe-build|b|caps-probe tools
 caps-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example caps-fixture --example caps-missing-set --locked
 caps-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test caps_process --locked
 hid-probe-build|b|hid-probe tools
+hid-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example hid-fixture --example hid-missing-post --locked
+hid-sdk-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test hid_sdk_process --locked
 hid-process|p|rust-native/tests/hid_process.py
 manager-probe-build|b|manager-probe tools
 manager-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test manager_process --locked
@@ -449,6 +451,16 @@ fn supervision_fault_environment(root: &Path, target: &str, command: &mut Comman
     command.env("RUYCAST_TEST_SUPERVISION_SHIM", artifact);
     Ok(())
 }
+fn hid_sdk_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
+    artifact_paths(target)?;
+    for (variable, filename) in [("RUYCAST_TEST_HID_SHIM", "libhid_fixture.dylib"), ("RUYCAST_TEST_HID_PARTIAL", "libhid_missing_post.dylib")] {
+        let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples").join(filename);
+        owned_path(root, &artifact)?;
+        regular_bytes(&artifact)?;
+        command.env(variable, artifact);
+    }
+    Ok(())
+}
 fn snippet_effects_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
     artifact_paths(target)?;
     let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libsnippet_effects_fixture.dylib");
@@ -472,6 +484,15 @@ fn step(
     sanitized(&mut command, root, lease, fixture)?;
     if entry.name == "supervision-fault-process" {
         supervision_fault_environment(root, &receipt.target, &mut command)?;
+    }
+    if matches!(entry.name.as_str(), "hid-sdk-process" | "hid-process") {
+        hid_sdk_environment(root, &receipt.target, &mut command)?;
+        if entry.name == "hid-process" {
+            let probe = root.join("rust-native/target/validation-build").join(&receipt.target).join("debug/hid-probe");
+            owned_path(root, &probe)?;
+            regular_bytes(&probe)?;
+            command.env("RUYCAST_HID_PROBE", probe);
+        }
     }
     if entry.name == "snippet-effects-host-process" {
         snippet_effects_environment(root, &receipt.target, &mut command)?;
@@ -1495,6 +1516,28 @@ mod tests {
         assert!(supervision_fault_environment(root, target, &mut command).is_err());
     }
     #[test]
+    fn hid_sdk_environment_requires_both_actual_variants_and_rejects_links() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let target = "aarch64-apple-darwin";
+        let mut command = Command::new("cargo");
+        assert!(hid_sdk_environment(root, target, &mut command).is_err());
+        let examples = root.join("rust-native/target/validation-build").join(target).join("debug/examples");
+        fs::create_dir_all(&examples).unwrap();
+        let complete = examples.join("libhid_fixture.dylib");
+        let partial = examples.join("libhid_missing_post.dylib");
+        fs::write(&complete, b"owned nonexecutable complete fixture").unwrap();
+        assert!(hid_sdk_environment(root, target, &mut command).is_err());
+        fs::write(&partial, b"owned nonexecutable partial fixture").unwrap();
+        hid_sdk_environment(root, target, &mut command).unwrap();
+        for (key, path) in [("RUYCAST_TEST_HID_SHIM", &complete), ("RUYCAST_TEST_HID_PARTIAL", &partial)] {
+            assert_eq!(command.get_envs().find(|(name, _)| *name == key).unwrap().1, Some(path.as_os_str()));
+        }
+        fs::remove_file(&partial).unwrap();
+        std::os::unix::fs::symlink(&complete, &partial).unwrap();
+        assert!(hid_sdk_environment(root, target, &mut command).is_err());
+    }
+    #[test]
     fn snippet_effects_environment_requires_the_exact_matrix_artifact() {
         let fixture = super::super::tests::Fixture::new();
         let root = &fixture.0;
@@ -1918,7 +1961,14 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 140);
+        assert_eq!(steps.len(), 142);
+        let hid_sdk = steps.iter().position(|step| step.name == "hid-sdk-build").unwrap();
+        let hid_rust = steps.iter().position(|step| step.name == "hid-sdk-process").unwrap();
+        let hid_remaining = steps.iter().position(|step| step.name == "hid-process").unwrap();
+        assert!(hid_sdk < hid_rust && hid_rust < hid_remaining);
+        assert!(steps[hid_sdk].arguments.windows(2).any(|pair| pair == ["--example", "hid-fixture"]));
+        assert!(steps[hid_sdk].arguments.windows(2).any(|pair| pair == ["--example", "hid-missing-post"]));
+        assert!(steps[hid_rust].arguments.windows(2).any(|pair| pair == ["--test", "hid_sdk_process"]));
         let snippet_sdk = steps.iter().position(|step| step.name == "snippet-effects-sdk-build").unwrap();
         let snippet_host = steps.iter().position(|step| step.name == "snippet-effects-host-process").unwrap();
         assert!(snippet_sdk < snippet_host);

@@ -362,6 +362,7 @@ rust-native/tests/fixtures/fcntl_sync_shim.rs
 rust-native/tests/fixtures/fcntl_sync_probe.rs
 rust-native/tests/foundation_process.rs
 rust-native/tests/hid_process.py
+rust-native/tests/hid_sdk_process.rs
 rust-native/tests/fixtures/hid_sdk.rs
 rust-native/tests/fixtures/hid_host.rs
 rust-native/tests/fixtures/hid_host_missing_post.rs
