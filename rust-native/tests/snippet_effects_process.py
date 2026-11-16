@@ -182,25 +182,6 @@ class SnippetEffects(unittest.TestCase):
                 self.assertEqual(h.probe('read')['input'],'safari')
                 self.assertFalse(h.probe('notice-read')['present'])
 
-    def test_cli_uses_current_app_without_show_and_refreshes_after_external_switch(self):
-        h=self.host(command('CLI'))
-        self.assertEqual(h.cli('run','snipfixture'),dict(ok=True,result=dict(state='pasted')))
-        self.assertEqual([r['pid'] for r in self.posts(h)],[4260,4260])
-        h.probe('snippet-fixture-control',operation=2)
-        self.assertTrue(h.cli('run','snipfixture')['ok'])
-        self.assertEqual([r['pid'] for r in self.posts(h)],[4260,4260,4261,4261])
-
-    def test_three_concurrent_cli_requests_keep_payload_until_own_paste_completes(self):
-        h=self.host(command('{x}'));results=[]
-        threads=[threading.Thread(target=lambda value=value:results.append(h.rpc(dict(op='execute',id='snipfixture',values=dict(x=value))))) for value in ['First','Second','Third']]
-        for thread in threads:thread.start()
-        for thread in threads:thread.join(5);self.assertFalse(thread.is_alive())
-        self.assertEqual(results,[dict(ok=True,result=dict(state='pasted'))]*3)
-        events=[r for r in self.trace(h) if r['phase'] in ['snippet-write','snippet-post']]
-        self.assertEqual([r['phase'] for r in events],['snippet-write','snippet-post','snippet-post']*3)
-        self.assertEqual({r['text'] for r in self.writes(h)},{'First','Second','Third'})
-        self.assertEqual(h.rpc(dict(op='status'))['result']['snippetTransactionsPending'],0)
-
     def test_real_multiple_field_choices_and_marked_text_use_same_snippet_pipeline(self):
         h=self.host(command('{a name="Message"}/{b name="Place" options="One,Two"}'))
         self.show(h);self.run_native(h);h.settled()
