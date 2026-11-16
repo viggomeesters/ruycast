@@ -299,6 +299,8 @@ CLI: search with `ruycast search --mode shortcuts`, then execute the returned co
 
 ## Raycast import
 
+`ruycast-build import-clipboard EXPORT [--max-text-bytes INTEGER]` is an initial read-only text/link normalizer. It prints counts and the input hash, without clipboard text or source paths, and never contacts a clipboard service. File/image records, floating numeric metadata and `--apply` are explicitly refused. Its date parser currently accepts RFC3339 rather than the complete Python `fromisoformat` grammar. This command does not replace `scripts/import-clipboard.py`; that route and all four original Python tests remain active until normalization, canonical hashes and transport have full parity.
+
 `ruycast-build import-raycast EXPORT --cli PATH` reports import counts. Add `--apply` to publish through the CLI's atomic writer using the SHA-256 of the loaded configuration bytes. The temporary command file has mode `0600` and is removed after success or failure.
 
 `--config` selects the read snapshot; the CLI's active configuration remains the write destination. Expected SHA protects bytes, not path identity: if a selector changes to a different file with identical bytes, apply writes that active file while leaving the loaded source unchanged.
