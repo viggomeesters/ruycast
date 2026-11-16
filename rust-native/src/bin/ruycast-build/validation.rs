@@ -123,6 +123,8 @@ app-picker-process|c|test --manifest-path rust-native/Cargo.toml --features test
 bridge-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test bridge_process --locked
 system-search-tools-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --bin ruycast-native --bin system-search-probe --locked
 system-search-cli-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test system_search_cli_process --locked
+clipboard-history-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example clipboard-history-fixture --locked
+clipboard-history-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_history_host_process --locked
 clipboard-history-process|p|rust-native/tests/clipboard_history_process.py
 snippet-links-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --snippet-links-only
 snippet-hotkey-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --snippet-hotkey-only
@@ -460,6 +462,14 @@ fn hid_sdk_environment(root: &Path, target: &str, command: &mut Command) -> Resu
     }
     Ok(())
 }
+fn clipboard_history_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
+    artifact_paths(target)?;
+    let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libclipboard_history_fixture.dylib");
+    owned_path(root, &artifact)?;
+    regular_bytes(&artifact)?;
+    command.env("RUYCAST_TEST_HISTORY_SDK", artifact);
+    Ok(())
+}
 fn snippet_effects_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
     artifact_paths(target)?;
     let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libsnippet_effects_fixture.dylib");
@@ -486,6 +496,9 @@ fn step(
     }
     if entry.name == "hid-sdk-process" {
         hid_sdk_environment(root, &receipt.target, &mut command)?;
+    }
+    if matches!(entry.name.as_str(), "clipboard-history-host-process" | "clipboard-history-process") {
+        clipboard_history_environment(root, &receipt.target, &mut command)?;
     }
     if entry.name == "snippet-effects-host-process" {
         snippet_effects_environment(root, &receipt.target, &mut command)?;
@@ -1531,6 +1544,22 @@ mod tests {
         assert!(hid_sdk_environment(root, target, &mut command).is_err());
     }
     #[test]
+    fn clipboard_history_environment_requires_the_exact_matrix_artifact() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let target = "aarch64-apple-darwin";
+        let mut command = Command::new("cargo");
+        assert!(clipboard_history_environment(root, target, &mut command).is_err());
+        let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libclipboard_history_fixture.dylib");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, b"owned nonexecutable SDK fixture").unwrap();
+        clipboard_history_environment(root, target, &mut command).unwrap();
+        assert_eq!(command.get_envs().find(|(key, _)| *key == "RUYCAST_TEST_HISTORY_SDK").unwrap().1, Some(artifact.as_os_str()));
+        fs::remove_file(&artifact).unwrap();
+        std::os::unix::fs::symlink(root.join("outside"), &artifact).unwrap();
+        assert!(clipboard_history_environment(root, target, &mut command).is_err());
+    }
+    #[test]
     fn snippet_effects_environment_requires_the_exact_matrix_artifact() {
         let fixture = super::super::tests::Fixture::new();
         let root = &fixture.0;
@@ -1954,7 +1983,14 @@ mod tests {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy");
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 141);
+        assert_eq!(steps.len(), 143);
+        let history_build = steps.iter().position(|step| step.name == "clipboard-history-sdk-build").unwrap();
+        for name in ["clipboard-history-host-process", "clipboard-history-process"] {
+            assert!(history_build < steps.iter().position(|step| step.name == name).unwrap());
+        }
+        assert!(steps[history_build].arguments.windows(2).any(|pair| pair == ["--example", "clipboard-history-fixture"]));
+        let history = steps.iter().find(|step| step.name == "clipboard-history-host-process").unwrap();
+        assert!(history.arguments.windows(2).any(|pair| pair == ["--test", "clipboard_history_host_process"]));
         let hid_sdk = steps.iter().position(|step| step.name == "hid-sdk-build").unwrap();
         let hid_rust = steps.iter().position(|step| step.name == "hid-sdk-process").unwrap();
         assert!(hid_sdk < hid_rust);

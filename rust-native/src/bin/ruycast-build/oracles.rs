@@ -689,13 +689,13 @@ const SETTINGS: &[SettingsGate] = &[
         "dashboard_export_process::close_before_commit_revokes_destination_without_feedback_to_reopened_window",
         "dashboard_export_process::commit_entered_before_close_keeps_published_outcome_and_retires_feedback",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-performance-pipeline", original_source:"Sources/RuycastApp/PerformancePipelineChecks.swift", required_native_steps:&["unit","clipboard-history-process","clipboard-rich-paste"], native_cases:&[
+    SettingsGate { id:"--check-performance-pipeline", original_source:"Sources/RuycastApp/PerformancePipelineChecks.swift", required_native_steps:&["unit","clipboard-history-process","clipboard-history-host-process","clipboard-rich-paste"], native_cases:&[
         "clipboard_history::tests::capture_admission_is_single_flight_and_lease_drop_reopens_it",
         "configuration_jobs::tests::capture_retention_handshake_preserves_both_orders_and_stops_without_owner_lock",
         "native_services::check_owned_poll",
         "clipboard_rich_paste::file_and_image_paste_complete_owned_ticket_without_recapture",
         "clipboard_history_process.ClipboardHistory.test_capture_text_files_image_and_private_own_activation_filters",
-        "clipboard_history_process.ClipboardHistory.test_pause_disable_and_source_exclusion",
+        "clipboard_history_host_process::test_pause_disable_and_source_exclusion",
         "runtime::inline_tests::clipboard_pipeline_admitted_maintenance_waits_for_held_capture",
         "runtime::inline_tests::clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_real_owner",
         "runtime::inline_tests::clipboard_hidden_publication_prunes_ids_and_refreshes_payload_without_searching",
@@ -2172,6 +2172,10 @@ mod tests {
                 include_str!("../../../tests/clipboard_rich_paste.rs"),
             ),
             (
+                "clipboard_history_host_process::",
+                include_str!("../../../tests/clipboard_history_host_process.rs"),
+            ),
+            (
                 "clipboard_history_process.",
                 include_str!("../../../tests/clipboard_history_process.py"),
             ),
@@ -2184,7 +2188,7 @@ mod tests {
             ),
             (
                 "--check-performance-pipeline",
-                &["unit", "clipboard-history-process", "clipboard-rich-paste"][..],
+                &["unit", "clipboard-history-process", "clipboard-history-host-process", "clipboard-rich-paste"][..],
                 29,
             ),
         ] {
