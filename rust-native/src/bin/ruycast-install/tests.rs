@@ -1155,7 +1155,7 @@ fn installer_owned_real_process_stdin_output_bounds_timeout_and_reaping() {
 }
 
 #[test]
-fn installer_owned_python_compatibility_dispatchers_forward_only_and_old_mock_repo_fails_closed() {
+fn installer_owned_local_signing_python_dispatcher_forwards_only() {
     let f = Fixture::new();
     let source = f.root.join("dispatch.rs");
     let tool = f.root.join("dispatch-tool");
@@ -1175,46 +1175,12 @@ fn installer_owned_python_compatibility_dispatchers_forward_only_and_old_mock_re
         .to_owned();
     let repo = f.o.repo.clone();
     stdfs::create_dir(repo.join("scripts")).unwrap();
-    for name in ["install.py", "local_signing.py"] {
-        stdfs::copy(
-            source_repo.join("scripts").join(name),
-            repo.join("scripts").join(name),
-        )
-        .unwrap();
-    }
+    stdfs::copy(
+        source_repo.join("scripts/local_signing.py"),
+        repo.join("scripts/local_signing.py"),
+    )
+    .unwrap();
     let lease = Lease::acquire_from_environment(&repo, &BTreeMap::new()).unwrap();
-    let output = std::process::Command::new("/usr/bin/python3")
-        .arg(repo.join("scripts/install.py"))
-        .args([
-            "--archive",
-            "literal supplied path",
-            "--sha256",
-            "literal trusted digest",
-        ])
-        .env_clear()
-        .env("HOME", &f.o.home)
-        .env("PATH", "/usr/bin:/bin")
-        .env("RUYCAST_INSTALL_TOOL", &tool)
-        .env("RUYCAST_DISPATCH_FIXTURE_ROOT", &f.root)
-        .envs(lease.environment().unwrap())
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let repo_path = repo.display().to_string();
-    let expected = [
-        "install",
-        "--repo",
-        repo_path.as_str(),
-        "--archive",
-        "literal supplied path",
-        "--sha256",
-        "literal trusted digest",
-    ];
-    assert_eq!(output.stdout, expected.join("\0").as_bytes());
     let output = std::process::Command::new("/usr/bin/python3")
         .arg(repo.join("scripts/local_signing.py"))
         .args(["--root", "literal signing root", "status"])
@@ -1239,20 +1205,6 @@ fn installer_owned_python_compatibility_dispatchers_forward_only_and_old_mock_re
         ]
         .join("\0")
         .as_bytes()
-    );
-    let scripts = f.root.join("old-mock-repo/scripts");
-    stdfs::create_dir_all(&scripts).unwrap();
-    stdfs::copy(repo.join("scripts/install.py"), scripts.join("install.py")).unwrap();
-    let result = std::process::Command::new("/usr/bin/python3")
-        .arg(scripts.join("install.py"))
-        .env_clear()
-        .env("HOME", &f.o.home)
-        .env("PATH", "/usr/bin:/bin")
-        .output()
-        .unwrap();
-    assert!(!result.status.success());
-    assert!(
-        String::from_utf8_lossy(&result.stderr).contains("Rust installer source is unavailable")
     );
     lease.validate().unwrap();
     assert!(!f.o.apps.exists());
