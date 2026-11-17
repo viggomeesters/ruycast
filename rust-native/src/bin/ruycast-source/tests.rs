@@ -114,6 +114,7 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
         assert!(exported_names.contains(name), "missing {name}");
     }
     for name in [
+        "scripts/check-signing.py",
         "scripts/build_receipt.py",
         "Tests/test_config_directory.py",
         "scripts/import-raycast.py",
