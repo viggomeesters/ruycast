@@ -23,6 +23,8 @@ The native check runs on the main thread with activation prohibited and the pane
 
 `--benchmark-model` uses synthetic 500/1000/5000/10000 catalogs and 1000 timed queries per size after ten warm-ups. It measures only the new session and existing Rust search kernel. It omits current-app recency preparation, analytics, main search aggregation, UI/presentation and many features. Do not interpret comparison with the complete Swift-host benchmark as a causal rewrite gain.
 
+`ruycast-build benchmark-host` is the Rust implementation of the isolated host benchmark. `tests/benchmark_host_process.rs` drives it with Rust host/CLI/probe fixtures and preserves the original success, forced-shutdown, timeout, absolute-RPC-deadline and partial-sample cases. The late validation contracts also run this Rust driver against the actual Rust host and CLI. The prior Python driver and its standalone test module are removed; historical Swift-host comparisons remain historical.
+
 The frozen 0.8.25/build65 remains historical measurement evidence. Preserve the current working installation (the separate native-edit repair delivered 0.8.26/build66) until complete behavior/configuration/CLI/security parity and independent delivery review. The public migration issue and its linked issues track the remaining technical acceptance. No GitHub Actions.
 
 ## Rust foundation

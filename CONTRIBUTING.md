@@ -19,7 +19,7 @@ The full `check` entrypoint still fails closed on the original Python-discovery 
 
 For a focused change, run the affected Rust test targets with bounded child-process timeouts. Reuse evidence only while its relevant sources, dependencies, toolchain and artifacts are unchanged. Related migration tasks may share one reviewed PR and source export; rerun broader integration checks when shared behavior changes and at integration boundaries.
 
-The complete native route runs the ordered leaf matrix, four hidden renders and reference/SDK bindings, including the mandatory clipboard-parser, benchmark-contract and temporal-lease cases. Use `ruycast-build validation-plan --repo "$PWD"` for the current matrix; its report is `rust-native/target/verification/report.json`. Run it after a verified release build:
+The complete native route runs the ordered leaf matrix, four hidden renders and reference/SDK bindings, including the mandatory clipboard-parser, Rust benchmark-driver contracts and temporal-lease cases. Use `ruycast-build validation-plan --repo "$PWD"` for the current matrix; its report is `rust-native/target/verification/report.json`. Run it after a verified release build:
 
 ```sh
 make build

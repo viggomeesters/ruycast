@@ -28,7 +28,7 @@ Ruycast uses a cached Rust search index, materialized command/process results, b
 
 ## Host duration-probe validity
 
-`scripts/benchmark-host.py` verifies the isolated profile and a known search result after its idle observation, then requires an acknowledged quit and zero exit without forced cleanup. Success is written only after those checks. Failed operations write `ok: false` with the phase, exception and cleanup result. A zero exit after termination is still forced cleanup, not graceful shutdown.
+`ruycast-build benchmark-host` verifies the isolated profile and a known search result after its idle observation, then requires an acknowledged quit and zero exit without forced cleanup. Success is written only after those checks. Failed operations write `ok: false` with the phase, error and cleanup result. A zero exit after termination is still forced cleanup, not graceful shutdown.
 
 Init-config, CLI and counter-probe child calls have a five-second timeout by default (`--operation-timeout`). Each socket RPC has one deadline across connect, send and all receive chunks; a partial response cannot renew it. Graceful exit, termination and kill/reap waits are separately bounded. Phase durations must be finite and nonnegative; sample counts and the operation timeout must be positive. Configured active/idle durations exclude startup, CLI sampling and cleanup overhead. This is a controlled fixture driver, not a guarantee against every OS-level process failure.
 
@@ -57,7 +57,15 @@ cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
   --probe rust-native/target/release/perf-probe --out .build/performance/host.json --label local-host
 ```
 
-Use `scripts/benchmark-host.py` for an isolated headless profile with500 commands and 200 text fixtures. It measures30 process starts,1000 real CLI calls per operation, and active/idle intervals. Arguments `--active-seconds 1800 --idle-seconds 3600` select a90-minute stress run; the shorter600/600-second run is the recorded initial soak. Headless readiness excludes hotkeys, app discovery and visible presentation.
+Use the Rust driver for an isolated headless profile with500 commands and 200 text fixtures. It measures30 process starts,1000 real CLI calls per operation, and active/idle intervals. Arguments `--active-seconds 1800 --idle-seconds 3600` select a90-minute stress run; the shorter600/600-second run is the recorded initial soak. Headless readiness excludes hotkeys, app discovery and visible presentation.
+
+```sh
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
+  --target-dir .build/delivery-tools --bin ruycast-build -- benchmark-host \
+  --host "$PWD/.build/full-rust-release/native/aarch64-apple-darwin/release/ruycast-native" \
+  --cli "$PWD/.build/full-rust-release/core/aarch64-apple-darwin/release/ruycast" \
+  --probe "$PWD/rust-native/target/release/perf-probe" --out "$PWD/.build/performance/host.json"
+```
 
 ## Measurement contract
 
@@ -129,14 +137,7 @@ The selected background acceptance is complete. Physical hotkey/focus/frame late
 
 Reproduce the bounded native gate with `bash scripts/check-performance.sh`. Longer background probes are opt-in:
 
-```sh
-.build/swift/release/RuycastApp --benchmark-monitor 1800 60
-python3 scripts/benchmark-host.py --host .build/swift/release/RuycastApp \
-  --cli .build/rust/release/ruycast --probe rust-native/target/release/perf-probe \
-  --out .build/performance/host-90min.json --active-seconds 1800 --idle-seconds 3600
-```
-
-Use frozen copies of binaries for long probes. The host script strips external profile/config overrides, asserts its isolated fixture profile and checks that the host file did not change during measurement. The probe never opens the launcher, installs global input hooks or uses the general clipboard. Do not substitute these numbers for the deliberately excluded physical latency, battery and Raycast practice checks.
+The historical Swift-host comparison used the pre-migration Python runner. That runner has been retired; the current Rust driver accepts the Rust native host contract described above. Historical measurements remain historical and cannot be recreated with the current command. Use frozen copies of binaries for long probes. The probe never opens the launcher, installs global input hooks or uses the general clipboard. Do not substitute these numbers for the deliberately excluded physical latency, battery and Raycast practice checks.
 
 ## Interaction stages (0.7.13)
 

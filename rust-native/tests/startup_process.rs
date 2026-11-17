@@ -915,127 +915,267 @@ fn settings_reenable_conflict_then_alias_preservation_and_retention_fourteen_rel
 mod benchmark_cli_contracts {
     use super::*;
     use sha2::{Digest, Sha256};
-    use std::{collections::BTreeMap, io::Read, os::unix::fs::{MetadataExt, OpenOptionsExt}};
+    use std::{
+        collections::BTreeMap,
+        io::Read,
+        os::unix::fs::{MetadataExt, OpenOptionsExt},
+    };
 
     fn sha(path: &Path) -> String {
-        let mut file = fs::OpenOptions::new().read(true)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path).unwrap();
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC)
+            .open(path)
+            .unwrap();
         let before = file.metadata().unwrap();
         assert!(before.is_file() && before.len() <= 128 * 1024 * 1024);
-        let mut digest = Sha256::new();let mut total = 0u64;let mut buffer = [0u8;65536];
+        let mut digest = Sha256::new();
+        let mut total = 0u64;
+        let mut buffer = [0u8; 65536];
         loop {
-            let count = file.read(&mut buffer).unwrap();if count == 0 {break;}
-            total += count as u64;assert!(total <= 128 * 1024 * 1024);
+            let count = file.read(&mut buffer).unwrap();
+            if count == 0 {
+                break;
+            }
+            total += count as u64;
+            assert!(total <= 128 * 1024 * 1024);
             digest.update(&buffer[..count]);
         }
-        let after = file.metadata().unwrap();let current = fs::symlink_metadata(path).unwrap();
-        let identity = |m: &fs::Metadata| (m.dev(),m.ino(),m.len(),m.mode(),m.uid(),m.mtime(),m.mtime_nsec(),m.ctime(),m.ctime_nsec());
-        assert_eq!(identity(&before),identity(&after));assert_eq!(identity(&before),identity(&current));
-        format!("{:x}",digest.finalize())
+        let after = file.metadata().unwrap();
+        let current = fs::symlink_metadata(path).unwrap();
+        let identity = |m: &fs::Metadata| {
+            (
+                m.dev(),
+                m.ino(),
+                m.len(),
+                m.mode(),
+                m.uid(),
+                m.mtime(),
+                m.mtime_nsec(),
+                m.ctime(),
+                m.ctime_nsec(),
+            )
+        };
+        assert_eq!(identity(&before), identity(&after));
+        assert_eq!(identity(&before), identity(&current));
+        format!("{:x}", digest.finalize())
     }
     fn tool(key: &str) -> PathBuf {
-        let path = PathBuf::from(std::env::var_os(key).expect("explicit independently qualified artifact required"));
-        assert!(path.is_absolute());assert_eq!(path.canonicalize().unwrap(),path);
-        let expected = std::env::var(format!("{key}_SHA256")).expect("independent artifact SHA required");
-        assert_eq!(sha(&path),expected);path
+        let path = PathBuf::from(
+            std::env::var_os(key).expect("explicit independently qualified artifact required"),
+        );
+        assert!(path.is_absolute());
+        assert_eq!(path.canonicalize().unwrap(), path);
+        let expected =
+            std::env::var(format!("{key}_SHA256")).expect("independent artifact SHA required");
+        assert_eq!(sha(&path), expected);
+        path
     }
     fn private_file(path: &Path, bytes: &[u8]) {
-        let mut file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path).unwrap();
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)
+            .unwrap();
         file.write_all(bytes).unwrap();
     }
+    struct RestoreConfigOverride(Option<std::ffi::OsString>);
+    impl RestoreConfigOverride {
+        fn set(path: &Path) -> Self {
+            let old = std::env::var_os("RUYCAST_CONFIG_DIR");
+            std::env::set_var("RUYCAST_CONFIG_DIR", path);
+            Self(old)
+        }
+    }
+    impl Drop for RestoreConfigOverride {
+        fn drop(&mut self) {
+            if let Some(value) = self.0.take() {
+                std::env::set_var("RUYCAST_CONFIG_DIR", value)
+            } else {
+                std::env::remove_var("RUYCAST_CONFIG_DIR")
+            }
+        }
+    }
     fn benchmark_case(changed: bool) {
-        let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned();
-        let parent = PathBuf::from(std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("owned short private parent required"));
-        assert!(parent.is_absolute());assert_eq!(parent.canonicalize().unwrap(),parent);
+        let parent = PathBuf::from(
+            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
+                .expect("owned short private parent required"),
+        );
+        assert!(parent.is_absolute());
+        assert_eq!(parent.canonicalize().unwrap(), parent);
         let metadata = fs::symlink_metadata(&parent).unwrap();
-        assert!(metadata.is_dir() && metadata.uid() == unsafe {libc::geteuid()} && metadata.mode() & 0o077 == 0);
+        assert!(
+            metadata.is_dir()
+                && metadata.uid() == unsafe { libc::geteuid() }
+                && metadata.mode() & 0o077 == 0
+        );
         let cli = tool("RUYCAST_CLI_PARITY_BINARY");
         let host = tool("RUYCAST_CLI_PARITY_NATIVE");
-        let python = tool("RUYCAST_BENCHMARK_PYTHON");
-        let python_alias = python.parent().unwrap().join("python3");
-        assert_eq!(python_alias.canonicalize().unwrap(),python,"legacy fixture shebang must use the same qualified interpreter");
-        let adapter = PathBuf::from(env!("CARGO_BIN_EXE_private-results-fixture")).canonicalize().unwrap();
-        let driver = repository.join("scripts/benchmark-host.py");
-        let original = repository.join("Tests/test_cli.py");
+        let driver = tool("RUYCAST_BENCHMARK_RUST_DRIVER");
+        let fixture = tool("RUYCAST_BENCHMARK_FIXTURE");
         let before = BTreeMap::from([
-            (cli.clone(),sha(&cli)),(host.clone(),sha(&host)),(python.clone(),sha(&python)),
-            (adapter.clone(),sha(&adapter)),(driver.clone(),sha(&driver)),(original.clone(),sha(&original)),
+            (cli.clone(), sha(&cli)),
+            (host.clone(), sha(&host)),
+            (driver.clone(), sha(&driver)),
+            (fixture.clone(), sha(&fixture)),
         ]);
         static NEXT: AtomicU64 = AtomicU64::new(0);
-        let case = parent.join(format!("bc{}-{}",std::process::id(),NEXT.fetch_add(1,Ordering::Relaxed)));
+        let case = parent.join(format!(
+            "bc{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
         fs::DirBuilder::new().mode(0o700).create(&case).unwrap();
-        assert!(case.join("rc-h-0123456789/control.sock").as_os_str().as_encoded_bytes().len() <= 104);
-        private_file(&case.join(".ruycast-test-fixture"),b"own-disposable-fixture-v1");
-        let external = case.join("external-config");fs::DirBuilder::new().mode(0o700).create(&external).unwrap();
-        let mut authored: Value = serde_json::from_str(include_str!("../../config/default.json")).unwrap();
+        assert!(
+            case.join("rc-h-0123456789/control.sock")
+                .as_os_str()
+                .as_encoded_bytes()
+                .len()
+                <= 104
+        );
+        private_file(
+            &case.join(".ruycast-test-fixture"),
+            b"own-disposable-fixture-v1",
+        );
+        let external = case.join("external-config");
+        fs::DirBuilder::new().mode(0o700).create(&external).unwrap();
+        let mut authored: Value =
+            serde_json::from_str(include_str!("../../config/default.json")).unwrap();
         authored["commands"] = json!([{"id":"external.marker","title":"External must stay unchanged","kind":"url","target":"https://example.com/external"}]);
         let authored_bytes = serde_json::to_vec_pretty(&authored).unwrap();
-        let external_file = external.join("config.json");private_file(&external_file,&authored_bytes);
+        let external_file = external.join("config.json");
+        private_file(&external_file, &authored_bytes);
         let selected_cli = if changed {
-            let own = case.join("changing-cli");
-            // Verbatim program from test_cli.py::test_host_benchmark_rejects_changed_cli.
-            let bytes = b"#!/usr/bin/env python3\nfrom pathlib import Path\np=Path(__file__)\np.write_text(p.read_text()+\"# changed\\n\")\nprint('{\"ok\":true}')\n";
-            private_file(&own,bytes);fs::set_permissions(&own,fs::Permissions::from_mode(0o700)).unwrap();own
-        } else {cli.clone()};
+            let own = case.join("cli_change");
+            fs::copy(&fixture, &own).unwrap();
+            fs::set_permissions(&own, fs::Permissions::from_mode(0o700)).unwrap();
+            own
+        } else {
+            cli.clone()
+        };
+        let mutation_counter = case.join("mutation-count");
+        let mutation_replacement = case.join("mutation-replacement");
+        if changed {
+            private_file(&mutation_counter, b"0");
+            fs::copy(&fixture, &mutation_replacement).unwrap();
+            let mut file = fs::OpenOptions::new()
+                .append(true)
+                .open(&mutation_replacement)
+                .unwrap();
+            file.write_all(b"\nruycast benchmark mutation\n").unwrap();
+        }
         let selected_before = sha(&selected_cli);
         let report = case.join("result.json");
-        let path = format!("{}:/usr/bin:/bin",python.parent().unwrap().display());
-        let mut arguments = vec!["-i".to_owned(),format!("PATH={path}"),format!("HOME={}",case.display()),
-            format!("TMPDIR={}",case.display()),format!("RUYCAST_NATIVE_TEST_FIXTURE_DIR={}",case.display()),
-            format!("RUYCAST_CONFIG_DIR={}",external.display()),format!("RUYCAST_CLI_PARITY_BINARY={}",cli.display()),
-            format!("RUYCAST_CLI_PARITY_BINARY_SHA256={}",before[&cli]),format!("RUYCAST_CLI_PARITY_NATIVE={}",host.display()),
-            format!("RUYCAST_CLI_PARITY_NATIVE_SHA256={}",before[&host]),python.to_string_lossy().into_owned(),driver.to_string_lossy().into_owned()];
-        for (flag,value) in [("--host",adapter.as_path()),("--cli",selected_cli.as_path()),("--probe",Path::new("/usr/bin/true")),("--out",report.as_path())] {
-            arguments.extend([flag.into(),value.to_string_lossy().into_owned()]);
-        }
-        arguments.extend(["--cold-starts","1","--samples","1","--active-seconds","0","--idle-seconds","0"].map(str::to_owned));
-        let specification: rustcast_core::Command = serde_json::from_value(json!({
-            "id":"owned.benchmark-contract","title":"Owned benchmark contract","kind":"script","target":"/usr/bin/env","arguments":arguments,"timeout":30.0
-        })).unwrap();
-        private_file(&case.join("before.json"),&serde_json::to_vec_pretty(&before).unwrap());
-        // Reuse the existing bounded script supervisor: owned PG/EOF custody,
-        // output caps, 30s timeout and final group cleanup, no new runner.
-        let completion = rustcast_core::script::run(&specification,&case,None,||false).unwrap();
-        private_file(&case.join("stdout.log"),completion.stdout.as_bytes());
-        private_file(&case.join("stderr.log"),completion.stderr.as_bytes());
-        private_file(&case.join("status.json"),&serde_json::to_vec_pretty(&json!({"end":format!("{:?}",completion.end),"capture":completion.capture})).unwrap());
+        let _config_override = RestoreConfigOverride::set(&external);
+        let arguments = [
+            "benchmark-host",
+            "--host",
+            host.to_str().unwrap(),
+            "--cli",
+            selected_cli.to_str().unwrap(),
+            "--probe",
+            fixture.to_str().unwrap(),
+            "--out",
+            report.to_str().unwrap(),
+            "--cold-starts",
+            "1",
+            "--samples",
+            "1",
+            "--active-seconds",
+            "0",
+            "--idle-seconds",
+            "0",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+        let specification: rustcast_core::Command=serde_json::from_value(json!({"id":"owned.benchmark-contract","title":"Owned Rust benchmark contract","kind":"script","target":driver,"arguments":arguments,"timeout":30.0})).unwrap();
+        private_file(
+            &case.join("before.json"),
+            &serde_json::to_vec_pretty(&before).unwrap(),
+        );
+        let completion = rustcast_core::script::run(&specification, &case, None, || false).unwrap();
+        private_file(&case.join("stdout.log"), completion.stdout.as_bytes());
+        private_file(&case.join("stderr.log"), completion.stderr.as_bytes());
+        private_file(
+            &case.join("status.json"),
+            &serde_json::to_vec_pretty(
+                &json!({"end":format!("{:?}",completion.end),"capture":completion.capture}),
+            )
+            .unwrap(),
+        );
         assert!(!completion.capture.stdout.truncated && !completion.capture.stderr.truncated);
         assert!(completion.capture.stdout.eof && completion.capture.stderr.eof);
         assert!(completion.capture.stdout.valid_utf8 && completion.capture.stderr.valid_utf8);
-        let status = match completion.end {rustcast_core::script::End::Exited(status)=>status,other=>panic!("original30s boundary failed: {other:?}")};
+        let status = match completion.end {
+            rustcast_core::script::End::Exited(status) => status,
+            other => panic!("benchmark process-group contract failed: {other:?}"),
+        };
         let value: Value = serde_json::from_slice(&fs::read(&report).unwrap()).unwrap();
-        assert_eq!(fs::read(&external_file).unwrap(),authored_bytes);
-        assert_eq!(value["hostSHA256"],before[&adapter]);
-        assert_eq!(value["cliSHA256"],selected_before);
-        for (path,expected) in &before {assert_eq!(sha(path),*expected,"bound source/artifact changed: {}",path.display());}
-        if changed {
-            assert!(!status.success());assert_eq!(value["ok"],false);assert_eq!(value["phase"],"cli-status");
-            assert_eq!(value["errorType"],"RuntimeError");
-            assert!(value["error"].as_str().unwrap().contains("CLI binary changed during measurement"));
-            assert!(completion.stderr.contains("CLI binary changed during measurement"));
-            assert_eq!(value["cleanup"]["graceful"],true);assert_eq!(value["cleanup"]["forcedCleanup"],false);
-            assert_ne!(sha(&selected_cli),selected_before);
-        } else {
-            assert!(status.success(),"{}",completion.stderr);assert_eq!(value["ok"],true);
-            assert_eq!(value["fixtureConfigurationIsolated"],true);assert_eq!(value["idleEndpoint"]["searchVerified"],true);
-            assert_eq!(value["idleEndpoint"]["commandID"],"fixture.42");
-            assert_eq!(value["coldShutdowns"][0]["graceful"],true);
-            assert_eq!(value["coldShutdowns"][0]["forcedCleanup"],false);
-            assert_eq!(value["warmCLI"]["status"]["samples"],1);
-            assert_eq!(value["warmCLI"]["search"]["samples"],1);
-            assert_eq!(value["finalShutdown"]["graceful"],true);assert_eq!(value["finalShutdown"]["forcedCleanup"],false);
-            assert_eq!(value["cliSHA256"],before[&cli]);
+        assert_eq!(fs::read(&external_file).unwrap(), authored_bytes);
+        assert_eq!(value["hostSHA256"], before[&host]);
+        assert_eq!(value["cliSHA256"], selected_before);
+        for (path, expected) in &before {
+            assert_eq!(
+                sha(path),
+                *expected,
+                "bound source/artifact changed: {}",
+                path.display()
+            );
         }
-        private_file(&case.join("after.json"),&serde_json::to_vec_pretty(&before.keys().map(|path|(path.clone(),sha(path))).collect::<BTreeMap<_,_>>()).unwrap());
-        println!("owned benchmark contract evidence: {}",case.display());
+        if changed {
+            assert!(!status.success());
+            assert_eq!(value["ok"], false);
+            assert_eq!(value["phase"], "cli-status");
+            assert_eq!(value["errorType"], "RuntimeError");
+            assert!(value["error"]
+                .as_str()
+                .unwrap()
+                .contains("CLI binary changed during measurement"));
+            assert!(completion
+                .stderr
+                .contains("CLI binary changed during measurement"));
+            assert_eq!(value["cleanup"]["graceful"], true);
+            assert_eq!(value["cleanup"]["forcedCleanup"], false);
+            assert_ne!(sha(&selected_cli), selected_before);
+        } else {
+            assert!(status.success(), "{}", completion.stderr);
+            assert_eq!(value["ok"], true);
+            assert_eq!(value["fixtureConfigurationIsolated"], true);
+            assert_eq!(value["idleEndpoint"]["searchVerified"], true);
+            assert_eq!(value["idleEndpoint"]["commandID"], "fixture.42");
+            assert_eq!(value["coldShutdowns"][0]["graceful"], true);
+            assert_eq!(value["coldShutdowns"][0]["forcedCleanup"], false);
+            assert_eq!(value["warmCLI"]["status"]["samples"], 1);
+            assert_eq!(value["warmCLI"]["search"]["samples"], 1);
+            assert_eq!(value["finalShutdown"]["graceful"], true);
+            assert_eq!(value["finalShutdown"]["forcedCleanup"], false);
+            assert_eq!(value["cliSHA256"], before[&cli]);
+        }
+        private_file(
+            &case.join("after.json"),
+            &serde_json::to_vec_pretty(
+                &before
+                    .keys()
+                    .map(|path| (path.clone(), sha(path)))
+                    .collect::<BTreeMap<_, _>>(),
+            )
+            .unwrap(),
+        );
+        println!("owned benchmark contract evidence: {}", case.display());
         // Preserve this exclusively created case for Root's primary-result
         // readback. Root removes it after retaining the evidence, never /tmp.
     }
     #[test]
     #[ignore = "Explicit late benchmark contract with qualified current Rust artifacts and owned fixture parent"]
-    fn real_rust_benchmark_ignores_external_configuration_with_500_commands() {benchmark_case(false)}
+    fn real_rust_benchmark_ignores_external_configuration_with_500_commands() {
+        benchmark_case(false)
+    }
     #[test]
     #[ignore = "Explicit late benchmark contract with qualified current Rust artifacts and owned fixture parent"]
-    fn real_rust_benchmark_rejects_changed_cli_and_quits_gracefully() {benchmark_case(true)}
+    fn real_rust_benchmark_rejects_changed_cli_and_quits_gracefully() {
+        benchmark_case(true)
+    }
 }
