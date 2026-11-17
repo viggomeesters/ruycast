@@ -1564,6 +1564,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "test_script_timeout_and_bounded_output": "runtime_process::legacy_cli_script_timeout_and_bounded_output",
             "test_appearance_preferences_validate_and_persist": "runtime_process::legacy_cli_status_search_reload_and_config_edit",
             "test_launcher_management_commands_and_settings_hotkey": "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly",
+            "test_clipboard_control_private_permissions_and_no_ui": "remaining_macos_process::cli_clipboard_controls_keep_private_files_and_reject_headless_ui",
             "test_second_instance_does_not_replace_socket": "runtime_process::second_instance_refused_and_crashed_socket_recovers",
             "test_script_timeout_kills_descendants_and_inherited_pipes": [
                 "script_basic_process::timeout_cleans_group",
@@ -1615,7 +1616,10 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 "early_success_closes_inherited_pipes"
             ],
             "execution_basic_process": ["cli_literal_input_uuid_usage_and_private_logs"],
-            "remaining_macos_process": ["builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"]
+            "remaining_macos_process": [
+                "builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly",
+                "cli_clipboard_controls_keep_private_files_and_reject_headless_ui"
+            ]
         });
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(true);
         inventory["rustRootTestCrosswalk"]["Tests/test_architecture.py"] = serde_json::json!({
@@ -2836,6 +2840,21 @@ mod tests {
         assert!(source.contains("(\"reload-config\", \"builtin.reload-config\")"));
         assert!(source.contains("\"hotkey\":\"ctrl+alt+cmd+s\""));
         assert!(source.contains("settings_search[\"result\"]"));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("remaining-macos-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test remaining_macos_process --locked"));
+    }
+    #[test]
+    fn clipboard_control_cli_case_maps_to_private_headless_process_case() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        let case = "remaining_macos_process::cli_clipboard_controls_keep_private_files_and_reject_headless_ui";
+        assert_eq!(mapping["supplementalCurrentMethodByMethod"]["test_clipboard_control_private_permissions_and_no_ui"], case);
+        assert!(mapping["nativeTargets"]["remaining_macos_process"].as_array().unwrap()
+            .iter().any(|name| name == "cli_clipboard_controls_keep_private_files_and_reject_headless_ui"));
+        let source = include_str!("../../../tests/remaining_macos_process.rs");
+        assert!(source.contains("fn cli_clipboard_controls_keep_private_files_and_reject_headless_ui()"));
+        assert!(source.contains("run(&[\"clipboard\", \"copy\", \"missing\"])[\"ok\"], false"));
+        assert!(source.contains("fs::metadata(host.profile.join(\"clipboard.json\"))"));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("remaining-macos-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test remaining_macos_process --locked"));
     }
