@@ -15,6 +15,8 @@ use std::{
 mod candidate;
 #[path = "ruycast-build/compat.rs"]
 mod compat;
+#[path = "ruycast-build/disk_budget.rs"]
+mod disk_budget;
 #[path = "ruycast-build/macho.rs"]
 mod macho;
 #[path = "ruycast-build/oracles.rs"]
@@ -60,7 +62,7 @@ type Result<T> = std::result::Result<T, String>;
 const SCHEMA: &str = "ruycast.rust-development-build.v4";
 const OUTPUT: &str = ".build/full-rust-release";
 static BUILD_EXIT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(1);
-const USAGE: &str = "ruycast-build build|verify --repo ABSOLUTE_REPOSITORY [--configuration debug|release]\nruycast-build version|fingerprint|validation-plan --repo ABSOLUTE_REPOSITORY\nruycast-build stage --repo ABSOLUTE_REPOSITORY --build POSITIVE_NUMBER\nruycast-build verify-candidate --repo ABSOLUTE_REPOSITORY --candidate ABSOLUTE_DIRECTORY\nruycast-build check-native|pure-core-oracle|verify-pure-core-oracle --repo ABSOLUTE_REPOSITORY\nruycast-build gate-inventory --repo ABSOLUTE_REPOSITORY --pipeline check|settings\nruycast-build sample-performance --pid PID --probe PATH --out PATH --label LABEL [--seconds 600]\nruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts 30] [--samples 1000] [--active-seconds 600] [--idle-seconds 600]\nruycast-build compat ENTRY --repo ABSOLUTE_REPOSITORY -- [compatibility arguments]";
+const USAGE: &str = "ruycast-build build|verify --repo ABSOLUTE_REPOSITORY [--configuration debug|release]\nruycast-build version|fingerprint|validation-plan|disk-status --repo ABSOLUTE_REPOSITORY\nruycast-build clean-build-caches --repo ABSOLUTE_REPOSITORY\nruycast-build stage --repo ABSOLUTE_REPOSITORY --build POSITIVE_NUMBER\nruycast-build verify-candidate --repo ABSOLUTE_REPOSITORY --candidate ABSOLUTE_DIRECTORY\nruycast-build check-native|pure-core-oracle|verify-pure-core-oracle --repo ABSOLUTE_REPOSITORY\nruycast-build gate-inventory --repo ABSOLUTE_REPOSITORY --pipeline check|settings\nruycast-build sample-performance --pid PID --probe PATH --out PATH --label LABEL [--seconds 600]\nruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts 30] [--samples 1000] [--active-seconds 600] [--idle-seconds 600]\nruycast-build compat ENTRY --repo ABSOLUTE_REPOSITORY -- [compatibility arguments]";
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -270,6 +272,12 @@ fn build(root: &Path, configuration: &str) -> Result<Receipt> {
 }
 fn build_under_lease(root: &Path, configuration: &str, lock: &BuildLock) -> Result<Receipt> {
     lock.validate()?;
+    let estimated_peak = if configuration == "release" {
+        disk_budget::RELEASE_BUILD_PEAK
+    } else {
+        disk_budget::DEBUG_BUILD_PEAK
+    };
+    disk_budget::require_capacity(root, estimated_peak, "Rust product build")?;
     let output_directory = configuration_output(configuration)?;
     let prior = root.join(output_directory).join("development-build.json");
     match fs::symlink_metadata(&prior) {
@@ -662,6 +670,24 @@ fn run() -> Result<()> {
             return Err("Expected stage --repo ABSOLUTE --build NUMBER or verify-candidate --repo ABSOLUTE --candidate ABSOLUTE.".into());
         };
         println!("{}", candidate::verify(&root, &destination)?);
+        return Ok(());
+    }
+    if args.len() == 3
+        && args[1] == "--repo"
+        && matches!(args[0].as_str(), "disk-status" | "clean-build-caches")
+    {
+        let path = PathBuf::from(&args[2]);
+        if !path.is_absolute() {
+            return Err("Choose an absolute repository path.".into());
+        }
+        let root = fs::canonicalize(path).map_err(error)?;
+        let value = if args[0] == "disk-status" {
+            disk_budget::status(&root)?
+        } else {
+            let lease = BuildLock::acquire(&root)?;
+            disk_budget::clean(&root, &lease)?
+        };
+        println!("{value}");
         return Ok(());
     }
     if args.len() != 3 || args[1] != "--repo" || !matches!(args[0].as_str(), "build" | "verify") {

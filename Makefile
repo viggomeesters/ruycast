@@ -1,4 +1,4 @@
-.PHONY: check build install source-tool export-source verify-source
+.PHONY: check build install source-tool export-source verify-source disk-status clean-build-caches
 check:
 	bash scripts/check.sh
 build:
@@ -11,6 +11,10 @@ export-source:
 	cargo run --quiet --locked --manifest-path rust-native/Cargo.toml --bin ruycast-source -- export --repo "$(CURDIR)" --out "$(OUT)"
 verify-source:
 	cargo run --quiet --locked --manifest-path rust-native/Cargo.toml --bin ruycast-source -- verify --source "$(OUT)"
+disk-status:
+	cargo run --quiet --locked --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$(CURDIR)"
+clean-build-caches:
+	cargo run --quiet --locked --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- clean-build-caches --repo "$(CURDIR)"
 
 .PHONY: verify-build version check-settings check-performance
 verify-build:

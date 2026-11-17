@@ -1663,6 +1663,11 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
 }
 pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     lease.validate()?;
+    super::disk_budget::require_capacity(
+        root,
+        super::disk_budget::VALIDATION_PEAK,
+        "full native validation",
+    )?;
     let pure_core_oracle = oracles::core(root, lease)?;
     let directory = root.join(DIRECTORY);
     ruycast_native::private_storage::secure_directory(&directory)?;

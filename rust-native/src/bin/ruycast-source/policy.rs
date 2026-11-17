@@ -183,6 +183,7 @@ rust-native/src/bin/parity_ast.rs
 rust-native/src/bin/ruycast-build/candidate.rs
 rust-native/src/bin/ruycast-build/clipboard_cli.rs
 rust-native/src/bin/ruycast-build/compat.rs
+rust-native/src/bin/ruycast-build/disk_budget.rs
 rust-native/src/bin/ruycast-build/macho.rs
 rust-native/src/bin/ruycast-build/oracles.rs
 rust-native/src/bin/ruycast-build/preparation.rs
