@@ -39,11 +39,12 @@ fn cli_literal_input_uuid_usage_and_private_logs() {
             "{uuid}"
         ]),
     );
+    cmd["id"] = json!("test.echo");
     cmd["inputPrompt"] = json!("Text");
     cmd["aliases"] = json!(["runfixture", "echo-test"]);
     let h = host(cmd);
     let search = h.cli(&["search", "echo-test"]);
-    assert_eq!(search["result"][0]["id"], "script.fixture");
+    assert_eq!(search["result"][0]["id"], "test.echo");
     let before_usage = h.cli(&["usage"]);
     assert_eq!(before_usage["ok"], true);
     let dry_run = h.cli(&["run", "echo-test", "--dry-run"]);
@@ -60,7 +61,7 @@ fn cli_literal_input_uuid_usage_and_private_logs() {
     assert_eq!(&result[..2], &[secret, "prefix{input}"]);
     assert_eq!(result[2].len(), 36);
     assert_ne!(result[2], result[3]);
-    assert_eq!(h.cli(&["usage"])["result"]["script.fixture"], 1);
+    assert_eq!(h.cli(&["usage"])["result"]["test.echo"], 1);
     let logs = h.cli(&["logs"]);
     let logs = logs["result"].as_array().unwrap();
     assert_eq!(
@@ -90,6 +91,26 @@ fn cli_literal_input_uuid_usage_and_private_logs() {
             & 0o777,
         0o600
     );
+    let mut echo = command(
+        "/usr/bin/printf",
+        json!(["%s", "literal $(not a command)\nΩ"]),
+    );
+    echo["id"] = json!("test.echo");
+    echo["aliases"] = json!(["runfixture", "echo-test"]);
+    replace_command(&h, echo.clone());
+    assert_eq!(
+        h.cli(&["run", "echo-test"])["result"]["stdout"],
+        "literal $(not a command)\nΩ"
+    );
+    assert!(h.cli(&["usage"])["result"]["test.echo"].as_u64().unwrap() > 0);
+    echo["target"] = json!("/usr/bin/false");
+    echo["arguments"] = json!([]);
+    replace_command(&h, echo);
+    let failure = h.cli_output(&["run", "test.echo"]);
+    assert_eq!(failure.status.code(), Some(1));
+    let failure: Value = serde_json::from_slice(&failure.stdout).unwrap();
+    assert_eq!(failure["ok"], false);
+    assert_eq!(failure["exitCode"], 1);
 }
 #[test]
 fn dry_run_disabled_and_missing_prompt_do_not_spawn_or_log() {
