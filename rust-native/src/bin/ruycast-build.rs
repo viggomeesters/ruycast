@@ -27,6 +27,8 @@ mod process;
 mod public_source;
 #[path = "ruycast-build/sample_performance.rs"]
 mod sample_performance;
+#[path = "ruycast-build/benchmark_host.rs"]
+mod benchmark_host_driver;
 #[path = "ruycast-build/raycast_cli.rs"]
 mod raycast_cli;
 #[path = "ruycast-build/clipboard_cli.rs"]
@@ -58,7 +60,7 @@ type Result<T> = std::result::Result<T, String>;
 const SCHEMA: &str = "ruycast.rust-development-build.v4";
 const OUTPUT: &str = ".build/full-rust-release";
 static BUILD_EXIT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(1);
-const USAGE: &str = "ruycast-build build|verify --repo ABSOLUTE_REPOSITORY [--configuration debug|release]\nruycast-build version|fingerprint|validation-plan --repo ABSOLUTE_REPOSITORY\nruycast-build stage --repo ABSOLUTE_REPOSITORY --build POSITIVE_NUMBER\nruycast-build verify-candidate --repo ABSOLUTE_REPOSITORY --candidate ABSOLUTE_DIRECTORY\nruycast-build check-native|pure-core-oracle|verify-pure-core-oracle --repo ABSOLUTE_REPOSITORY\nruycast-build gate-inventory --repo ABSOLUTE_REPOSITORY --pipeline check|settings\nruycast-build compat ENTRY --repo ABSOLUTE_REPOSITORY -- [compatibility arguments]";
+const USAGE: &str = "ruycast-build build|verify --repo ABSOLUTE_REPOSITORY [--configuration debug|release]\nruycast-build version|fingerprint|validation-plan --repo ABSOLUTE_REPOSITORY\nruycast-build stage --repo ABSOLUTE_REPOSITORY --build POSITIVE_NUMBER\nruycast-build verify-candidate --repo ABSOLUTE_REPOSITORY --candidate ABSOLUTE_DIRECTORY\nruycast-build check-native|pure-core-oracle|verify-pure-core-oracle --repo ABSOLUTE_REPOSITORY\nruycast-build gate-inventory --repo ABSOLUTE_REPOSITORY --pipeline check|settings\nruycast-build sample-performance --pid PID --probe PATH --out PATH --label LABEL [--seconds 600]\nruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts 30] [--samples 1000] [--active-seconds 600] [--idle-seconds 600]\nruycast-build compat ENTRY --repo ABSOLUTE_REPOSITORY -- [compatibility arguments]";
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -485,6 +487,11 @@ fn verify_under_lease(root: &Path, configuration: &str, lock: &BuildLock) -> Res
 }
 fn run() -> Result<()> {
     let mut args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|value|value=="benchmark-host") {
+        args.remove(0);
+        if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts N] [--samples N] [--active-seconds S] [--idle-seconds S] [--operation-timeout S]");return Ok(());}
+        return benchmark_host_driver::run(args);
+    }
     if args.first().is_some_and(|value| value == "compat") {
         let value = compat::run(args)?;
         if let Some(text) = value.as_str() {

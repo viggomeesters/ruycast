@@ -158,6 +158,7 @@ rust-native/src/activity.rs
 rust-native/src/analytics.rs
 rust-native/src/analytics_dashboard.rs
 rust-native/src/benchmark_host.rs
+rust-native/src/benchmark_host/rpc.rs
 rust-native/src/app_choice.rs
 rust-native/src/applications.rs
 rust-native/src/bin/analytics_probe.rs
@@ -172,6 +173,7 @@ rust-native/src/bin/keyword_probe.rs
 rust-native/src/bin/manager_probe.rs
 rust-native/src/bin/native_snippet_choice_probe.rs
 rust-native/src/bin/ruycast-build.rs
+rust-native/src/bin/ruycast-build/benchmark_host.rs
 rust-native/src/bin/rust_only_policy.rs
 rust-native/src/bin/parity_ast.rs
 rust-native/src/bin/ruycast-build/candidate.rs
