@@ -1966,7 +1966,7 @@ pub fn check(
         {
             return Err("row click stole text editor focus".into());
         }
-        // Prepare a representative scrolling list for visual review.
+        // Return to the empty launcher for the native preview screenshot.
         state.session.borrow_mut().replace_commands(fixture(500));
         state.input.setStringValue(ns_string!(""));
         unsafe {
