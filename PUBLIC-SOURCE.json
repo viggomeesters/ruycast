@@ -700,7 +700,7 @@
     "rust-native/tests/snippet_effects_rust_provider.rs": "1ec22b6f8003f64e066da8a454e7c047cd374f5e62f307a1dc6335a5387ccf07",
     "rust-native/tests/snippet_process.rs": "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0",
     "rust-native/tests/snippet_reference.json": "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746",
-    "rust-native/tests/startup_config_repair.rs": "30ba895db1efbd02e78a8d00d305b91f9d777914aeadb8dece2bbedb3fac7d7f",
+    "rust-native/tests/startup_config_repair.rs": "f353f9e4b36417aa5f9489fe92c50927b33d92cfc173b75cff4fc2aa80cfd7bb",
     "rust-native/tests/startup_process.rs": "922179b5495bd479c70eccece85735bfafaaec0cbd1accc4590ca28a75f98a07",
     "rust-native/tests/supervision_fault_process.rs": "fbde73a99c8239324f9199add4ccf8be5a0f711757448627afd703f7094f721a",
     "rust-native/tests/supervision_framing_process.rs": "fa41696dbe8cad8940617c67de8d5dec40e37df226f8f44a151b4737884db75b",
