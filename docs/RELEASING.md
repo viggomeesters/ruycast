@@ -83,7 +83,7 @@ Complete functional/native/accessibility/F1, safe installation/readback and clea
 
 ### Updating the Rust product version
 
-Change the single `CURRENT` semantic-version literal in `rust/src/product_version.rs`. The Rust build tool checks that source value against the compiled host and CLI; installer and source-export authority use it too. `python3 scripts/product_version.py` dispatches to that Rust authority. Installer-flow tests no longer import its historical Swift-version reader. Product-version compiler/export/refusal tests now execute in Rust under #174.
+Change the single `CURRENT` semantic-version literal in `rust/src/product_version.rs`. The Rust build tool checks that source value against the compiled host and CLI; installer and source-export authority use it too. Run `make version` to read the value through the Rust build tool. Installer-flow tests no longer import the historical Swift-version reader. Product-version compiler/export/refusal tests now execute in Rust under #174.
 
 Update current release examples and the changelog, rebuild the tools, then regenerate and verify the public source snapshot. Build and verify the prepared release pair from that reviewed clean snapshot before running the required local gates. The Cargo package versions and historical release notes are separate from the product version. Keep the frozen Swift reference unchanged.
 

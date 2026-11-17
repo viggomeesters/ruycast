@@ -474,7 +474,7 @@ pub(super) fn run(mut args: Vec<String>) -> Result<serde_json::Value> {
     let root = root.canonicalize().map_err(error)?;
     let tail = args.split_off(5);
     if tail == ["--help"] || tail == ["-h"] {
-        let usage=match entry.as_str(){"package"=>"ruycast-build compat package --repo ABSOLUTE_ROOT -- --out NEW_DIRECTORY --build-number POSITIVE_NUMBER | --verify DIRECTORY","version"=>"product_version.py","prepare-release"=>"prepare_release.py [--recover]","native-check"=>"native-check (complete native matrix; prepared v4 release required)","build-receipt"=>"build_receipt.py build|verify|fingerprint|record|check|settings|performance|verify-check|verify-settings|verify-performance",_=>return Err("Unknown Rust compatibility entrypoint.".into())};
+        let usage=match entry.as_str(){"package"=>"ruycast-build compat package --repo ABSOLUTE_ROOT -- --out NEW_DIRECTORY --build-number POSITIVE_NUMBER | --verify DIRECTORY","version"=>"ruycast-build compat version --repo ABSOLUTE_ROOT","prepare-release"=>"prepare_release.py [--recover]","native-check"=>"native-check (complete native matrix; prepared v4 release required)","build-receipt"=>"build_receipt.py build|verify|fingerprint|record|check|settings|performance|verify-check|verify-settings|verify-performance",_=>return Err("Unknown Rust compatibility entrypoint.".into())};
         return Ok(serde_json::Value::String(usage.into()));
     }
     match entry.as_str() {
@@ -683,7 +683,6 @@ fn main() {{
                 "build-receipt",
                 vec!["verify"],
             ),
-            ("python3", "scripts/product_version.py", "version", vec![]),
             (
                 "python3",
                 "scripts/prepare_release.py",

@@ -482,7 +482,6 @@ scripts/check.sh
 scripts/local_signing.py
 scripts/perf-probe.rs
 scripts/prepare_release.py
-scripts/product_version.py
 rust-native/src/bin/macos_effects_probe.rs
 rust-native/src/bin/private_results_fixture.rs
 rust-native/src/builtin_effects.rs

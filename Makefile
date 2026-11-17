@@ -16,7 +16,7 @@ verify-source:
 verify-build:
 	python3 scripts/build_receipt.py verify
 version:
-	python3 scripts/product_version.py
+	cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat version --repo "$(CURDIR)" --
 check-settings:
 	bash scripts/check-settings.sh
 check-performance:
