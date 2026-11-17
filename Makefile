@@ -24,7 +24,7 @@ version:
 check-settings:
 	bash scripts/check-settings.sh
 check-performance:
-	bash scripts/check-performance.sh $(PERFORMANCE_ARGS)
+	cargo run --quiet --locked --offline --target-dir "$(CURDIR)/.build/delivery-tools" --manifest-path "$(CURDIR)/rust-native/Cargo.toml" --bin ruycast-build -- compat build-receipt --repo "$(CURDIR)" -- performance $(PERFORMANCE_ARGS)
 
 .PHONY: install-preview
 install-preview:

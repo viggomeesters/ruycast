@@ -22,7 +22,7 @@ cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
   compat build-receipt --repo "$PWD" -- verify-performance
 ```
 
-The existing `make check-performance` and `scripts/check-performance.sh` commands are compatibility wrappers around this optional validator. With no arguments they refuse; they do not start a workload or create authority. The wrappers still use shell/Python during the remaining helper migration.
+`make check-performance` invokes the Rust CLI directly. With no arguments it refuses before acquiring a lease, starting a workload or creating authority. `scripts/check-performance.sh` remains a five-line compatibility entry to the same Rust CLI; the deleted locked wrapper had unreachable historical Swift/Python commands after its `exec`.
 
 All paths must be absolute and output must be new. Pins come from independent review, not from self-generating authority from a dataset. Missing complete authority fails closed. Validation binds runner, authority, raw dataset, current build/source inventory and the actual new report before/after. Revalidation checks retained report integrity and recomputes the full comparison in an owned temporary stage.
 
