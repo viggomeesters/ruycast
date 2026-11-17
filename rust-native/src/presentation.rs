@@ -65,12 +65,40 @@ pub fn website_origin(raw: &str) -> Option<String> {
     let port = url.port().map(|p| format!(":{}", p)).unwrap_or_default();
     Some(format!("{scheme}://{host}{port}/"))
 }
-pub fn palette_frame(visible: [f64; 4], clipboard: bool) -> [f64; 4] {
+pub fn palette_size(clipboard: bool, compact: bool) -> (f64, f64) {
+    if clipboard {
+        (1080., 700.)
+    } else if compact {
+        (600., 72.)
+    } else {
+        (760., 490.)
+    }
+}
+pub fn palette_frame(visible: [f64; 4], clipboard: bool, compact: bool) -> [f64; 4] {
     let [x, y, w, h] = visible;
     let inset = (w.min(h) / 12.).clamp(0., 24.);
-    let width = (if clipboard { 1080_f64 } else { 760_f64 }).min((w - 2. * inset).max(1.));
-    let height = (if clipboard { 700_f64 } else { 490_f64 }).min((h - 2. * inset).max(1.));
+    let (base_width, base_height) = palette_size(clipboard, compact);
+    let width = base_width.min((w - 2. * inset).max(1.));
+    let height = base_height.min((h - 2. * inset).max(1.));
     [x + (w - width) / 2., y + (h - height) / 2., width, height]
+}
+pub fn resized_palette_frame(
+    current: [f64; 4],
+    visible: Option<[f64; 4]>,
+    clipboard: bool,
+    compact: bool,
+) -> [f64; 4] {
+    if let Some(visible) = visible {
+        return palette_frame(visible, clipboard, compact);
+    }
+    let [x, y, width, height] = current;
+    let (next_width, next_height) = palette_size(clipboard, compact);
+    [
+        x + (width - next_width) / 2.,
+        y + (height - next_height) / 2.,
+        next_width,
+        next_height,
+    ]
 }
 pub fn kind_label(kind: &str) -> &'static str {
     match kind {
@@ -256,17 +284,41 @@ mod icon_tests {
     #[test]
     fn original_geometry_on_negative_and_small_screens() {
         assert_eq!(
-            palette_frame([0., 0., 1440., 900.], false),
+            palette_frame([0., 0., 1440., 900.], false, false),
             [340., 205., 760., 490.]
         );
         assert_eq!(
-            palette_frame([-1440., -900., 1440., 900.], true),
+            palette_frame([-1440., -900., 1440., 900.], true, false),
             [-1260., -800., 1080., 700.]
         );
         assert_eq!(
-            palette_frame([0., 0., 640., 480.], true),
+            palette_frame([0., 0., 640., 480.], true, false),
             [24., 24., 592., 432.]
         );
-        assert_eq!(palette_frame([0., 0., 1., 1.], false), [0., 0., 1., 1.]);
+        assert_eq!(palette_frame([0., 0., 1., 1.], false, false), [0., 0., 1., 1.]);
+    }
+
+    #[test]
+    fn empty_launcher_uses_a_compact_search_bar_and_expands_for_results() {
+        assert_eq!(
+            palette_frame([0., 0., 1440., 900.], false, true),
+            [420., 414., 600., 72.]
+        );
+        assert_eq!(
+            palette_frame([-1440., -900., 1440., 900.], false, true),
+            [-1020., -486., 600., 72.]
+        );
+        assert_eq!(
+            palette_frame([0., 0., 640., 480.], false, true),
+            [24., 204., 592., 72.]
+        );
+        assert_eq!(
+            resized_palette_frame([24., 204., 592., 72.], Some([0., 0., 640., 480.]), false, false),
+            [24., 24., 592., 432.]
+        );
+        assert_eq!(
+            resized_palette_frame([-20000., -20000., 760., 490.], None, false, true),
+            [-19920., -19791., 600., 72.]
+        );
     }
 }

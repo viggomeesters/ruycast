@@ -272,6 +272,8 @@ pub(crate) struct State {
     result_panel: crate::native_result::ResultPanel,
     session: RefCell<Model>,
     panel: Retained<PalettePanel>,
+    launcher_compact: Cell<bool>,
+    search_bar_visible_frame: Cell<Option<[f64; 4]>>,
     input: Retained<NSTextField>,
     table: Retained<ResultTable>,
     heading: Retained<NSTextField>,
@@ -970,6 +972,8 @@ impl Controller {
             result_panel,
             session: RefCell::new(session),
             panel,
+            launcher_compact: Cell::new(false),
+            search_bar_visible_frame: Cell::new(None),
             input,
             table,
             heading,
@@ -1139,6 +1143,7 @@ impl Controller {
     /// inventory and cursor reads; injected geometry is never window ordering.
     pub(crate) fn layout_for_mode(&self,clipboard:bool,injected:Option<NSRect>) {
         let state=self.ivars();let hidden=!state.panel.ivars().ordering_allowed;
+        let compact=!hidden&&self.should_compact_search_bar();
         let visible=if let Some(frame)=injected{Some(frame)}else if hidden{
             let width=std::env::var("RUYCAST_NATIVE_TEST_WIDTH").ok().and_then(|s|s.parse::<f64>().ok()).filter(|w|(600.0..=1200.0).contains(w));
             Some(rect(-20000.,-20000.,width.map_or(1440.,|w|w+48.),900.))
@@ -1149,15 +1154,61 @@ impl Controller {
             if state.session.borrow().management(){
                 if !hidden{let size=state.panel.frame().size;state.panel.setFrameOrigin(NSPoint::new(frame.origin.x+(frame.size.width-size.width)/2.,frame.origin.y+(frame.size.height-size.height)/2.));}
             }else{
-                let [x,y,w,h]=presentation::palette_frame([frame.origin.x,frame.origin.y,frame.size.width,frame.size.height],clipboard);
+                let [x,y,w,h]=presentation::palette_frame([frame.origin.x,frame.origin.y,frame.size.width,frame.size.height],clipboard,compact);
                 state.panel.setFrame_display(rect(x,y,w,h),false);
+                state.launcher_compact.set(compact);
                 if let Some(content)=state.panel.contentView(){let size=content.bounds().size;state.input.setFrame(rect(24.,size.height-70.,size.width-48.,44.));state.heading.setFrame(rect(24.,size.height-110.,size.width-48.,20.));state.scroll.setFrame(rect(16.,50.,size.width-32.,(size.height-168.).max(1.)));state.footer.setFrame(rect(24.,14.,size.width-48.,22.));state.notice.setFrame(rect(24.,42.,size.width-48.,24.));}
             }
+        }
+    }
+    fn should_compact_search_bar(&self)->bool {
+        let model=self.ivars().session.borrow();
+        let surface=model.surface();
+        model.visible()
+            && !model.management()
+            && model.clipboard().is_none()
+            && model.query().is_empty()
+            && model.message().is_empty()
+            && surface.launcher_scope.is_none()
+            && matches!(surface.system_scope,None|Some(ruycast_native::system_search::Scope::MainTabs))
+            && surface.editor.is_none()
+            && !surface.actions_open
+            && model.script_result().is_none()
+            && model.utility_scope().is_none()
+            && !model.execution_running()
+    }
+    fn set_search_bar_compact(&self,compact:bool) {
+        let state=self.ivars();
+        let frame=state.panel.frame();
+        let center=NSPoint::new(frame.origin.x+frame.size.width/2.,frame.origin.y+frame.size.height/2.);
+        let visible=state.search_bar_visible_frame.get().or_else(||state.panel.ivars().ordering_allowed.then(||{
+            NSScreen::screens(self.mtm()).iter()
+                .find(|screen|objc2_foundation::NSPointInRect(center,screen.frame()))
+                .or_else(||NSScreen::mainScreen(self.mtm()))
+                .map(|screen|screen.visibleFrame())
+        }).flatten().map(|visible|[visible.origin.x,visible.origin.y,visible.size.width,visible.size.height]));
+        let [x,y,width,height]=presentation::resized_palette_frame(
+            [frame.origin.x,frame.origin.y,frame.size.width,frame.size.height],visible,false,compact);
+        state.panel.setFrame_display(rect(x,y,width,height),false);
+        state.launcher_compact.set(compact);
+        if let Some(content)=state.panel.contentView(){
+            let size=content.bounds().size;
+            state.input.setFrame(rect(24.,size.height-70.,size.width-48.,44.));
+            state.heading.setFrame(rect(24.,size.height-110.,size.width-48.,20.));
+            state.scroll.setFrame(rect(16.,50.,size.width-32.,(size.height-168.).max(1.)));
+            state.footer.setFrame(rect(24.,14.,size.width-48.,22.));
+            state.notice.setFrame(rect(24.,42.,size.width-48.,24.));
         }
     }
     fn reconcile(&self) {
         let state = self.ivars();
         state.reconciling.set(true);
+        let compact=self.should_compact_search_bar();
+        if state.session.borrow().visible()
+            && compact!=state.launcher_compact.get()
+        {
+            self.set_search_bar_compact(compact);
+        }
         let show_scroller = {
             let model = state.session.borrow();
             model.management() || model.clipboard().is_some()
@@ -1759,6 +1810,23 @@ pub fn check(
         if !state.panel.makeFirstResponder(Some(&state.input)) {
             return Err("native first responder failed".into());
         }
+        state.search_bar_visible_frame.set(Some([0.,0.,640.,480.]));
+        state.session.borrow_mut().set_visible(true);
+        controller.reconcile();
+        let compact_frame=state.panel.frame();
+        let compact_input=state.input.frame();
+        if compact_frame.size.width>600.
+            || compact_frame.size.height!=72.
+            || compact_input.origin.y<0.
+            || compact_input.origin.y+compact_input.size.height>compact_frame.size.height
+        {
+            return Err(format!("empty launcher search bar does not fit the compact small-screen panel: frame=({},{} {}x{}), input=({},{}), compact={}, visible={}, injected={:?}",compact_frame.origin.x,compact_frame.origin.y,compact_frame.size.width,compact_frame.size.height,compact_input.origin.y,compact_input.size.height,state.launcher_compact.get(),state.session.borrow().visible(),state.search_bar_visible_frame.get()));
+        }
+        let compact_editor=state.input.currentEditor().ok_or("compact search field lost its editor")?;
+        let compact_text=compact_editor.downcast_ref::<NSTextView>().ok_or("unexpected compact field editor")?;
+        if state.panel.firstResponder().as_deref().is_none_or(|r|!std::ptr::eq(r,compact_text as &NSResponder)) {
+            return Err("compacting the launcher changed search focus".into());
+        }
         if state.input.focusRingType() != NSFocusRingType::None
             || state.input.cell().is_none_or(|cell| cell.focusRingType() != NSFocusRingType::None)
         {
@@ -1773,6 +1841,16 @@ pub fn check(
         };
         unsafe {
             let _: () = msg_send![&*controller, controlTextDidChange: &*note];
+        }
+        let expanded_frame=state.panel.frame();
+        if expanded_frame.size.width>760.
+            || expanded_frame.size.height<=compact_frame.size.height
+            || expanded_frame.size.height>490.
+        {
+            return Err("typing did not expand the launcher within the small-screen bounds".into());
+        }
+        if state.panel.firstResponder().as_deref().is_none_or(|r|!std::ptr::eq(r,compact_text as &NSResponder)) {
+            return Err("expanding the launcher changed search focus".into());
         }
         if state.session.borrow().selected().map(|c| c.id) != Some("fixture.42") {
             return Err("native input did not reconcile".into());
@@ -1823,9 +1901,14 @@ pub fn check(
         }
         // Verify real native rows/scrolling and selection notifications, not
         // just the Rust model. No mouse/global key event or desktop focus.
+        state.session.borrow_mut().set_visible(true);
         state.input.setStringValue(ns_string!(""));
         unsafe {
             let _: () = msg_send![&*controller, controlTextDidChange: &*note];
+        }
+        let empty_frame=state.panel.frame();
+        if empty_frame.size.width>600.||empty_frame.size.height!=72. {
+            return Err("clearing the query did not restore the compact search bar".into());
         }
         if state.table.numberOfRows() != 0
             || !state.empty.isHidden()
@@ -1838,6 +1921,13 @@ pub fn check(
         state.input.setStringValue(ns_string!(" "));
         unsafe {
             let _: () = msg_send![&*controller, controlTextDidChange: &*note];
+        }
+        let typed_frame=state.panel.frame();
+        if typed_frame.size.width>760.
+            || typed_frame.size.height<=empty_frame.size.height
+            || typed_frame.size.height>490.
+        {
+            return Err("typing after clearing did not expand the results panel".into());
         }
         if state.table.numberOfRows() != 100 {
             return Err("native result cap mismatch after typing".into());
@@ -1967,6 +2057,7 @@ pub fn check(
             return Err("row click stole text editor focus".into());
         }
         // Return to the empty launcher for the native preview screenshot.
+        state.session.borrow_mut().set_visible(true);
         state.session.borrow_mut().replace_commands(fixture(500));
         state.input.setStringValue(ns_string!(""));
         unsafe {
@@ -1981,7 +2072,12 @@ pub fn check(
         {
             return Err("launcher type labels extend beyond the scrollbar-free viewport".into());
         }
+        let screenshot_frame=state.panel.frame();
+        if screenshot_frame.size.width>600.||screenshot_frame.size.height!=72. {
+            return Err("compact launcher screenshot has the wrong frame".into());
+        }
         snapshot(&controller, output)?;
+        controller.set_search_bar_compact(false);
         let screen_text = screen_text(&controller);
         if state.failed.get() {
             return Err("native callback failed".into());
