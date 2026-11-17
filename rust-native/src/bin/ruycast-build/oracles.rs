@@ -1560,6 +1560,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
+            "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
             "test_script_timeout_and_bounded_output": "runtime_process::legacy_cli_script_timeout_and_bounded_output",
             "test_appearance_preferences_validate_and_persist": "runtime_process::legacy_cli_status_search_reload_and_config_edit",
             "test_second_instance_does_not_replace_socket": "runtime_process::second_instance_refused_and_crashed_socket_recovers",
@@ -1607,6 +1608,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 "legacy_cli_script_timeout_and_bounded_output",
                 "second_instance_refused_and_crashed_socket_recovers"
             ],
+            "clipboard_history_host_process": ["test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file"],
             "script_basic_process": [
                 "timeout_cleans_group",
                 "early_success_closes_inherited_pipes"
@@ -2803,6 +2805,22 @@ mod tests {
         assert!(source.contains("assert_eq!(fs::read(&host.config).unwrap(), appearance_config)"));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
+    }
+    #[test]
+    fn clipboard_import_cli_case_maps_to_live_history_host_case() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        let case = "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file";
+        assert_eq!(mapping["supplementalCurrentMethodByMethod"]["test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates"], case);
+        assert!(mapping["nativeTargets"]["clipboard_history_host_process"].as_array().unwrap()
+            .iter().any(|name| name == "test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file"));
+        let history = include_str!("../../../tests/clipboard_history_host_process.rs");
+        assert!(history.contains("fn test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file()"));
+        assert!(history.contains("assert_eq!(replay[\"result\"][\"deduplicated\"], 2)"));
+        assert!(history.contains("assert_eq!(file[\"fileURLs\"], values[1][\"fileURLs\"]);"));
+        assert!(history.contains("dataFile\":\"../private\""));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("clipboard-history-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_history_host_process --locked"));
     }
     #[test]
     fn script_timeout_output_cli_case_maps_to_owned_rust_cli_process_case() {

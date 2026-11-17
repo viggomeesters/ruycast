@@ -300,6 +300,37 @@ fn test_cli_import_export_search_copy_paste_delete_clear() {
     assert_eq!(h.cli(&["clipboard", "clear"])["result"]["count"], 0);
 }
 
+#[test]
+fn test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
+    let h = host(json!({}));
+    let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+    let values = json!([
+        {"id":"raycast-fixture-text", "text":"test imported text", "date":date, "source":"fixture"},
+        {"id":"raycast-fixture-file", "text":"Files: fixture.txt", "date":date, "source":"fixture", "contentType":"files", "fileURLs":["file:///nonexistent/fixture.txt"]}
+    ]);
+    assert_eq!(h.rpc(&json!({"op":"clipboard.import", "items":values}))["ok"], true);
+    let replay = h.rpc(&json!({"op":"clipboard.import", "items":values}));
+    assert_eq!(replay["ok"], true, "{replay}");
+    assert_eq!(replay["result"]["deduplicated"], 2);
+    let imported_items = h.cli(&["clipboard", "list"])["result"].clone();
+    let file = imported_items
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["id"] == "raycast-fixture-file")
+        .unwrap();
+    assert_eq!(file["fileURLs"], values[1]["fileURLs"]);
+    let history = h.profile.join("clipboard.json");
+    let before = fs::read(&history).unwrap();
+    let unsafe_value = json!([{"id":"raycast-fixture-unsafe", "text":"invalid", "date":date, "source":"fixture", "dataFile":"../private"}]);
+    let refused = h.rpc(&json!({"op":"clipboard.import", "items":unsafe_value}));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert_eq!(fs::read(history).unwrap(), before);
+}
+
 fn settings_probe(h: &Bridge, action: &str, mut fields: Value) -> Value {
     fields["op"] = json!("native.test");
     fields["surface"] = json!("settings");
