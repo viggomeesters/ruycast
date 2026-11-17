@@ -135,6 +135,37 @@ struct Pipeline {
     native_report_sha256: String,
     production_accepted: bool,
 }
+fn verify_pipeline_bindings(
+    receipt: &Pipeline,
+    kind: &str,
+    current_sources: impl FnOnce() -> Result<BTreeMap<String, String>>,
+    current_build_receipt: impl FnOnce() -> Result<String>,
+    current_native_report: impl FnOnce() -> Result<String>,
+) -> Result<()> {
+    if !matches!(kind, "check" | "settings") {
+        return Err("Unknown verification pipeline.".into());
+    }
+    let stale = || {
+        "Verification receipt is invalid or stale; rerun its complete pipeline.".to_owned()
+    };
+    if receipt.schema != "ruycast.verification-receipt.v2"
+        || receipt.pipeline != kind
+        || receipt.status != "passed"
+        || receipt.production_accepted
+    {
+        return Err(stale());
+    }
+    if receipt.sources != current_sources()? {
+        return Err(stale());
+    }
+    if receipt.build_receipt_sha256 != current_build_receipt()? {
+        return Err(stale());
+    }
+    if receipt.native_report_sha256 != current_native_report()? {
+        return Err(stale());
+    }
+    Ok(())
+}
 fn verify_pipeline(root: &Path, kind: &str, lease: &BuildLock) -> Result<serde_json::Value> {
     if !matches!(kind, "check" | "settings") {
         return Err("Unknown verification pipeline.".into());
@@ -143,20 +174,13 @@ fn verify_pipeline(root: &Path, kind: &str, lease: &BuildLock) -> Result<serde_j
     lease.validate()?;
     let path = root.join(".build/receipts").join(format!("{kind}.json"));
     let receipt: Pipeline = serde_json::from_slice(&regular_bytes(&path)?).map_err(error)?;
-    if receipt.schema != "ruycast.verification-receipt.v2"
-        || receipt.pipeline != kind
-        || receipt.status != "passed"
-        || receipt.production_accepted
-        || receipt.sources != verification_sources(root)?
-        || receipt.build_receipt_sha256
-            != digest(&root.join(OUTPUT).join("development-build.json"))?
-        || receipt.native_report_sha256
-            != digest(&root.join("rust-native/target/verification/report.json"))?
-    {
-        return Err(
-            "Verification receipt is invalid or stale; rerun its complete pipeline.".into(),
-        );
-    }
+    verify_pipeline_bindings(
+        &receipt,
+        kind,
+        || verification_sources(root),
+        || digest(&root.join(OUTPUT).join("development-build.json")),
+        || digest(&root.join("rust-native/target/verification/report.json")),
+    )?;
     verify_under_lease(root, "release", lease)?;
     validation::verify(root, lease)?;
     if kind == "check" { root_git_diff(root, lease)?; }
@@ -525,6 +549,35 @@ pub(super) fn run(mut args: Vec<String>) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn pipeline_receipt(kind: &str, sources: BTreeMap<String, String>) -> Pipeline {
+        Pipeline {
+            schema: "ruycast.verification-receipt.v2".into(),
+            pipeline: kind.into(),
+            status: "passed".into(),
+            sources,
+            build_receipt_sha256: "build-receipt".into(),
+            native_report_sha256: "native-report".into(),
+            production_accepted: false,
+        }
+    }
+
+    fn bind_test_values(
+        receipt: &Pipeline,
+        kind: &str,
+        sources: &BTreeMap<String, String>,
+        build_receipt: &str,
+        native_report: &str,
+    ) -> Result<()> {
+        verify_pipeline_bindings(
+            receipt,
+            kind,
+            || Ok(sources.clone()),
+            || Ok(build_receipt.into()),
+            || Ok(native_report.into()),
+        )
+    }
+
     #[test]
     fn build_receipt_record_refuses_source_mutation_without_creating_receipt() {
         let fixture = super::super::tests::Fixture::compiler_pair();
@@ -542,6 +595,156 @@ mod tests {
             "Production inputs changed; cannot record a mixed Rust build."
         );
         assert!(!fixture.0.join(OUTPUT).exists());
+    }
+
+    #[test]
+    fn pipeline_receipt_bindings_accept_check_and_settings_and_reject_field_drift() {
+        let sources = BTreeMap::from([("Tests/hold.rs".into(), "source-hash".into())]);
+        for kind in ["check", "settings"] {
+            let receipt = pipeline_receipt(kind, sources.clone());
+            assert!(bind_test_values(
+                &receipt,
+                kind,
+                &sources,
+                "build-receipt",
+                "native-report"
+            )
+            .is_ok());
+        }
+
+        let stale = "Verification receipt is invalid or stale; rerun its complete pipeline.";
+        let mut receipt = pipeline_receipt("check", sources.clone());
+        receipt.schema = "unknown-schema".into();
+        assert_eq!(
+            bind_test_values(&receipt, "check", &sources, "build-receipt", "native-report")
+                .unwrap_err(),
+            stale
+        );
+
+        let receipt = pipeline_receipt("settings", sources.clone());
+        assert_eq!(
+            bind_test_values(&receipt, "check", &sources, "build-receipt", "native-report")
+                .unwrap_err(),
+            stale
+        );
+        let mut receipt = pipeline_receipt("check", sources.clone());
+        receipt.status = "failed".into();
+        assert_eq!(
+            bind_test_values(&receipt, "check", &sources, "build-receipt", "native-report")
+                .unwrap_err(),
+            stale
+        );
+        let mut receipt = pipeline_receipt("check", sources.clone());
+        receipt.production_accepted = true;
+        assert_eq!(
+            bind_test_values(&receipt, "check", &sources, "build-receipt", "native-report")
+                .unwrap_err(),
+            stale
+        );
+
+        let mut changed_sources = sources.clone();
+        changed_sources.insert("Tests/hold.rs".into(), "changed-hash".into());
+        let receipt = pipeline_receipt("check", sources.clone());
+        assert_eq!(
+            bind_test_values(
+                &receipt,
+                "check",
+                &changed_sources,
+                "build-receipt",
+                "native-report"
+            )
+            .unwrap_err(),
+            stale
+        );
+        assert_eq!(
+            bind_test_values(&receipt, "check", &sources, "changed-build", "native-report")
+                .unwrap_err(),
+            stale
+        );
+        assert_eq!(
+            bind_test_values(&receipt, "check", &sources, "build-receipt", "changed-report")
+                .unwrap_err(),
+            stale
+        );
+        assert_eq!(
+            bind_test_values(
+                &receipt,
+                "unknown",
+                &sources,
+                "build-receipt",
+                "native-report"
+            )
+            .unwrap_err(),
+            "Unknown verification pipeline."
+        );
+
+        let mut value = serde_json::to_value(pipeline_receipt("check", sources)).unwrap();
+        value.as_object_mut().unwrap().remove("schema");
+        assert!(serde_json::from_value::<Pipeline>(value).is_err());
+        let mut value = serde_json::to_value(pipeline_receipt("check", BTreeMap::new())).unwrap();
+        value["unexpected"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<Pipeline>(value).is_err());
+    }
+
+    #[test]
+    fn pipeline_receipt_readback_rejects_live_source_and_artifact_drift() {
+        let fixture = super::super::tests::Fixture::new();
+        for directory in ["Tests", "scripts", "docs", "Sources"] {
+            fs::create_dir_all(fixture.0.join(directory)).unwrap();
+        }
+        for name in ["Package.swift", "README.md", "CONTRIBUTING.md", "Makefile"] {
+            fs::write(fixture.0.join(name), b"owned verification input").unwrap();
+        }
+        let test_source = fixture.0.join("Tests/hold.rs");
+        fs::write(&test_source, b"original test source").unwrap();
+        fs::write(fixture.0.join("scripts/hold.sh"), b"owned script input").unwrap();
+        fs::write(fixture.0.join("docs/README.md"), b"owned documentation input").unwrap();
+        fs::write(fixture.0.join("Sources/hold.rs"), b"owned source input").unwrap();
+        let build_path = fixture.0.join(OUTPUT).join("development-build.json");
+        let report_path = fixture.0.join("rust-native/target/verification/report.json");
+        fs::create_dir_all(build_path.parent().unwrap()).unwrap();
+        fs::create_dir_all(report_path.parent().unwrap()).unwrap();
+        fs::write(&build_path, b"synthetic build-receipt binding").unwrap();
+        fs::write(&report_path, b"synthetic native-report binding").unwrap();
+
+        let receipt = Pipeline {
+            schema: "ruycast.verification-receipt.v2".into(),
+            pipeline: "check".into(),
+            status: "passed".into(),
+            sources: verification_sources(&fixture.0).unwrap(),
+            build_receipt_sha256: digest(&build_path).unwrap(),
+            native_report_sha256: digest(&report_path).unwrap(),
+            production_accepted: false,
+        };
+        let verify_live = |receipt: &Pipeline| {
+            verify_pipeline_bindings(
+                receipt,
+                "check",
+                || verification_sources(&fixture.0),
+                || digest(&build_path),
+                || digest(&report_path),
+            )
+        };
+        let stale = "Verification receipt is invalid or stale; rerun its complete pipeline.";
+        assert!(verify_live(&receipt).is_ok());
+
+        fs::write(&test_source, b"changed test source").unwrap();
+        assert_eq!(verify_live(&receipt).unwrap_err(), stale);
+        fs::write(&test_source, b"original test source").unwrap();
+
+        let added_source = fixture.0.join("docs/vision.json");
+        fs::write(&added_source, b"{}\n").unwrap();
+        assert_eq!(verify_live(&receipt).unwrap_err(), stale);
+        fs::remove_file(&added_source).unwrap();
+
+        fs::write(&build_path, b"changed synthetic build-receipt binding").unwrap();
+        assert_eq!(verify_live(&receipt).unwrap_err(), stale);
+        fs::write(&build_path, b"synthetic build-receipt binding").unwrap();
+
+        fs::write(&report_path, b"changed synthetic native-report binding").unwrap();
+        assert_eq!(verify_live(&receipt).unwrap_err(), stale);
+        fs::write(&report_path, b"synthetic native-report binding").unwrap();
+        assert!(verify_live(&receipt).is_ok());
     }
 
     #[test]
