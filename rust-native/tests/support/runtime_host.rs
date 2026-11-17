@@ -455,3 +455,10 @@ pub fn run(command: &mut Command, timeout: Duration) -> Output {
         .unwrap();
     child_output::wait(child, timeout)
 }
+pub fn run_result(command: &mut Command, timeout: Duration) -> io::Result<Output> {
+    let child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    child_output::try_wait_with_limit(child, timeout, 1024 * 1024)
+}

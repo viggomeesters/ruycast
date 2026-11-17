@@ -4,7 +4,10 @@ pub fn wait(child: Child, timeout: Duration) -> Output {
     wait_with_limit(child, timeout, 1024 * 1024)
 }
 /// An explicit bound for genuine large-output fixtures; ordinary callers keep 1 MiB.
-pub fn wait_with_limit(mut child: Child, timeout: Duration, maximum_bytes: usize) -> Output {
+pub fn wait_with_limit(child: Child, timeout: Duration, maximum_bytes: usize) -> Output {
+    try_wait_with_limit(child, timeout, maximum_bytes).expect("bounded owned CLI capture")
+}
+pub fn try_wait_with_limit(mut child: Child, timeout: Duration, maximum_bytes: usize) -> std::io::Result<Output> {
     use std::io::{Error, ErrorKind, Read};
     use std::os::fd::AsRawFd;
     let until = Instant::now() + timeout;
@@ -58,5 +61,5 @@ pub fn wait_with_limit(mut child: Child, timeout: Duration, maximum_bytes: usize
         if matches!(child.try_wait(), Ok(None)) { let _ = child.kill(); }
         let _ = child.wait();
     }
-    result.expect("bounded owned CLI capture")
+    result
 }
