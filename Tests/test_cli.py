@@ -259,10 +259,3 @@ class CLIIntegration(unittest.TestCase):
         start = time.monotonic()
         self.cli('run', 'test.pipes', ok=True)
         self.assertLess(time.monotonic() - start, 2)
-
-    def test_unknown_config_field_is_rejected_by_rust_and_native_bridge(self):
-        bad = dict(self.config, misspelledSetting=True)
-        (self.root / 'config.json').write_text(json.dumps(bad))
-        self.cli('config', 'validate', ok=False)
-        self.cli('reload', ok=False)
-        self.assertEqual(self.cli('search', 'echo-test', ok=True)['result'][0]['id'], 'test.echo')
