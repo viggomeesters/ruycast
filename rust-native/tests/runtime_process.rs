@@ -1,4 +1,4 @@
-//! Fifteen original headless runtime cases on exclusive profiles and Unix sockets.
+//! Sixteen original headless runtime cases on exclusive profiles and Unix sockets.
 #![cfg(feature = "test-tools")]
 #[path = "support/runtime_host.rs"]
 mod runtime_host;
@@ -266,7 +266,7 @@ fn runtime_receipt(settings: &Config) {
         let (path, digest) = runtime_host::bind_artifact(path, name);
         artifacts.insert(path, digest);
     }
-    fs::write(PathBuf::from(directory).join("runtime-reference-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"methods":15,"hostArguments":["--headless-test"],"scope":"Exclusive synthetic profiles, empty own Applications root, actual Rust CLI and optional same-profile Rust writer provider; no native-hidden, desktop input or applied app actions"})).unwrap()).unwrap();
+    fs::write(PathBuf::from(directory).join("runtime-reference-bindings.json"),serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":artifacts,"methods":16,"hostArguments":["--headless-test"],"scope":"Exclusive synthetic profiles, empty own Applications root, actual Rust CLI and optional same-profile Rust writer provider; no native-hidden, desktop input or applied app actions"})).unwrap()).unwrap();
 }
 fn host(start: bool) -> Host {
     Host::new(settings(), start)
@@ -795,6 +795,42 @@ fn legacy_cli_status_search_reload_and_config_edit() {
         assert_eq!(status["result"]["profile"], host.profile.to_string_lossy().as_ref());
     }
     assert!(!unused_legacy.exists());
+}
+#[test]
+fn legacy_cli_script_timeout_and_bounded_output() {
+    let mut host = host(false);
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().extend([
+        json!({
+            "id": "test.timeout",
+            "title": "Test timeout",
+            "kind": "script",
+            "target": "/bin/sleep",
+            "arguments": ["3"],
+            "timeout": 0.1
+        }),
+        json!({
+            "id": "test.output",
+            "title": "Test large output",
+            "kind": "script",
+            "target": "/usr/bin/head",
+            "arguments": ["-c", "200000", "/dev/zero"]
+        }),
+    ]);
+    host.replace(&config, None);
+    host.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(8));
+
+    let started = Instant::now();
+    let output = host.cli_output(&["run", "test.timeout"]);
+    assert_eq!(output.status.code(), Some(1));
+    let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(response["ok"], false);
+    assert!(response["error"].as_str().unwrap().contains("timed out"));
+    assert!(started.elapsed() < Duration::from_secs(2));
+
+    let output = host.cli(&["run", "test.output"]);
+    assert_eq!(output["ok"], true);
+    assert_eq!(output["result"]["stdout"].as_str().unwrap().len(), 65536);
 }
 #[test]
 fn raw_nullable_or_invalid_command_arrays_preserve_last_good() {
