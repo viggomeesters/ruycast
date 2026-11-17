@@ -4,7 +4,7 @@ mod child_output;
 use serde_json::{json, Value};
 use std::{
     fs,
-    os::unix::fs::DirBuilderExt,
+    os::unix::fs::{DirBuilderExt, PermissionsExt},
     path::PathBuf,
     process::{Command, Output, Stdio},
     sync::atomic::{AtomicU64, Ordering},
@@ -87,6 +87,95 @@ fn bounded_value(command: &mut Command, ok: bool) -> Value {
     );
     assert_eq!(output.status.code(), Some(if ok { 0 } else { 1 }));
     value(output, ok)
+}
+fn bounded_output(command: &mut Command) -> Output {
+    child_output::wait(
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+        Duration::from_secs(4),
+    )
+}
+fn checked_chmod(arguments: &[&str], path: &PathBuf) {
+    let output = bounded_output(Command::new("/bin/chmod").args(arguments).arg(path));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+fn acl_rows(path: &PathBuf) -> Vec<String> {
+    let output = bounded_output(Command::new("/bin/ls").args(["-lde"]).arg(path));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .skip(1)
+        .map(str::to_owned)
+        .collect()
+}
+fn entry_names(path: &PathBuf) -> Vec<String> {
+    let mut names = fs::read_dir(path)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+fn cli_private_acl_fixture(edit: bool) {
+    let f = Fixture::new();
+    let portable = f.base.join("portable");
+    fs::DirBuilder::new().mode(0o755).create(&portable).unwrap();
+    fs::set_permissions(&portable, fs::Permissions::from_mode(0o755)).unwrap();
+    checked_chmod(
+        &[
+            "+a",
+            "everyone allow read,execute,readattr,readextattr,readsecurity,file_inherit,directory_inherit",
+        ],
+        &portable,
+    );
+    let parent_acl = acl_rows(&portable);
+    assert!(
+        !parent_acl.is_empty(),
+        "fixture must establish inherited ACLs"
+    );
+    let target = portable.join("config.json");
+    let mut command = f.command(false);
+    command.env("RUYCAST_CONFIG_DIR", &portable);
+    if edit {
+        fs::write(&target, include_bytes!("../../config/default.json")).unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+        checked_chmod(&["-N"], &target);
+        command.args(["config", "set", "clipboard.limit", "51"]);
+    } else {
+        command.args(["config", "init"]);
+    }
+    bounded_value(&mut command, true);
+    assert_eq!(
+        fs::metadata(&target).unwrap().permissions().mode() & 0o7777,
+        0o600
+    );
+    assert!(
+        acl_rows(&target).is_empty(),
+        "published config must have no ACL"
+    );
+    assert_eq!(
+        fs::metadata(&portable).unwrap().permissions().mode() & 0o7777,
+        0o755
+    );
+    assert_eq!(acl_rows(&portable), parent_acl);
+    if edit {
+        let value: Value = serde_json::from_slice(&fs::read(&target).unwrap()).unwrap();
+        assert_eq!(value["clipboard"]["limit"], 51);
+    }
+    assert_eq!(entry_names(&portable), ["config.json"]);
 }
 #[test]
 fn clipboard_text_import_is_read_only_private_and_fail_closed() {
@@ -342,6 +431,16 @@ fn raycast_import_defaults_to_active_cli_config() {
     assert_eq!(fs::read(f.root.join("config.json")).unwrap(), original);
     assert_eq!(fs::read(custom.join("config.json")).unwrap(), selected);
     assert_eq!(fs::read(export).unwrap(), data);
+}
+
+#[test]
+fn cli_init_with_inherited_read_acl_publishes_private_config() {
+    cli_private_acl_fixture(false);
+}
+
+#[test]
+fn cli_edit_with_inherited_read_acl_keeps_parent_and_publishes_private_config() {
+    cli_private_acl_fixture(true);
 }
 #[test]
 fn both_profile_and_config_aliases_select_the_same_owned_write_target() {
