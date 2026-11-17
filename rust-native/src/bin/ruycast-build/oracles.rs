@@ -1528,7 +1528,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     let python_modules = if kind == "check" {
         vec![
             "Tests/test_build_pipeline.py",
-            "Tests/test_cli.py",
             "Tests/test_local_signing.py",
             "Tests/test_bindings_v2.py",
             "Tests/test_personal_bridge.py",
@@ -1621,7 +1620,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 "cli_clipboard_controls_keep_private_files_and_reject_headless_ui"
             ]
         });
-        inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(true);
+        inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(false);
+        inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonCases"] = serde_json::json!(0);
         inventory["rustRootTestCrosswalk"]["Tests/test_architecture.py"] = serde_json::json!({
             "scope": "The three architecture checks now run in a Rust test target; frozen Swift references are only read as compatibility inputs and Rust worker ownership is compiler-checked.",
             "originalMethods": [
@@ -2427,7 +2427,7 @@ mod tests {
         assert_eq!(mapping["originalMethods"].as_array().unwrap().len(), 7);
         assert_eq!(mapping["nativeCases"].as_array().unwrap().len(), 4);
         assert_eq!(mapping["remainingPythonCases"], 0);
-        assert!(value["pythonModuleInventory"]
+        assert!(!value["pythonModuleInventory"]
             .as_array()
             .unwrap()
             .iter()
@@ -2927,6 +2927,35 @@ mod tests {
         assert!(runtime.contains("descendant survived"));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("script-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked"));
+    }
+    #[test]
+    fn cli_python_module_is_retired_after_all_cases_map_to_rust() {
+        let value = inventory("check").unwrap();
+        assert!(!value["pythonModuleInventory"]
+            .as_array().unwrap().iter()
+            .any(|path| path == "Tests/test_cli.py"));
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert_eq!(mapping["remainingPythonModule"], false);
+        assert_eq!(mapping["remainingPythonCases"], 0);
+        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 20);
+        let supplemental = mapping["supplementalCurrentMethodByMethod"].as_object().unwrap();
+        assert_eq!(supplemental.len(), 8);
+        for method in [
+            "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates",
+            "test_appearance_preferences_validate_and_persist",
+            "test_launcher_management_commands_and_settings_hotkey",
+            "test_clipboard_control_private_permissions_and_no_ui",
+            "test_existing_quick_note_provider_in_fixture_vault",
+        ] {
+            assert!(supplemental.contains_key(method), "missing Rust mapping for {method}");
+        }
+        let quick_note = include_str!("../../../tests/runtime_process.rs");
+        assert!(quick_note.contains("#[ignore = \"Requires configured Quick Note provider fixture\"]"));
+        assert!(quick_note.contains("fn existing_quick_note_provider_writes_only_into_its_owned_fixture_vault()"));
+        let validation = include_str!("validation.rs");
+        assert!(!validation.contains("\"Tests/test_cli.py\""));
+        let source_policy = include_str!("../ruycast-source/policy.rs");
+        assert!(!source_policy.lines().any(|line| line == "Tests/test_cli.py"));
     }
     #[test]
     fn retired_architecture_python_cases_map_to_rust_policy_tests() {
