@@ -26,11 +26,11 @@ The repository is not yet entirely Rust: historical Swift sources, Python tools 
 
 Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Python 3.10+ is needed only for compatibility entrypoints and unchanged test validators; Swift is needed for explicit historical parity oracles, not the production build. Dependencies must already be cached for the offline build:
 
-Run these existing compatibility entrypoints from the reviewed checkout or source snapshot. They still use shell and Python to reach the Rust build tools:
+Run these existing compatibility entrypoints from the reviewed checkout or source snapshot. The build and receipt routes use shell and Cargo to reach the Rust build tools:
 
 ```sh
 bash scripts/build-native.sh -c release
-python3 scripts/build_receipt.py verify
+cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify
 ```
 
 These commands build and verify the Rust pair under `.build/full-rust-release`. They do not install, sign or publish it. Follow the [installation procedure](docs/INSTALLATION.md) when the candidate is accepted for your intended use.
@@ -75,7 +75,7 @@ make disk-status
 make clean-build-caches
 make check
 bash scripts/check-settings.sh
-python3 scripts/build_receipt.py verify-check
+cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify-check
 ```
 
 `make disk-status` reports available bytes and the current headroom estimate for each producer. `make clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. The remaining commands are compatibility entrypoints, not a completed Rust-only test suite. The native matrix still uses Python validators, and the full `check` entrypoint refuses its unmapped Python-discovery gate. The `settings` pipeline also requires its bound native validation artifacts.

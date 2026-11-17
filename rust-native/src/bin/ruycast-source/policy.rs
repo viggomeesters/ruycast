@@ -477,7 +477,6 @@ rust/src/product_version.rs
 rust/src/script.rs
 scripts/build-native-locked.sh
 scripts/build-native.sh
-scripts/build_receipt.py
 scripts/check-locked.sh
 scripts/check-performance-locked.sh
 scripts/check-performance.sh

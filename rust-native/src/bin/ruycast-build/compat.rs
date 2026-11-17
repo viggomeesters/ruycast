@@ -284,7 +284,7 @@ fn build_receipt(root: &Path, mut args: Vec<String>) -> Result<serde_json::Value
     }
     let action = args.remove(0);
     if matches!(action.as_str(), "--help" | "-h") || args == ["--help"] || args == ["-h"] {
-        return Ok(serde_json::Value::String("build_receipt.py build [--configuration debug|release]\nbuild_receipt.py fingerprint|record --before SHA|verify\nbuild_receipt.py check|settings|verify-check|verify-settings\nbuild_receipt.py performance --runner PATH --runner-sha SHA --authority PATH --authority-sha SHA --dataset PATH --out NEW_REPORT\nbuild_receipt.py verify-performance".into()));
+        return Ok(serde_json::Value::String("ruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- build [--configuration debug|release]\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- fingerprint|record --before SHA|verify\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- check|settings|verify-check|verify-settings\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- performance --runner PATH --runner-sha SHA --authority PATH --authority-sha SHA --dataset PATH --out NEW_REPORT\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- verify-performance".into()));
     }
     match action.as_str() {
         "build" => {
@@ -532,7 +532,7 @@ pub(super) fn run(mut args: Vec<String>) -> Result<serde_json::Value> {
     let root = root.canonicalize().map_err(error)?;
     let tail = args.split_off(5);
     if tail == ["--help"] || tail == ["-h"] {
-        let usage=match entry.as_str(){"package"=>"ruycast-build compat package --repo ABSOLUTE_ROOT -- --out NEW_DIRECTORY --build-number POSITIVE_NUMBER | --verify DIRECTORY","version"=>"ruycast-build compat version --repo ABSOLUTE_ROOT","prepare-release"=>"prepare_release.py [--recover]","native-check"=>"native-check (complete native matrix; prepared v4 release required)","build-receipt"=>"build_receipt.py build|verify|fingerprint|record|check|settings|performance|verify-check|verify-settings|verify-performance",_=>return Err("Unknown Rust compatibility entrypoint.".into())};
+        let usage=match entry.as_str(){"package"=>"ruycast-build compat package --repo ABSOLUTE_ROOT -- --out NEW_DIRECTORY --build-number POSITIVE_NUMBER | --verify DIRECTORY","version"=>"ruycast-build compat version --repo ABSOLUTE_ROOT","prepare-release"=>"prepare_release.py [--recover]","native-check"=>"native-check (complete native matrix; prepared v4 release required)","build-receipt"=>"ruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- build|verify|fingerprint|record|check|settings|performance|verify-check|verify-settings|verify-performance",_=>return Err("Unknown Rust compatibility entrypoint.".into())};
         return Ok(serde_json::Value::String(usage.into()));
     }
     match entry.as_str() {
@@ -1032,13 +1032,12 @@ fn main() {{
         .unwrap();
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let record = directory.join("arguments");
+        // Build/check facades must run without any Python interpreter in PATH.
+        // The recorder itself executes no child; only dirname and the
+        // locked wrappers' nested bash are available before Cargo.
+        std::os::unix::fs::symlink("/usr/bin/dirname", directory.join("dirname")).unwrap();
+        std::os::unix::fs::symlink("/bin/bash", directory.join("bash")).unwrap();
         for (interpreter, script, entry, tail) in [
-            (
-                "python3",
-                "scripts/build_receipt.py",
-                "build-receipt",
-                vec!["verify"],
-            ),
             (
                 "python3",
                 "scripts/prepare_release.py",
@@ -1069,13 +1068,15 @@ fn main() {{
                 vec![],
             ),
         ] {
-            let mut command = Command::new(interpreter);
+            let shell_route = interpreter == "bash";
+            let mut command = Command::new(if shell_route { "/bin/bash" } else { interpreter });
             command
                 .arg(root.join(script))
                 .args(&tail)
                 .env(
                     "PATH",
-                    format!("{}:{}", directory.display(), std::env::var("PATH").unwrap()),
+                    if shell_route { directory.display().to_string() }
+                    else { format!("{}:{}", directory.display(), std::env::var("PATH").unwrap()) },
                 )
                 .env("RUYCAST_OWNED_DISPATCH_RECORD", &record)
                 .env("PYTHONDONTWRITEBYTECODE", "1");
@@ -1131,6 +1132,7 @@ fn main() {{
             expected.extend(tail);
             assert_eq!(&forwarded[16..], expected);
         }
+        assert!(!root.join("scripts/build_receipt.py").exists());
         // The local-signing facade takes its real Cargo fallback, never an
         // installed/overridden tool; the same owned Rust recorder exits first.
         let script = "scripts/local_signing.py";

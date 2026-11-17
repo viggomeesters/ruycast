@@ -18,7 +18,7 @@ clean-build-caches:
 
 .PHONY: verify-build version check-settings check-performance
 verify-build:
-	python3 scripts/build_receipt.py verify
+	cargo run --quiet --locked --offline --target-dir "$(CURDIR)/.build/delivery-tools" --manifest-path "$(CURDIR)/rust-native/Cargo.toml" --bin ruycast-build -- compat build-receipt --repo "$(CURDIR)" -- verify
 version:
 	cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat version --repo "$(CURDIR)" --
 check-settings:
