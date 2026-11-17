@@ -91,6 +91,123 @@ fn current_rfc3339() -> String {
         parts.tm_sec
     )
 }
+fn benchmark_probe(probe: &Path, pid: u32, timeout: Duration) -> Result<Value, String> {
+    let output = runtime_host::run_result(
+        Command::new(probe).arg(pid.to_string()),
+        timeout,
+    )
+    .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(format!(
+            "Probe exited {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let value: Value = serde_json::from_slice(&output.stdout).map_err(|error| error.to_string())?;
+    if !value.is_object() {
+        return Err("Probe response is not a JSON object".into());
+    }
+    for key in [
+        "cpuNS",
+        "packageIdleWakeups",
+        "interruptWakeups",
+        "footprintBytes",
+        "diskReadBytes",
+        "diskWriteBytes",
+        "logicalWriteBytes",
+    ] {
+        if value[key].as_u64().is_none() {
+            return Err(format!("Probe response has no unsigned {key} counter"));
+        }
+    }
+    Ok(value)
+}
+fn benchmark_observe<F>(
+    h: &runtime_host::Host,
+    probe: &Path,
+    duration: Duration,
+    active: bool,
+    mut request: F,
+) -> Value
+where
+    F: FnMut(Value) -> Result<Value, String>,
+{
+    let pid = h.process.as_ref().unwrap().id();
+    let mut requests = 0_u64;
+    let fail = |error: String, requests: u64, samples: Vec<Value>| {
+        json!({"requestedDurationS":duration.as_secs_f64(),"samples":samples,"requests":requests,"complete":false,"error":error})
+    };
+    let mut first = match benchmark_probe(probe, pid, Duration::from_secs(5)) {
+        Ok(row) => row,
+        Err(error) => return fail(error, requests, Vec::new()),
+    };
+    first["elapsedS"] = json!(0.0);
+    let mut samples = vec![first];
+    let started = Instant::now();
+    let mut last_sample = started;
+    let mut last_monitor = started;
+    while started.elapsed() < duration {
+        if active {
+            let index = requests % 100;
+            for call in [
+                json!({"op":"search","query":format!("Project {index}")}),
+                json!({"op":"clipboard.list","query":format!("Fixture {index}")}),
+            ] {
+                match request(call) {
+                    Ok(value) if value["ok"] == true => requests += 1,
+                    Ok(value) => return fail(format!("RPC refused: {value}"), requests, samples),
+                    Err(error) => return fail(error, requests, samples),
+                }
+            }
+            if last_monitor.elapsed() >= Duration::from_secs(2) {
+                match request(json!({"op":"monitor"})) {
+                    Ok(value) if value["ok"] == true => requests += 1,
+                    Ok(value) => return fail(format!("Monitor refused: {value}"), requests, samples),
+                    Err(error) => return fail(error, requests, samples),
+                }
+                last_monitor = Instant::now();
+            }
+        }
+        thread::sleep(
+            Duration::from_millis(100)
+                .min(duration.saturating_sub(started.elapsed()).max(Duration::from_millis(1))),
+        );
+        if last_sample.elapsed() >= Duration::from_secs(5) {
+            let mut row = match benchmark_probe(probe, pid, Duration::from_secs(5)) {
+                Ok(row) => row,
+                Err(error) => return fail(error, requests, samples),
+            };
+            row["elapsedS"] = json!(started.elapsed().as_secs_f64());
+            samples.push(row);
+            last_sample = Instant::now();
+        }
+    }
+    let mut final_row = match benchmark_probe(probe, pid, Duration::from_secs(5)) {
+        Ok(row) => row,
+        Err(error) => return fail(error, requests, samples),
+    };
+    final_row["elapsedS"] = json!(started.elapsed().as_secs_f64());
+    samples.push(final_row);
+    let first = &samples[0];
+    let last = samples.last().unwrap();
+    let seconds = last["elapsedS"].as_f64().unwrap() - first["elapsedS"].as_f64().unwrap();
+    let delta = |key: &str| {
+        (last[key].as_u64().unwrap() as i128 - first[key].as_u64().unwrap() as i128) as f64
+    };
+    json!({
+        "requestedDurationS":duration.as_secs_f64(), "durationS":seconds, "samples":samples,
+        "requests":requests, "complete":true,
+        "cpuPercentOneCore":100.0*delta("cpuNS")/1e9/seconds,
+        "packageIdleWakeupsPerSecond":delta("packageIdleWakeups")/seconds,
+        "interruptWakeupsPerSecond":delta("interruptWakeups")/seconds,
+        "footprintStartMiB":first["footprintBytes"].as_f64().unwrap()/1048576.0,
+        "footprintEndMiB":last["footprintBytes"].as_f64().unwrap()/1048576.0,
+        "footprintMaxMiB":samples.iter().map(|row|row["footprintBytes"].as_f64().unwrap()).fold(0.0_f64,f64::max)/1048576.0,
+        "diskReadBytes":delta("diskReadBytes"), "diskWriteBytes":delta("diskWriteBytes"),
+        "logicalWriteBytes":delta("logicalWriteBytes")
+    })
+}
 fn settings() -> Config {
     let settings = Config::current();
     runtime_receipt(&settings);
@@ -239,6 +356,99 @@ fn benchmark_cli_mutation_is_refused_and_host_still_quits_gracefully() {
     changed.flush().unwrap();
     let refusal = verify_artifact_hashes(&artifacts, &expected).unwrap_err();
     assert!(refusal.contains("Binary changed during measurement"));
+
+    let exit = h.stop(true).unwrap();
+    assert!(exit.status.success(), "{}", String::from_utf8_lossy(&exit.stderr));
+}
+
+#[test]
+fn benchmark_active_idle_windows_use_probe_deltas_and_keep_partial_requests() {
+    let mut h = host(false);
+    prepare_benchmark_fixture(&h);
+    let probe = PathBuf::from(env!("CARGO_BIN_EXE_perf-probe"));
+    h.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(8));
+    let mut operations = Vec::new();
+    let active = benchmark_observe(&h, &probe, Duration::from_millis(2200), true, |request| {
+        operations.push(request["op"].as_str().unwrap().to_owned());
+        let reply = runtime_host::status_rpc::request(
+            &h.socket(),
+            &request,
+            Instant::now() + Duration::from_secs(2),
+        )
+        .map_err(|error| error.to_string())?;
+        if reply["ok"] == true { Ok(reply) } else { Err(reply.to_string()) }
+    });
+    assert_eq!(active["complete"], true);
+    assert!(active["requests"].as_u64().unwrap() >= 3, "{active}");
+    assert!(operations.contains(&"search".into()));
+    assert!(operations.contains(&"clipboard.list".into()));
+    assert!(operations.contains(&"monitor".into()));
+    assert_eq!(active["samples"].as_array().unwrap().len(), 2);
+    for key in ["cpuPercentOneCore", "packageIdleWakeupsPerSecond", "interruptWakeupsPerSecond", "footprintMaxMiB", "diskReadBytes", "diskWriteBytes", "logicalWriteBytes"] {
+        assert!(active[key].as_f64().unwrap().is_finite(), "{key}: {active}");
+    }
+
+    let idle = benchmark_observe(&h, &probe, Duration::from_millis(150), false, |_| unreachable!());
+    assert_eq!(idle["complete"], true);
+    assert_eq!(idle["requests"], 0);
+    assert_eq!(idle["samples"].as_array().unwrap().len(), 2);
+
+    let mut completed_requests = 0;
+    let partial = benchmark_observe(&h, &probe, Duration::from_secs(1), true, |_| {
+        completed_requests += 1;
+        if completed_requests == 1 { Ok(json!({"ok":true})) } else { Err("bounded RPC timed out".into()) }
+    });
+    assert_eq!(partial["complete"], false);
+    assert_eq!(partial["requests"], 1);
+    assert_eq!(partial["samples"].as_array().unwrap().len(), 1);
+    assert_eq!(partial["error"], "bounded RPC timed out");
+
+    let exit = h.stop(true).unwrap();
+    assert!(exit.status.success(), "{}", String::from_utf8_lossy(&exit.stderr));
+}
+
+#[test]
+fn benchmark_probe_failure_keeps_prior_samples_and_completed_requests() {
+    let timeout = benchmark_probe(Path::new("/bin/sleep"), 10, Duration::from_millis(50))
+        .unwrap_err();
+    assert!(timeout.contains("timeout"), "{timeout}");
+    let malformed = benchmark_probe(Path::new("/bin/echo"), 10, Duration::from_secs(1))
+        .unwrap_err();
+    assert!(malformed.contains("Probe response is not a JSON object"));
+
+    let mut h = host(false);
+    prepare_benchmark_fixture(&h);
+    let probe = h.base.join("owned-probe");
+    fs::copy(env!("CARGO_BIN_EXE_perf-probe"), &probe).unwrap();
+    fs::set_permissions(&probe, fs::Permissions::from_mode(0o700)).unwrap();
+    h.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(8));
+
+    let (replace_started, replacement_ready) = mpsc::channel();
+    let replacement = probe.clone();
+    let replace = thread::spawn(move || {
+        replacement_ready.recv_timeout(Duration::from_secs(3)).unwrap();
+        fs::remove_file(&replacement).unwrap();
+        symlink("/bin/echo", &replacement).unwrap();
+    });
+    let mut signaled = false;
+    let partial = benchmark_observe(&h, &probe, Duration::from_secs(7), true, |request| {
+        if !signaled {
+            replace_started.send(()).unwrap();
+            signaled = true;
+        }
+        let reply = runtime_host::status_rpc::request(
+            &h.socket(),
+            &request,
+            Instant::now() + Duration::from_secs(2),
+        )
+        .map_err(|error| error.to_string())?;
+        if reply["ok"] == true { Ok(reply) } else { Err(reply.to_string()) }
+    });
+    replace.join().unwrap();
+    assert_eq!(partial["complete"], false);
+    assert!(partial["requests"].as_u64().unwrap() > 0);
+    assert_eq!(partial["samples"].as_array().unwrap().len(), 1);
+    assert!(partial["error"].as_str().unwrap().contains("Probe response"), "{partial}");
 
     let exit = h.stop(true).unwrap();
     assert!(exit.status.success(), "{}", String::from_utf8_lossy(&exit.stderr));
