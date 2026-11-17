@@ -1070,8 +1070,7 @@ fn main() {{
                     if shell_route { directory.display().to_string() }
                     else { format!("{}:{}", directory.display(), std::env::var("PATH").unwrap()) },
                 )
-                .env("RUYCAST_OWNED_DISPATCH_RECORD", &record)
-                .env("PYTHONDONTWRITEBYTECODE", "1");
+                .env("RUYCAST_OWNED_DISPATCH_RECORD", &record);
             let result =
                 process::capture(command, std::time::Duration::from_secs(10), 65536).unwrap();
             assert_eq!(

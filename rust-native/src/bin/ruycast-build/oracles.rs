@@ -1501,7 +1501,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     }
 }
 fn root_git_mapping_state(source: &[u8]) -> &'static str {
-    if format!("{:x}", Sha256::digest(source)) == "6061774c37bea54d0a010d44af31b42e4c22eb44789556362a42113418de8796" {
+    if format!("{:x}", Sha256::digest(source)) == "f0e0b5f6d34acde1e8d0d551034f5ba8b42dbc5797d7a8a169bb334105de9da9" {
         "source-qualified-root-bound-whitespace-check"
     } else {
         "requires-source-requalification"
