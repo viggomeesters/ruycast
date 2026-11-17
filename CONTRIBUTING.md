@@ -12,7 +12,7 @@ make disk-status
 
 The full Swift-comparison/F1 campaign ended on 10 November 2026 and is not a contribution or release gate. The focused Rust measurements in [Performance](docs/PERFORMANCE.md) do not substitute for functional tests or physical desktop acceptance. Use an explicitly isolated `RUYCAST_HOME` profile for experiments. Build output lives in `.build`; runtime profiles and personal data do not belong in Git.
 
-Builds, validation, packaging and installation share `.build/artifacts.lock` through the final synchronous consumer. Nested Rust tools inherit a descriptor plus checked root/device/inode/owner metadata. Concurrent entrypoints wait; a controller crash does not release a live child's lease. Never unlink the lock file. The old `build-native-locked.sh` name is a compatibility dispatch to the same Rust lease, not a separate build recipe.
+Builds, validation, packaging and installation share `.build/artifacts.lock` through the final synchronous consumer. Nested Rust tools inherit a descriptor plus checked root/device/inode/owner metadata. Concurrent entrypoints wait; a controller crash does not release a live child's lease. Never unlink the lock file. Invoke the locked native build directly with `cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$(pwd -P)" -- build`; add `--configuration release` after `build` when needed.
 
 ## Build artifact cleanup
 

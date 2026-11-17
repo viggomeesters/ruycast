@@ -113,6 +113,7 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
         assert!(exported_names.contains(name), "missing {name}");
     }
     for name in [
+        "scripts/build-native-locked.sh",
         "scripts/local_signing.py",
         "scripts/prepare_release.py",
         "Tests/test_local_signing.py",

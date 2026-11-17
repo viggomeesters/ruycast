@@ -1033,6 +1033,7 @@ fn main() {{
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let record = directory.join("arguments");
         assert!(!root.join("scripts/prepare_release.py").exists());
+        assert!(!root.join("scripts/build-native-locked.sh").exists());
         // Build/check facades must run without any Python interpreter in PATH.
         // The recorder itself executes no child; only dirname and the
         // locked wrappers' nested bash are available before Cargo.
@@ -1044,12 +1045,6 @@ fn main() {{
                 "scripts/build-native.sh",
                 "build-receipt",
                 vec!["--configuration=debug"],
-            ),
-            (
-                "bash",
-                "scripts/build-native-locked.sh",
-                "build-receipt",
-                vec!["--configuration=release"],
             ),
             ("bash", "scripts/check.sh", "build-receipt", vec![]),
             ("bash", "scripts/check-settings.sh", "build-receipt", vec![]),
@@ -1114,7 +1109,7 @@ fn main() {{
             assert_eq!(forwarded[14], root.to_str().unwrap());
             assert_eq!(forwarded[15], "--");
             let action = match script {
-                "scripts/build-native.sh" | "scripts/build-native-locked.sh" => Some("build"),
+                "scripts/build-native.sh" => Some("build"),
                 "scripts/check.sh" | "scripts/check-locked.sh" => Some("check"),
                 "scripts/check-settings.sh" | "scripts/check-settings-locked.sh" => Some("settings"),
                 "scripts/check-performance.sh" | "scripts/check-performance-locked.sh" => Some("performance"),
@@ -1128,6 +1123,31 @@ fn main() {{
             assert_eq!(&forwarded[16..], expected);
         }
         assert!(!root.join("scripts/build_receipt.py").exists());
+    }
+    #[test]
+    fn direct_rust_build_receipt_route_accepts_fingerprint_and_rejects_duplicate_configuration() {
+        let fixture = super::super::tests::Fixture::compiler_pair();
+        let root = fixture.0.canonicalize().unwrap();
+        let prefix = [
+            "compat".to_string(),
+            "build-receipt".into(),
+            "--repo".into(),
+            root.to_string_lossy().into_owned(),
+            "--".into(),
+        ];
+        let mut valid = prefix.to_vec();
+        valid.push("fingerprint".into());
+        let fingerprint = run(valid).unwrap();
+        assert_eq!(fingerprint.as_str().unwrap().len(), 64);
+        let mut invalid = prefix.to_vec();
+        invalid.extend([
+            "build".into(),
+            "--configuration".into(),
+            "debug".into(),
+            "-c".into(),
+            "release".into(),
+        ]);
+        assert!(run(invalid).unwrap_err().contains("Duplicate"));
     }
     #[test]
     fn legacy_argument_contract_rejects_duplicates_unknowns_and_unreviewed_performance() {
