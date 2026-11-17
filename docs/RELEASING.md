@@ -67,10 +67,14 @@ Production build, version, diagnostic preparation and packaging policy are Rust.
 Export an explicit reviewed public source snapshot first and verify its clean archive before compilation. The accepted source-export policy excludes `.go`, profiles, signing material, private adapters and Actions. After building, packaging permits `.build` outputs but rebinds every PUBLIC-SOURCE.v2 file/mode and the entire production inventory. Unreviewed new production files, source changes, private checkouts, stale/pre-v4/debug receipts and existing outputs are refused.
 
 ```sh
+RUYCAST_SOURCE="$PWD/.dist/public-source"
+cargo run --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-source -- export --repo "$PWD" --out "$RUYCAST_SOURCE"
+cargo run --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-source -- verify --source "$RUYCAST_SOURCE" --repo "$PWD"
+cd "$RUYCAST_SOURCE"
 bash scripts/build-native.sh -c release
 python3 scripts/build_receipt.py verify
-python3 scripts/package-app.py --out "$PWD/.dist/new-candidate" --build-number "$RUYCAST_BUILD_NUMBER"
-python3 scripts/package-app.py --verify "$PWD/.dist/new-candidate"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat package --repo "$PWD" -- --out "$PWD/.dist/new-candidate" --build-number "$RUYCAST_BUILD_NUMBER"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat package --repo "$PWD" -- --verify "$PWD/.dist/new-candidate"
 ```
 
 Choose a fresh output and an explicit positive build number greater than the previous distributed build. Release preparation retains matching original binaries/dSYM privately, verifies code/data sections and UUID, and binds the preparation record into v4. The app contains only host, CLI, optional icon and fixed plist, including the Safari Automation purpose. It contains no profile, signing material, runtime adapters or diagnostics.
@@ -114,7 +118,7 @@ Existing configuration and permissions are preserved by the local installer. Con
 
 Use a branch and pull request for a focused change. Run the local checks in [Contributing](../CONTRIBUTING.md), inspect the native [visuals](VISUALS.md), update the changelog and review privacy before merging into `main`. Create tags only from reviewed public commits. Keep source archives and checksums attached to the matching GitHub release. This project does not use GitHub Actions.
 
-`scripts/prepare-public.py` can produce an allowlisted source snapshot and manifest. It excludes development Git history, workflow state, profiles, build output and optional private adapters. Exporting does not publish anything. The public repository starts from a clean history; private development history must never be pushed to it.
+The Rust `ruycast-source export` command produces an allowlisted source snapshot and manifest. It excludes development Git history, workflow state, profiles, build output and optional private adapters. Exporting does not publish anything. The public repository starts from a clean history; private development history must never be pushed to it.
 
 ## Downloadable app distribution
 
@@ -122,12 +126,12 @@ A prebuilt app release requires a maintained Developer ID identity, hardened run
 
 ### Candidate preparation (issue #1, not yet a binary release)
 
-Use the reviewed **public** checkout, never a private development checkout or an installed personal app. `package-app.py` checks the public manifest and release-build receipt, copies only the app executable, CLI and icon, and writes an explicitly non-publishable candidate receipt. It does not install, sign, upload, publish, copy configuration or include personal adapters. Existing output is preserved.
+Use the reviewed **public** checkout, never a private development checkout or an installed personal app. `ruycast-build compat package` checks the public manifest and release-build receipt, copies only the app executable, CLI and icon, and writes an explicitly non-publishable candidate receipt. It does not install, sign, upload, publish, copy configuration or include personal adapters. Existing output is preserved.
 
 ```sh
 make check
 bash scripts/build-native.sh -c release
-python3 scripts/package-app.py --out .dist/public-candidate --build-number 26
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat package --repo "$PWD" -- --out "$PWD/.dist/public-candidate" --build-number 26
 ```
 
 Choose a fresh candidate directory and a numeric build greater than the previous distributed build. The manifest supplies the product version. Candidate preparation does **not** prove Developer ID signing, notarization, supported architectures or clean-Mac acceptance.
@@ -160,7 +164,7 @@ for RUYCAST_OUTPUT in notary-upload.zip notary-result.json Ruycast-macOS.zip Ruy
     exit 1
   fi
 done
-python3 scripts/package-app.py --verify "$RUYCAST_CANDIDATE"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat package --repo "$PWD" -- --verify "$RUYCAST_CANDIDATE"
 codesign --force --options runtime --timestamp --sign "$RUYCAST_SIGNING_IDENTITY" \
   "$RUYCAST_APP/Contents/Resources/ruycast"
 codesign --force --options runtime --timestamp --sign "$RUYCAST_SIGNING_IDENTITY" "$RUYCAST_APP"

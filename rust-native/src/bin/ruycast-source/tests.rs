@@ -100,6 +100,30 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
     let extracted_manifest: Value = serde_json::from_slice(&fs::read(extracted.join("ruycast/PUBLIC-SOURCE.json")).unwrap()).unwrap();
     assert_eq!(extracted_manifest["version"], rustcast_core::product_version::CURRENT);
     assert_eq!(fs::read(extracted.join("ruycast").join(VERSION_SOURCE)).unwrap(), VERSION_BYTES);
+    let exported_names = snapshot(&Dir::open(&f.root).unwrap())
+        .unwrap()
+        .into_keys()
+        .collect::<BTreeSet<_>>();
+    for name in [
+        "rust-native/tests/startup_config_repair.rs",
+        ".github/pull_request_template.md",
+        "scripts/build_receipt.py",
+        "scripts/prepare_release.py",
+        "rust-native/src/bin/ruycast-install/tests.rs",
+        "assets/hero.png",
+    ] {
+        assert!(exported_names.contains(name), "missing {name}");
+    }
+    for name in [
+        "Tests/test_config_directory.py",
+        "scripts/import-raycast.py",
+        "Tests/test_install_migration.py",
+        "scripts/install_support.py",
+        "scripts/personal_bridge.py",
+        "scripts/transition_catalog.py",
+    ] {
+        assert!(!exported_names.contains(name), "unexpected {name}");
+    }
     assert!(!a.join(".go").exists());
     let mut examples = fs::read_dir(a.join("rust-native/examples"))
         .unwrap()
