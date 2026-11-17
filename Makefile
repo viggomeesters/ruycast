@@ -2,7 +2,7 @@
 check:
 	bash scripts/check.sh
 build:
-	bash scripts/build-native.sh -c release
+	cargo run --quiet --locked --offline --target-dir "$(CURDIR)/.build/delivery-tools" --manifest-path "$(CURDIR)/rust-native/Cargo.toml" --bin ruycast-build -- compat build-receipt --repo "$(CURDIR)" -- build --configuration release
 install:
 	cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$(CURDIR)" --build
 source-tool:
