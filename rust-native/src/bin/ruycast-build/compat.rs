@@ -1050,13 +1050,13 @@ fn main() {{
         assert!(!root.join("scripts/check-performance-locked.sh").exists());
         assert!(!root.join("scripts/check-performance.sh").exists());
         assert!(!root.join("scripts/check-locked.sh").exists());
+        assert!(!root.join("scripts/check.sh").exists());
         // Build/check facades must run without any Python interpreter in PATH.
         // The recorder itself executes no child; only dirname and the
         // locked wrappers' nested bash are available before Cargo.
         std::os::unix::fs::symlink("/usr/bin/dirname", directory.join("dirname")).unwrap();
         std::os::unix::fs::symlink("/bin/bash", directory.join("bash")).unwrap();
         for (interpreter, script, entry, tail) in [
-            ("bash", "scripts/check.sh", "build-receipt", vec![]),
             ("bash", "scripts/check-settings.sh", "build-receipt", vec![]),
             ("bash", "scripts/check-settings-locked.sh", "build-receipt", vec!["--literal=owned value"]),
         ] {
@@ -1111,7 +1111,6 @@ fn main() {{
             assert_eq!(forwarded[14], root.to_str().unwrap());
             assert_eq!(forwarded[15], "--");
             let action = match script {
-                "scripts/check.sh" => Some("check"),
                 "scripts/check-settings.sh" | "scripts/check-settings-locked.sh" => Some("settings"),
                 _ => None,
             };
