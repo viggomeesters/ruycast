@@ -474,7 +474,6 @@ rust/src/lib.rs
 rust/src/private_storage.rs
 rust/src/product_version.rs
 rust/src/script.rs
-scripts/check-performance-locked.sh
 scripts/check-performance.sh
 scripts/check-settings-locked.sh
 scripts/check-settings.sh
