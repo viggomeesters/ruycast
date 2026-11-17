@@ -537,6 +537,32 @@ mod tests {
                 })
                 .collect()
         }
+        fn compile_variant(&self, image: &Path, multiplier: u64) {
+            let source = self.root.0.join(format!("variant-{multiplier}.rs"));
+            fs::write(
+                &source,
+                format!(
+                    "#[inline(never)] fn owned(v:u64)->u64 {{ std::hint::black_box(v).wrapping_mul({multiplier}) }} fn main(){{println!(\"{{}}\",owned(7));}}\n"
+                ),
+            )
+            .unwrap();
+            output(
+                &self.root.0,
+                "rustc",
+                &[
+                    "--crate-name",
+                    "owned_diagnostic",
+                    "--edition=2021",
+                    "-g",
+                    "-C",
+                    "opt-level=1",
+                    source.to_str().unwrap(),
+                    "-o",
+                    image.to_str().unwrap(),
+                ],
+            )
+            .unwrap();
+        }
     }
     #[test]
     fn exchanged_preimages_survive_open_descriptor_writes_and_stage_drop() {
@@ -604,15 +630,44 @@ mod tests {
             binding.sha256
         );
         assert_eq!(verify(&f.root.0, &f.target).unwrap(), first);
-        // One compiler cache changes; the untouched, already stripped peer
-        // must retain its original rich diagnostic image and receipt row.
-        let host = f.names()[0].clone();
-        let original = f.root.0.join(&first.artifacts[&host].unstripped_path);
-        fs::remove_file(f.root.0.join(&host)).unwrap();
-        copy(&original, &f.root.0.join(&host)).unwrap();
+        // A real host relink must leave the untouched CLI's full diagnostic
+        // row and stripped bytes unchanged.
+        let names = f.names();
+        let host = names[0].clone();
+        let cli = names[1].clone();
+        f.compile_variant(&f.root.0.join(&host), 41);
+        assert_ne!(
+            macho::read(&f.root.0.join(&host)).unwrap().uuid,
+            first.artifacts[&host].uuid
+        );
         prepare(&f.root.0, &f.target).unwrap();
-        let later = verify(&f.root.0, &f.target).unwrap();
-        assert_eq!(later, first);
+        let after_host = verify(&f.root.0, &f.target).unwrap();
+        assert_eq!(
+            after_host.artifacts[&cli], first.artifacts[&cli],
+            "host rebuild changed the CLI diagnostic artifact"
+        );
+        assert_eq!(after_host.binaries[&cli], first.binaries[&cli]);
+
+        // Repeat in the other direction so the untouched host row is bound.
+        f.compile_variant(&f.root.0.join(&cli), 43);
+        assert_ne!(
+            macho::read(&f.root.0.join(&cli)).unwrap().uuid,
+            after_host.artifacts[&cli].uuid
+        );
+        prepare(&f.root.0, &f.target).unwrap();
+        let after_cli = verify(&f.root.0, &f.target).unwrap();
+        assert_eq!(after_cli.artifacts[&host], after_host.artifacts[&host]);
+        assert_eq!(after_cli.binaries[&host], after_host.binaries[&host]);
+
+        // Tampering with a retained original is refused without changing
+        // either currently published executable.
+        let retained = f.root.0.join(&after_cli.artifacts[&host].unstripped_path);
+        let mut bytes = regular_bytes(&retained).unwrap();
+        bytes.push(0xA5);
+        fs::write(&retained, bytes).unwrap();
+        let published = f.current();
+        assert!(prepare(&f.root.0, &f.target).is_err());
+        assert_eq!(f.current(), published);
     }
     #[test]
     fn failed_second_replace_rolls_back_pair_and_interrupted_pair_is_recovered() {
@@ -716,5 +771,68 @@ mod tests {
         fs::write(&dwarf, bytes).unwrap();
         assert!(prepare(&f.root.0, &f.target).is_err());
         assert_eq!(f.current(), unknown);
+    }
+    #[test]
+    fn valid_dsym_with_wrong_uuid_is_refused_before_binary_publication() {
+        let f = Fixture::new();
+        let before = f.current();
+        let name = f.names()[0].clone();
+        let other_dir = f.root.0.join("other-image");
+        fs::create_dir_all(&other_dir).unwrap();
+        let source = other_dir.join("different_uuid.rs");
+        let other = other_dir.join(Path::new(&name).file_name().unwrap());
+        fs::write(
+            &source,
+            b"#[inline(never)] fn owned(v:u64)->u64 { std::hint::black_box(v).wrapping_add(91) } fn main(){println!(\"{}\",owned(7));}\n",
+        )
+        .unwrap();
+        output(
+            &f.root.0,
+            "rustc",
+            &[
+                "--crate-name",
+                "different_uuid",
+                "--edition=2021",
+                "-g",
+                "-C",
+                "opt-level=1",
+                source.to_str().unwrap(),
+                "-o",
+                other.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+        let original = f.root.0.join(OUTPUT).join("symbols").join(&before[&name]);
+        let wrong_dsym = original.join(format!(
+            "{}.dSYM",
+            Path::new(&name).file_name().unwrap().to_str().unwrap()
+        ));
+        fs::create_dir_all(wrong_dsym.parent().unwrap()).unwrap();
+        output(
+            &f.root.0,
+            "/usr/bin/xcrun",
+            &[
+                "dsymutil",
+                other.to_str().unwrap(),
+                "-o",
+                wrong_dsym.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+        let target_uuid = macho::read(&f.root.0.join(&name)).unwrap().uuid;
+        let wrong_uuid = macho::read(
+            &wrong_dsym
+                .join("Contents/Resources/DWARF")
+                .join(Path::new(&name).file_name().unwrap()),
+        )
+        .unwrap()
+        .uuid;
+        assert_ne!(wrong_uuid, target_uuid);
+        let error = match prepare(&f.root.0, &f.target) {
+            Ok(_) => panic!("mismatched dSYM UUID must be refused"),
+            Err(error) => error,
+        };
+        assert!(error.contains("dSYM UUID does not match"));
+        assert_eq!(f.current(), before);
     }
 }
