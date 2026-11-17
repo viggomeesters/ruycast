@@ -874,11 +874,8 @@ pub fn entry(args: Vec<String>) -> Result<()> {
         [cmd,root,plan,pinned] if cmd=="collect-reference-hyperkey-ast" =>preparation::reference_hyperkey_ast(Path::new(root),Path::new(plan),pinned),
         [cmd,root,plan,pinned] if cmd=="collect-reference-snippetexpander-ast" =>preparation::reference_snippetexpander_ast(Path::new(root),Path::new(plan),pinned),
         [cmd,root,out] if cmd=="inventory" =>write_new(Path::new(out),&preparation::inventory(Path::new(root))?),
-        [cmd,root,bridge,out] if cmd=="build-reference-interface" =>preparation::bridge(Path::new(root),Path::new(bridge),Path::new(out),false),
-        [cmd,root,bridge,build_root,inputs,pinned,out] if cmd=="build-reference-full-host-interface" =>preparation::full_reference_bridge(Path::new(root),Path::new(bridge),Path::new(build_root),Path::new(inputs),pinned,Path::new(out)),
-        [cmd,..] if cmd=="build-reference-full-host-interface" =>Err("usage: f1-runner build-reference-full-host-interface SNAPSHOT_ROOT BRIDGE EXISTING_BUILD_ROOT INPUTS_JSON PINNED_SHA256 OUT; no inferred sibling/build fallback".into()),
-        [cmd,build_root,inputs,pinned,out] if cmd=="resume-reference-debug" =>preparation::resume_reference_debug(Path::new(build_root),Path::new(inputs),pinned,Path::new(out)),
-        [cmd,..] if cmd=="resume-reference-debug" =>Err("usage: f1-runner resume-reference-debug EXISTING_BUILD_ROOT INPUTS_JSON PINNED_SHA256 EXISTING_OUT; capture only, no compilation or app launch".into()),
+        [cmd,..] if matches!(cmd.as_str(),"build-reference-interface"|"build-reference-full-host-interface"|"resume-reference-debug") =>
+            Err(format!("retired historical Swift F1 command: {cmd}")),
         [cmd,receipt,pinned,out] if cmd=="collect"=>collection::collect(Path::new(receipt),pinned,Path::new(out)),
         [cmd,fixture,pinned,out] if cmd=="owned-transport-selftest"=>collection::transport_selftest(Path::new(fixture),pinned,Path::new(out)),
         [cmd] if cmd == "owned-resource-child" => {resources::child();Ok(())},
@@ -909,12 +906,21 @@ mod tests {
         assert!(entry(args.into_iter().map(str::to_owned).collect()).unwrap_err().contains("A|B OUT"));
     }
     #[test]
-    fn full_reference_refuses_implicit_build_inputs_before_io() {
-        let args=["build-reference-full-host-interface","/not-opened/reference",
-            "/not-opened/SwiftF1Bridge.swift","/not-created/out"];
-        let error=entry(args.into_iter().map(str::to_owned).collect()).unwrap_err();
-        assert!(error.contains("EXISTING_BUILD_ROOT INPUTS_JSON PINNED_SHA256"));
-        assert!(error.contains("no inferred sibling/build fallback"));
+    fn retired_swift_f1_bridge_commands_refuse_before_path_io_or_process_start() {
+        for (command, complete_args) in [
+            ("build-reference-interface", vec!["/not-opened/reference", "/not-opened/bridge.swift", "/not-created/partial-output"]),
+            ("build-reference-full-host-interface", vec!["/not-opened/reference", "/not-opened/bridge.swift", "/not-opened/build", "/not-opened/inputs.json", "deadbeef", "/not-created/full-output"]),
+            ("resume-reference-debug", vec!["/not-opened/build", "/not-opened/inputs.json", "deadbeef", "/not-created/resume-output"]),
+        ] {
+            for args in [std::iter::once(command).chain(complete_args.iter().copied()).collect::<Vec<_>>(), vec![command]] {
+                let error=entry(args.iter().map(|arg|(*arg).to_owned()).collect()).unwrap_err();
+                assert_eq!(error, format!("retired historical Swift F1 command: {command}"));
+            }
+        }
+        assert!(!Path::new("/not-created/output").exists());
+        assert!(!Path::new("/not-created/partial-output").exists());
+        assert!(!Path::new("/not-created/full-output").exists());
+        assert!(!Path::new("/not-created/resume-output").exists());
     }
     #[test]
     fn idle_uses_same_owned_identity_and_interval_deltas_not_lifetime_counters() {
