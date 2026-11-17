@@ -8,7 +8,7 @@ After the combined candidate is accepted for your use, build and install locally
 make install
 ```
 
-`make install` invokes the Rust installer directly through Cargo with `--build`. `install.py` remains a compatibility entrypoint; without that flag it consumes an existing verified release build. Production build/install policy is Rust; remaining helper entrypoints only dispatch. No Swift host/compiler/helper is used for production. The local signer prepares one persistent identity when absent and refuses silent rotation or ad-hoc fallback. The transaction preserves the profile and uses a per-user login service.
+`make install` invokes the Rust installer directly through Cargo with `--build`. To install an existing verified release build without rebuilding, invoke the same Rust command without `--build`: `cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD"`. No Python install wrapper remains. No Swift host/compiler/helper is used for production. The local signer prepares one persistent identity when absent and refuses silent rotation or ad-hoc fallback. The transaction preserves the profile and uses a per-user login service.
 
 ## Requirements
 
