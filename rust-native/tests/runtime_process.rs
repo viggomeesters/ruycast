@@ -1133,12 +1133,19 @@ fn slow_incomplete_request_has_absolute_read_deadline() {
 #[test]
 fn second_instance_refused_and_crashed_socket_recovers() {
     let mut host = host(true);
+    let before = host.rpc(&json!({"op":"status"}))["result"]["pid"].clone();
     let second = runtime_host::run(
         host.command(&host.settings.host).arg("--headless-test"),
         Duration::from_secs(3),
     );
     assert!(!second.status.success());
-    assert_eq!(host.rpc(&json!({"op":"status"}))["ok"], true);
+    assert_eq!(second.status.code(), Some(1));
+    let response: Value = serde_json::from_slice(&second.stdout).unwrap();
+    assert_eq!(response["ok"], false);
+    assert!(response["error"].as_str().unwrap().contains("already running"));
+    let after = host.rpc(&json!({"op":"status"}));
+    assert_eq!(after["ok"], true);
+    assert_eq!(after["result"]["pid"], before);
     host.stop(false);
     assert!(host.socket().exists());
     host.start();

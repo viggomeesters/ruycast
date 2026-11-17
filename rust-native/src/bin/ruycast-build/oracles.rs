@@ -1560,7 +1560,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
-            "test_script_timeout_and_bounded_output": "runtime_process::legacy_cli_script_timeout_and_bounded_output"
+            "test_script_timeout_and_bounded_output": "runtime_process::legacy_cli_script_timeout_and_bounded_output",
+            "test_second_instance_does_not_replace_socket": "runtime_process::second_instance_refused_and_crashed_socket_recovers"
         });
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["migratedMethods"] = serde_json::json!([
             "test_performance_fixture_ignores_external_configuration_override",
@@ -1598,7 +1599,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 "quit_acknowledges_then_exits_normally_without_kill_fallback",
                 "atomic_replace_invalid_last_good_and_recovery",
                 "legacy_cli_status_search_reload_and_config_edit",
-                "legacy_cli_script_timeout_and_bounded_output"
+                "legacy_cli_script_timeout_and_bounded_output",
+                "second_instance_refused_and_crashed_socket_recovers"
             ],
             "execution_basic_process": ["cli_literal_input_uuid_usage_and_private_logs"],
             "remaining_macos_process": ["builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"]
@@ -2796,6 +2798,27 @@ mod tests {
         assert!(runtime.contains(r#"output["result"]["stdout"].as_str().unwrap().len(), 65536"#));
         let support = include_str!("../../../tests/support/runtime_host.rs");
         assert!(support.contains("Duration::from_secs(6)"));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
+    }
+    #[test]
+    fn second_instance_cli_case_maps_to_owned_socket_recovery_test() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert_eq!(
+            mapping["supplementalCurrentMethodByMethod"]["test_second_instance_does_not_replace_socket"],
+            "runtime_process::second_instance_refused_and_crashed_socket_recovers"
+        );
+        assert!(mapping["nativeTargets"]["runtime_process"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|name| name == "second_instance_refused_and_crashed_socket_recovers"));
+        let runtime = include_str!("../../../tests/runtime_process.rs");
+        assert!(runtime.contains("fn second_instance_refused_and_crashed_socket_recovers()"));
+        assert!(runtime.contains("response[\"error\"].as_str().unwrap().contains(\"already running\")"));
+        assert!(runtime.contains("assert_eq!(after[\"result\"][\"pid\"], before)"));
+        assert!(runtime.contains("Duration::from_secs(3)"));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
     }
