@@ -273,7 +273,6 @@ pub(crate) struct State {
     session: RefCell<Model>,
     panel: Retained<PalettePanel>,
     launcher_compact: Cell<bool>,
-    search_bar_visible_frame: Cell<Option<[f64; 4]>>,
     input: Retained<NSTextField>,
     table: Retained<ResultTable>,
     heading: Retained<NSTextField>,
@@ -973,7 +972,6 @@ impl Controller {
             session: RefCell::new(session),
             panel,
             launcher_compact: Cell::new(false),
-            search_bar_visible_frame: Cell::new(None),
             input,
             table,
             heading,
@@ -1157,7 +1155,7 @@ impl Controller {
                 let [x,y,w,h]=presentation::palette_frame([frame.origin.x,frame.origin.y,frame.size.width,frame.size.height],clipboard,compact);
                 state.panel.setFrame_display(rect(x,y,w,h),false);
                 state.launcher_compact.set(compact);
-                if let Some(content)=state.panel.contentView(){let size=content.bounds().size;state.input.setFrame(rect(24.,size.height-70.,size.width-48.,44.));state.heading.setFrame(rect(24.,size.height-110.,size.width-48.,20.));state.scroll.setFrame(rect(16.,50.,size.width-32.,(size.height-168.).max(1.)));state.footer.setFrame(rect(24.,14.,size.width-48.,22.));state.notice.setFrame(rect(24.,42.,size.width-48.,24.));}
+                if let Some(content)=state.panel.contentView(){let size=content.bounds().size;state.input.setFrame(rect(24.,size.height-70.,size.width-48.,44.));state.heading.setFrame(rect(24.,size.height-110.,size.width-48.,20.));state.scroll.setFrame(rect(16.,50.,size.width-32.,(size.height-168.).max(1.)));state.footer.setFrame(rect(24.,14.,size.width-48.,22.));state.notice.setFrame(rect(24.,42.,size.width-48.,24.));state.empty.setFrame(rect(24.,presentation::empty_results_y(size.height),size.width-48.,24.));state.result_panel.layout(size.width,size.height);}
             }
         }
     }
@@ -1180,15 +1178,18 @@ impl Controller {
     fn set_search_bar_compact(&self,compact:bool) {
         let state=self.ivars();
         let frame=state.panel.frame();
+        let search=state.input.frame();
         let center=NSPoint::new(frame.origin.x+frame.size.width/2.,frame.origin.y+frame.size.height/2.);
-        let visible=state.search_bar_visible_frame.get().or_else(||state.panel.ivars().ordering_allowed.then(||{
+        let visible=state.panel.ivars().ordering_allowed.then(||{
             NSScreen::screens(self.mtm()).iter()
                 .find(|screen|objc2_foundation::NSPointInRect(center,screen.frame()))
                 .or_else(||NSScreen::mainScreen(self.mtm()))
                 .map(|screen|screen.visibleFrame())
-        }).flatten().map(|visible|[visible.origin.x,visible.origin.y,visible.size.width,visible.size.height]));
+        }).flatten().map(|visible|[visible.origin.x,visible.origin.y,visible.size.width,visible.size.height]);
         let [x,y,width,height]=presentation::resized_palette_frame(
-            [frame.origin.x,frame.origin.y,frame.size.width,frame.size.height],visible,false,compact);
+            [frame.origin.x,frame.origin.y,frame.size.width,frame.size.height],
+            [search.origin.x,search.origin.y,search.size.width,search.size.height],
+            visible,false,compact);
         state.panel.setFrame_display(rect(x,y,width,height),false);
         state.launcher_compact.set(compact);
         if let Some(content)=state.panel.contentView(){
@@ -1198,6 +1199,8 @@ impl Controller {
             state.scroll.setFrame(rect(16.,50.,size.width-32.,(size.height-168.).max(1.)));
             state.footer.setFrame(rect(24.,14.,size.width-48.,22.));
             state.notice.setFrame(rect(24.,42.,size.width-48.,24.));
+            state.empty.setFrame(rect(24.,presentation::empty_results_y(size.height),size.width-48.,24.));
+            state.result_panel.layout(size.width,size.height);
         }
     }
     fn reconcile(&self) {
@@ -1216,7 +1219,7 @@ impl Controller {
         if state.scroll.hasVerticalScroller() != show_scroller {
             state.scroll.setHasVerticalScroller(show_scroller);
         }
-        if let Some(parent)=state.panel.contentView(){let size=parent.bounds().size;state.surface.layout(size.width,size.height,state.session.borrow().management());let graphite=self.management_graphite();if let Some(content)=parent.downcast_ref::<PaletteContent>(){content.ivars().set(graphite);content.setNeedsDisplay(true);}state.surface.theme(graphite);}
+        if let Some(parent)=state.panel.contentView(){let size=parent.bounds().size;state.surface.layout(size.width,size.height,state.session.borrow().management());state.result_panel.layout(size.width,size.height);state.empty.setFrame(rect(24.,presentation::empty_results_y(size.height),size.width-48.,24.));let graphite=self.management_graphite();if let Some(content)=parent.downcast_ref::<PaletteContent>(){content.ivars().set(graphite);content.setNeedsDisplay(true);}state.surface.theme(graphite);}
         if state.session.borrow().management() {
             if let Some(parent)=state.panel.contentView(){
                 let size=parent.bounds().size;
@@ -1810,7 +1813,6 @@ pub fn check(
         if !state.panel.makeFirstResponder(Some(&state.input)) {
             return Err("native first responder failed".into());
         }
-        state.search_bar_visible_frame.set(Some([0.,0.,640.,480.]));
         state.session.borrow_mut().set_visible(true);
         controller.reconcile();
         let compact_frame=state.panel.frame();
@@ -1820,10 +1822,11 @@ pub fn check(
             || compact_input.origin.y<0.
             || compact_input.origin.y+compact_input.size.height>compact_frame.size.height
         {
-            return Err(format!("empty launcher search bar does not fit the compact small-screen panel: frame=({},{} {}x{}), input=({},{}), compact={}, visible={}, injected={:?}",compact_frame.origin.x,compact_frame.origin.y,compact_frame.size.width,compact_frame.size.height,compact_input.origin.y,compact_input.size.height,state.launcher_compact.get(),state.session.borrow().visible(),state.search_bar_visible_frame.get()));
+            return Err("empty launcher search bar does not fit its compact panel".into());
         }
         let compact_editor=state.input.currentEditor().ok_or("compact search field lost its editor")?;
         let compact_text=compact_editor.downcast_ref::<NSTextView>().ok_or("unexpected compact field editor")?;
+        let compact_field_position=(compact_frame.origin.x+compact_input.origin.x,compact_frame.origin.y+compact_input.origin.y);
         if state.panel.firstResponder().as_deref().is_none_or(|r|!std::ptr::eq(r,compact_text as &NSResponder)) {
             return Err("compacting the launcher changed search focus".into());
         }
@@ -1848,6 +1851,12 @@ pub fn check(
             || expanded_frame.size.height>490.
         {
             return Err("typing did not expand the launcher within the small-screen bounds".into());
+        }
+        let expanded_input=state.input.frame();
+        if expanded_frame.origin.x+expanded_input.origin.x!=compact_field_position.0
+            || expanded_frame.origin.y+expanded_input.origin.y!=compact_field_position.1
+        {
+            return Err("typing moved the search field".into());
         }
         if state.panel.firstResponder().as_deref().is_none_or(|r|!std::ptr::eq(r,compact_text as &NSResponder)) {
             return Err("expanding the launcher changed search focus".into());
@@ -1910,6 +1919,12 @@ pub fn check(
         if empty_frame.size.width>600.||empty_frame.size.height!=72. {
             return Err("clearing the query did not restore the compact search bar".into());
         }
+        let empty_input=state.input.frame();
+        if empty_frame.origin.x+empty_input.origin.x!=compact_field_position.0
+            || empty_frame.origin.y+empty_input.origin.y!=compact_field_position.1
+        {
+            return Err("clearing the query moved the search field".into());
+        }
         if state.table.numberOfRows() != 0
             || !state.empty.isHidden()
             || state.session.borrow().selection().is_some()
@@ -1929,6 +1944,21 @@ pub fn check(
         {
             return Err("typing after clearing did not expand the results panel".into());
         }
+        let typed_input=state.input.frame();
+        if typed_frame.origin.x+typed_input.origin.x!=compact_field_position.0
+            || typed_frame.origin.y+typed_input.origin.y!=compact_field_position.1
+        {
+            return Err("typing moved the search field instead of extending results below it".into());
+        }
+        let empty_y=state.empty.frame().origin.y;
+        if empty_y<0. || empty_y+state.empty.frame().size.height>typed_frame.size.height {
+            return Err("empty-results label does not fit the shortened panel".into());
+        }
+        state.result_panel.layout(592.,252.);
+        if state.result_panel.scroll.frame().origin.y+state.result_panel.scroll.frame().size.height>252. {
+            return Err("script details do not fit a screen-clamped panel".into());
+        }
+        if let Some(content)=state.panel.contentView(){let size=content.bounds().size;state.result_panel.layout(size.width,size.height);}
         if state.table.numberOfRows() != 100 {
             return Err("native result cap mismatch after typing".into());
         }
