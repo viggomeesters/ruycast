@@ -327,20 +327,3 @@ class CLIIntegration(unittest.TestCase):
             if child.poll() is None:
                 child.kill()
                 child.wait(timeout=5)
-
-    def test_failed_bridge_retains_provider_error_exit_status_and_queryable_log(self):
-        bridge=self.root/'personal_bridge.py'
-        fixture={'ok':False,'code':'provider_failed','error':'Status writer rejected the note','diagnostics':{'provider':'task-status.sh','providerExitCode':'23','providerStderr':'token='+'sample-secret-value'}}
-        bridge.write_text('import sys\nprint('+repr(json.dumps(fixture))+')\nsys.exit(23)\n')
-        command={'id':'test.status-diagnostic','title':'Task Done Fixture','kind':'script','target':'/usr/bin/python3','arguments':[str(bridge)]}
-        self.cli('config','add',json.dumps(command),ok=True)
-        reply=self.cli('run',command['id'],ok=False)
-        self.assertEqual(reply['error'],'Status writer rejected the note')
-        self.assertEqual(reply.get('exitCode'),23)
-        logs=self.cli('logs','--command',command['id'],'--errors',ok=True)['result']
-        self.assertEqual(logs[0]['commandID'],command['id'])
-        self.assertEqual(logs[0]['exitStatus'],23)
-        self.assertEqual(logs[0]['code'],'provider_failed')
-        self.assertIn('Status writer rejected',logs[0]['message'])
-        self.assertNotIn('sample-secret-value',json.dumps(logs))
-        self.assertEqual(reply['diagnosticID'],logs[0]['traceID'])

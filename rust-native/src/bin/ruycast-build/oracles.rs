@@ -1562,14 +1562,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "test_performance_fixture_ignores_external_configuration_override",
             "test_host_benchmark_rejects_changed_cli",
             "test_search_ranking_summary_and_confirmed_reset",
-            "test_unknown_operation_returns_json_error"
+            "test_unknown_operation_returns_json_error",
+            "test_failed_bridge_retains_provider_error_exit_status_and_queryable_log"
         ]);
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["nativeTargets"] = serde_json::json!({
             "startup_process": [
                 "real_rust_benchmark_ignores_external_configuration_with_500_commands",
                 "real_rust_benchmark_rejects_changed_cli_and_quits_gracefully"
             ],
-            "rust_cli": ["startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects"]
+            "rust_cli": ["startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects"],
+            "private_results": ["provider_failure_keeps_sanitized_code_message_exit_and_queryable_trace"]
         });
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(true);
         inventory["rustRootTestCrosswalk"]["Tests/test_architecture.py"] = serde_json::json!({
@@ -2398,7 +2400,7 @@ mod tests {
     fn search_ranking_cli_case_maps_to_owned_rust_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 4);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 5);
         assert!(cli_mapping["migratedMethods"]
             .as_array()
             .unwrap()
@@ -2436,6 +2438,26 @@ mod tests {
         assert!(validation.contains(
             "cli-contract-process|c|test --manifest-path rust/Cargo.toml --bin ruycast startup_discovery_tests::current_cli_"
         ));
+    }
+    #[test]
+    fn provider_failure_cli_case_maps_to_rust_private_results_process_case() {
+        let value = inventory("check").unwrap();
+        let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 5);
+        assert!(cli_mapping["migratedMethods"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|method| method == "test_failed_bridge_retains_provider_error_exit_status_and_queryable_log"));
+        let case = "provider_failure_keeps_sanitized_code_message_exit_and_queryable_trace";
+        let private_results = include_str!("../../../tests/private_results.rs");
+        assert!(private_results.contains("fn provider_failure_keeps_sanitized_code_message_exit_and_queryable_trace()"));
+        assert!(private_results.contains("assert_eq!(status.code(), Some(1))"));
+        assert!(private_results.contains("assert_eq!(response[\"exitCode\"], 23)"));
+        assert!(private_results.contains("assert!(!logs.to_string().contains(\"sample-secret-value\"))"));
+        assert_eq!(cli_mapping["nativeTargets"]["private_results"][0], case);
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("private-results-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test private_results --locked"));
     }
     #[test]
     fn retired_architecture_python_cases_map_to_rust_policy_tests() {

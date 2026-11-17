@@ -275,9 +275,9 @@ fn provider_failure_keeps_sanitized_code_message_exit_and_queryable_trace() {
         (output.status, serde_json::from_slice::<Value>(&output.stdout).unwrap())
     };
     let (status, response) = call(&["run", "provider.log-failure"]);
-    assert!(!status.success());
+    assert_eq!(status.code(), Some(1));
     assert_eq!(response["ok"], false);
-    assert_eq!(response["exitCode"], 23);
+    assert_eq!(response["exitCode"], 23, "{response}");
     assert_eq!(response["error"], "Status writer rejected the note");
     let (status, logs) = call(&["logs", "--command", "provider.log-failure", "--errors"]);
     assert!(status.success(), "{logs}");
