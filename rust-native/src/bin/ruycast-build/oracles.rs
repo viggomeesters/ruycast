@@ -1527,7 +1527,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     };
     let python_modules = if kind == "check" {
         vec![
-            "Tests/test_architecture.py",
             "Tests/test_build_pipeline.py",
             "Tests/test_cli.py",
             "Tests/test_local_signing.py",
@@ -1568,6 +1567,22 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "real_rust_benchmark_rejects_changed_cli_and_quits_gracefully"
         ]});
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(true);
+        inventory["rustRootTestCrosswalk"]["Tests/test_architecture.py"] = serde_json::json!({
+            "scope": "The three architecture checks now run in a Rust test target; frozen Swift references are only read as compatibility inputs and Rust worker ownership is compiler-checked.",
+            "originalMethods": [
+                "test_portable_models_have_no_platform_or_runtime_dependency",
+                "test_swift_uses_imported_c_symbols",
+                "test_main_actor_and_worker_boundaries_are_compiler_checked"
+            ],
+            "nativeTarget": "architecture_policy",
+            "nativeCases": [
+                "frozen_launcher_models_keep_their_architecture_boundary",
+                "portable_models_have_no_platform_or_runtime_dependency",
+                "swift_uses_imported_c_symbols",
+                "main_actor_and_worker_boundaries_are_compiler_checked"
+            ],
+            "remainingPythonCases": 0
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_benchmark_host.py"] = serde_json::json!({
             "scope": "All seven original benchmark-driver scenarios now run through the Rust benchmark-host executable and Rust-only child fixtures; the Python test module has been deleted.",
             "originalMethods": [
@@ -2380,6 +2395,23 @@ mod tests {
         assert!(
             startup.contains("fn real_rust_benchmark_rejects_changed_cli_and_quits_gracefully(")
         );
+    }
+    #[test]
+    fn retired_architecture_python_cases_map_to_rust_policy_tests() {
+        let value = inventory("check").unwrap();
+        assert!(!value["pythonModuleInventory"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "Tests/test_architecture.py"));
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_architecture.py"];
+        assert_eq!(mapping["originalMethods"].as_array().unwrap().len(), 3);
+        assert_eq!(mapping["nativeCases"].as_array().unwrap().len(), 4);
+        assert_eq!(mapping["remainingPythonCases"], 0);
+        let tests = include_str!("../../../tests/architecture_policy.rs");
+        for case in mapping["nativeCases"].as_array().unwrap() {
+            assert!(tests.contains(&format!("fn {}(", case.as_str().unwrap())));
+        }
     }
     #[test]
     fn package_app_root_crosswalk_preserves_seven_rust_candidate_contracts() {

@@ -43,6 +43,7 @@ rust-only-policy|s|rust-only-policy
 rust-only-policy-tests|c|test --manifest-path rust-native/Cargo.toml --test rust_only_policy --locked
 core-unit|c|test --manifest-path rust/Cargo.toml --locked
 unit|c|test --manifest-path rust-native/Cargo.toml --locked
+architecture-policy-process|c|test --manifest-path rust-native/Cargo.toml --test architecture_policy --locked -- --test-threads=1
 clippy-default|c|clippy --manifest-path rust-native/Cargo.toml --locked --all-targets -- -D warnings
 clippy|c|clippy --manifest-path rust-native/Cargo.toml --locked --all-targets --all-features -- -D warnings
 host-build|b|ruycast-native default
@@ -401,6 +402,9 @@ fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "rust-native/examples/ui_completion.rs",
         "rust/src",
         "Tests/test_cli.py",
+        "Tests/fixtures/architecture_boundary_positive.rs",
+        "Tests/fixtures/architecture_boundary_main_state_on_worker.rs",
+        "Tests/fixtures/architecture_boundary_worker_captures_main_state.rs",
     ] {
         source_folder(root, &root.join(name), &mut rows)?;
     }
@@ -1177,6 +1181,36 @@ fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
                 "Every migrated Rust benchmark-driver case must pass exactly once without skips."
                     .into(),
             );
+        }
+    }
+    if name == "architecture-policy-process" {
+        let text = std::str::from_utf8(stdout).map_err(error)?;
+        let cases = [
+            "frozen_launcher_models_keep_their_architecture_boundary",
+            "portable_models_have_no_platform_or_runtime_dependency",
+            "swift_uses_imported_c_symbols",
+            "main_actor_and_worker_boundaries_are_compiler_checked",
+        ];
+        if cases.iter().any(|case| {
+            text.lines()
+                .filter(|line| *line == format!("test {case} ... ok"))
+                .count()
+                != 1
+        }) || text
+            .lines()
+            .filter(|line| line.starts_with("test ") && line.contains(" ... "))
+            .count()
+            != cases.len()
+            || text
+                .lines()
+                .filter(|line| line.starts_with("test result:"))
+                .count()
+                != 1
+            || !text
+                .lines()
+                .any(|line| line.starts_with("test result: ok. 4 passed; 0 failed; 0 ignored;"))
+        {
+            return Err("Every architecture case must pass exactly once without skips.".into());
         }
     }
     if name=="cli-contract-process" {
@@ -2470,6 +2504,15 @@ mod tests {
         }
     }
     #[test]
+    fn architecture_matrix_output_requires_all_four_rust_cases_without_skips() {
+        let good = b"running 4 tests\ntest frozen_launcher_models_keep_their_architecture_boundary ... ok\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest swift_uses_imported_c_symbols ... ok\ntest main_actor_and_worker_boundaries_are_compiler_checked ... ok\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
+        selected_step_output("architecture-policy-process", good).unwrap();
+        let missing = b"running 3 tests\ntest frozen_launcher_models_keep_their_architecture_boundary ... ok\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest swift_uses_imported_c_symbols ... ok\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
+        assert!(selected_step_output("architecture-policy-process", missing).is_err());
+        let skipped = b"running 4 tests\ntest frozen_launcher_models_keep_their_architecture_boundary ... ok\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest swift_uses_imported_c_symbols ... ok\ntest main_actor_and_worker_boundaries_are_compiler_checked ... ignored\ntest result: ok. 3 passed; 0 failed; 0 ignored; 1 measured; 0 filtered out; finished in 0.1s\n";
+        assert!(selected_step_output("architecture-policy-process", skipped).is_err());
+    }
+    #[test]
     fn complete_ordered_matrix_keeps_all_oracles_and_explicit_targets() {
         let steps = matrix("aarch64-apple-darwin").unwrap();
         assert_eq!(steps.first().unwrap().name, "rust-only-policy-build");
@@ -2477,7 +2520,9 @@ mod tests {
         assert!(policy.arguments.windows(2).any(|pair|pair==["--test","rust_only_policy"]));
         assert!(!steps.iter().any(|step| step.arguments.iter().any(|arg| arg.ends_with("rust_only_policy.py"))));
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 148);
+        assert_eq!(steps.len(), 149);
+        let architecture = steps.iter().find(|step| step.name == "architecture-policy-process").unwrap();
+        assert!(architecture.arguments.windows(2).any(|pair| pair == ["--test", "architecture_policy"]));
         let benchmark_tools = steps.iter().position(|step| step.name == "benchmark-driver-tools").unwrap();
         for name in ["benchmark-contract-1", "benchmark-contract-2", "benchmark-driver-process"] {
             assert!(benchmark_tools < steps.iter().position(|step| step.name == name).unwrap());
