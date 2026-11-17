@@ -1,17 +1,16 @@
 # Contributing
 
-Ruycast's production host, domain library, CLI and delivery policy are Rust. The native host uses AppKit through Rust bindings. Frozen Swift sources are historical parity oracles, not a production host or fallback. Start with the [architecture](docs/ARCHITECTURE.md) and [product contract](docs/vision.json).
+Ruycast's production host, domain library, CLI and delivery policy are Rust. The native host uses AppKit through Rust bindings. Frozen Swift sources are historical parity oracles, not a production host or fallback. Start with the [architecture](docs/ARCHITECTURE.md), [product contract](docs/vision.json) and the [current source beta](https://github.com/viggomeesters/ruycast/releases/tag/v0.9.0-beta.17).
 
 ## Build and check
 
-Install the [build requirements](docs/INSTALLATION.md), then run:
+Install the [build requirements](docs/INSTALLATION.md). For a focused change, run its affected Rust test target and case with `cargo test`; use the existing test target's command in `rust-native/src/bin/ruycast-build/validation.rs` when it has a native fixture or timeout wrapper. Check disk headroom before producer builds:
 
 ```sh
-make check
-bash scripts/check-settings.sh
+make disk-status
 ```
 
-Use complete F1 evidence when changing search, clipboard queues, icon work or lifecycle behavior. `bash scripts/check-performance.sh` requires an independently reviewed runner/authority and the complete preserved dataset; see [Performance](docs/PERFORMANCE.md). It does not collect data, run the installed app or silently substitute a smaller model benchmark. Use an explicitly isolated `RUYCAST_HOME` profile for experiments. Build output lives in `.build`; runtime profiles and personal data do not belong in Git.
+The full Swift-comparison/F1 campaign ended on 10 November 2026 and is not a contribution or release gate. The focused Rust measurements in [Performance](docs/PERFORMANCE.md) do not substitute for functional tests or physical desktop acceptance. Use an explicitly isolated `RUYCAST_HOME` profile for experiments. Build output lives in `.build`; runtime profiles and personal data do not belong in Git.
 
 Builds, validation, packaging and installation share `.build/artifacts.lock` through the final synchronous consumer. Nested Rust tools inherit a descriptor plus checked root/device/inode/owner metadata. Concurrent entrypoints wait; a controller crash does not release a live child's lease. Never unlink the lock file. The old `build-native-locked.sh` name is a compatibility dispatch to the same Rust lease, not a separate build recipe.
 
@@ -23,22 +22,23 @@ Before large producer builds, check `make disk-status`. It measures available by
 
 `make clean-build-caches` acquires this checkout's exclusive artifact lease and waits for cooperating consumers to finish. It removes only Cargo `build`, `deps`, `incremental` and `.fingerprint` directories inside the named Ruycast build target roots. It does not remove receipts, release symbols, preparation/recovery records, verification reports, SDKs, screenshots, lock files or worktree edits. Run `make disk-status` and inspect `git status --short` after cleanup. Run the command separately in each Ruycast worktree whose caches should be retired; each checkout has its own lease. Direct Cargo processes that bypass the repository build routes do not participate in the lease and must be stopped before cleanup.
 
-The full `check` entrypoint still fails closed on the original Python-discovery gate. The `settings` inventory has no unmapped gates, but requires the complete current native validation and qualified settings cases. Their `verify-*` entrypoints revalidate the corresponding receipts; an inventory or native-only pass cannot replace full validation. Inspect the IDs with `cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-build -- gate-inventory --repo "$PWD" --pipeline check` (or `settings`). No historical gate is silently skipped.
+The legacy `make check` route still fails closed on the original Python-discovery gate; it does not prove Rust completion. The `settings` inventory has no unmapped gates, but requires the complete current native validation and qualified settings cases. Their `verify-*` entrypoints revalidate the corresponding receipts; an inventory or native-only pass cannot replace full validation. Inspect the IDs with `cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- gate-inventory --repo "$PWD" --pipeline check` (or `settings`). No historical gate is silently skipped.
 
 For a focused change, run the affected Rust test targets with bounded child-process timeouts. Reuse evidence only while its relevant sources, dependencies, toolchain and artifacts are unchanged. Related migration tasks may share one reviewed PR and source export; rerun broader integration checks when shared behavior changes and at integration boundaries.
 
-The complete native route runs the ordered leaf matrix, four hidden renders and reference/SDK bindings, including the mandatory clipboard-parser, Rust benchmark-driver contracts and temporal-lease cases. Use `ruycast-build validation-plan --repo "$PWD"` for the current matrix; its report is `rust-native/target/verification/report.json`. Run it after a verified release build:
+The complete native route runs the ordered leaf matrix, four hidden renders and reference/SDK bindings, including the clipboard-parser, Rust benchmark-driver contracts and temporal-lease cases. Use `cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- validation-plan --repo "$PWD"` for the current matrix; its report is `rust-native/target/verification/report.json`. Run this broader route at relevant integration boundaries after checking disk headroom and completing a verified release build:
 
 ```sh
-make build
-cargo run --quiet --locked --offline --target-dir rust-native/target/native-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- check-native --repo "$PWD"
+make disk-status
+CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- build --repo "$PWD"
+CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- check-native --repo "$PWD"
 ```
 
-Three old contracts have actual qualified oracles: LauncherCoreChecks, pre-main search and pre-main concurrency. Their source/artifact receipts are under `.build/receipts`. Full F1 verification has a separate receipt and `verify-performance` revalidates the preserved dataset with the reviewed runner. None is a full check, signature or physical desktop acceptance.
+Three old contracts have actual qualified oracles: LauncherCoreChecks, pre-main search and pre-main concurrency. Their source/artifact receipts are under `.build/receipts`. These checks do not establish full product acceptance, signing or physical desktop behavior.
 
 Production release builds use explicit host-target output paths and v4 receipts. A release receipt requires matching retained originals/dSYM, unchanged backed sections/UUID and the hashed release-preparation record. Debug receipts have `releasePreparation: null` and cannot authorize packaging or installation. V2/v3 build receipts and historical candidate 67 remain historical evidence. Failed release builds invalidate their previous build receipt.
 
-Python/shell production entrypoints only forward to Rust. A few Python import functions remain unchanged for historical whitebox tests; they are not production configuration, version, locking, packaging or signing authority. The actual product version is the Rust `rust/src/product_version.rs` literal. New implementation and tests belong in Rust. Existing leaf validators and historical test oracles may be maintained only within their declared boundary.
+Build, install, version and source-export routes are available directly through Rust commands; compatibility wrappers and the legacy check pipeline still include Python and shell code. A few Python import functions remain for historical whitebox tests, and the full `check` route still has an unmapped discovery gate. The actual product version is the Rust `rust/src/product_version.rs` literal. New implementation and tests belong in Rust. Existing leaf validators and historical test oracles may be maintained only within their declared boundary.
 
 The lease descriptor is inherited by synchronous consumers. If the controller is interrupted, a still-running child keeps the lease until it exits; another build can therefore keep waiting after cancellation. Avoid deleting `.build/artifacts.lock` or invoking the internal helpers directly. Separate checkouts have separate leases and can still contend for CPU during measurements.
 
