@@ -1532,7 +1532,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "Tests/test_build_pipeline.py",
             "Tests/test_cli.py",
             "Tests/test_local_signing.py",
-            "Tests/test_private_storage.py",
             "Tests/test_public_contract.py",
             "Tests/test_socket_recovery.py",
             "Tests/test_bindings_v2.py",
@@ -1567,6 +1566,62 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "scope": "all seven packaging test contracts are bound to Rust candidate/source checks; the Python test consumer is retired",
             "originalMethods": ["test_candidate_has_only_explicit_bundle_resources_and_no_publication_claim", "test_private_checkout_and_missing_manifest_are_rejected_before_staging", "test_candidate_verification_rejects_post_staging_mutation_or_extra_file", "test_stale_source_or_binary_receipt_cannot_be_packaged", "test_existing_artifact_and_symlink_are_preserved", "test_changes_during_copy_do_not_expose_mixed_candidate", "test_linked_source_and_invalid_metadata_are_rejected"],
             "nativeCases": ["candidate::tests::real_owned_prepared_pair_stages_exclusively_and_rejects_mixed_source", "candidate::tests::public_candidate_refuses_private_checkout_or_missing_manifest_before_staging", "candidate::tests::payload_verification_rejects_tampering_extra_helpers_modes_and_links", "candidate::tests::safari_automation_purpose_survives_rust_packaging_with_or_without_icon", "public_source::tests::owned_postbuild_binding_allows_outputs_and_rejects_tamper_new_sources_and_private_authority", "compat::tests::legacy_argument_contract_rejects_duplicates_unknowns_and_unreviewed_performance"],
+            "remainingPythonCases": 0
+        });
+        inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
+            "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
+            "originalMethods": [
+                "test_private_throughout_write_with_typical_umask",
+                "test_private_throughout_write_with_permissive_umask",
+                "test_private_throughout_write_with_inherited_read_acl",
+                "test_owner_permissions_with_restrictive_umask",
+                "test_unsearchable_creation_mask_fails_before_payload_and_preserves_old_file",
+                "test_cli_init_with_inherited_read_acl",
+                "test_cli_edit_with_inherited_read_acl",
+                "test_profile_acl_removed_and_legacy_alias_preserved",
+                "test_cli_failed_private_write_preserves_old_config",
+                "test_relocation_directory_fsync_failure_rolls_back_own_publication",
+                "test_relocation_directory_fsync_failure_preserves_inplace_edit",
+                "test_relocation_directory_fsync_failure_preserves_replacement"
+            ],
+            "nativeTargets": {
+                "rust-native --lib": [
+                    "private_storage::guarded_publication_tests::nonempty_payloads_remain_private_before_publication_under_four_creation_policies",
+                    "private_storage::guarded_publication_tests::unsearchable_umask_refuses_before_payload_in_an_isolated_process"
+                ],
+                "rust-native --test startup_config_repair": [
+                    "cli_init_with_inherited_read_acl_publishes_private_config",
+                    "cli_edit_with_inherited_read_acl_keeps_parent_and_publishes_private_config",
+                    "cli_failed_private_write_preserves_old_config_under_unsearchable_umask"
+                ],
+                "rust-native --test runtime_process": [
+                    "headless_start_removes_profile_acl_through_legacy_alias"
+                ],
+                "rust-native --test foundation_process": [
+                    "destination_fsync_failure_cleans_only_owned_copy",
+                    "destination_fsync_failure_preserves_in_place_edit",
+                    "destination_replacement_is_preserved_on_failed_move"
+                ]
+            },
+            "nativeCaseByMethod": {
+                "test_private_throughout_write_with_typical_umask": "rust-native --lib -> private_storage::guarded_publication_tests::nonempty_payloads_remain_private_before_publication_under_four_creation_policies",
+                "test_private_throughout_write_with_permissive_umask": "rust-native --lib -> private_storage::guarded_publication_tests::nonempty_payloads_remain_private_before_publication_under_four_creation_policies",
+                "test_private_throughout_write_with_inherited_read_acl": "rust-native --lib -> private_storage::guarded_publication_tests::nonempty_payloads_remain_private_before_publication_under_four_creation_policies",
+                "test_owner_permissions_with_restrictive_umask": "rust-native --lib -> private_storage::guarded_publication_tests::nonempty_payloads_remain_private_before_publication_under_four_creation_policies",
+                "test_unsearchable_creation_mask_fails_before_payload_and_preserves_old_file": "rust-native --lib -> private_storage::guarded_publication_tests::unsearchable_umask_refuses_before_payload_in_an_isolated_process",
+                "test_cli_init_with_inherited_read_acl": "rust-native --test startup_config_repair -> cli_init_with_inherited_read_acl_publishes_private_config",
+                "test_cli_edit_with_inherited_read_acl": "rust-native --test startup_config_repair -> cli_edit_with_inherited_read_acl_keeps_parent_and_publishes_private_config",
+                "test_profile_acl_removed_and_legacy_alias_preserved": "rust-native --test runtime_process -> headless_start_removes_profile_acl_through_legacy_alias",
+                "test_cli_failed_private_write_preserves_old_config": "rust-native --test startup_config_repair -> cli_failed_private_write_preserves_old_config_under_unsearchable_umask",
+                "test_relocation_directory_fsync_failure_rolls_back_own_publication": "rust-native --test foundation_process -> destination_fsync_failure_cleans_only_owned_copy",
+                "test_relocation_directory_fsync_failure_preserves_inplace_edit": "rust-native --test foundation_process -> destination_fsync_failure_preserves_in_place_edit",
+                "test_relocation_directory_fsync_failure_preserves_replacement": "rust-native --test foundation_process -> destination_replacement_is_preserved_on_failed_move"
+            },
+            "retiredConsumers": [
+                "Tests/test_private_storage.py",
+                "Tests/LauncherCoreTests/CoreTests.swift::--private-storage-probe",
+                "Tests/LauncherCoreTests/PrivateFileChecks.swift::runPrivateStorageWriteProbe"
+            ],
             "remainingPythonCases": 0
         });
     }
@@ -2153,6 +2208,45 @@ mod tests {
                 || compat.contains(&format!("fn {name}(")),
                 "{name}");
         }
+    }
+    #[test]
+    fn private_storage_root_crosswalk_resolves_all_twelve_original_methods() {
+        let value = inventory("check").unwrap();
+        assert!(!value["pythonModuleInventory"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "Tests/test_private_storage.py"));
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_private_storage.py"];
+        assert_eq!(mapping["originalMethods"].as_array().unwrap().len(), 12);
+        assert_eq!(mapping["remainingPythonCases"], 0);
+        let sources = [
+            include_str!("../../../../rust/src/private_storage.rs"),
+            include_str!("../../../tests/startup_config_repair.rs"),
+            include_str!("../../../tests/runtime_process.rs"),
+            include_str!("../../../tests/foundation_process.rs"),
+        ];
+        let targets = mapping["nativeTargets"].as_object().unwrap();
+        let bindings = mapping["nativeCaseByMethod"].as_object().unwrap();
+        assert_eq!(bindings.len(), 12);
+        let methods = mapping["originalMethods"].as_array().unwrap();
+        let mut unique_cases = std::collections::BTreeSet::new();
+        for method in methods {
+            let method = method.as_str().unwrap();
+            let binding = bindings[method].as_str().unwrap();
+            let (target, case) = binding.split_once(" -> ").unwrap();
+            let cases = targets[target].as_array().unwrap();
+            assert!(cases.iter().any(|candidate| candidate == case));
+            unique_cases.insert(case);
+            let name = case.rsplit("::").next().unwrap();
+            assert!(
+                sources
+                    .iter()
+                    .any(|source| source.contains(&format!("fn {name}("))),
+                "{name}"
+            );
+        }
+        assert_eq!(unique_cases.len(), 9);
     }
     #[test]
     fn bridge_rust_crosswalk_resolves_cases_and_current_shared_inputs() {

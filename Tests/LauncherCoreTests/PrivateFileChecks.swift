@@ -32,10 +32,3 @@ func checkPrivateFiles() throws {
     let names=try FileManager.default.contentsOfDirectory(atPath:root.path)
     precondition(Set(names)==["private.json","other.json","directory.json","exclusive.json","exclusive-link.json"],"Failed writes must remove their own temporary file")
 }
-
-// Executed only by the Python observer in a disposable directory. This fixture
-// calls the production writer; it does not duplicate its implementation.
-func runPrivateStorageWriteProbe(root:URL) throws {
-    let body=String(repeating:"synthetic-private-payload-",count:160000)
-    for iteration in 0..<20 {try Files.save(["iteration":String(iteration),"body":body],to:root.appendingPathComponent("private.json"))}
-}
