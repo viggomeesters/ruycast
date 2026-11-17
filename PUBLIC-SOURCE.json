@@ -406,7 +406,7 @@
     "rust-native/src/bin/ruycast-build/raycast_cli.rs": "be8bd95cc423497a50e4daf0f54e359c28ed455af693ae274138323f5fb8192c",
     "rust-native/src/bin/ruycast-build/sample_performance.rs": "f83d022f382e220b848f42e5e47c3d52bf328187c6b2d4ede20a33134ec3cb18",
     "rust-native/src/bin/ruycast-build/test_catalog.rs": "f8d61fe5d973141f9672afa9f949e800bb4680510b999846a17c74e7647efb1a",
-    "rust-native/src/bin/ruycast-build/validation.rs": "8457cd34e20c3696f9aec25ca998dcacf6a9856d5174ad951e603c9ec638ffb0",
+    "rust-native/src/bin/ruycast-build/validation.rs": "a6ddbbede8783818c7536ee0ad13f22ae3182a72ff4d7414cf4d07049f866b7f",
     "rust-native/src/bin/ruycast-build/version.rs": "61d989138dfc7579674b3aa89eaa5f791e54994fed6cc470eafe02288c4f6118",
     "rust-native/src/bin/ruycast-install.rs": "55f570be10002dca090704793e5c099f6ca641a8fc6821cf01dcfb06390f8816",
     "rust-native/src/bin/ruycast-install/descendant_fixture.rs": "c7ce03ef8f22d79705d1c6a2abf997391fa31fcadeb782bdecd66882119c614f",
