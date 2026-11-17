@@ -438,3 +438,77 @@ pub fn record(
     }
     Ok(())
 }
+
+// Private opt-in checker core. Never provision, unlock, edit search lists or launch fixtures.
+
+struct CheckWork(PathBuf);
+impl Drop for CheckWork {
+    fn drop(&mut self) {
+        // Only the exclusive directory reserved by this checker is disposable.
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+pub(super) fn check(
+    root: &Path,
+    repo: &Path,
+    home: &Path,
+    staging_parent: &Path,
+    compiler: &Path,
+    runner: &mut dyn tools::Runner,
+) -> Result<Value> {
+    // Identity refusal precedes every runner call and staging side effect.
+    let identity = load(root, repo)?;
+    fs::absolute(compiler)?;
+    fs::no_links(staging_parent)?;
+    if staging_parent.starts_with(root) {
+        return Err("Checker staging must remain outside signing state.".into());
+    }
+    let work = CheckWork(fs::fresh(staging_parent, "signing-check-")?);
+    let requirement = identity["requirement"].as_str().ok_or("Missing pinned requirement.")?;
+    let fingerprint = identity["certificate_sha1"].as_str().ok_or("Missing pinned fingerprint.")?;
+    let expected = format!("designated => {}", requirement.replace(fingerprint, &fingerprint.to_ascii_lowercase()));
+    let mut hashes = Vec::new();
+    let mut requirements = Vec::new();
+    for variant in [1, 2] {
+        let app = work.0.join(format!("Variant{variant}.app"));
+        let mac = app.join("Contents/MacOS");
+        fs::directory(&mac, 0o700)?;
+        let source = work.0.join(format!("variant{variant}.rs"));
+        fs::create(&source, format!("fn main() {{ std::process::exit({variant}); }}\n").as_bytes(), 0o600)?;
+        let executable = mac.join("Proof");
+        tools::checked(runner, tools::Call::new(compiler, [
+            "--edition=2021".to_owned(), source.display().to_string(), "-o".into(), executable.display().to_string(),
+        ]).env(home, None, None).cwd(&work.0))?;
+        let plist = tools::plist_bytes(&json!({"CFBundleIdentifier":NEW_ID,"CFBundleExecutable":"Proof","CFBundlePackageType":"APPL","CFBundleVersion":variant.to_string()}))?;
+        fs::create(&app.join("Contents/Info.plist"), &plist, 0o600)?;
+        // Do not use signing::sign: it changes the keychain search list and
+        // unlocks the keychain. This path requires existing authorization.
+        tools::checked(runner, tools::Call::new("/usr/bin/codesign", [
+            "--force".to_owned(), "--sign".into(), fingerprint.into(),
+            "--keychain".into(), root.join("identity.keychain-db").display().to_string(),
+            "--timestamp=none".into(), "--identifier".into(), NEW_ID.into(),
+            "--requirements".into(), format!("=designated => {requirement}"), app.display().to_string(),
+        ]).env(home, None, None))?;
+        verify(&app, &identity, home, runner)?;
+        let details = tools::checked(runner, tools::Call::new("/usr/bin/codesign", [
+            "--display".to_owned(), "--requirements".into(), "-".into(), app.display().to_string(),
+        ]).env(home, None, None))?;
+        // codesign normally writes display information to stderr.
+        let bytes = [details.stdout, details.stderr].concat();
+        let text = std::str::from_utf8(&bytes).map_err(|_| "Invalid designated requirement output.".to_string())?;
+        let designated: Vec<_> = text.lines().map(|line| line.strip_prefix("# ").unwrap_or(line).trim())
+            .filter(|line| line.contains("designated =>")).collect();
+        if designated.as_slice() != [expected.as_str()] {
+            return Err("Signed app does not carry the exact pinned requirement.".into());
+        }
+        requirements.push(designated[0].to_owned());
+        hashes.push(fs::hash(&executable)?);
+    }
+    if hashes[0] == hashes[1] || requirements[0] != requirements[1] {
+        return Err("Changed native builds did not retain the same identity.".into());
+    }
+    Ok(json!({"ok":true,"differentNativeBinaries":true,"sameDesignatedRequirement":true,
+        "bothVerifyAgainstPinnedCertificate":true,"certificate_sha1":fingerprint,
+        "requirement":requirement,"privacySettingsChanged":false,"fixturesLaunched":false}))
+}
