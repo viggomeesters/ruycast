@@ -416,7 +416,7 @@
     "rust-native/src/bin/ruycast-install/profile.rs": "d342aca3d8774eeafd053c71b53fb892b5538f0f0a0109917214012a8655be28",
     "rust-native/src/bin/ruycast-install/receipt.rs": "983c71c8abea3ee0b3de2aa973dd715ab4178d788d126d3605329ccbab86347c",
     "rust-native/src/bin/ruycast-install/signing.rs": "32231893e0cf738abf1501432d68d1e5389e396aa6fb280cd0b90f42f744b419",
-    "rust-native/src/bin/ruycast-install/tests.rs": "40a2b1111f552cba737cc7c8f445d0a43efc02f9faa32575a774dfa43c4ee617",
+    "rust-native/src/bin/ruycast-install/tests.rs": "db48aa8f642773c9dc8bcc3f726d72ea8e334496f3a116ac55608c11a8427576",
     "rust-native/src/bin/ruycast-install/tools.rs": "8b628a678a230914c9b69ec9bed70d94a1b915e8dea983ad1defc709cc8b3b72",
     "rust-native/src/bin/ruycast-install/transaction.rs": "8b44ab8098eaa066c7a5aa28b7cb1b1b44eb5136aa101e91d5746895e55a1349",
     "rust-native/src/bin/ruycast-source.rs": "fe584c5ad1243d0c295ccaf24f2a4888d45638d50a7d23f6186d8bbe38cd1869",

@@ -685,6 +685,81 @@ fn installer_owned_signer_never_rotates_weakens_or_downgrades() {
 }
 
 #[test]
+fn installer_owned_incomplete_signer_without_manifest_is_preserved() {
+    let f = Fixture::new();
+    f.signer();
+    stdfs::remove_file(f.o.signer.join("identity.json")).unwrap();
+    let remaining = [
+        "certificate.pem",
+        "identity.keychain-db",
+        "keychain-password",
+    ];
+    let before: Vec<_> = remaining
+        .iter()
+        .map(|name| stdfs::read(f.o.signer.join(name)).unwrap())
+        .collect();
+    let mut r = f.runner();
+
+    let error = signing::prepare(&f.o.signer, &f.o.repo, &f.o.home, &mut r).unwrap_err();
+
+    assert!(error.contains("Incomplete signing state"), "{error}");
+    assert!(r.calls.is_empty());
+    assert!(!f.o.signer.join("identity.json").exists());
+    assert_eq!(stdfs::read_dir(&f.o.signer).unwrap().count(), remaining.len());
+    for (name, bytes) in remaining.iter().zip(before) {
+        assert_eq!(stdfs::read(f.o.signer.join(name)).unwrap(), bytes);
+    }
+}
+
+#[test]
+fn installer_owned_signer_root_symlink_or_permissive_mode_is_refused() {
+    for linked in [true, false] {
+        let f = Fixture::new();
+        f.signer();
+        let before: BTreeMap<_, _> = stdfs::read_dir(&f.o.signer)
+            .unwrap()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                (entry.file_name(), stdfs::read(entry.path()).unwrap())
+            })
+            .collect();
+        let root = if linked {
+            let alias = f.o.home.join("signing-alias");
+            symlink(&f.o.signer, &alias).unwrap();
+            alias
+        } else {
+            stdfs::set_permissions(&f.o.signer, stdfs::Permissions::from_mode(0o755)).unwrap();
+            f.o.signer.clone()
+        };
+        let mut r = f.runner();
+
+        let error = signing::prepare(&root, &f.o.repo, &f.o.home, &mut r).unwrap_err();
+        assert!(
+            error.contains(if linked {
+                "Linked installation path"
+            } else {
+                "private and owned"
+            }),
+            "{error}"
+        );
+        assert!(signing::load(&root, &f.o.repo).is_err());
+        assert!(r.calls.is_empty());
+        assert_eq!(stdfs::read_dir(&f.o.signer).unwrap().count(), before.len());
+        for (name, bytes) in before {
+            assert_eq!(stdfs::read(f.o.signer.join(name)).unwrap(), bytes);
+        }
+        if linked {
+            assert_eq!(stdfs::read_link(&root).unwrap(), f.o.signer);
+        } else {
+            assert_eq!(
+                stdfs::metadata(&root).unwrap().permissions().mode() & 0o777,
+                0o755
+            );
+        }
+    }
+}
+
+#[test]
 fn installer_owned_concurrent_app_or_cli_changes_are_never_clobbered() {
     for fault in ["concurrent-app", "concurrent-link"] {
         let f = Fixture::new();
