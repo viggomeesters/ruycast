@@ -93,6 +93,71 @@ fn wait_marker(path: &std::path::Path) {
         thread::sleep(Duration::from_millis(2));
     }
 }
+fn current_rfc3339() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as libc::time_t;
+    let mut parts: libc::tm = unsafe { std::mem::zeroed() };
+    assert!(!unsafe { libc::gmtime_r(&now, &mut parts) }.is_null());
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        parts.tm_year + 1900,
+        parts.tm_mon + 1,
+        parts.tm_mday,
+        parts.tm_hour,
+        parts.tm_min,
+        parts.tm_sec
+    )
+}
+
+#[test]
+fn benchmark_fixture_owns_500_commands_200_clipboard_rows_and_cold_readiness() {
+    let mut h = host(false);
+    let mut config: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    config["commands"] = (0..500)
+        .map(|i| json!({
+            "id": format!("fixture.{i}"),
+            "title": format!("Open Project {i}"),
+            "kind": "url",
+            "target": format!("https://example.com/{i}"),
+            "aliases": [format!("p{i}")],
+            "arguments": []
+        }))
+        .collect::<Vec<_>>()
+        .into();
+    fs::write(&h.config, serde_json::to_vec(&config).unwrap()).unwrap();
+    let created_at = current_rfc3339();
+    let clipboard = (0..200)
+        .map(|i| json!({
+            "id": format!("fixture-{i}"),
+            "text": format!("Fixture {i}: {}", "native clipboard Ω ".repeat(400)),
+            "source": "fixture",
+            "date": created_at
+        }))
+        .collect::<Vec<_>>();
+    fs::write(
+        h.profile.join("clipboard.json"),
+        serde_json::to_vec(&clipboard).unwrap(),
+    )
+    .unwrap();
+
+    let started = Instant::now();
+    h.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(8));
+    let cold_ready_ms = started.elapsed().as_secs_f64() * 1000.0;
+    let status = h.rpc_timeout(
+        &json!({"op":"status"}),
+        Duration::from_secs(2),
+    )["result"]
+        .clone();
+    assert_eq!(status["headless"], true);
+    assert_eq!(Path::new(status["configPath"].as_str().unwrap()), h.config);
+    assert_eq!(status["commands"], 500);
+    assert_eq!(status["clipboardCount"], 200);
+    assert!(cold_ready_ms.is_finite() && cold_ready_ms > 0.0);
+    let exit = h.stop(true).unwrap();
+    assert!(exit.status.success(), "{}", String::from_utf8_lossy(&exit.stderr));
+}
 fn acl_rows(path: &Path) -> Vec<String> {
     let output = runtime_host::run(
         Command::new("/bin/ls").args(["-lde"]).arg(path),
