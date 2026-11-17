@@ -273,6 +273,12 @@ pub(super) fn binding(root: &Path, target: &str) -> Result<super::PreparationBin
     })
 }
 pub(super) fn recover(root: &Path) -> Result<()> {
+    recover_with(root, |_, _| Ok(()))
+}
+fn recover_with(
+    root: &Path,
+    mut before_copy: impl FnMut(usize, &Path) -> Result<()>,
+) -> Result<()> {
     let pending = root.join(PENDING);
     match fs::symlink_metadata(&pending) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -307,14 +313,19 @@ pub(super) fn recover(root: &Path) -> Result<()> {
     }
     let stage = Stage::new(root, "recover")?;
     let mut changes = vec![];
-    for name in intent.changes.keys() {
+    for (index, name) in intent.changes.keys().enumerate() {
         let row = &intent.preparation.artifacts[name];
+        let original = root.join(&row.unstripped_path);
         let candidate = stage.path().join(
             Path::new(name)
                 .file_name()
                 .ok_or("Missing recovery name.")?,
         );
-        copy(&root.join(&row.unstripped_path), &candidate)?;
+        before_copy(index, &original)?;
+        copy(&original, &candidate)?;
+        if digest(&candidate)? != row.unstripped_sha256 {
+            return Err("Recovery diagnostic changed after validation.".into());
+        }
         changes.push((candidate, root.join(name), observed[name].clone()));
     }
     for (from, to, expected) in changes {
@@ -634,6 +645,42 @@ mod tests {
         recover(&f.root.0).unwrap();
         assert_eq!(f.current(), before);
         assert!(!f.root.0.join(PENDING).exists());
+    }
+    #[test]
+    fn recovery_rejects_changed_staged_original_before_replacing_either_binary() {
+        let f = Fixture::new();
+        let original_pair = f.current();
+        prepare(&f.root.0, &f.target).unwrap();
+        let record = verify(&f.root.0, &f.target).unwrap();
+        let name = f.names()[0].clone();
+        let original = f.root.0.join(&record.artifacts[&name].unstripped_path);
+        let intent = Intent {
+            schema: "ruycast.release-preparation-intent.v2".into(),
+            changes: original_pair,
+            preparation: record,
+        };
+        atomic(&f.root.0.join(PENDING), &intent).unwrap();
+
+        // Simulate interruption after one executable returned to its known
+        // preimage while the peer remains in its stripped state.
+        fs::remove_file(f.root.0.join(&name)).unwrap();
+        copy(&original, &f.root.0.join(&name)).unwrap();
+        let interrupted_pair = f.current();
+        let pending_digest = digest(&f.root.0.join(PENDING)).unwrap();
+
+        let result = recover_with(&f.root.0, |index, source| {
+            // The first staged copy is already verified; a later mismatch
+            // must still be rejected before either destination is replaced.
+            if index == 1 {
+                fs::write(source, b"changed after recovery validation").map_err(error)?;
+            }
+            Ok(())
+        });
+        assert!(result
+            .unwrap_err()
+            .contains("Recovery diagnostic changed after validation"));
+        assert_eq!(f.current(), interrupted_pair);
+        assert_eq!(digest(&f.root.0.join(PENDING)).unwrap(), pending_digest);
     }
     #[test]
     fn mismatched_diagnostics_and_unknown_recovery_writes_never_mutate_the_pair() {
