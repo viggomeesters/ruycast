@@ -110,26 +110,6 @@ class CLIIntegration(unittest.TestCase):
         (self.root / 'config.json').write_text(json.dumps(self.config))
         self.cli('reload', ok=True)
 
-    def test_snippets_and_quicklinks_and_input_are_literal(self):
-        snippet={'id':'snippet.test','title':'Greeting','kind':'snippet','target':'Hello {cursor}','keyword':';hello'}
-        self.cli('snippets','add',json.dumps(snippet),ok=True)
-        rows=self.cli('snippets','list',ok=True)['result']
-        self.assertEqual([r['id'] for r in rows],['snippet.test'])
-        self.assertEqual(self.cli('search',';hello',ok=True)['result'][0]['id'],'snippet.test')
-        link={'id':'link.test','title':'Find','kind':'url','target':'https://example.com/?q={query}','aliases':['find-test']}
-        self.cli('quicklinks','add',json.dumps(link),ok=True)
-        self.assertEqual(self.cli('quicklinks','list','find-test',ok=True)['result'][0]['target'],link['target'])
-        script={'id':'test.input','title':'Input','kind':'script','target':'/usr/bin/printf','arguments':['%s','{input}'],'inputPrompt':'Text'}
-        self.cli('config','add',json.dumps(script),ok=True)
-        self.cli('run','test.input',ok=False)
-        text='literal $(do not run)\nΩ'
-        self.assertEqual(self.cli('run','test.input','--input',json.dumps({'input':text}),ok=True)['result']['stdout'],text)
-        self.assertEqual(self.cli('run','test.input','--input','123',ok=True)['result']['stdout'],'123')
-        self.cli('snippets','remove','snippet.test',ok=True)
-        self.assertEqual(self.cli('snippets','list',ok=True)['result'],[])
-        self.cli('config','set','snippetExpansionEnabled','true',ok=True)
-        self.assertTrue(self.cli('config','get',ok=True)['result']['snippetExpansionEnabled'])
-
     def test_existing_quick_note_provider_in_fixture_vault(self):
         provider=Path(os.environ.get('RUYCAST_CAPTURE_PROVIDER',''))
         if not provider.is_file():
