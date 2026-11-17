@@ -1507,7 +1507,76 @@ fn root_git_mapping_state(source: &[u8]) -> &'static str {
         "requires-source-requalification"
     }
 }
+fn discover_python_tests(root: &Path) -> Result<(Vec<String>, Vec<String>)> {
+    fn visit(
+        root: &Path,
+        directory: &Path,
+        modules: &mut Vec<String>,
+        packages: &mut Vec<String>,
+    ) -> Result<()> {
+        let mut children = Vec::new();
+        for entry in fs::read_dir(directory).map_err(error)? {
+            let entry = entry.map_err(error)?;
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path).map_err(error)?;
+            if metadata.file_type().is_symlink() {
+                return Err("Python test discovery refuses symlinked entries.".into());
+            }
+            if metadata.is_dir() {
+                children.push(path);
+            } else if metadata.is_file() {
+                let name = path.file_name().and_then(|name| name.to_str())
+                    .ok_or("Python test path is not UTF-8.")?;
+                if name.starts_with("test_") && path.extension().is_some_and(|extension| extension == "py") {
+                    let relative = path.strip_prefix(root).map_err(error)?;
+                    modules.push(relative.to_str().ok_or("Python test path is not UTF-8.")?.to_owned());
+                }
+            } else {
+                return Err("Python test discovery refuses non-regular entries.".into());
+            }
+        }
+        for child in children {
+            match fs::symlink_metadata(child.join("__init__.py")) {
+                Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                    packages.push(
+                        child.join("__init__.py").strip_prefix(root).map_err(error)?
+                            .to_str().ok_or("Python package path is not UTF-8.")?.to_owned(),
+                    );
+                    visit(root, &child, modules, packages)?;
+                }
+                Ok(_) => return Err("Python test discovery refuses an unsafe package marker.".into()),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+        Ok(())
+    }
+
+    let tests = root.join("Tests");
+    let metadata = fs::symlink_metadata(&tests).map_err(error)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err("Python test discovery requires a real Tests directory.".into());
+    }
+    let mut modules = Vec::new();
+    let mut packages = Vec::new();
+    visit(root, &tests, &mut modules, &mut packages)?;
+    modules.sort();
+    packages.sort();
+    Ok((modules, packages))
+}
+fn python_discovery_state(modules: &[String], packages: &[String]) -> &'static str {
+    if modules.is_empty() && packages.is_empty() {
+        "source-qualified-empty-test-discovery"
+    } else {
+        "requires-complete-transport-and-case-mapping"
+    }
+}
 pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
+    let (python_modules, python_packages) = if kind == "check" {
+        discover_python_tests(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?
+    } else {
+        (Vec::new(), Vec::new())
+    };
     let gates: Vec<(&str, &str)> = match kind {
         "check" => vec![
             ("LauncherCoreChecks", "source-qualified-pure-oracle"),
@@ -1515,7 +1584,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             ("--check-concurrency", "source-qualified-pre-main-oracle"),
             (
                 "python-unittest-discover-Tests-test_*.py",
-                "requires-complete-transport-and-case-mapping",
+                python_discovery_state(&python_modules, &python_packages),
             ),
             ("git-diff-check", root_git_mapping_state(include_bytes!("compat.rs"))),
         ],
@@ -1524,16 +1593,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             .map(|gate| (gate.id, settings_mapping_state(gate)))
             .collect(),
         _ => return Err("Unknown legacy gate inventory.".into()),
-    };
-    let python_modules = if kind == "check" {
-        vec![
-            "Tests/test_bindings_v2.py",
-            "Tests/test_personal_bridge.py",
-            "Tests/test_transition_catalog.py",
-            "Tests/test_utilities_import.py",
-        ]
-    } else {
-        vec![]
     };
     let unresolved = gates
         .iter()
@@ -1553,7 +1612,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         }
     }
     let mut inventory =
-        serde_json::json!({"schema":"ruycast.original-gate-inventory.v1","pipeline":kind,"gates":gates,"unmappedGateIDs":unresolved,"settingsCaseCrosswalk":if kind=="settings"{serde_json::to_value(SETTINGS).map_err(error)?}else{serde_json::Value::Null},"qualifiedCaseSourceBindings":if kind=="settings"{serde_json::to_value(qualified).map_err(error)?}else{serde_json::Value::Null},"requiresCurrentCompleteNativeValidation":true,"pythonModuleInventory":python_modules,"rustRootTestCrosswalk":if kind=="check"{serde_json::json!({"Tests/test_config_activation.py":{"scope":"both original activation rollback scenarios ported using actual Rust CLI and owned Unix socket; no live host","originalMethods":["test_rejected_candidate_restores_previous_bytes_and_runtime","test_newer_external_edit_is_never_rolled_back"],"nativeTarget":"startup_config_repair","nativeCases":["rejected_candidate_restores_previous_bytes_and_runtime","newer_external_edit_is_never_rolled_back"],"remainingPythonCases":0},"Tests/test_product_version.py":{"authority":"rust/src/product_version.rs","scope":"retired historical Swift-authority test consumer; five scenario intents now covered against actual Rust authority","originalMethods":["test_reader_and_actual_swift_compiler_agree_after_one_version_edit","test_missing_linked_ambiguous_or_nonliteral_version_is_rejected","test_export_follows_changed_compiled_version","test_invalid_version_creates_no_export_or_archive","test_nonregular_source_is_rejected_without_waiting_for_a_writer"],"nativeCases":["version::tests::owned_literal_matches_the_rust_compiler_and_rejects_link_fifo_directory_or_missing","version::tests::owned_rust_literal_tokens_preserve_whitespace_and_reject_ambiguity","version::tests::changed_compiled_version_exports_and_invalid_source_leaves_no_outputs"]},"Tests/test_config_directory.py":{"scope":"all fourteen scenarios ported, including qualified current-Rust manual-selector contract and actual Rust Raycast importer","originalMethods":["test_offline_relocation_preserves_bytes_and_runtime_files","test_existing_destination_is_not_overwritten","test_busy_writer_cannot_be_relocated","test_environment_pinned_directory_cannot_be_relocated","test_default_remains_compatible","test_invalid_selector_never_falls_back_to_stale_config","test_unavailable_persisted_config_is_not_initialized","test_persisted_directory_is_shared_and_survives_cli_restart","test_host_restart_uses_relocated_configuration","test_parent_component_after_symlink_is_rejected_by_cli_and_host","test_live_relocation_keeps_host_and_observer_on_new_file","test_manual_selector_change_does_not_silently_activate_wrong_file","test_environment_overrides_persisted_location","test_raycast_import_defaults_to_active_cli_config"],"currentContractDifferences":{"test_manual_selector_change_does_not_silently_activate_wrong_file":"Current Rust host automatically rebinds valid selectors; historical immediate CLI refusal and old host path are not guaranteed. Actual stale ConfigStore write refusal and unchanged copies are preserved; subsequent actual CLI edits target only the rebound selected file."},"additionalNativeTargets":{"runtime_process":["persisted_directory_is_shared_between_cli_and_owned_host_startup","owned_host_restart_uses_relocated_configuration","relocate_keeps_original_then_cli_edits_new_target","external_selector_rebinds_observation_to_portable_directory"]},"nativeTarget":"startup_config_repair","nativeCases":["offline_cli_relocation_retains_source_and_refuses_existing_target","offline_cli_busy_writer_and_environment_pin_refuse_relocation","offline_cli_default_path_and_invalid_selectors_never_use_stale_config","offline_cli_and_host_initializer_refuse_unavailable_persisted_config","offline_cli_and_host_initializer_refuse_parent_component_after_symlink","offline_cli_and_host_initializer_override_persisted_location_without_overwrite","raycast_import_defaults_to_active_cli_config"],"remainingPythonCases":0},"Tests/test_install_migration.py":{"scope":"all sixteen original scenarios ported; Python module and unused helper retired","originalMethods":["test_failed_bootstrap_restores_old_app_cli_and_registration","test_wrong_running_version_restores_old_app_and_registration","test_installer_migrates_single_service_and_both_cli_names","test_other_rustcast_app_cli_and_profile_are_preserved","test_existing_compatibility_alias_does_not_own_other_rustcast_app","test_signing_failure_keeps_existing_host_and_profile_untouched","test_installer_pins_explicit_configuration_for_login_startup","test_receipt_failure_never_stops_installed_app","test_invalid_canonical_version_never_stages_or_stops_current_app","test_profile_preserves_bytes_and_idempotent_alias","test_custom_config_is_backed_up_and_checked_separately_from_runtime","test_conflicting_profiles_and_links_are_preserved","test_unrelated_cli_symlink_is_not_hijacked","test_external_local_adapter_stages_without_entering_public_source","test_public_source_update_preserves_existing_local_adapter","test_wrong_bundle_identity_refused"],"authority":"rust/src/product_version.rs","buildAuthorityCases":["tests::genuine_owned_cargo_pair_emits_v4_and_rejects_stale_or_tampered_authority"],"nativeBinary":"ruycast-install","nativeCases":["installer::tests::installer_owned_failures_rollback_or_fail_before_stopping_without_config_changes","installer::tests::installer_owned_legacy_migration_preserves_authored_state_and_both_cli_names","installer::tests::installer_owned_unrelated_product_and_unknown_stage_are_preserved","installer::tests::installer_owned_explicit_app_profile_config_and_relative_legacy_alias","installer::tests::installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop","installer::tests::installer_owned_profile_filesystem_preserves_bytes_and_idempotent_alias","installer::tests::installer_owned_profile_filesystem_selected_config_hash_is_separate_from_runtime","installer::tests::installer_owned_profile_filesystem_conflicts_and_unrelated_cli_are_preserved","installer::tests::installer_owned_personal_adapter_external_stages_without_public_source_copy","installer::tests::installer_owned_personal_adapter_installed_bytes_preserved_and_link_refused","installer::tests::installer_owned_bundle_identity_refuses_unrelated_app_without_mutation"],"faults":["bootstrap","version","sign"],"remainingPythonFlowConsumers":0,"remainingPythonFilesystemCases":0}})}else{serde_json::Value::Null},"pythonDiscovery":"Every test discovered by the original Tests/test_*.py selector remains required; the optional integration modules need their own presence/safety qualification, never a blanket skip","unmappedIsFailure":true,"productionAccepted":false});
+        serde_json::json!({"schema":"ruycast.original-gate-inventory.v1","pipeline":kind,"gates":gates,"unmappedGateIDs":unresolved,"settingsCaseCrosswalk":if kind=="settings"{serde_json::to_value(SETTINGS).map_err(error)?}else{serde_json::Value::Null},"qualifiedCaseSourceBindings":if kind=="settings"{serde_json::to_value(qualified).map_err(error)?}else{serde_json::Value::Null},"requiresCurrentCompleteNativeValidation":true,"pythonModuleInventory":python_modules,"pythonPackageInitializers":python_packages,"rustRootTestCrosswalk":if kind=="check"{serde_json::json!({"Tests/test_config_activation.py":{"scope":"both original activation rollback scenarios ported using actual Rust CLI and owned Unix socket; no live host","originalMethods":["test_rejected_candidate_restores_previous_bytes_and_runtime","test_newer_external_edit_is_never_rolled_back"],"nativeTarget":"startup_config_repair","nativeCases":["rejected_candidate_restores_previous_bytes_and_runtime","newer_external_edit_is_never_rolled_back"],"remainingPythonCases":0},"Tests/test_product_version.py":{"authority":"rust/src/product_version.rs","scope":"retired historical Swift-authority test consumer; five scenario intents now covered against actual Rust authority","originalMethods":["test_reader_and_actual_swift_compiler_agree_after_one_version_edit","test_missing_linked_ambiguous_or_nonliteral_version_is_rejected","test_export_follows_changed_compiled_version","test_invalid_version_creates_no_export_or_archive","test_nonregular_source_is_rejected_without_waiting_for_a_writer"],"nativeCases":["version::tests::owned_literal_matches_the_rust_compiler_and_rejects_link_fifo_directory_or_missing","version::tests::owned_rust_literal_tokens_preserve_whitespace_and_reject_ambiguity","version::tests::changed_compiled_version_exports_and_invalid_source_leaves_no_outputs"]},"Tests/test_config_directory.py":{"scope":"all fourteen scenarios ported, including qualified current-Rust manual-selector contract and actual Rust Raycast importer","originalMethods":["test_offline_relocation_preserves_bytes_and_runtime_files","test_existing_destination_is_not_overwritten","test_busy_writer_cannot_be_relocated","test_environment_pinned_directory_cannot_be_relocated","test_default_remains_compatible","test_invalid_selector_never_falls_back_to_stale_config","test_unavailable_persisted_config_is_not_initialized","test_persisted_directory_is_shared_and_survives_cli_restart","test_host_restart_uses_relocated_configuration","test_parent_component_after_symlink_is_rejected_by_cli_and_host","test_live_relocation_keeps_host_and_observer_on_new_file","test_manual_selector_change_does_not_silently_activate_wrong_file","test_environment_overrides_persisted_location","test_raycast_import_defaults_to_active_cli_config"],"currentContractDifferences":{"test_manual_selector_change_does_not_silently_activate_wrong_file":"Current Rust host automatically rebinds valid selectors; historical immediate CLI refusal and old host path are not guaranteed. Actual stale ConfigStore write refusal and unchanged copies are preserved; subsequent actual CLI edits target only the rebound selected file."},"additionalNativeTargets":{"runtime_process":["persisted_directory_is_shared_between_cli_and_owned_host_startup","owned_host_restart_uses_relocated_configuration","relocate_keeps_original_then_cli_edits_new_target","external_selector_rebinds_observation_to_portable_directory"]},"nativeTarget":"startup_config_repair","nativeCases":["offline_cli_relocation_retains_source_and_refuses_existing_target","offline_cli_busy_writer_and_environment_pin_refuse_relocation","offline_cli_default_path_and_invalid_selectors_never_use_stale_config","offline_cli_and_host_initializer_refuse_unavailable_persisted_config","offline_cli_and_host_initializer_refuse_parent_component_after_symlink","offline_cli_and_host_initializer_override_persisted_location_without_overwrite","raycast_import_defaults_to_active_cli_config"],"remainingPythonCases":0},"Tests/test_install_migration.py":{"scope":"all sixteen original scenarios ported; Python module and unused helper retired","originalMethods":["test_failed_bootstrap_restores_old_app_cli_and_registration","test_wrong_running_version_restores_old_app_and_registration","test_installer_migrates_single_service_and_both_cli_names","test_other_rustcast_app_cli_and_profile_are_preserved","test_existing_compatibility_alias_does_not_own_other_rustcast_app","test_signing_failure_keeps_existing_host_and_profile_untouched","test_installer_pins_explicit_configuration_for_login_startup","test_receipt_failure_never_stops_installed_app","test_invalid_canonical_version_never_stages_or_stops_current_app","test_profile_preserves_bytes_and_idempotent_alias","test_custom_config_is_backed_up_and_checked_separately_from_runtime","test_conflicting_profiles_and_links_are_preserved","test_unrelated_cli_symlink_is_not_hijacked","test_external_local_adapter_stages_without_entering_public_source","test_public_source_update_preserves_existing_local_adapter","test_wrong_bundle_identity_refused"],"authority":"rust/src/product_version.rs","buildAuthorityCases":["tests::genuine_owned_cargo_pair_emits_v4_and_rejects_stale_or_tampered_authority"],"nativeBinary":"ruycast-install","nativeCases":["installer::tests::installer_owned_failures_rollback_or_fail_before_stopping_without_config_changes","installer::tests::installer_owned_legacy_migration_preserves_authored_state_and_both_cli_names","installer::tests::installer_owned_unrelated_product_and_unknown_stage_are_preserved","installer::tests::installer_owned_explicit_app_profile_config_and_relative_legacy_alias","installer::tests::installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop","installer::tests::installer_owned_profile_filesystem_preserves_bytes_and_idempotent_alias","installer::tests::installer_owned_profile_filesystem_selected_config_hash_is_separate_from_runtime","installer::tests::installer_owned_profile_filesystem_conflicts_and_unrelated_cli_are_preserved","installer::tests::installer_owned_personal_adapter_external_stages_without_public_source_copy","installer::tests::installer_owned_personal_adapter_installed_bytes_preserved_and_link_refused","installer::tests::installer_owned_bundle_identity_refuses_unrelated_app_without_mutation"],"faults":["bootstrap","version","sign"],"remainingPythonFlowConsumers":0,"remainingPythonFilesystemCases":0}})}else{serde_json::Value::Null},"pythonDiscovery":"The original Tests/test_*.py unittest discovery is source-qualified from the actual package-aware Tests tree; any discovered module remains unresolved until its cases are transported and mapped","unmappedIsFailure":true,"productionAccepted":false});
     if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
@@ -2159,6 +2218,52 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn python_unittest_discovery_qualifies_only_real_package_discovered_sources() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let (modules, packages) = super::discover_python_tests(repo).unwrap();
+        assert!(modules.is_empty());
+        assert!(packages.is_empty());
+        let inventory = super::inventory("check").unwrap();
+        assert_eq!(inventory["pythonModuleInventory"], serde_json::json!([]));
+        assert_eq!(inventory["pythonPackageInitializers"], serde_json::json!([]));
+        assert_eq!(inventory["unmappedGateIDs"], serde_json::json!(["git-diff-check"]));
+        assert_eq!(
+            inventory["gates"].as_array().unwrap().iter()
+                .find(|gate| gate[0] == "python-unittest-discover-Tests-test_*.py").unwrap()[1],
+            "source-qualified-empty-test-discovery"
+        );
+
+        let fixture = super::super::tests::Fixture::new();
+        let tests = fixture.0.join("Tests");
+        std::fs::create_dir_all(tests.join("loose")).unwrap();
+        std::fs::create_dir_all(tests.join("package")).unwrap();
+        std::fs::write(tests.join("test_root.py"), "").unwrap();
+        std::fs::write(tests.join("loose/test_ignored.py"), "").unwrap();
+        std::fs::write(tests.join("package/__init__.py"), "").unwrap();
+        std::fs::write(tests.join("package/test_nested.py"), "").unwrap();
+        std::fs::create_dir_all(tests.join("init_only")).unwrap();
+        std::fs::write(
+            tests.join("init_only/__init__.py"),
+            "import unittest\nclass PackageTest(unittest.TestCase):\n def test_package(self): pass\n",
+        )
+        .unwrap();
+        let (discovered, packages) = super::discover_python_tests(&fixture.0).unwrap();
+        assert_eq!(discovered, ["Tests/package/test_nested.py", "Tests/test_root.py"]);
+        assert_eq!(
+            packages,
+            ["Tests/init_only/__init__.py", "Tests/package/__init__.py"]
+        );
+        assert_eq!(
+            super::python_discovery_state(&[], &["Tests/init_only/__init__.py".to_owned()]),
+            "requires-complete-transport-and-case-mapping"
+        );
+        assert_eq!(
+            super::python_discovery_state(&discovered, &packages),
+            "requires-complete-transport-and-case-mapping"
+        );
+    }
+
     #[test]
     fn public_defaults_and_structured_vision_contract_are_neutral() {
         let config: serde_json::Value =
@@ -3253,9 +3358,6 @@ mod tests {
         }
         let modules = value["pythonModuleInventory"].as_array().unwrap();
         assert!(!modules.iter().any(|path| path == "Tests/test_local_signing.py"));
-        assert!(modules.iter().any(|path| path == "Tests/test_bindings_v2.py"));
-        assert!(value["unmappedGateIDs"].as_array().unwrap().iter()
-            .any(|gate| gate == "python-unittest-discover-Tests-test_*.py"));
         assert!(require_complete("check").is_err());
     }
     #[test]
@@ -3265,9 +3367,6 @@ mod tests {
         assert!(!Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join(retired).exists());
         let modules = value["pythonModuleInventory"].as_array().unwrap();
         assert!(!modules.iter().any(|path| path == retired));
-        assert!(modules.iter().any(|path| path == "Tests/test_bindings_v2.py"));
-        assert!(value["unmappedGateIDs"].as_array().unwrap().iter()
-            .any(|gate| gate == "python-unittest-discover-Tests-test_*.py"));
         assert!(require_complete("check").is_err());
         let mapping = &value["rustRootTestCrosswalk"][retired];
         let expected = serde_json::json!([
@@ -3945,7 +4044,7 @@ mod tests {
             .any(|id| gate["id"] == *id)
                 || !gate["unprovenInvariants"].as_array().unwrap().is_empty()));
         assert!(require_complete("settings").is_err());
-        assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!(["python-unittest-discover-Tests-test_*.py", "git-diff-check"]));
+        assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!(["git-diff-check"]));
         assert_eq!(root_git_mapping_state(b"unreviewed compatibility source"), "requires-source-requalification");
         assert!(require_complete("check").is_err());
         assert!(require_complete("unknown").is_err());
