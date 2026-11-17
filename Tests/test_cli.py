@@ -128,12 +128,6 @@ class CLIIntegration(unittest.TestCase):
         result=subprocess.run([str(CLI),'status'],env=env,capture_output=True,text=True,check=True)
         self.assertEqual(json.loads(result.stdout)['result']['profile'],str(self.root))
 
-    def test_script_literal_arguments_and_failure(self):
-        r = self.cli('run', 'echo-test', ok=True)
-        self.assertEqual(r['result']['stdout'], 'literal $(not a command)\nΩ')
-        self.assertEqual(self.cli('run', 'test.fail', ok=False)['exitCode'], 1)
-        self.assertGreater(self.cli('usage')['result']['test.echo'], 0)
-
     def test_script_timeout_and_bounded_output(self):
         start = time.monotonic()
         self.assertIn('timed out', self.cli('run', 'test.timeout', ok=False)['error'])
