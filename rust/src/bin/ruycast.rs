@@ -1361,10 +1361,11 @@ fn main() {
         // Original CLI conjuncts use the real frontend and the same owned
         // headless owner; none executes a snippet, URL, app or hotkey.
         {
+            assert_eq!(run(&["config","set","theme","\"light\""])["ok"],true);
             let rich=json!({"id":"test.rich-snippet","title":"Rich fixture","kind":"snippet","target":"Hello\n\n[Guide](https://example.com/?a=1&b=2)","keyword":";fixture-rich","snippetOutput":"teams"});
             assert_eq!(run(&["config","add",&rich.to_string()])["ok"],true);
             for unrelated_save in [false,true] {
-                if unrelated_save {assert_eq!(run(&["config","set","theme","\"light\""])["ok"],true);}
+                if unrelated_save {assert_eq!(run(&["config","set","theme","\"dark\""])["ok"],true);}
                 let current=run(&["config","get"]);
                 let saved=current["result"]["commands"].as_array().unwrap().iter().find(|c|c["id"]==rich["id"]).unwrap();
                 assert_eq!(saved["snippetOutput"],"teams");
@@ -1375,6 +1376,8 @@ fn main() {
             assert_eq!(run(&["config","add",&invalid.to_string()])["ok"],false);
             let mut wrong_kind=rich.clone();wrong_kind["id"]=json!("test.bad-kind");wrong_kind["kind"]=json!("url");wrong_kind["target"]=json!("https://example.com/");wrong_kind.as_object_mut().unwrap().remove("keyword");
             assert_eq!(run(&["config","add",&wrong_kind.to_string()])["ok"],false);
+            let mut wrong_kind_null=rich.clone();wrong_kind_null["id"]=json!("test.bad-kind-null");wrong_kind_null["kind"]=json!("url");wrong_kind_null["keyword"]=Value::Null;
+            assert_eq!(run(&["config","add",&wrong_kind_null.to_string()])["ok"],false);
             assert_eq!(run(&["config","get"])["sha256"],before,"Rejected snippet output/kind must not publish configuration");
             assert_eq!(run(&["config","remove","test.rich-snippet"])["ok"],true);
         }
