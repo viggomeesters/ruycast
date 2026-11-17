@@ -1564,7 +1564,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "test_search_ranking_summary_and_confirmed_reset",
             "test_unknown_operation_returns_json_error",
             "test_failed_bridge_retains_provider_error_exit_status_and_queryable_log",
-            "test_graceful_quit_removes_control_socket"
+            "test_graceful_quit_removes_control_socket",
+            "test_bounded_privacy_safe_performance_summary_and_confirmed_reset"
         ]);
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["nativeTargets"] = serde_json::json!({
             "startup_process": [
@@ -1572,7 +1573,10 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 "real_rust_benchmark_rejects_changed_cli_and_quits_gracefully"
             ],
             "rust_cli": ["startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects"],
-            "private_results": ["provider_failure_keeps_sanitized_code_message_exit_and_queryable_trace"],
+            "private_results": [
+                "provider_failure_keeps_sanitized_code_message_exit_and_queryable_trace",
+                "public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy"
+            ],
             "runtime_process": ["quit_acknowledges_then_exits_normally_without_kill_fallback"]
         });
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(true);
@@ -2402,7 +2406,7 @@ mod tests {
     fn search_ranking_cli_case_maps_to_owned_rust_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 6);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 7);
         assert!(cli_mapping["migratedMethods"]
             .as_array()
             .unwrap()
@@ -2445,7 +2449,7 @@ mod tests {
     fn provider_failure_cli_case_maps_to_rust_private_results_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 6);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 7);
         assert!(cli_mapping["migratedMethods"]
             .as_array()
             .unwrap()
@@ -2465,7 +2469,7 @@ mod tests {
     fn graceful_quit_cli_case_maps_to_owned_runtime_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 6);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 7);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_graceful_quit_removes_control_socket"));
         let case = "quit_acknowledges_then_exits_normally_without_kill_fallback";
@@ -2477,6 +2481,28 @@ mod tests {
         assert_eq!(cli_mapping["nativeTargets"]["runtime_process"][0], case);
         let validation = include_str!("validation.rs");
         assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
+    }
+    #[test]
+    fn performance_cli_case_maps_to_bounded_rust_private_results_process_case() {
+        let value = inventory("check").unwrap();
+        let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 7);
+        assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
+            .any(|method| method == "test_bounded_privacy_safe_performance_summary_and_confirmed_reset"));
+        let case = "public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy";
+        assert!(cli_mapping["nativeTargets"]["private_results"].as_array().unwrap()
+            .iter().any(|name| name == case));
+        let private_results = include_str!("../../../tests/private_results.rs");
+        assert!(private_results.contains(&format!("fn {case}()")));
+        assert!(private_results.contains("child_output::wait("));
+        assert!(private_results.contains("Duration::from_secs(10)"));
+        assert!(private_results.contains("result.status.code(),"));
+        assert!(private_results.contains("assert!(cleared[\"result\"].get(\"query\").is_none())"));
+        assert!(private_results.contains("let (post_reset_success, post_reset) = run_cli(&[\"performance\"]);"));
+        assert!(private_results.contains("assert_eq!(metric[\"count\"], 0)"));
+        assert!(private_results.contains("assert!(post_reset[\"result\"].get(\"query\").is_none())"));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("private-results-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test private_results --locked"));
     }
     #[test]
     fn retired_architecture_python_cases_map_to_rust_policy_tests() {

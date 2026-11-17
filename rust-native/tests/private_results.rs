@@ -1,5 +1,7 @@
 #![cfg(feature = "test-tools")]
 //! Real Rust fake -> protocol3 helper -> serialized host -> socket/CLI response.
+#[path = "support/child_output.rs"]
+mod child_output;
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -804,31 +806,42 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
     }
     assert_eq!(host.rpc(json!({"op":"status"}))["ok"], true);
     let run_cli = |args: &[&str]| {
-        let result = Command::new(&cli)
+        let mut command = Command::new(&cli);
+        command
             .args(args)
             .env_clear()
             .env("HOME", &host.home)
             .env("TMPDIR", &host.home)
             .env("RUYCAST_HOME", host.home.join("p"))
             .env("RUYCAST_APP_BINARY", &binary)
-            .output()
-            .unwrap();
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let result = child_output::wait(command.spawn().unwrap(), Duration::from_secs(10));
         assert!(
             result.stderr.is_empty(),
             "owned performance CLI stderr must be empty"
         );
         let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+        assert_eq!(
+            result.status.code(),
+            Some(if value["ok"] == true { 0 } else { 1 }),
+            "owned CLI exit must match its JSON envelope: {value}"
+        );
         (result.status.success(), value)
     };
     // Capture both original operations and both real CLI exits before asserting,
     // so the old candidate's failure cannot hide the second missing operation.
     let summary = host.rpc(json!({"op":"performance"}));
     let reset = host.rpc(json!({"op":"performance.reset"}));
-    let (cli_summary_ok, cli_summary) = run_cli(&["performance", "summary"]);
+    let (cli_summary_ok, cli_summary) = run_cli(&["performance"]);
+    let (cli_unconfirmed_reset_ok, cli_unconfirmed_reset) = run_cli(&["performance", "reset"]);
+    let (cli_unexpected_summary_ok, cli_unexpected_summary) =
+        run_cli(&["performance", "summary", "unexpected"]);
     let (cli_reset_ok, cli_reset) = run_cli(&["performance", "reset", "--confirm"]);
     println!(
         "owned_public_performance_initial={}",
-        json!({"rpcSummary":summary,"rpcReset":reset,"cliSummarySuccess":cli_summary_ok,"cliSummary":cli_summary,"cliResetSuccess":cli_reset_ok,"cliReset":cli_reset})
+        json!({"rpcSummary":summary,"rpcReset":reset,"cliSummarySuccess":cli_summary_ok,"cliSummary":cli_summary,"cliUnconfirmedResetSuccess":cli_unconfirmed_reset_ok,"cliUnconfirmedReset":cli_unconfirmed_reset,"cliUnexpectedSummarySuccess":cli_unexpected_summary_ok,"cliUnexpectedSummary":cli_unexpected_summary,"cliResetSuccess":cli_reset_ok,"cliReset":cli_reset})
     );
     let schema = |reply: &Value| {
         assert_eq!(reply["ok"], true, "public performance response: {reply}");
@@ -855,6 +868,8 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
     schema(&reset);
     schema(&cli_summary);
     schema(&cli_reset);
+    assert!(!cli_unconfirmed_reset_ok && cli_unconfirmed_reset["ok"] == false);
+    assert!(!cli_unexpected_summary_ok && cli_unexpected_summary["ok"] == false);
     assert!(cli_summary_ok && cli_reset_ok);
     for metric in cli_reset["result"]["stages"].as_object().unwrap().values() {
         assert_eq!(metric["count"], 0);
@@ -872,7 +887,7 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
         .unwrap()
         .iter()
         .any(|row| row["id"] == "owned.performance.command"));
-    let (success, measured) = run_cli(&["performance", "summary"]);
+    let (success, measured) = run_cli(&["performance"]);
     assert!(success);
     schema(&measured);
     let search = &measured["result"]["stages"]["search.model"];
@@ -898,8 +913,16 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
     let (reset_success, cleared) = run_cli(&["performance", "reset", "--confirm"]);
     assert!(reset_success);
     schema(&cleared);
+    assert!(cleared["result"].get("query").is_none());
     assert_eq!(cleared["result"]["stages"]["search.model"]["count"], 0);
     assert!(cleared["result"]["stages"]["search.model"]["p50MS"].is_null());
+    let (post_reset_success, post_reset) = run_cli(&["performance"]);
+    assert!(post_reset_success);
+    schema(&post_reset);
+    assert!(post_reset["result"].get("query").is_none());
+    for metric in post_reset["result"]["stages"].as_object().unwrap().values() {
+        assert_eq!(metric["count"], 0);
+    }
     assert_eq!(host.rpc(json!({"op":"quit"}))["ok"], true);
     let deadline = Instant::now() + Duration::from_secs(4);
     loop {
