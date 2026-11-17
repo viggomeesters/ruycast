@@ -74,7 +74,7 @@ The search field is a native NSTextField/field-editor delegate: edit notificatio
 
 Snippet expansion uses an ephemeral bounded matcher and a main-run-loop CGEvent tap. The final trigger key is consumed only after synchronous delivery setup and a second focus/security check; failed checks pass the original event through. Generated events carry a private tag and no modifiers. The shared edit executor removes the preceding keyword, emits Unicode in <=16 UTF-16-unit scalar-safe chunks and restores the template cursor. Automatic expansion leaves the clipboard unchanged. Secure entry, excluded apps, modified/repeat keys, pointer/cursor/app changes and the visible palette reset matching. Application frameworks can interpret injected events differently; native payload checks and offscreen editing do not prove compatibility with every external app.
 
-`scripts/build-native.sh` invalidates Swift artifacts when the linked Rust archive hash changes. SwiftPM does not track this external static library as a source dependency; this prevents stale domain behavior from reaching either debug checks or release installation.
+The direct `ruycast-build compat build-receipt --repo ROOT -- build` route writes host/CLI artifacts bound by v4 receipts; release preparation rejects stale or mismatched artifacts before packaging or installation.
 
 ## Clipboard work and resource bounds
 

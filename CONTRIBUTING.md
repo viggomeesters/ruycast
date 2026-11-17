@@ -44,7 +44,7 @@ The lease descriptor is inherited by synchronous consumers. If the controller is
 
 ## Scope and evidence
 
-`build-native.sh` and `ruycast-build compat build-receipt --repo ROOT -- build` preserve their debug default; `make build` explicitly requests release. The native Rust buildtool's `build --repo` keeps its existing release default. Both configurations use explicit target paths; only prepared release authority can enter packaging/install.
+`ruycast-build compat build-receipt --repo ROOT -- build` preserves its debug default; `make build` explicitly requests release. The native Rust buildtool's `build --repo` keeps its existing release default. Both configurations use explicit target paths; only prepared release authority can enter packaging/install.
 
 Keep each change focused on a user-visible outcome. Describe the trigger, resulting behavior and relevant validation in your pull request. Preserve CLI/configuration compatibility, atomic writes, permission boundaries and clear error feedback.
 

@@ -265,7 +265,7 @@ Six frozen release runs alternated baseline, candidate, candidate, baseline, bas
 
 The unchanged difference is only0.0948microseconds per poll. Original CPU ranges were7.255–9.245ms; candidate6.337–7.042ms. Active ranges overlap (164.386–170.755ms versus164.465–167.401ms), so no active CPU improvement is established. Foreground-app property calls are not proven IPC requests. No whole-app CPU, wakeup, energy or battery saving follows from eliminating them.
 
-The cost driver is opt-in at compile time. The new regression body is compiled in debug builds and in this explicit benchmark build; ordinary releases keep the original pipeline checks and omit the new regression result fields. The task requires debug Settings checks as well as ordinary integration checks. Production polling logic is identical in all configurations:
+The cost driver was opt-in at compile time. The following Swift build and launch command is retained only as a historical 0.8.6 experiment; the current Rust build route does not accept `-Xswiftc`. Production polling logic was identical in all measured configurations:
 
 ```sh
 bash scripts/build-native.sh -c release -Xswiftc -DRUYCAST_POLL_BENCHMARK

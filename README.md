@@ -26,10 +26,10 @@ The repository is not yet entirely Rust: historical Swift sources, Python tools 
 
 Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Python 3.10+ is needed only for compatibility entrypoints and unchanged test validators; Swift is needed for explicit historical parity oracles, not the production build. Dependencies must already be cached for the offline build:
 
-Run these existing compatibility entrypoints from the reviewed checkout or source snapshot. The build and receipt routes use shell and Cargo to reach the Rust build tools:
+Build and verify the Rust pair directly through the Rust build tool:
 
 ```sh
-bash scripts/build-native.sh -c release
+cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$(pwd -P)" -- build --configuration release
 cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify
 ```
 
