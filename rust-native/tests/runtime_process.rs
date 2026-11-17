@@ -731,6 +731,7 @@ fn headless_start_removes_profile_acl_through_legacy_alias() {
 fn legacy_cli_status_search_reload_and_config_edit() {
     let host = host(true);
     let status = host.cli(&["status"])["result"].clone();
+    assert_eq!(status["name"], "Ruycast");
     assert_eq!(status["implementation"], "rust");
     assert_eq!(status["productionReady"], false);
     assert_eq!(status["headless"], true);
@@ -760,6 +761,27 @@ fn legacy_cli_status_search_reload_and_config_edit() {
         host.rpc(&json!({"op":"execute","id":"finder"}))["ok"],
         false
     );
+    let unused_legacy = host.base.join("unused-legacy-profile");
+    for (new_home, legacy_home) in [
+        (None, Some(host.profile.as_path())),
+        (Some(host.profile.as_path()), Some(unused_legacy.as_path())),
+    ] {
+        let mut command = host.command(&host.settings.cli);
+        command.arg("status");
+        command.env_remove("RUYCAST_HOME");
+        if let Some(path) = new_home {
+            command.env("RUYCAST_HOME", path);
+        }
+        if let Some(path) = legacy_home {
+            command.env("RUSTCAST_HOME", path);
+        }
+        let output = runtime_host::run(&mut command, Duration::from_secs(6));
+        assert_eq!(output.status.code(), Some(0));
+        let status: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(status["ok"], true);
+        assert_eq!(status["result"]["profile"], host.profile.to_string_lossy().as_ref());
+    }
+    assert!(!unused_legacy.exists());
 }
 #[test]
 fn raw_nullable_or_invalid_command_arrays_preserve_last_good() {

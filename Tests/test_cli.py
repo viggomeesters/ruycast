@@ -118,16 +118,6 @@ class CLIIntegration(unittest.TestCase):
         self.assertIn(text,saved.read_text())
         self.assertEqual(response['result'].get('kind'),'note')
 
-    def test_new_identity_and_legacy_environment(self):
-        self.assertEqual(self.cli('status',ok=True)['result']['name'],'Ruycast')
-        env=dict(self.env);env.pop('RUYCAST_HOME',None);env['RUSTCAST_HOME']=str(self.root)
-        result=subprocess.run([str(CLI),'status'],env=env,capture_output=True,text=True,check=True)
-        self.assertEqual(json.loads(result.stdout)['result']['profile'],str(self.root))
-        # Explicit new profile wins over a legacy environment variable.
-        env['RUYCAST_HOME']=str(self.root);env['RUSTCAST_HOME']=str(self.root/'unused')
-        result=subprocess.run([str(CLI),'status'],env=env,capture_output=True,text=True,check=True)
-        self.assertEqual(json.loads(result.stdout)['result']['profile'],str(self.root))
-
     def test_script_timeout_and_bounded_output(self):
         start = time.monotonic()
         self.assertIn('timed out', self.cli('run', 'test.timeout', ok=False)['error'])
