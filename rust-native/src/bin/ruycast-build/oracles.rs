@@ -1561,7 +1561,11 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_script_timeout_and_bounded_output": "runtime_process::legacy_cli_script_timeout_and_bounded_output",
-            "test_second_instance_does_not_replace_socket": "runtime_process::second_instance_refused_and_crashed_socket_recovers"
+            "test_second_instance_does_not_replace_socket": "runtime_process::second_instance_refused_and_crashed_socket_recovers",
+            "test_script_timeout_kills_descendants_and_inherited_pipes": [
+                "script_basic_process::timeout_cleans_group",
+                "script_basic_process::early_success_closes_inherited_pipes"
+            ]
         });
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["migratedMethods"] = serde_json::json!([
             "test_performance_fixture_ignores_external_configuration_override",
@@ -1601,6 +1605,10 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 "legacy_cli_status_search_reload_and_config_edit",
                 "legacy_cli_script_timeout_and_bounded_output",
                 "second_instance_refused_and_crashed_socket_recovers"
+            ],
+            "script_basic_process": [
+                "timeout_cleans_group",
+                "early_success_closes_inherited_pipes"
             ],
             "execution_basic_process": ["cli_literal_input_uuid_usage_and_private_logs"],
             "remaining_macos_process": ["builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"]
@@ -2821,6 +2829,31 @@ mod tests {
         assert!(runtime.contains("Duration::from_secs(3)"));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
+    }
+    #[test]
+    fn descendant_timeout_cli_case_maps_to_two_owned_rust_process_cases() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        let cases = mapping["supplementalCurrentMethodByMethod"]
+            ["test_script_timeout_kills_descendants_and_inherited_pipes"]
+            .as_array()
+            .unwrap();
+        assert_eq!(cases.len(), 2);
+        assert_eq!(cases[0], "script_basic_process::timeout_cleans_group");
+        assert_eq!(cases[1], "script_basic_process::early_success_closes_inherited_pipes");
+        let targets = mapping["nativeTargets"]["script_basic_process"]
+            .as_array()
+            .unwrap();
+        assert_eq!(targets.len(), 2);
+        assert_eq!(targets[0], "timeout_cleans_group");
+        assert_eq!(targets[1], "early_success_closes_inherited_pipes");
+        let runtime = include_str!("../../../tests/script_basic_process.rs");
+        assert!(runtime.contains("fn timeout_cleans_group()"));
+        assert!(runtime.contains("fn early_success_closes_inherited_pipes()"));
+        assert!(runtime.contains("started.elapsed() < Duration::from_secs(2)"));
+        assert!(runtime.contains("descendant survived"));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("script-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test script_basic_process --locked"));
     }
     #[test]
     fn retired_architecture_python_cases_map_to_rust_policy_tests() {

@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
+    time::{Duration, Instant},
 };
 struct OwnedDir(PathBuf);
 impl OwnedDir {
@@ -215,7 +215,11 @@ fn tree_case(mode: &str) {
         "panic" => request["panicMs"] = json!(200),
         _ => unreachable!(),
     };
+    let started = Instant::now();
     let output = run(Path::new(env!("CARGO_BIN_EXE_script-probe")), &[], &request);
+    if mode == "timeout" {
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
     assert_eq!(output["noChildren"], true);
     let r = &output["result"];
     if mode == "panic" {
@@ -269,7 +273,9 @@ fn early_success_closes_inherited_pipes() {
         env!("CARGO_BIN_EXE_script-probe"),
         json!(["script-tree", "early", h.0.join("unused-pid"), sentinel]),
     );
+    let started = Instant::now();
     let result = probe(&h.0, c);
+    assert!(started.elapsed() < Duration::from_secs(2));
     assert_eq!(result["response"]["result"]["stdout"], "done\n");
     std::thread::sleep(Duration::from_millis(850));
     assert!(!sentinel.exists());
