@@ -1894,3 +1894,95 @@ fn signing_check_cli_owned_invalid_arguments_or_identity_never_reach_effects() {
         || panic!("unsafe identity must refuse before effects"), &mut runner).is_err());
     assert!(runner.calls.is_empty());
 }
+
+struct OrdinarySignRunner {
+    keychain: PathBuf,
+    refuse: bool,
+    calls: Vec<tools::Call>,
+}
+impl tools::Runner for OrdinarySignRunner {
+    fn secret(&mut self) -> Result<String> { panic!("ordinary sign must not provision") }
+    fn running_host(&mut self, _: i32, _: &Path) -> Result<()> { panic!("ordinary sign must not launch") }
+    fn run(&mut self, call: tools::Call) -> Result<tools::Output> {
+        // Fake only; never delegate to System or execute any tool.
+        assert_eq!(call.timeout, std::time::Duration::from_secs(30));
+        let mut output = tools::Output { success: true, stdout: vec![], stderr: vec![] };
+        match self.calls.len() {
+            0 => {
+                assert_eq!(call.program, Path::new("/usr/bin/security"));
+                assert_eq!(call.args, ["list-keychains", "-d", "user"]);
+                // Already enrolled in the search list: no list mutation needed.
+                output.stdout = format!("\"{}\"\n", self.keychain.display()).into_bytes();
+            }
+            1 => {
+                assert_eq!(call.program, Path::new("/usr/bin/security"));
+                assert_eq!(call.args, ["-i"]);
+                assert_eq!(call.input, format!("'unlock-keychain' '-p' 'owned-fixture-password' '{}'\n", self.keychain.display()).as_bytes());
+            }
+            2 => {
+                assert_eq!(call.program, Path::new("/usr/bin/codesign"));
+                assert_eq!(call.args[0], "--force");
+                if self.refuse {
+                    output.success = false;
+                    output.stdout = b"owned-fixture-password raw-signer-stdout".to_vec();
+                    output.stderr = b"owned-fixture-password raw-signer-stderr".to_vec();
+                }
+            }
+            3 if !self.refuse => {
+                assert_eq!(call.program, Path::new("/usr/bin/codesign"));
+                assert_eq!(call.args[0], "--verify");
+            }
+            _ => panic!("no retry, fallback, trust repair or extra search-list call permitted"),
+        }
+        self.calls.push(call);
+        Ok(output)
+    }
+}
+#[test]
+fn ordinary_sign_owned_pins_verification_and_refuses_without_fallback_or_mutation() {
+    for refuse in [false, true] {
+        let f = Fixture::new();
+        f.signer();
+        let identity = signing::load(&f.o.signer, &f.o.repo).unwrap();
+        let before: BTreeMap<_, _> = stdfs::read_dir(&f.o.signer).unwrap().map(|entry| {
+            let entry = entry.unwrap();
+            (entry.file_name(), (stdfs::read(entry.path()).unwrap(), stdfs::metadata(entry.path()).unwrap().permissions().mode()))
+        }).collect();
+        let directory_mode = stdfs::metadata(&f.o.signer).unwrap().permissions().mode();
+        let app = f.root.join("owned-sign-test.app");
+        let mut runner = OrdinarySignRunner { keychain: f.o.signer.join("identity.keychain-db"), refuse, calls: vec![] };
+        let result = signing::sign(&app, &f.o.signer, &f.o.repo, &f.o.home, &mut runner);
+        let requirement = signing::requirement(&"A".repeat(40));
+        assert_eq!(runner.calls.len(), if refuse { 3 } else { 4 });
+        assert_eq!(runner.calls[2].args, ["--force", "--sign", &"A".repeat(40), "--keychain",
+            runner.keychain.to_str().unwrap(), "--timestamp=none", "--identifier", NEW_ID,
+            "--requirements", &format!("=designated => {requirement}"), app.to_str().unwrap()]);
+        assert_eq!(runner.calls.iter().filter(|call| call.program == Path::new("/usr/bin/codesign")
+            && call.args.first().is_some_and(|arg| arg == "--force")).count(), 1);
+        if refuse {
+            let error = result.unwrap_err();
+            assert_eq!(error, "codesign: operation failed; installation state preserved or rolled back.");
+            for private in ["owned-fixture-password", "raw-signer-stdout", "raw-signer-stderr"] {
+                assert!(!error.contains(private));
+            }
+            assert!(!runner.calls.iter().any(|call| call.args.first().is_some_and(|arg| arg == "--verify")));
+        } else {
+            let value = result.unwrap();
+            assert_eq!(value, identity);
+            assert!(!value.to_string().contains("owned-fixture-password"));
+            assert_eq!(runner.calls[3].args, ["--verify", "--deep", "--strict", "-R",
+                &format!("={requirement}"), app.to_str().unwrap()]);
+        }
+        assert!(runner.calls.iter().all(|call| !call.args.iter().any(|arg| arg.contains("owned-fixture-password")
+            || arg == "add-trusted-cert" || arg == "-s") && !call.args.windows(2).any(|args| args == ["--sign", "-"])));
+        assert!(!app.exists());
+        assert!(!f.o.apps.exists());
+        assert_eq!(stdfs::read_dir(&f.o.signer).unwrap().count(), before.len());
+        assert_eq!(stdfs::metadata(&f.o.signer).unwrap().permissions().mode(), directory_mode);
+        for (name, (bytes, mode)) in before {
+            let path = f.o.signer.join(name);
+            assert_eq!(stdfs::read(&path).unwrap(), bytes);
+            assert_eq!(stdfs::metadata(path).unwrap().permissions().mode(), mode);
+        }
+    }
+}
