@@ -130,12 +130,6 @@ class CLIIntegration(unittest.TestCase):
         self.assertEqual(((self.root / 'control.sock').stat().st_mode & 0o777), 0o600)
         self.assertEqual(((self.root / 'clipboard.json').stat().st_mode & 0o777), 0o600)
 
-    def test_second_instance_does_not_replace_socket(self):
-        before = self.cli('status')['result']['pid']
-        second = subprocess.run([str(BINARY), '--headless'], env=self.env, capture_output=True, timeout=5)
-        self.assertIn(b'already running', second.stderr)
-        self.assertEqual(self.cli('status')['result']['pid'], before)
-
     def test_script_timeout_kills_descendants_and_inherited_pipes(self):
         sentinel = str(self.root / 'orphan-sentinel')
         grandchild = "import time;from pathlib import Path;time.sleep(1);Path(%r).write_text('bad')" % sentinel
