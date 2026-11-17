@@ -34,8 +34,8 @@ define_class!(
             }
             let card=NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
                 rect(0.5,0.5,(bounds.size.width-1.).max(0.),(bounds.size.height-1.).max(0.)),
-                16.,
-                16.,
+                presentation::LAUNCHER_CARD_CORNER_RADIUS,
+                presentation::LAUNCHER_CARD_CORNER_RADIUS,
             );
             crate::native_settings::color(palette.background).setFill();
             card.fill();

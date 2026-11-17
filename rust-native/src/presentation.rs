@@ -1,6 +1,8 @@
 //! User-facing labels shared by the native launcher and its action surfaces.
 use rustcast_core::Command;
 
+pub const LAUNCHER_CARD_CORNER_RADIUS: f64 = 10.;
+
 /// Display-only icon authority. Never carries snippet bodies, script arguments,
 /// shortcut payloads, full quicklink URLs, or clipboard content.
 #[derive(Clone, Debug, PartialEq)]
@@ -305,6 +307,7 @@ mod icon_tests {
 
     #[test]
     fn empty_launcher_uses_a_compact_search_bar_and_expands_for_results() {
+        assert_eq!(LAUNCHER_CARD_CORNER_RADIUS, 10.);
         assert_eq!(
             palette_frame([0., 0., 1440., 900.], false, true),
             [420., 414., 600., 72.]
