@@ -3379,26 +3379,42 @@ mod tests {
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
-    fn complete_settings_mapping_does_not_accept_original_check_or_unknown_inventory() {
+    fn settings_inventory_keeps_source_requalification_gates_unqualified() {
         let value = inventory("settings").unwrap();
         let unresolved = value["unmappedGateIDs"].as_array().unwrap();
-        assert!(unresolved.is_empty());
-        assert!(!unresolved.contains(&serde_json::json!("--check-interactions")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-feedback")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-actions-menu")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-command-log")));
+        let expected_unresolved = serde_json::json!([
+            "--check-settings",
+            "--check-interactions",
+            "--check-actions-menu",
+            "--check-browser-tabs",
+            "--check-apple-shortcuts",
+            "--check-window-search",
+            "--check-menu-actions",
+            "--check-render-updates",
+            "--check-feedback",
+            "--check-rich-resources",
+            "--check-analytics",
+            "--check-performance-pipeline",
+            "--check-visual-assets",
+            "--check-command-log",
+            "--check-polish"
+        ]);
+        assert_eq!(
+            unresolved,
+            expected_unresolved
+            .as_array()
+            .unwrap()
+        );
         assert!(!unresolved.contains(&serde_json::json!("--check-edit-commands")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-analytics")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-performance-pipeline")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-browser-tabs")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-menu-actions")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-rich-resources")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-polish")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-window-search")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-apple-shortcuts")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-render-updates")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-settings")));
-        assert!(!unresolved.contains(&serde_json::json!("--check-visual-assets")));
+        let gates = value["gates"].as_array().unwrap();
+        assert_eq!(gates.len(), 16);
+        for gate in gates {
+            if gate[0] == "--check-edit-commands" {
+                assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
+            } else {
+                assert_eq!(gate[1], "mapped-requires-source-requalification");
+            }
+        }
         assert!(value["settingsCaseCrosswalk"]
             .as_array()
             .unwrap()
@@ -3424,8 +3440,8 @@ mod tests {
             .iter()
             .any(|id| gate["id"] == *id)
                 || !gate["unprovenInvariants"].as_array().unwrap().is_empty()));
-        assert!(require_complete("settings").is_ok());
-        assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!(["python-unittest-discover-Tests-test_*.py"]));
+        assert!(require_complete("settings").is_err());
+        assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!(["python-unittest-discover-Tests-test_*.py", "git-diff-check"]));
         assert_eq!(root_git_mapping_state(b"unreviewed compatibility source"), "requires-source-requalification");
         assert!(require_complete("check").is_err());
         assert!(require_complete("unknown").is_err());
