@@ -40,7 +40,16 @@ fn cli_literal_input_uuid_usage_and_private_logs() {
         ]),
     );
     cmd["inputPrompt"] = json!("Text");
+    cmd["aliases"] = json!(["runfixture", "echo-test"]);
     let h = host(cmd);
+    let search = h.cli(&["search", "echo-test"]);
+    assert_eq!(search["result"][0]["id"], "script.fixture");
+    let before_usage = h.cli(&["usage"]);
+    assert_eq!(before_usage["ok"], true);
+    let dry_run = h.cli(&["run", "echo-test", "--dry-run"]);
+    assert_eq!(dry_run["ok"], true);
+    assert_eq!(dry_run["result"]["target"], "/usr/bin/printf");
+    assert_eq!(h.cli(&["usage"]), before_usage);
     let secret = "literal $(echo secret) Ω https://private.invalid/token";
     let response = h.cli(&["run", "runfixture", "--input", secret]);
     let result: Vec<_> = response["result"]["stdout"]
