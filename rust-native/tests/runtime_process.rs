@@ -23,6 +23,74 @@ use std::{
 fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
+fn hash_file(path: &Path) -> String {
+    hash(&fs::read(path).unwrap())
+}
+fn verify_artifact_hashes(paths: &[PathBuf], expected: &[String]) -> Result<(), String> {
+    for (path, digest) in paths.iter().zip(expected) {
+        if hash_file(path) != *digest {
+            return Err(format!("Binary changed during measurement: {}", path.display()));
+        }
+    }
+    Ok(())
+}
+fn latency_stats(values: &[f64]) -> Value {
+    let mut sorted = values.to_vec();
+    sorted.sort_by(f64::total_cmp);
+    json!({
+        "samples": sorted.len(),
+        "medianMS": sorted[sorted.len() / 2],
+        "p95MS": sorted[((sorted.len() - 1) as f64 * 0.95) as usize],
+        "p99MS": if sorted.len() >= 1000 { json!(sorted[((sorted.len() - 1) as f64 * 0.99) as usize]) } else { Value::Null },
+        "maxMS": sorted[sorted.len() - 1]
+    })
+}
+fn prepare_benchmark_fixture(h: &runtime_host::Host) {
+    let mut config: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+    config["commands"] = (0..500)
+        .map(|i| json!({
+            "id": format!("fixture.{i}"),
+            "title": format!("Open Project {i}"),
+            "kind": "url",
+            "target": format!("https://example.com/{i}"),
+            "aliases": [format!("p{i}")],
+            "arguments": []
+        }))
+        .collect::<Vec<_>>()
+        .into();
+    fs::write(&h.config, serde_json::to_vec(&config).unwrap()).unwrap();
+    let created_at = current_rfc3339();
+    let clipboard = (0..200)
+        .map(|i| json!({
+            "id": format!("fixture-{i}"),
+            "text": format!("Fixture {i}: {}", "native clipboard Ω ".repeat(400)),
+            "source": "fixture",
+            "date": created_at
+        }))
+        .collect::<Vec<_>>();
+    fs::write(
+        h.profile.join("clipboard.json"),
+        serde_json::to_vec(&clipboard).unwrap(),
+    )
+    .unwrap();
+}
+fn current_rfc3339() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as libc::time_t;
+    let mut parts: libc::tm = unsafe { std::mem::zeroed() };
+    assert!(!unsafe { libc::gmtime_r(&now, &mut parts) }.is_null());
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        parts.tm_year + 1900,
+        parts.tm_mon + 1,
+        parts.tm_mday,
+        parts.tm_hour,
+        parts.tm_min,
+        parts.tm_sec
+    )
+}
 fn settings() -> Config {
     let settings = Config::current();
     runtime_receipt(&settings);
@@ -93,54 +161,10 @@ fn wait_marker(path: &std::path::Path) {
         thread::sleep(Duration::from_millis(2));
     }
 }
-fn current_rfc3339() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as libc::time_t;
-    let mut parts: libc::tm = unsafe { std::mem::zeroed() };
-    assert!(!unsafe { libc::gmtime_r(&now, &mut parts) }.is_null());
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-        parts.tm_year + 1900,
-        parts.tm_mon + 1,
-        parts.tm_mday,
-        parts.tm_hour,
-        parts.tm_min,
-        parts.tm_sec
-    )
-}
-
 #[test]
 fn benchmark_fixture_owns_500_commands_200_clipboard_rows_and_cold_readiness() {
     let mut h = host(false);
-    let mut config: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
-    config["commands"] = (0..500)
-        .map(|i| json!({
-            "id": format!("fixture.{i}"),
-            "title": format!("Open Project {i}"),
-            "kind": "url",
-            "target": format!("https://example.com/{i}"),
-            "aliases": [format!("p{i}")],
-            "arguments": []
-        }))
-        .collect::<Vec<_>>()
-        .into();
-    fs::write(&h.config, serde_json::to_vec(&config).unwrap()).unwrap();
-    let created_at = current_rfc3339();
-    let clipboard = (0..200)
-        .map(|i| json!({
-            "id": format!("fixture-{i}"),
-            "text": format!("Fixture {i}: {}", "native clipboard Ω ".repeat(400)),
-            "source": "fixture",
-            "date": created_at
-        }))
-        .collect::<Vec<_>>();
-    fs::write(
-        h.profile.join("clipboard.json"),
-        serde_json::to_vec(&clipboard).unwrap(),
-    )
-    .unwrap();
+    prepare_benchmark_fixture(&h);
 
     let started = Instant::now();
     h.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(8));
@@ -155,6 +179,67 @@ fn benchmark_fixture_owns_500_commands_200_clipboard_rows_and_cold_readiness() {
     assert_eq!(status["commands"], 500);
     assert_eq!(status["clipboardCount"], 200);
     assert!(cold_ready_ms.is_finite() && cold_ready_ms > 0.0);
+    let exit = h.stop(true).unwrap();
+    assert!(exit.status.success(), "{}", String::from_utf8_lossy(&exit.stderr));
+}
+
+#[test]
+fn benchmark_cli_uses_real_warmups_latency_statistics_and_bound_artifacts() {
+    let mut h = host(false);
+    prepare_benchmark_fixture(&h);
+    let probe = PathBuf::from(env!("CARGO_BIN_EXE_perf-probe"));
+    let artifacts = [h.settings.host.clone(), h.settings.cli.clone(), probe];
+    let expected = artifacts.iter().map(|path| hash_file(path)).collect::<Vec<_>>();
+    h.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(8));
+
+    for (name, args) in [("status", vec!["status"]), ("search", vec!["search", "Project 42"])] {
+        verify_artifact_hashes(&artifacts, &expected).unwrap();
+        let mut measurements = Vec::new();
+        for index in 0..20 {
+            let began = Instant::now();
+            let output = h.cli_output(&args);
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(value["ok"], true, "{name} CLI response: {value}");
+            if name == "search" {
+                assert!(value["result"].as_array().unwrap().iter().any(|row| row["id"] == "fixture.42"));
+            }
+            if index >= 10 {
+                measurements.push(began.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
+        verify_artifact_hashes(&artifacts, &expected).unwrap();
+        let stats = latency_stats(&measurements);
+        assert_eq!(stats["samples"], 10);
+        assert!(stats["medianMS"].as_f64().unwrap().is_finite());
+        assert!(stats["p95MS"].as_f64().unwrap().is_finite());
+        assert_eq!(stats["p99MS"], Value::Null);
+        assert!(stats["maxMS"].as_f64().unwrap().is_finite());
+    }
+    let exit = h.stop(true).unwrap();
+    assert!(exit.status.success(), "{}", String::from_utf8_lossy(&exit.stderr));
+}
+
+#[test]
+fn benchmark_cli_mutation_is_refused_and_host_still_quits_gracefully() {
+    let mut h = host(false);
+    prepare_benchmark_fixture(&h);
+    let changed_cli = h.base.join("changing-cli");
+    fs::copy(&h.settings.cli, &changed_cli).unwrap();
+    fs::set_permissions(&changed_cli, fs::Permissions::from_mode(0o700)).unwrap();
+    h.settings.cli = changed_cli.clone();
+    let artifacts = [h.settings.host.clone(), h.settings.cli.clone()];
+    let expected = artifacts.iter().map(|path| hash_file(path)).collect::<Vec<_>>();
+    h.start_entry_with_timeout(runtime_host::Entry::HeadlessTest, Duration::from_secs(8));
+
+    let output = h.cli_output(&["status"]);
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let mut changed = fs::OpenOptions::new().append(true).open(&changed_cli).unwrap();
+    changed.write_all(b"\nmutation during benchmark\n").unwrap();
+    changed.flush().unwrap();
+    let refusal = verify_artifact_hashes(&artifacts, &expected).unwrap_err();
+    assert!(refusal.contains("Binary changed during measurement"));
+
     let exit = h.stop(true).unwrap();
     assert!(exit.status.success(), "{}", String::from_utf8_lossy(&exit.stderr));
 }
