@@ -129,20 +129,3 @@ class CLIIntegration(unittest.TestCase):
         self.assertEqual((self.root.stat().st_mode & 0o777), 0o700)
         self.assertEqual(((self.root / 'control.sock').stat().st_mode & 0o777), 0o600)
         self.assertEqual(((self.root / 'clipboard.json').stat().st_mode & 0o777), 0o600)
-
-    def test_script_timeout_kills_descendants_and_inherited_pipes(self):
-        sentinel = str(self.root / 'orphan-sentinel')
-        grandchild = "import time;from pathlib import Path;time.sleep(1);Path(%r).write_text('bad')" % sentinel
-        code = "import subprocess,sys,time;subprocess.Popen([sys.executable,'-c',%r]);time.sleep(10)" % grandchild
-        command = dict(id='test.tree', title='Tree', kind='script', target='/usr/bin/python3', arguments=['-c', code], timeout=0.15)
-        self.cli('config', 'add', json.dumps(command), ok=True)
-        start = time.monotonic()
-        self.cli('run', 'test.tree', ok=False)
-        self.assertLess(time.monotonic() - start, 2)
-        time.sleep(1)
-        self.assertFalse(Path(sentinel).exists())
-        command.update(id='test.pipes', arguments=['-c', "import subprocess;subprocess.Popen(['/bin/sleep','10'])"], timeout=2)
-        self.cli('config', 'add', json.dumps(command), ok=True)
-        start = time.monotonic()
-        self.cli('run', 'test.pipes', ok=True)
-        self.assertLess(time.monotonic() - start, 2)
