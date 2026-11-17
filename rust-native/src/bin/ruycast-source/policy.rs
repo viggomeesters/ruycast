@@ -114,10 +114,12 @@ Tests/LauncherCoreTests/PrivateFileChecks.swift
 Tests/LauncherCoreTests/ScriptChoiceChecks.swift
 Tests/LauncherCoreTests/SnippetOutputChecks.swift
 Tests/LauncherCoreTests/TaskDateInputChecks.swift
+Tests/fixtures/architecture_boundary_positive.rs
+Tests/fixtures/architecture_boundary_main_state_on_worker.rs
+Tests/fixtures/architecture_boundary_worker_captures_main_state.rs
 Tests/fixtures/private_fsync_shim.rs
 Tests/fixtures/private_fsync_probe.rs
 Tests/fixtures/search-quality.json
-Tests/test_architecture.py
 Tests/test_build_pipeline.py
 Tests/test_cli.py
 Tests/test_local_signing.py
@@ -263,6 +265,7 @@ rust-native/src/native_notice.rs
 rust-native/src/native_paste.rs
 rust-native/src/native_result.rs
 rust-native/src/native_services.rs
+rust-native/src/native_thread_boundary.rs
 rust-native/src/native_settings.rs
 rust-native/src/native_snippet_choice.rs
 rust-native/src/native_snippet_editor.rs
@@ -311,6 +314,7 @@ rust-native/src/workspace.rs
 rust-native/src/workspace_activation.rs
 rust-native/swift-reference-lock.json
 rust-native/tests/actions_process.rs
+rust-native/tests/architecture_policy.rs
 rust-native/tests/analytics_runtime_process.rs
 rust-native/tests/dashboard_presentation_reference.rs
 rust-native/tests/fixtures/dashboard_presentation_reference.json
