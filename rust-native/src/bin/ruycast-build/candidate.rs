@@ -418,6 +418,13 @@ mod tests {
         let f = super::super::tests::Fixture::compiler_pair();
         let lease = BuildLock::acquire_from_environment(&f.0, &BTreeMap::new()).unwrap();
         build_under_lease(&f.0, "release", &lease).unwrap();
+        fs::write(f.0.join("private-profile.json"), b"synthetic private data").unwrap();
+        fs::create_dir(f.0.join("scripts")).unwrap();
+        fs::write(
+            f.0.join("scripts/personal_bridge.py"),
+            b"synthetic local adapter",
+        )
+        .unwrap();
         let parent = f.0.join(OUTPUT).join("candidates");
         ruycast_native::private_storage::secure_directory(&parent).unwrap();
         let destination = parent.join(format!("{}-68", version().unwrap()));
@@ -425,11 +432,68 @@ mod tests {
         let value = verify_under_lease(&f.0, &destination, &lease).unwrap();
         assert_eq!(value["ok"], true);
         assert_eq!(value["productionAccepted"], false);
+        assert_eq!(value["signedForDistribution"], false);
+        assert_eq!(value["notarized"], false);
+        let app = destination.join("Ruycast.app");
+        let mut files = BTreeMap::new();
+        tree(&app, "", &mut files).unwrap();
+        assert_eq!(
+            files.keys().map(String::as_str).collect::<Vec<_>>(),
+            [
+                "Contents/Info.plist",
+                "Contents/MacOS/RuycastApp",
+                "Contents/Resources/ruycast"
+            ]
+        );
+        let info =
+            String::from_utf8(regular_bytes(&app.join("Contents/Info.plist")).unwrap()).unwrap();
+        let short_version = format!(
+            "<key>CFBundleShortVersionString</key><string>{}</string>",
+            version().unwrap()
+        );
+        for entry in [
+            "<key>CFBundleIdentifier</key><string>nl.viggomeesters.ruycast</string>",
+            "<key>CFBundleVersion</key><string>68</string>",
+            "<key>LSUIElement</key><true/>",
+            short_version.as_str(),
+        ] {
+            assert!(info.contains(entry), "missing bundle metadata: {entry}");
+        }
+        let candidate: serde_json::Value =
+            serde_json::from_slice(&regular_bytes(&destination.join("candidate.json")).unwrap())
+                .unwrap();
+        assert_eq!(candidate["productionAccepted"], false);
+        assert_eq!(candidate["signedForDistribution"], false);
+        assert_eq!(candidate["notarized"], false);
+        assert_eq!(candidate["installedOrPublished"], false);
+        assert!(candidate.get("publishable").is_none());
+        let executable = app.join("Contents/Resources/ruycast");
+        let executable_bytes = regular_bytes(&executable).unwrap();
+        fs::write(&executable, b"changed staged Rust executable").unwrap();
+        assert!(verify_under_lease(&f.0, &destination, &lease).is_err());
+        fs::write(&executable, &executable_bytes).unwrap();
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+        let extra = app.join("Contents/Resources/private.txt");
+        put(&extra, b"unreviewed", 0o644).unwrap();
+        assert!(verify_under_lease(&f.0, &destination, &lease).is_err());
+        fs::remove_file(extra).unwrap();
+        assert_eq!(
+            verify_under_lease(&f.0, &destination, &lease).unwrap()["ok"],
+            true
+        );
         let before = regular_bytes(&destination.join("candidate.json")).unwrap();
         assert!(stage_under_lease(&f.0, 68, &destination, &lease, None).is_err());
         assert_eq!(
             regular_bytes(&destination.join("candidate.json")).unwrap(),
             before
+        );
+        let occupied = parent.join("owned-existing");
+        fs::create_dir(&occupied).unwrap();
+        fs::write(occupied.join("human-marker"), b"preserve candidate").unwrap();
+        assert!(stage_under_lease(&f.0, 69, &occupied, &lease, None).is_err());
+        assert_eq!(
+            regular_bytes(&occupied.join("human-marker")).unwrap(),
+            b"preserve candidate"
         );
         let link = parent.join("owned-link");
         std::os::unix::fs::symlink(&destination, &link).unwrap();
@@ -438,9 +502,22 @@ mod tests {
             .unwrap()
             .file_type()
             .is_symlink());
+        assert_eq!(
+            regular_bytes(&destination.join("candidate.json")).unwrap(),
+            before
+        );
         let bad = parent.join("owned-zero");
         assert!(stage_under_lease(&f.0, 0, &bad, &lease, None).is_err());
         assert!(!bad.exists());
+        let receipt = build_receipt(&f.0).unwrap().0;
+        let artifact = f.0.join(&artifact_paths(&receipt.target).unwrap()[1].0);
+        let original_artifact = regular_bytes(&artifact).unwrap();
+        fs::write(&artifact, b"stale owned Rust artifact").unwrap();
+        let stale = parent.join("owned-stale-artifact");
+        assert!(stage_under_lease(&f.0, 69, &stale, &lease, None).is_err());
+        assert!(!stale.exists());
+        fs::write(&artifact, &original_artifact).unwrap();
+        fs::set_permissions(&artifact, fs::Permissions::from_mode(0o755)).unwrap();
         let mixed = parent.join("owned-mixed");
         let config = f.0.join("config/default.json");
         let original = regular_bytes(&config).unwrap();
@@ -453,6 +530,25 @@ mod tests {
         let payload = destination.join("Ruycast.app/Contents/Resources/ruycast");
         fs::write(&payload, b"owned payload tamper").unwrap();
         assert!(verify_under_lease(&f.0, &destination, &lease).is_err());
+    }
+    #[test]
+    fn public_candidate_refuses_private_checkout_or_missing_manifest_before_staging() {
+        for private_checkout in [true, false] {
+            let fixture = super::super::tests::Fixture::new();
+            if private_checkout {
+                fs::create_dir(fixture.0.join(".go")).unwrap();
+            }
+            let parent = fixture.0.join("candidate-output");
+            let destination = parent.join("candidate");
+            let error = stage_public(&fixture.0, 68, &destination).unwrap_err();
+            if private_checkout {
+                assert!(error.contains("reviewed public source export"), "{error}");
+            }
+            assert!(
+                !parent.exists(),
+                "candidate staging began before source validation"
+            );
+        }
     }
     #[test]
     fn safari_automation_purpose_survives_rust_packaging_with_or_without_icon() {
