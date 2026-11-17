@@ -1863,6 +1863,29 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn public_defaults_and_structured_vision_contract_are_neutral() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../config/default.json")).unwrap();
+        let config_text = serde_json::to_string(&config).unwrap();
+        assert!(!config_text.contains("Syncthing"));
+        assert!(!config_text.contains("link.vault"));
+        assert_eq!(config["hyperKeyEnabled"], false);
+        assert_eq!(config["snippetExpansionEnabled"], false);
+
+        let vision: serde_json::Value =
+            serde_json::from_str(include_str!("../../../../docs/vision.json")).unwrap();
+        assert_eq!(vision["artifact_kind"], "repo_design_vision_contract");
+        let principles = vision["principles"].as_array().unwrap();
+        let principle_ids = principles
+            .iter()
+            .map(|principle| principle["id"].as_str().unwrap())
+            .collect::<std::collections::BTreeSet<_>>();
+        for id in ["agent-first", "json-first"] {
+            assert!(principle_ids.contains(id));
+        }
+    }
+
     fn core_policy_fixture() -> super::super::tests::Fixture {
         let fixture=super::super::tests::Fixture::new();let root=&fixture.0;
         for name in ["Sources/LauncherModels","Sources/LauncherCore","Sources/CRuycastCore","Tests/LauncherCoreTests"] {fs::create_dir_all(root.join(name)).unwrap();}
