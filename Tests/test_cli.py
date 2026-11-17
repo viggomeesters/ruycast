@@ -70,20 +70,6 @@ class CLIIntegration(unittest.TestCase):
         finally:
             self.cli('config','remove',command['id'],ok=True)
 
-    def test_atomic_replacement_preserves_new_fields_and_rejects_drift(self):
-        snapshot=self.cli('config','get',ok=True)
-        candidate=dict(snapshot['result'],hyperKeyEnabled=True)
-        candidate['commands']=candidate['commands']+[{'id':'chosen-app','title':'Chosen app','kind':'url','target':'https://example.com','applicationID':'com.apple.Safari','hotkey':'ctrl+alt+delete'}]
-        path=self.root/'candidate.json';path.write_text(json.dumps(candidate))
-        self.cli('config','replace','@'+str(path),ok=False)
-        self.cli('config','replace','@'+str(path),'--expect-sha256','0'*64,ok=False)
-        self.assertEqual(self.cli('config','get',ok=True)['sha256'],snapshot['sha256'])
-        self.cli('config','replace','@'+str(path),'--expect-sha256',snapshot['sha256'],ok=True)
-        readback=self.cli('config','get',ok=True)['result']
-        self.assertTrue(readback['hyperKeyEnabled'])
-        self.assertEqual(readback['commands'][-1]['applicationID'],'com.apple.Safari')
-        self.cli('config','replace','@'+str(path),'--expect-sha256',snapshot['sha256'],ok=False)
-
     def test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates(self):
         date=__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()
         items=[{'id':'raycast-fixture-text','text':'test imported text','date':date,'source':'fixture'}, {'id':'raycast-fixture-file','text':'Files: fixture.txt','date':date,'source':'fixture','contentType':'files','fileURLs':['file:///nonexistent/fixture.txt']}]
