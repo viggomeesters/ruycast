@@ -130,6 +130,7 @@ fn controller_signal_retains_consumer_lease(signal: i32) {
         .unwrap();
     assert_eq!(unsafe { libc::kill(controller.0.id() as i32, signal) }, 0);
     assert_eq!(controller.0.wait().unwrap().signal(), Some(signal));
+    assert_lock_held(&f.0);
     let mut contender = Reap(child(&f.0, "contender").spawn().unwrap());
     wait(&f.0.join("contender-requested"));
     std::thread::sleep(Duration::from_millis(80));
@@ -145,6 +146,23 @@ fn controller_signal_retains_consumer_lease(signal: i32) {
     assert_eq!(
         std::io::Error::last_os_error().raw_os_error(),
         Some(libc::ESRCH)
+    );
+}
+fn assert_lock_held(root: &Path) {
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(root.join(".build/artifacts.lock"))
+        .unwrap();
+    assert_eq!(
+        unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) },
+        -1,
+        "consumer must retain the inherited lock after controller exit"
+    );
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::EWOULDBLOCK),
+        "direct nonblocking lock probe must fail because the lock is held"
     );
 }
 #[test]
