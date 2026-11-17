@@ -474,7 +474,6 @@ rust/src/lib.rs
 rust/src/private_storage.rs
 rust/src/product_version.rs
 rust/src/script.rs
-scripts/build-native-locked.sh
 scripts/build-native.sh
 scripts/check-locked.sh
 scripts/check-performance-locked.sh
