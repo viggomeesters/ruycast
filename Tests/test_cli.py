@@ -328,14 +328,6 @@ class CLIIntegration(unittest.TestCase):
                 child.kill()
                 child.wait(timeout=5)
 
-    def test_unknown_operation_returns_json_error(self):
-        with socket.socket(socket.AF_UNIX) as client:
-            client.settimeout(3)
-            client.connect(str(self.root / 'control.sock'))
-            client.sendall(b'{"op":"missing"}\n')
-            r = json.loads(client.recv(8192))
-        self.assertFalse(r['ok'])
-
     def test_failed_bridge_retains_provider_error_exit_status_and_queryable_log(self):
         bridge=self.root/'personal_bridge.py'
         fixture={'ok':False,'code':'provider_failed','error':'Status writer rejected the note','diagnostics':{'provider':'task-status.sh','providerExitCode':'23','providerStderr':'token='+'sample-secret-value'}}

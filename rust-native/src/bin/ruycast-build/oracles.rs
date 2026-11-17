@@ -1561,7 +1561,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["migratedMethods"] = serde_json::json!([
             "test_performance_fixture_ignores_external_configuration_override",
             "test_host_benchmark_rejects_changed_cli",
-            "test_search_ranking_summary_and_confirmed_reset"
+            "test_search_ranking_summary_and_confirmed_reset",
+            "test_unknown_operation_returns_json_error"
         ]);
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["nativeTargets"] = serde_json::json!({
             "startup_process": [
@@ -2397,7 +2398,7 @@ mod tests {
     fn search_ranking_cli_case_maps_to_owned_rust_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 3);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 4);
         assert!(cli_mapping["migratedMethods"]
             .as_array()
             .unwrap()
@@ -2409,6 +2410,29 @@ mod tests {
         assert!(rust_cli.contains(&format!("fn {}(", ranking_case.rsplit("::").next().unwrap())));
         let validation = include_str!("validation.rs");
         assert!(validation.contains(ranking_case));
+        assert!(validation.contains(
+            "cli-contract-process|c|test --manifest-path rust/Cargo.toml --bin ruycast startup_discovery_tests::current_cli_"
+        ));
+    }
+    #[test]
+    fn unknown_operation_cli_case_maps_to_bounded_rust_socket_assertion() {
+        let value = inventory("check").unwrap();
+        let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert!(cli_mapping["migratedMethods"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|method| method == "test_unknown_operation_returns_json_error"));
+        let rust_cli = include_str!("../../../../rust/src/bin/ruycast.rs");
+        assert!(rust_cli.contains("b\"{\\\"op\\\":\\\"missing\\\"}\\n\""));
+        assert!(rust_cli.contains("response.len() > 8192"));
+        assert!(rust_cli.contains(
+            "while written < request.len() {\n            if std::time::Instant::now() >= deadline"
+        ));
+        assert!(rust_cli.contains("line.len()<=8192&&line.ends_with(b\"\\n\")"));
+        assert!(rust_cli.contains("response[\"ok\"],false"));
+        assert!(rust_cli.contains("response[\"error\"].is_string()"));
+        let validation = include_str!("validation.rs");
         assert!(validation.contains(
             "cli-contract-process|c|test --manifest-path rust/Cargo.toml --bin ruycast startup_discovery_tests::current_cli_"
         ));
