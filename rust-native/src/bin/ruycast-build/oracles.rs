@@ -1560,12 +1560,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["migratedMethods"] = serde_json::json!([
             "test_performance_fixture_ignores_external_configuration_override",
-            "test_host_benchmark_rejects_changed_cli"
+            "test_host_benchmark_rejects_changed_cli",
+            "test_search_ranking_summary_and_confirmed_reset"
         ]);
-        inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["nativeTargets"] = serde_json::json!({"startup_process": [
-            "real_rust_benchmark_ignores_external_configuration_with_500_commands",
-            "real_rust_benchmark_rejects_changed_cli_and_quits_gracefully"
-        ]});
+        inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["nativeTargets"] = serde_json::json!({
+            "startup_process": [
+                "real_rust_benchmark_ignores_external_configuration_with_500_commands",
+                "real_rust_benchmark_rejects_changed_cli_and_quits_gracefully"
+            ],
+            "rust_cli": ["startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(true);
         inventory["rustRootTestCrosswalk"]["Tests/test_architecture.py"] = serde_json::json!({
             "scope": "The three architecture checks now run in a Rust test target; frozen Swift references are only read as compatibility inputs and Rust worker ownership is compiler-checked.",
@@ -2377,13 +2381,6 @@ mod tests {
             .unwrap()
             .iter()
             .any(|path| path == "Tests/test_cli.py"));
-        assert_eq!(
-            value["rustRootTestCrosswalk"]["Tests/test_cli.py"]["migratedMethods"]
-                .as_array()
-                .unwrap()
-                .len(),
-            2
-        );
         let tests = include_str!("../../../tests/benchmark_host_process.rs");
         let startup = include_str!("../../../tests/startup_process.rs");
         for case in mapping["nativeCases"].as_array().unwrap() {
@@ -2395,6 +2392,26 @@ mod tests {
         assert!(
             startup.contains("fn real_rust_benchmark_rejects_changed_cli_and_quits_gracefully(")
         );
+    }
+    #[test]
+    fn search_ranking_cli_case_maps_to_owned_rust_process_case() {
+        let value = inventory("check").unwrap();
+        let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 3);
+        assert!(cli_mapping["migratedMethods"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|method| method == "test_search_ranking_summary_and_confirmed_reset"));
+        let ranking_case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
+        assert_eq!(cli_mapping["nativeTargets"]["rust_cli"][0], ranking_case);
+        let rust_cli = include_str!("../../../../rust/src/bin/ruycast.rs");
+        assert!(rust_cli.contains(&format!("fn {}(", ranking_case.rsplit("::").next().unwrap())));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains(ranking_case));
+        assert!(validation.contains(
+            "cli-contract-process|c|test --manifest-path rust/Cargo.toml --bin ruycast startup_discovery_tests::current_cli_"
+        ));
     }
     #[test]
     fn retired_architecture_python_cases_map_to_rust_policy_tests() {
