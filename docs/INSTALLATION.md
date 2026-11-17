@@ -1,10 +1,11 @@
 # Installation
 
-The Rust build and installer are rewrite candidates. Isolated filesystem/process evidence does not establish complete desktop, installation or release acceptance. Developer ID/notarization is deferred. Building or verifying a candidate does not install it.
+The native host, CLI, build tool and installer are implemented in Rust. The current public Rust beta is source-only; it has not completed full product, installation or release acceptance. Keep the working 0.8.26 app and configuration until a replacement passes those gates. Developer ID/notarization is deferred. Building or verifying a candidate does not install it.
 
 After the combined candidate is accepted for your use, build and install locally:
 
 ```sh
+make disk-status
 make install
 ```
 
@@ -15,7 +16,7 @@ make install
 - macOS 14 or later.
 - Apple's command-line developer tools, including the linker, `dsymutil`, `strip` and `codesign`.
 - Rust/Cargo 1.92 or later, with locked dependencies cached for offline builds.
-- Python 3.10 or later for compatibility wrappers and existing validators. Explicit historical Swift parity oracles require Swift 6.2; the production build does not.
+- Python 3.10 or later only for remaining compatibility wrappers and validators; direct Rust build and install commands do not require it. Explicit historical Swift parity oracles require Swift 6.2; the production build does not.
 - OpenSSL for initial local certificate preparation. The signer prefers Homebrew OpenSSL when available and otherwise the system tool.
 
 Development builds have been checked on Apple silicon. This does not establish clean-Mac or physical desktop acceptance of the complete rewrite; Intel execution is untested. Full Xcode is optional for builds; Instruments profiling requires it.

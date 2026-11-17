@@ -2,6 +2,8 @@
 
 ## Rust beta source preview
 
+The latest public source beta is [v0.9.0-beta.17](https://github.com/viggomeesters/ruycast/releases/tag/v0.9.0-beta.17); it contains a source archive and checksum, not a prebuilt app. The working 0.8.26 app remains separate until the Rust candidate passes product and installation acceptance.
+
 The beta is a separate macOS app alongside Ruycast 0.8.26. It uses the
 `nl.viggomeesters.ruycast.preview` bundle ID and stores data under
 `~/Library/Application Support/Ruycast Rust Preview`. It starts with its own
@@ -10,17 +12,26 @@ are running. Review the clipboard setting before starting the beta if you
 share this Mac.
 
 Verify the SHA-256 of the source archive against the checksum attached to the
-same GitHub prerelease. From the extracted source, build the beta host with:
+same GitHub prerelease. The beta.17 source predates the `disk-status` command,
+so check disk headroom with `df -h .`. From the extracted beta.17 source, build
+the beta host with:
 
 ```sh
-CARGO_INCREMENTAL=0 cargo build --locked --release --manifest-path rust-native/Cargo.toml --features local-preview --bin ruycast-native
+CARGO_INCREMENTAL=0 cargo build --locked --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --features local-preview --bin ruycast-native
 ```
 
-The prerelease supplies source. Use a bundle built from the verified source.
-Stage the preview app separately from the
-installed app, with the preview bundle ID, the host at
-`Contents/MacOS/RuycastApp`, the CLI at `Contents/Resources/ruycast` and a
-strictly higher numeric `CFBundleVersion`. Update an already enrolled preview with:
+The `make disk-status` target is available in the current repository checkout,
+not in the beta.17 archive.
+
+This command builds only the host executable. It does not build the CLI or stage
+an `.app` bundle, and there is no supported Rust preview-bundle staging command
+in this repository. `make install-preview` updates an already staged and
+enrolled preview; it does not create the bundle. The separate preview must use
+the preview bundle ID, place the host at `Contents/MacOS/RuycastApp` and CLI at
+`Contents/Resources/ruycast`, and have a strictly higher numeric
+`CFBundleVersion`.
+
+Update an already staged and enrolled preview with:
 
 ```sh
 make install-preview APP="/absolute/path/to/staged-preview.app"
@@ -56,7 +67,8 @@ and again require existing permissions to remain enabled. If signing recovery
 fails before replacement, the original preview stays installed; rerun the
 explicit recovery command to reuse the prepared dedicated signer.
 
-F1 comparisons and Developer ID notarization are pending.
+The full Swift-comparison/F1 campaign ended on 10 November 2026 and is not a
+current issue or release gate. Developer ID notarization remains deferred.
 
 ## Current Rust candidate
 
@@ -64,22 +76,24 @@ The complete native rewrite remains a development candidate. V4 Rust build recei
 
 Production build, version, diagnostic preparation and packaging policy are Rust. Compatibility Python/shell entrypoints forward arguments to an explicitly host-targeted, locked offline Cargo tool. `rust/src/product_version.rs` is the sole product-version literal. The Swift tree is a historical oracle and not a production fallback.
 
-Export an explicit reviewed public source snapshot first and verify its clean archive before compilation. The accepted source-export policy excludes `.go`, profiles, signing material, private adapters and Actions. After building, packaging permits `.build` outputs but rebinds every PUBLIC-SOURCE.v2 file/mode and the entire production inventory. Unreviewed new production files, source changes, private checkouts, stale/pre-v4/debug receipts and existing outputs are refused.
+Export an explicit reviewed public source snapshot first and verify its clean archive before compilation. The accepted source-export policy excludes `.go`, profiles, signing material, private adapters and Actions. After building, packaging permits `.build` outputs but rebinds every PUBLIC-SOURCE.v2 file/mode and the entire production inventory. Unreviewed new production files, source changes, private checkouts, stale/pre-v4/debug receipts and existing outputs are refused. The direct Rust build and verification commands below do not require the Python compatibility wrapper.
 
 ```sh
 RUYCAST_SOURCE="$PWD/.dist/public-source"
+: "${RUYCAST_BUILD_NUMBER:?Set this to a positive number greater than the last distributed build}"
 cargo run --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-source -- export --repo "$PWD" --out "$RUYCAST_SOURCE"
 cargo run --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-source -- verify --source "$RUYCAST_SOURCE" --repo "$PWD"
 cd "$RUYCAST_SOURCE"
-bash scripts/build-native.sh -c release
-python3 scripts/build_receipt.py verify
-cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat package --repo "$PWD" -- --out "$PWD/.dist/new-candidate" --build-number "$RUYCAST_BUILD_NUMBER"
-cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat package --repo "$PWD" -- --verify "$PWD/.dist/new-candidate"
+make disk-status
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- build --repo "$PWD"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- verify --repo "$PWD"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat package --repo "$PWD" -- --out "$PWD/.dist/new-candidate" --build-number "$RUYCAST_BUILD_NUMBER"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat package --repo "$PWD" -- --verify "$PWD/.dist/new-candidate"
 ```
 
 Choose a fresh output and an explicit positive build number greater than the previous distributed build. Release preparation retains matching original binaries/dSYM privately, verifies code/data sections and UUID, and binds the preparation record into v4. The app contains only host, CLI, optional icon and fixed plist, including the Safari Automation purpose. It contains no profile, signing material, runtime adapters or diagnostics.
 
-Complete functional/native/accessibility/F1, safe installation/readback and clean public-build acceptance remain separate gates. The full F1 comparison needs independently reviewed runner/authority pins and the preserved complete dataset; historical Swift timings or a small model benchmark do not satisfy it. Developer ID/notarization is deferred until the maintainer has the required account/identity. Do not run raw historical Swift-host checks without complete pre-entry SDK confinement.
+Complete functional/native/accessibility parity, safe installation/readback and clean public-build acceptance remain separate gates. The full F1 campaign was discontinued and is not required; short focused measurements do not establish physical presentation or energy performance. Developer ID/notarization is deferred until the maintainer has the required account/identity. Do not run raw historical Swift-host checks without complete pre-entry SDK confinement.
 
 ### Updating the Rust product version
 
@@ -129,9 +143,11 @@ A prebuilt app release requires a maintained Developer ID identity, hardened run
 Use the reviewed **public** checkout, never a private development checkout or an installed personal app. `ruycast-build compat package` checks the public manifest and release-build receipt, copies only the app executable, CLI and icon, and writes an explicitly non-publishable candidate receipt. It does not install, sign, upload, publish, copy configuration or include personal adapters. Existing output is preserved.
 
 ```sh
-make check
-bash scripts/build-native.sh -c release
-cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat package --repo "$PWD" -- --out "$PWD/.dist/public-candidate" --build-number 26
+make disk-status
+: "${RUYCAST_BUILD_NUMBER:?Set this to a positive number greater than the last distributed build}"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- build --repo "$PWD"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- verify --repo "$PWD"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat package --repo "$PWD" -- --out "$PWD/.dist/public-candidate" --build-number "$RUYCAST_BUILD_NUMBER"
 ```
 
 Choose a fresh candidate directory and a numeric build greater than the previous distributed build. The manifest supplies the product version. Candidate preparation does **not** prove Developer ID signing, notarization, supported architectures or clean-Mac acceptance.
