@@ -1745,3 +1745,104 @@ fn signing_check_missing_or_unsafe_owned_identity_refuses_before_runner_or_stagi
         assert_eq!(stdfs::read(f.o.signer.join("identity.json")).unwrap(), before);
     }
 }
+
+struct FailingCheckRunner {
+    base: CheckRunner,
+    fault: &'static str,
+    at: usize,
+    stages: Vec<PathBuf>,
+}
+impl tools::Runner for FailingCheckRunner {
+    fn secret(&mut self) -> Result<String> { panic!("checker must never provision") }
+    fn running_host(&mut self, _: i32, _: &Path) -> Result<()> { panic!("checker must never launch") }
+    fn run(&mut self, call: tools::Call) -> Result<tools::Output> {
+        let step = self.base.calls.len() + 1;
+        assert_eq!(call.timeout, std::time::Duration::from_secs(30));
+        assert!(call.input.is_empty());
+        let compiler = call.program == Path::new("/owned/rustc");
+        if compiler {
+            let stage = call.cwd.as_ref().unwrap();
+            assert_eq!(stdfs::metadata(stage).unwrap().permissions().mode() & 0o777, 0o700);
+            self.stages.push(stage.clone());
+        } else { assert_eq!(call.program, Path::new("/usr/bin/codesign")); }
+        let executable = compiler.then(|| PathBuf::from(&call.args[3]));
+        if step == self.at && matches!(self.fault, "exit" | "runner-error") {
+            self.base.calls.push(call);
+            let private = "owned-fixture-password raw-runner-stderr-canary";
+            if self.fault == "runner-error" { return Err(private.into()); }
+            return Ok(tools::Output { success: false, stdout: private.as_bytes().to_vec(), stderr: private.as_bytes().to_vec() });
+        }
+        let mut output = self.base.run(call)?;
+        if self.fault == "same-binaries" {
+            if let Some(path) = executable { stdfs::write(path, b"same owned executable bytes").unwrap(); }
+        }
+        if step == self.at {
+            match self.fault {
+                "missing" => output.stderr = b"raw-runner-stderr-canary owned-fixture-password".to_vec(),
+                "multiple" => output.stderr.extend_from_within(..),
+                "wrong" => output.stderr = b"# designated => identifier only raw-runner-stderr-canary owned-fixture-password\n".to_vec(),
+                _ => (),
+            }
+        }
+        Ok(output)
+    }
+}
+#[test]
+fn signing_check_owned_failure_table_redacts_stops_and_cleans_only_its_staging() {
+    let mut cases = Vec::new();
+    for step in 1..=8 {
+        for fault in ["exit", "runner-error"] {
+            let message = match (step - 1) % 4 {
+                0 => "Signing check compiler failed.",
+                1 => "Signing check signer failed.",
+                2 => "Signing check verification failed.",
+                _ => "Signing check requirement display failed.",
+            };
+            cases.push((fault, step, step, message));
+        }
+    }
+    for step in [4, 8] {
+        for fault in ["missing", "multiple", "wrong"] {
+            cases.push((fault, step, step, "Signed app does not carry the exact pinned requirement."));
+        }
+    }
+    cases.push(("same-binaries", 8, 8, "Changed native builds did not retain the same identity."));
+    for (fault, at, count, expected) in cases {
+        let f = Fixture::new();
+        f.signer();
+        let before: BTreeMap<_, _> = stdfs::read_dir(&f.o.signer).unwrap().map(|entry| {
+            let entry = entry.unwrap();
+            (entry.file_name(), (stdfs::read(entry.path()).unwrap(), stdfs::metadata(entry.path()).unwrap().permissions().mode()))
+        }).collect();
+        let parent = f.root.join("failure-checker-work");
+        fs::directory(&parent, 0o700).unwrap();
+        let sibling = parent.join("preserve-existing-directory");
+        fs::directory(&sibling, 0o700).unwrap();
+        fs::create(&sibling.join("keep"), b"existing sibling must survive", 0o600).unwrap();
+        let mut runner = FailingCheckRunner {
+            base: CheckRunner { calls: vec![], requirement: signing::requirement(&"a".repeat(40)) },
+            fault, at, stages: vec![],
+        };
+        let result = signing::check(&f.o.signer, &f.o.repo, &f.o.home, &parent, Path::new("/owned/rustc"), &mut runner);
+        let error = result.unwrap_err(); // No success JSON is available on any fault.
+        assert_eq!(error, expected, "{fault} at {at}");
+        assert!(!error.contains("owned-fixture-password"));
+        assert!(!error.contains("raw-runner-stderr-canary"));
+        assert_eq!(runner.base.calls.len(), count, "no calls after {fault} at {at}");
+        assert!(!runner.stages.is_empty());
+        for stage in &runner.stages {
+            assert!(stage.starts_with(&parent));
+            assert!(stage.file_name().unwrap().to_str().unwrap().starts_with("signing-check-"));
+            assert!(!stage.exists(), "only owned checker staging must be retired");
+        }
+        assert_eq!(stdfs::read_dir(&parent).unwrap().count(), 1);
+        assert_eq!(stdfs::read(sibling.join("keep")).unwrap(), b"existing sibling must survive");
+        assert_eq!(stdfs::metadata(&sibling).unwrap().permissions().mode() & 0o777, 0o700);
+        assert_eq!(stdfs::read_dir(&f.o.signer).unwrap().count(), before.len());
+        for (name, (bytes, mode)) in before {
+            let path = f.o.signer.join(name);
+            assert_eq!(stdfs::read(&path).unwrap(), bytes, "{fault} at {at}");
+            assert_eq!(stdfs::metadata(path).unwrap().permissions().mode(), mode);
+        }
+    }
+}
