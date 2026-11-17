@@ -953,6 +953,38 @@ fn direct_native_sdk_geometry_and_workspace_effects_have_complete_owned_substitu
 #[test]
 fn builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly() {
     let host = Host::new(false, "light");
+    let search = child_output::wait(
+        Command::new(cli())
+            .args(["search", "settings"])
+            .env_clear()
+            .env("HOME", &host.base)
+            .env("RUYCAST_HOME", &host.profile)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+        Duration::from_secs(10),
+    );
+    assert!(search.status.success());
+    let search: Value = serde_json::from_slice(&search.stdout).unwrap();
+    assert_eq!(search["ok"], true);
+    assert!(search["result"].as_array().unwrap().iter().any(|row| row["id"] == "builtin.settings"));
+    let run = child_output::wait(
+        Command::new(cli())
+            .args(["run", "builtin.settings"])
+            .env_clear()
+            .env("HOME", &host.base)
+            .env("RUYCAST_HOME", &host.profile)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+        Duration::from_secs(10),
+    );
+    assert_eq!(run.status.code(), Some(1));
+    let run: Value = serde_json::from_slice(&run.stdout).unwrap();
+    assert_eq!(run["ok"], false);
+    assert!(run["error"].as_str().unwrap().contains("headless"));
     let reloaded = host.ok(json!({"op":"execute","id":"builtin.reload-config"}));
     assert_eq!(reloaded["result"]["state"], "reloaded");
     assert_eq!(

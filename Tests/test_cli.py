@@ -68,12 +68,6 @@ class CLIIntegration(unittest.TestCase):
         self.assertFalse(request([dict(items[0],id='unsafe',dataFile='../private')])['ok'])
         self.cli('clipboard','clear',ok=True)
 
-    def test_settings_command_is_searchable_and_headless_guarded(self):
-        rows = self.cli('search', 'settings', ok=True)['result']
-        self.assertIn('builtin.settings', [row['id'] for row in rows])
-        result = self.cli('run', 'builtin.settings', ok=False)
-        self.assertIn('headless', result['error'])
-
     def test_appearance_preferences_validate_and_persist(self):
         for theme in ['system', 'light', 'dark', 'graphite']:
             self.cli('config', 'set', 'theme', json.dumps(theme), ok=True)
