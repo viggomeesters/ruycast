@@ -209,6 +209,11 @@ fn publish_pipeline_receipt(root: &Path, kind: &str, lease: &BuildLock, path: &P
     Ok(())
 }
 fn pipeline_under_lease(root: &Path, kind: &str, lease: &BuildLock) -> Result<serde_json::Value> {
+    super::disk_budget::require_capacity(
+        root,
+        super::disk_budget::VERIFICATION_PIPELINE_PEAK,
+        "verification pipeline",
+    )?;
     let path = reset_pipeline_receipt(root, kind, lease)?;
     oracles::require_complete(kind)?;
     let before = verification_sources(root)?;
