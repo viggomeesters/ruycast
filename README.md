@@ -71,12 +71,14 @@ Website icons contact the relevant websites and use a local cache. Only add scri
 ## Development
 
 ```sh
+make disk-status
+make clean-build-caches
 make check
 bash scripts/check-settings.sh
 python3 scripts/build_receipt.py verify-check
 ```
 
-These are compatibility entrypoints, not a completed Rust-only test suite. The native matrix still uses Python validators, and the full `check` entrypoint refuses its unmapped Python-discovery gate. The `settings` pipeline also requires its bound native validation artifacts.
+`make disk-status` reports available bytes and the current headroom estimate for each producer. `make clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. The remaining commands are compatibility entrypoints, not a completed Rust-only test suite. The native matrix still uses Python validators, and the full `check` entrypoint refuses its unmapped Python-discovery gate. The `settings` pipeline also requires its bound native validation artifacts.
 
 The previous full Swift-comparison and F1 measurement campaign was discontinued on 10 November 2026. Current work uses focused checks for each change and separate short launcher-time and memory measurements. Historical comparison code remains pending retirement; its presence does not make the discontinued campaign a release requirement.
 
