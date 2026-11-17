@@ -1986,3 +1986,92 @@ fn ordinary_sign_owned_pins_verification_and_refuses_without_fallback_or_mutatio
         }
     }
 }
+
+struct InstalledCheckRunner {
+    adhoc: bool,
+    calls: Vec<tools::Call>,
+}
+impl tools::Runner for InstalledCheckRunner {
+    fn secret(&mut self) -> Result<String> { panic!("installed check must not provision") }
+    fn running_host(&mut self, _: i32, _: &Path) -> Result<()> { panic!("installed check must not launch") }
+    fn run(&mut self, call: tools::Call) -> Result<tools::Output> {
+        // Record only. Never invoke System or any real signature tool.
+        assert_eq!(call.program, Path::new("/usr/bin/codesign"));
+        assert_eq!(call.timeout, std::time::Duration::from_secs(30));
+        assert!(call.input.is_empty());
+        let mut output = tools::Output { success: true, stdout: vec![], stderr: vec![] };
+        match self.calls.len() {
+            0 => assert_eq!(&call.args[..3], ["--verify", "--deep", "--strict"]),
+            1 => {
+                assert_eq!(&call.args[..2], ["--display", "--verbose=2"]);
+                output.stderr = if self.adhoc {
+                    format!("Identifier={NEW_ID}\nSignature=adhoc\n")
+                } else {
+                    format!("Identifier={NEW_ID}\nAuthority=Unexpected certificate\n")
+                }.into_bytes();
+            }
+            2 if !self.adhoc => {
+                assert_eq!(&call.args[..4], ["--verify", "--deep", "--strict", "-R"]);
+                output.success = false;
+                output.stdout = b"owned-fixture-password raw-installed-signature-stdout".to_vec();
+                output.stderr = b"owned-fixture-password raw-installed-signature-stderr".to_vec();
+            }
+            _ => panic!("no retry, fallback, signing, repair or extra verification allowed"),
+        }
+        self.calls.push(call);
+        Ok(output)
+    }
+}
+fn installed_check_snapshot(root: &Path) -> BTreeMap<PathBuf, (Vec<u8>, u32)> {
+    fn visit(root: &Path, path: &Path, rows: &mut BTreeMap<PathBuf, (Vec<u8>, u32)>) {
+        let metadata = stdfs::symlink_metadata(path).unwrap();
+        assert!(!metadata.file_type().is_symlink(), "only owned regular fixture trees");
+        let bytes = if metadata.is_file() { stdfs::read(path).unwrap() } else { vec![] };
+        rows.insert(path.strip_prefix(root).unwrap().to_owned(), (bytes, metadata.permissions().mode()));
+        if metadata.is_dir() {
+            for entry in stdfs::read_dir(path).unwrap() { visit(root, &entry.unwrap().path(), rows); }
+        }
+    }
+    let mut rows = BTreeMap::new();
+    visit(root, root, &mut rows);
+    rows
+}
+#[test]
+fn installed_signing_owned_certificate_refusal_and_initial_adhoc_preserve_state() {
+    for adhoc in [false, true] {
+        let f = Fixture::new();
+        f.signer();
+        let identity = signing::load(&f.o.signer, &f.o.repo).unwrap();
+        let app = f.root.join("owned-installed-check.app");
+        let mac = app.join("Contents/MacOS");
+        fs::directory(&mac, 0o700).unwrap();
+        fs::create(&mac.join("Proof"), b"owned executable bytes; never launched", 0o700).unwrap();
+        fs::create(&app.join("Contents/Info.plist"), &tools::plist_bytes(&json!({"CFBundleIdentifier":NEW_ID,"CFBundleExecutable":"Proof"})).unwrap(), 0o600).unwrap();
+        let app_before = installed_check_snapshot(&app);
+        let signer_before = installed_check_snapshot(&f.o.signer);
+        assert!(!f.o.signer.join("installed-identity.json").exists());
+        let mut runner = InstalledCheckRunner { adhoc, calls: vec![] };
+        let result = signing::check_installed(&app, &f.o.signer, &identity, &f.o.home, &mut runner);
+        assert_eq!(runner.calls.len(), if adhoc { 2 } else { 3 });
+        assert_eq!(runner.calls[0].args, ["--verify", "--deep", "--strict", app.to_str().unwrap()]);
+        assert_eq!(runner.calls[1].args, ["--display", "--verbose=2", app.to_str().unwrap()]);
+        if adhoc {
+            assert_eq!(result, Ok(()));
+            assert!(!runner.calls.iter().any(|call| call.args.iter().any(|arg| arg == "-R")));
+        } else {
+            assert_eq!(runner.calls[2].args, ["--verify", "--deep", "--strict", "-R",
+                &format!("={}", signing::requirement(&"A".repeat(40))), app.to_str().unwrap()]);
+            let error = result.unwrap_err();
+            assert_eq!(error, "codesign: operation failed; installation state preserved or rolled back.");
+            for private in ["owned-fixture-password", "raw-installed-signature-stdout", "raw-installed-signature-stderr"] {
+                assert!(!error.contains(private));
+            }
+        }
+        assert!(runner.calls.iter().all(|call| call.program == Path::new("/usr/bin/codesign")
+            && !call.args.iter().any(|arg| arg == "--force" || arg == "--sign" || arg == "add-trusted-cert")));
+        assert_eq!(installed_check_snapshot(&app), app_before);
+        assert_eq!(installed_check_snapshot(&f.o.signer), signer_before);
+        assert!(!f.o.signer.join("installed-identity.json").exists());
+        assert!(!f.o.apps.exists());
+    }
+}
