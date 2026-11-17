@@ -1561,6 +1561,30 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     let mut inventory =
         serde_json::json!({"schema":"ruycast.original-gate-inventory.v1","pipeline":kind,"gates":gates,"unmappedGateIDs":unresolved,"settingsCaseCrosswalk":if kind=="settings"{serde_json::to_value(SETTINGS).map_err(error)?}else{serde_json::Value::Null},"qualifiedCaseSourceBindings":if kind=="settings"{serde_json::to_value(qualified).map_err(error)?}else{serde_json::Value::Null},"requiresCurrentCompleteNativeValidation":true,"pythonModuleInventory":python_modules,"rustRootTestCrosswalk":if kind=="check"{serde_json::json!({"Tests/test_config_activation.py":{"scope":"both original activation rollback scenarios ported using actual Rust CLI and owned Unix socket; no live host","originalMethods":["test_rejected_candidate_restores_previous_bytes_and_runtime","test_newer_external_edit_is_never_rolled_back"],"nativeTarget":"startup_config_repair","nativeCases":["rejected_candidate_restores_previous_bytes_and_runtime","newer_external_edit_is_never_rolled_back"],"remainingPythonCases":0},"Tests/test_product_version.py":{"authority":"rust/src/product_version.rs","scope":"retired historical Swift-authority test consumer; five scenario intents now covered against actual Rust authority","originalMethods":["test_reader_and_actual_swift_compiler_agree_after_one_version_edit","test_missing_linked_ambiguous_or_nonliteral_version_is_rejected","test_export_follows_changed_compiled_version","test_invalid_version_creates_no_export_or_archive","test_nonregular_source_is_rejected_without_waiting_for_a_writer"],"nativeCases":["version::tests::owned_literal_matches_the_rust_compiler_and_rejects_link_fifo_directory_or_missing","version::tests::owned_rust_literal_tokens_preserve_whitespace_and_reject_ambiguity","version::tests::changed_compiled_version_exports_and_invalid_source_leaves_no_outputs"]},"Tests/test_config_directory.py":{"scope":"all fourteen scenarios ported, including qualified current-Rust manual-selector contract and actual Rust Raycast importer","originalMethods":["test_offline_relocation_preserves_bytes_and_runtime_files","test_existing_destination_is_not_overwritten","test_busy_writer_cannot_be_relocated","test_environment_pinned_directory_cannot_be_relocated","test_default_remains_compatible","test_invalid_selector_never_falls_back_to_stale_config","test_unavailable_persisted_config_is_not_initialized","test_persisted_directory_is_shared_and_survives_cli_restart","test_host_restart_uses_relocated_configuration","test_parent_component_after_symlink_is_rejected_by_cli_and_host","test_live_relocation_keeps_host_and_observer_on_new_file","test_manual_selector_change_does_not_silently_activate_wrong_file","test_environment_overrides_persisted_location","test_raycast_import_defaults_to_active_cli_config"],"currentContractDifferences":{"test_manual_selector_change_does_not_silently_activate_wrong_file":"Current Rust host automatically rebinds valid selectors; historical immediate CLI refusal and old host path are not guaranteed. Actual stale ConfigStore write refusal and unchanged copies are preserved; subsequent actual CLI edits target only the rebound selected file."},"additionalNativeTargets":{"runtime_process":["persisted_directory_is_shared_between_cli_and_owned_host_startup","owned_host_restart_uses_relocated_configuration","relocate_keeps_original_then_cli_edits_new_target","external_selector_rebinds_observation_to_portable_directory"]},"nativeTarget":"startup_config_repair","nativeCases":["offline_cli_relocation_retains_source_and_refuses_existing_target","offline_cli_busy_writer_and_environment_pin_refuse_relocation","offline_cli_default_path_and_invalid_selectors_never_use_stale_config","offline_cli_and_host_initializer_refuse_unavailable_persisted_config","offline_cli_and_host_initializer_refuse_parent_component_after_symlink","offline_cli_and_host_initializer_override_persisted_location_without_overwrite","raycast_import_defaults_to_active_cli_config"],"remainingPythonCases":0},"Tests/test_install_migration.py":{"scope":"all sixteen original scenarios ported; Python module and unused helper retired","originalMethods":["test_failed_bootstrap_restores_old_app_cli_and_registration","test_wrong_running_version_restores_old_app_and_registration","test_installer_migrates_single_service_and_both_cli_names","test_other_rustcast_app_cli_and_profile_are_preserved","test_existing_compatibility_alias_does_not_own_other_rustcast_app","test_signing_failure_keeps_existing_host_and_profile_untouched","test_installer_pins_explicit_configuration_for_login_startup","test_receipt_failure_never_stops_installed_app","test_invalid_canonical_version_never_stages_or_stops_current_app","test_profile_preserves_bytes_and_idempotent_alias","test_custom_config_is_backed_up_and_checked_separately_from_runtime","test_conflicting_profiles_and_links_are_preserved","test_unrelated_cli_symlink_is_not_hijacked","test_external_local_adapter_stages_without_entering_public_source","test_public_source_update_preserves_existing_local_adapter","test_wrong_bundle_identity_refused"],"authority":"rust/src/product_version.rs","buildAuthorityCases":["tests::genuine_owned_cargo_pair_emits_v4_and_rejects_stale_or_tampered_authority"],"nativeBinary":"ruycast-install","nativeCases":["installer::tests::installer_owned_failures_rollback_or_fail_before_stopping_without_config_changes","installer::tests::installer_owned_legacy_migration_preserves_authored_state_and_both_cli_names","installer::tests::installer_owned_unrelated_product_and_unknown_stage_are_preserved","installer::tests::installer_owned_explicit_app_profile_config_and_relative_legacy_alias","installer::tests::installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop","installer::tests::installer_owned_profile_filesystem_preserves_bytes_and_idempotent_alias","installer::tests::installer_owned_profile_filesystem_selected_config_hash_is_separate_from_runtime","installer::tests::installer_owned_profile_filesystem_conflicts_and_unrelated_cli_are_preserved","installer::tests::installer_owned_personal_adapter_external_stages_without_public_source_copy","installer::tests::installer_owned_personal_adapter_installed_bytes_preserved_and_link_refused","installer::tests::installer_owned_bundle_identity_refuses_unrelated_app_without_mutation"],"faults":["bootstrap","version","sign"],"remainingPythonFlowConsumers":0,"remainingPythonFilesystemCases":0}})}else{serde_json::Value::Null},"pythonDiscovery":"Every test discovered by the original Tests/test_*.py selector remains required; the optional integration modules need their own presence/safety qualification, never a blanket skip","unmappedIsFailure":true,"productionAccepted":false});
     if kind == "check" {
+        inventory["rustRootTestCrosswalk"]["Tests/test_public_contract.py"] = serde_json::json!({
+            "scope": "Incremental migration; six original cases are bound to Rust tests. The artifact-lease case remains open under its linked issue.",
+            "originalMethods": [
+                "test_neutral_defaults_and_structured_contract",
+                "test_release_strip_preserves_real_sections_and_matching_diagnostics",
+                "test_cached_artifacts_keep_their_original_diagnostics_across_partial_rebuilds",
+                "test_second_replace_failure_and_interrupted_pair_recover_before_retry",
+                "test_mismatched_dsym_cannot_mutate_build_artifacts",
+                "test_source_mutation_during_build_cannot_receive_valid_receipt",
+                "test_build_and_install_share_exclusive_artifact_lock"
+            ],
+            "nativeCaseByMethod": {
+                "test_neutral_defaults_and_structured_contract": "oracles::tests::public_defaults_and_structured_vision_contract_are_neutral",
+                "test_release_strip_preserves_real_sections_and_matching_diagnostics": "preparation::tests::real_rust_strip_keeps_code_uuid_and_matching_diagnostics_and_cached_originals",
+                "test_cached_artifacts_keep_their_original_diagnostics_across_partial_rebuilds": "preparation::tests::real_rust_strip_keeps_code_uuid_and_matching_diagnostics_and_cached_originals",
+                "test_second_replace_failure_and_interrupted_pair_recover_before_retry": "preparation::tests::failed_second_replace_rolls_back_pair_and_interrupted_pair_is_recovered",
+                "test_mismatched_dsym_cannot_mutate_build_artifacts": "preparation::tests::valid_dsym_with_wrong_uuid_is_refused_before_binary_publication",
+                "test_source_mutation_during_build_cannot_receive_valid_receipt": "compat::tests::build_receipt_record_refuses_source_mutation_without_creating_receipt"
+            },
+            "remainingMethods": [
+                "test_build_and_install_share_exclusive_artifact_lock"
+            ],
+            "remainingPythonCases": 1
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_package_app.py"] = serde_json::json!({
             "scope": "all seven packaging test contracts are bound to Rust candidate/source checks; the Python test consumer is retired",
             "originalMethods": ["test_candidate_has_only_explicit_bundle_resources_and_no_publication_claim", "test_private_checkout_and_missing_manifest_are_rejected_before_staging", "test_candidate_verification_rejects_post_staging_mutation_or_extra_file", "test_stale_source_or_binary_receipt_cannot_be_packaged", "test_existing_artifact_and_symlink_are_preserved", "test_changes_during_copy_do_not_expose_mixed_candidate", "test_linked_source_and_invalid_metadata_are_rejected"],
@@ -1883,6 +1907,36 @@ mod tests {
             .collect::<std::collections::BTreeSet<_>>();
         for id in ["agent-first", "json-first"] {
             assert!(principle_ids.contains(id));
+        }
+    }
+
+    #[test]
+    fn public_contract_progress_binds_source_mutation_refusal() {
+        let inventory = super::inventory("check").unwrap();
+        assert!(inventory["pythonModuleInventory"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "Tests/test_public_contract.py"));
+        let mapping = &inventory["rustRootTestCrosswalk"]["Tests/test_public_contract.py"];
+        assert_eq!(mapping["originalMethods"].as_array().unwrap().len(), 7);
+        assert_eq!(mapping["nativeCaseByMethod"].as_object().unwrap().len(), 6);
+        assert_eq!(mapping["remainingMethods"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["remainingPythonCases"], 1);
+        let sources = [
+            include_str!("oracles.rs"),
+            include_str!("preparation.rs"),
+            include_str!("compat.rs"),
+        ];
+        for case in mapping["nativeCaseByMethod"].as_object().unwrap().values() {
+            let case = case.as_str().unwrap();
+            let name = case.rsplit("::").next().unwrap();
+            assert!(
+                sources
+                    .iter()
+                    .any(|source| source.contains(&format!("fn {name}("))),
+                "missing Rust case {case}"
+            );
         }
     }
 

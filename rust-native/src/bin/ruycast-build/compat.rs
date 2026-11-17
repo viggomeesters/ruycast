@@ -521,6 +521,25 @@ pub(super) fn run(mut args: Vec<String>) -> Result<serde_json::Value> {
 mod tests {
     use super::*;
     #[test]
+    fn build_receipt_record_refuses_source_mutation_without_creating_receipt() {
+        let fixture = super::super::tests::Fixture::compiler_pair();
+        let before = fingerprint(&fixture.0).unwrap();
+        fs::write(
+            fixture.0.join("rust-native/src/main.rs"),
+            b"fn main() { println!(\"changed after fingerprint\"); }\n",
+        )
+        .unwrap();
+
+        let error =
+            build_receipt(&fixture.0, vec!["record".into(), "--before".into(), before]).unwrap_err();
+        assert_eq!(
+            error,
+            "Production inputs changed; cannot record a mixed Rust build."
+        );
+        assert!(!fixture.0.join(OUTPUT).exists());
+    }
+
+    #[test]
     #[ignore = "Internal owned subprocess entry; invoked by the exact parent test"]
     fn owned_failed_build_process_entry() {
         let root = PathBuf::from(std::env::var_os("RUYCAST_OWNED_FAILED_BUILD_ROOT").unwrap());
