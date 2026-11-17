@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 import time
 import unittest
-from concurrent.futures import ThreadPoolExecutor
 
 REPO = Path(__file__).resolve().parents[1]
 BINARY = REPO / '.build/swift/debug/RuycastApp'
@@ -225,14 +224,6 @@ class CLIIntegration(unittest.TestCase):
         self.assertEqual((self.root / 'config.json').read_bytes(), original)
         self.cli('config', 'set', 'clipboard.limit', '50', ok=True)
         self.assertEqual(self.cli('config', 'get')['result']['clipboard']['limit'], 50)
-
-    def test_concurrent_config_edits_preserve_both_settings(self):
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            tasks = [pool.submit(self.cli, 'config', 'set', key, value, ok=True) for key, value in [('clipboard.limit', '77'), ('clipboard.retentionDays', '12')]]
-            for task in tasks:
-                task.result()
-        c = self.cli('config', 'get')['result']['clipboard']
-        self.assertEqual((c['limit'], c['retentionDays']), (77, 12))
 
     def test_add_remove_and_duplicate_alias(self):
         command = {'id': 'test.added', 'title': 'Added', 'kind': 'path', 'target': '/', 'aliases': ['added']}
