@@ -308,22 +308,3 @@ class CLIIntegration(unittest.TestCase):
         self.cli('config', 'validate', ok=False)
         self.cli('reload', ok=False)
         self.assertEqual(self.cli('search', 'echo-test', ok=True)['result'][0]['id'], 'test.echo')
-
-    def test_graceful_quit_removes_control_socket(self):
-        profile = self.root / 'shutdown'
-        env = dict(self.env, RUYCAST_HOME=str(profile))
-        subprocess.run([str(BINARY), '--init-config'], env=env, capture_output=True, check=True)
-        child = subprocess.Popen([str(BINARY), '--headless'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        try:
-            for _ in range(100):
-                if (profile / 'control.sock').exists():
-                    break
-                time.sleep(.02)
-            stop = subprocess.run([str(CLI), 'quit'], env=env, capture_output=True, text=True, timeout=5)
-            self.assertTrue(json.loads(stop.stdout)['ok'])
-            child.wait(timeout=5)
-            self.assertFalse((profile / 'control.sock').exists(), 'Graceful exit must remove the socket before an installer checks shutdown')
-        finally:
-            if child.poll() is None:
-                child.kill()
-                child.wait(timeout=5)

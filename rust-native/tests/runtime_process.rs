@@ -1090,8 +1090,17 @@ fn invalid_initial_config_releases_instance_and_socket() {
 #[test]
 fn quit_acknowledges_then_exits_normally_without_kill_fallback() {
     let mut host = host(true);
+    let response = runtime_host::run(
+        host.command(&host.settings.cli).arg("quit"),
+        Duration::from_secs(5),
+    );
+    assert!(
+        response.status.success(),
+        "{}",
+        String::from_utf8_lossy(&response.stderr)
+    );
     assert_eq!(
-        host.rpc(&json!({"op":"quit"})),
+        serde_json::from_slice::<Value>(&response.stdout).unwrap(),
         json!({"ok":true,"result":{"state":"stopping"}})
     );
     let out = host.wait_exit(Duration::from_secs(3), false);
