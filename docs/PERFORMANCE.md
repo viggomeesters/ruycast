@@ -22,13 +22,13 @@ cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
   compat build-receipt --repo "$PWD" -- verify-performance
 ```
 
-`make check-performance` invokes the Rust CLI directly. With no arguments it refuses before acquiring a lease, starting a workload or creating authority. `scripts/check-performance.sh` remains a five-line compatibility entry to the same Rust CLI; the deleted locked wrapper had unreachable historical Swift/Python commands after its `exec`.
+`make check-performance` invokes the Rust CLI directly. With no arguments it refuses before acquiring a lease, starting a workload or creating authority. The shell wrappers have been retired; no arguments are forwarded through a shell script.
 
 All paths must be absolute and output must be new. Pins come from independent review, not from self-generating authority from a dataset. Missing complete authority fails closed. Validation binds runner, authority, raw dataset, current build/source inventory and the actual new report before/after. Revalidation checks retained report integrity and recomputes the full comparison in an owned temporary stage.
 
 For this retrospective validator, the authority must include all functional scopes, complete pre-entry SDK audits and the same full workloads/instrumentation for frozen 0.8.26 baseline and final Rust candidate. It checks AB/BA ordering, warmups, raw observations, ordered functional outputs, diagnostics and 10,000-cycle checkpoints against the retained historical budgets. These requirements describe only the optional F1 dataset validator, not current issue or release acceptance.
 
-Raw historical Swift-host performance commands are unsafe without a complete SDK guard installed before initialization. Their preserved script is an oracle contract, not an automatic production measurement route. No complete Rust F1 comparison is accepted or documented; its absence does not block the current focused issue work.
+Raw historical Swift-host performance commands are not an automatic measurement route because they lack a complete SDK guard installed before initialization. No complete Rust F1 comparison is accepted or documented; its absence does not block the current focused issue work.
 
 ## Historical measurements and commands
 

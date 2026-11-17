@@ -1048,6 +1048,7 @@ fn main() {{
         assert!(!root.join("scripts/build-native-locked.sh").exists());
         assert!(!root.join("scripts/build-native.sh").exists());
         assert!(!root.join("scripts/check-performance-locked.sh").exists());
+        assert!(!root.join("scripts/check-performance.sh").exists());
         assert!(!root.join("scripts/check-locked.sh").exists());
         // Build/check facades must run without any Python interpreter in PATH.
         // The recorder itself executes no child; only dirname and the
@@ -1058,12 +1059,6 @@ fn main() {{
             ("bash", "scripts/check.sh", "build-receipt", vec![]),
             ("bash", "scripts/check-settings.sh", "build-receipt", vec![]),
             ("bash", "scripts/check-settings-locked.sh", "build-receipt", vec!["--literal=owned value"]),
-            (
-                "bash",
-                "scripts/check-performance.sh",
-                "build-receipt",
-                vec![],
-            ),
         ] {
             let shell_route = interpreter == "bash";
             let mut command = Command::new(if shell_route { "/bin/bash" } else { interpreter });
@@ -1118,7 +1113,6 @@ fn main() {{
             let action = match script {
                 "scripts/check.sh" => Some("check"),
                 "scripts/check-settings.sh" | "scripts/check-settings-locked.sh" => Some("settings"),
-                "scripts/check-performance.sh" => Some("performance"),
                 _ => None,
             };
             let mut expected = vec![];
