@@ -1,5 +1,6 @@
 //! Rust host domain and persistence, without native handles or UI startup.
 pub mod artifact_lease;
+pub mod benchmark_host;
 pub mod actions;
 pub mod activity;
 pub mod auto_quit;
