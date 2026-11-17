@@ -479,7 +479,8 @@ pub(super) fn check(
         let executable = mac.join("Proof");
         tools::checked(runner, tools::Call::new(compiler, [
             "--edition=2021".to_owned(), source.display().to_string(), "-o".into(), executable.display().to_string(),
-        ]).env(home, None, None).cwd(&work.0))?;
+        ]).env(home, None, None).cwd(&work.0))
+            .map_err(|_| "Signing check compiler failed.".to_string())?;
         let plist = tools::plist_bytes(&json!({"CFBundleIdentifier":NEW_ID,"CFBundleExecutable":"Proof","CFBundlePackageType":"APPL","CFBundleVersion":variant.to_string()}))?;
         fs::create(&app.join("Contents/Info.plist"), &plist, 0o600)?;
         // Do not use signing::sign: it changes the keychain search list and
@@ -489,11 +490,14 @@ pub(super) fn check(
             "--keychain".into(), root.join("identity.keychain-db").display().to_string(),
             "--timestamp=none".into(), "--identifier".into(), NEW_ID.into(),
             "--requirements".into(), format!("=designated => {requirement}"), app.display().to_string(),
-        ]).env(home, None, None))?;
-        verify(&app, &identity, home, runner)?;
+        ]).env(home, None, None))
+            .map_err(|_| "Signing check signer failed.".to_string())?;
+        verify(&app, &identity, home, runner)
+            .map_err(|_| "Signing check verification failed.".to_string())?;
         let details = tools::checked(runner, tools::Call::new("/usr/bin/codesign", [
             "--display".to_owned(), "--requirements".into(), "-".into(), app.display().to_string(),
-        ]).env(home, None, None))?;
+        ]).env(home, None, None))
+            .map_err(|_| "Signing check requirement display failed.".to_string())?;
         // codesign normally writes display information to stderr.
         let bytes = [details.stdout, details.stderr].concat();
         let text = std::str::from_utf8(&bytes).map_err(|_| "Invalid designated requirement output.".to_string())?;
