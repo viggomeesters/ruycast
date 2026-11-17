@@ -129,6 +129,9 @@ assets/apple-shortcuts.png
 assets/brand-preview.png
 assets/browser-tabs.png
 assets/hero.png
+assets/launcher-card-compact-dark.png
+assets/launcher-card-compact-light.png
+assets/launcher-card-expanded-dark.png
 assets/launcher.png
 assets/menu-actions.png
 assets/settings.png
