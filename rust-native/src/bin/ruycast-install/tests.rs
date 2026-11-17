@@ -1662,3 +1662,86 @@ fn installer_repair_successful_eof_retires_descendant_before_reaping_leader() {
         Some(libc::ESRCH)
     );
 }
+
+// Checker tests never delegate to System, codesign, security or a real compiler.
+struct CheckRunner {
+    calls: Vec<tools::Call>,
+    requirement: String,
+}
+impl tools::Runner for CheckRunner {
+    fn secret(&mut self) -> Result<String> { panic!("checker must never provision an identity") }
+    fn running_host(&mut self, _: i32, _: &Path) -> Result<()> { panic!("checker must never launch a host") }
+    fn run(&mut self, call: tools::Call) -> Result<tools::Output> {
+        assert_eq!(call.timeout, std::time::Duration::from_secs(30));
+        assert!(call.input.is_empty());
+        let mut stderr = Vec::new();
+        if call.program == Path::new("/owned/rustc") {
+            assert_eq!(call.args[0], "--edition=2021");
+            assert_eq!(call.args[2], "-o");
+            // Model distinct compiler outputs without running any code.
+            let source = stdfs::read(&call.args[1]).unwrap();
+            fs::create(Path::new(&call.args[3]), &source, 0o700).unwrap();
+        } else {
+            assert_eq!(call.program, Path::new("/usr/bin/codesign"));
+            match call.args[0].as_str() {
+                "--force" | "--verify" => (),
+                "--display" => stderr = format!("# designated => {}\n", self.requirement).into_bytes(),
+                _ => panic!("unexpected checker action"),
+            }
+        }
+        self.calls.push(call);
+        Ok(tools::Output { success: true, stdout: vec![], stderr })
+    }
+}
+#[test]
+fn signing_check_owned_success_uses_two_distinct_pinned_bundles_without_state_mutation() {
+    let f = Fixture::new();
+    f.signer();
+    let before: BTreeMap<_, _> = stdfs::read_dir(&f.o.signer).unwrap().map(|entry| {
+        let entry = entry.unwrap();
+        (entry.file_name(), (stdfs::read(entry.path()).unwrap(), stdfs::metadata(entry.path()).unwrap().permissions().mode()))
+    }).collect();
+    let parent = f.root.join("checker-work");
+    fs::directory(&parent, 0o700).unwrap();
+    let requirement = signing::requirement(&"A".repeat(40));
+    let mut runner = CheckRunner { calls: vec![], requirement: signing::requirement(&"a".repeat(40)) };
+    let result = signing::check(&f.o.signer, &f.o.repo, &f.o.home, &parent, Path::new("/owned/rustc"), &mut runner).unwrap();
+    assert_eq!(result, json!({"ok":true,"differentNativeBinaries":true,"sameDesignatedRequirement":true,
+        "bothVerifyAgainstPinnedCertificate":true,"certificate_sha1":"A".repeat(40),"requirement":requirement,
+        "privacySettingsChanged":false,"fixturesLaunched":false}));
+    assert_eq!(runner.calls.len(), 8);
+    for (variant, calls) in runner.calls.chunks_exact(4).enumerate() {
+        let actual_app = Path::new(calls[1].args.last().unwrap());
+        assert!(actual_app.ends_with(format!("Variant{}.app", variant + 1)));
+        assert!(actual_app.starts_with(&parent));
+        assert_eq!(calls[0].program, Path::new("/owned/rustc"));
+        assert_eq!(calls[1].args, ["--force", "--sign", &"A".repeat(40), "--keychain", f.o.signer.join("identity.keychain-db").to_str().unwrap(), "--timestamp=none", "--identifier", NEW_ID, "--requirements", &format!("=designated => {requirement}"), actual_app.to_str().unwrap()]);
+        assert_eq!(calls[2].args, ["--verify", "--deep", "--strict", "-R", &format!("={requirement}"), actual_app.to_str().unwrap()]);
+        assert_eq!(calls[3].args, ["--display", "--requirements", "-", actual_app.to_str().unwrap()]);
+    }
+    assert!(runner.calls.iter().all(|call| call.program == Path::new("/owned/rustc") || call.program == Path::new("/usr/bin/codesign")));
+    assert!(runner.calls.iter().all(|call| !call.args.iter().any(|arg| arg.contains("owned-fixture-password"))));
+    assert_eq!(stdfs::read_dir(&parent).unwrap().count(), 0);
+    assert_eq!(stdfs::read_dir(&f.o.signer).unwrap().count(), before.len());
+    for (name, (bytes, mode)) in before {
+        let path = f.o.signer.join(name);
+        assert_eq!(stdfs::read(&path).unwrap(), bytes);
+        assert_eq!(stdfs::metadata(path).unwrap().permissions().mode(), mode);
+    }
+}
+#[test]
+fn signing_check_missing_or_unsafe_owned_identity_refuses_before_runner_or_staging() {
+    for fault in ["missing", "unsafe"] {
+        let f = Fixture::new();
+        f.signer();
+        if fault == "missing" { stdfs::remove_file(f.o.signer.join("identity.keychain-db")).unwrap(); }
+        else { stdfs::set_permissions(f.o.signer.join("keychain-password"), stdfs::Permissions::from_mode(0o644)).unwrap(); }
+        let before = stdfs::read(f.o.signer.join("identity.json")).unwrap();
+        let parent = f.root.join("must-not-be-created");
+        let mut runner = CheckRunner { calls: vec![], requirement: String::new() };
+        assert!(signing::check(&f.o.signer, &f.o.repo, &f.o.home, &parent, Path::new("/owned/rustc"), &mut runner).is_err());
+        assert!(runner.calls.is_empty());
+        assert!(!parent.exists());
+        assert_eq!(stdfs::read(f.o.signer.join("identity.json")).unwrap(), before);
+    }
+}
