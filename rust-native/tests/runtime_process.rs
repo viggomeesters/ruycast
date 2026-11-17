@@ -224,6 +224,9 @@ fn runtime_receipt(settings: &Config) {
         "rust-native/tests/runtime_process.rs",
         "rust-native/tests/support/runtime_host.rs",
         "rust-native/tests/support/status_rpc.rs",
+        "rust-native/src/benchmark_host.rs",
+        "rust-native/src/benchmark_host/rpc.rs",
+        "rust-native/src/bin/ruycast-build/benchmark_host.rs",
         "rust-native/tests/support/child_output.rs",
         "rust-native/tests/fixtures/fcntl_sync_shim.rs",
         "rust-native/tests/fixtures/fcntl_abi.rs",
@@ -1271,4 +1274,53 @@ fn socket_recovery_fifo_instance_lock_is_rejected_without_blocking() {
     fs::remove_file(&lock).unwrap();
     start_socket_recovery(&mut host);
     host.stop(true);
+}
+
+fn run_rust_benchmark_driver(out: &Path, probe: &Path, active: &str, idle: &str) -> std::process::Output {
+    let settings = settings();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_ruycast-build"));
+    command.args(["benchmark-host", "--host", settings.host.to_str().unwrap(), "--cli", settings.cli.to_str().unwrap(), "--probe", probe.to_str().unwrap(), "--out", out.to_str().unwrap(), "--cold-starts", "1", "--samples", "1", "--active-seconds", active, "--idle-seconds", idle, "--operation-timeout", "2"]);
+    runtime_host::run(&mut command, Duration::from_secs(60))
+}
+
+#[test]
+fn rust_benchmark_driver_publishes_complete_success_and_graceful_failure_reports() {
+    let success_dir = runtime_host::OwnedDir::new();
+    let success_path = success_dir.0.join("success.json");
+    let probe = PathBuf::from(env!("CARGO_BIN_EXE_perf-probe"));
+    let success = run_rust_benchmark_driver(&success_path, &probe, "0.05", "0.05");
+    assert!(success.status.success(), "{}", String::from_utf8_lossy(&success.stderr));
+    let report: Value = serde_json::from_slice(&fs::read(&success_path).unwrap()).unwrap();
+    assert_eq!(report["ok"], true);
+    assert_eq!(report["fixtureConfigurationIsolated"], true);
+    assert_eq!(report["idleEndpoint"]["clipboardCount"], 200);
+    assert_eq!(report["idleEndpoint"]["commandID"], "fixture.42");
+    assert_eq!(report["coldReady"]["samples"], 1);
+    assert_eq!(report["coldShutdowns"][0]["graceful"], true);
+    assert_eq!(report["warmCLI"]["status"]["samples"], 1);
+    assert_eq!(report["warmCLI"]["search"]["samples"], 1);
+    assert_eq!(report["active"]["complete"], true);
+    assert_eq!(report["idle"]["complete"], true);
+    assert_eq!(report["finalShutdown"]["graceful"], true);
+    assert_eq!(fs::read_dir(&success_dir.0).unwrap().count(), 1);
+
+    let failure_dir = runtime_host::OwnedDir::new();
+    let failure_path = failure_dir.0.join("failure.json");
+    let failed = run_rust_benchmark_driver(&failure_path, Path::new("/usr/bin/false"), "0.05", "0");
+    assert!(!failed.status.success(), "{}", String::from_utf8_lossy(&failed.stdout));
+    assert!(failure_path.is_file(), "{}", String::from_utf8_lossy(&failed.stderr));
+    let failure: Value = serde_json::from_slice(&fs::read(&failure_path).unwrap()).unwrap();
+    assert_eq!(failure["ok"], false);
+    assert_eq!(failure["phase"], "active");
+    assert_eq!(failure["errorType"], "RuntimeError");
+    assert!(failure["error"].as_str().unwrap().contains("Probe failed"));
+    assert_eq!(failure["coldReady"]["samples"], 1);
+    assert_eq!(failure["coldShutdowns"][0]["graceful"], true);
+    assert_eq!(failure["warmCLI"]["status"]["samples"], 1);
+    assert_eq!(failure["warmCLI"]["search"]["samples"], 1);
+    assert_eq!(failure["active"]["complete"], false);
+    assert_eq!(failure["active"]["samples"].as_array().unwrap().len(), 0);
+    assert_eq!(failure["cleanup"]["graceful"], true);
+    assert_eq!(failure["cleanup"]["forcedCleanup"], false);
+    assert_eq!(fs::read_dir(&failure_dir.0).unwrap().count(), 1);
 }

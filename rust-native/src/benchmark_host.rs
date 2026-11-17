@@ -5,8 +5,10 @@ use std::{
     process::{Child, ExitStatus},
     time::{Duration, Instant},
 };
+pub mod rpc;
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct Cleanup {
     pub pid: u32,
     pub graceful: bool,
@@ -14,6 +16,8 @@ pub struct Cleanup {
     pub method: &'static str,
     pub exit_code: Option<i32>,
     pub signal: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quit_error: Option<String>,
 }
 
 /// Request a bounded graceful quit, then TERM and KILL only this owned child.
@@ -24,23 +28,28 @@ where
 {
     let pid = child.id();
     let deadline = Instant::now() + timeout;
-    let acknowledged = request_quit(deadline).is_ok() && Instant::now() < deadline;
+    let mut quit_error = match request_quit(deadline) {
+        Ok(()) if Instant::now() < deadline => None,
+        Ok(()) => Some("Quit acknowledgment arrived after its deadline".to_owned()),
+        Err(error) => Some(error),
+    };
+    let acknowledged = quit_error.is_none();
     if acknowledged {
         match wait_until(&mut child, deadline) {
             Ok(Some(status)) if status.success() => {
-                return cleanup(pid, true, false, "quit", status);
+                return cleanup(pid, true, false, "quit", status, None);
             }
-            Ok(Some(status)) => return cleanup(pid, false, false, "quit", status),
-            Err(_) => return cleanup_unknown(pid, "wait-error", false, child),
-            Ok(None) => {}
+            Ok(Some(status)) => return cleanup(pid, false, false, "quit", status, None),
+            Err(_) => return cleanup_unknown(pid, "wait-error", false, quit_error.clone(), child),
+            Ok(None) => quit_error = Some("Host did not exit within the quit deadline".into()),
         }
     }
 
     // `try_wait` reaps an exited child. Never signal its numeric PID after
     // reaping: the operating system may already have reused that identifier.
     match child.try_wait() {
-        Ok(Some(status)) => return cleanup(pid, false, false, "exited", status),
-        Err(_) => return cleanup_unknown(pid, "wait-error", false, child),
+        Ok(Some(status)) => return cleanup(pid, false, false, "exited", status, quit_error),
+        Err(_) => return cleanup_unknown(pid, "wait-error", false, quit_error, child),
         Ok(None) => {}
     }
 
@@ -51,18 +60,18 @@ where
     let term_deadline = Instant::now() + Duration::from_millis(150);
     if term_sent {
         match wait_until(&mut child, term_deadline) {
-            Ok(Some(status)) => return cleanup(pid, false, true, "terminate", status),
-            Err(_) => return cleanup_unknown(pid, "wait-error", true, child),
+            Ok(Some(status)) => return cleanup(pid, false, true, "terminate", status, quit_error),
+            Err(_) => return cleanup_unknown(pid, "wait-error", true, quit_error, child),
             Ok(None) => {}
         }
     }
     let _ = child.kill();
     let status = match wait_until(&mut child, Instant::now() + Duration::from_secs(2)) {
         Ok(status) => status,
-        Err(_) => return cleanup_unknown(pid, "wait-error", true, child),
+        Err(_) => return cleanup_unknown(pid, "wait-error", true, quit_error.clone(), child),
     };
     if status.is_none() {
-        return cleanup_unknown(pid, "kill-reap-timeout", true, child);
+        return cleanup_unknown(pid, "kill-reap-timeout", true, quit_error, child);
     }
     Cleanup {
         pid,
@@ -71,6 +80,7 @@ where
         method: "kill",
         exit_code: status.as_ref().and_then(ExitStatus::code),
         signal: status.as_ref().and_then(signal),
+        quit_error,
     }
 }
 
@@ -85,7 +95,13 @@ fn wait_until(child: &mut Child, deadline: Instant) -> io::Result<Option<ExitSta
     }
 }
 
-fn cleanup_unknown(pid: u32, method: &'static str, forced_cleanup: bool, child: Child) -> Cleanup {
+fn cleanup_unknown(
+    pid: u32,
+    method: &'static str,
+    forced_cleanup: bool,
+    quit_error: Option<String>,
+    child: Child,
+) -> Cleanup {
     // Retain ownership until it exits, without risking a signal to a reused PID.
     std::thread::spawn(move || {
         let mut child = child;
@@ -98,6 +114,7 @@ fn cleanup_unknown(pid: u32, method: &'static str, forced_cleanup: bool, child: 
         method,
         exit_code: None,
         signal: None,
+        quit_error,
     }
 }
 
@@ -107,6 +124,7 @@ fn cleanup(
     forced_cleanup: bool,
     method: &'static str,
     status: ExitStatus,
+    quit_error: Option<String>,
 ) -> Cleanup {
     Cleanup {
         pid,
@@ -115,6 +133,7 @@ fn cleanup(
         method,
         exit_code: status.code(),
         signal: signal(&status),
+        quit_error,
     }
 }
 
@@ -291,6 +310,11 @@ mod tests {
         );
         assert!(!result.graceful && result.forced_cleanup);
         assert_eq!(result.method, "terminate");
+        assert!(result
+            .quit_error
+            .as_deref()
+            .unwrap()
+            .contains("quit deadline"));
     }
 
     #[cfg(unix)]
@@ -333,12 +357,13 @@ mod tests {
             method: "kill",
             exit_code: None,
             signal: Some(9),
+            quit_error: None,
         };
         publish_failure(&dest, "shutdown", "Timeout", "host did not stop", &cleanup).unwrap();
         let receipt: serde_json::Value = serde_json::from_slice(&fs::read(dest).unwrap()).unwrap();
         assert_eq!(receipt["ok"], false);
         assert_eq!(receipt["phase"], "shutdown");
-        assert_eq!(receipt["cleanup"]["forced_cleanup"], true);
+        assert_eq!(receipt["cleanup"]["forcedCleanup"], true);
         assert_eq!(receipt["cleanup"]["signal"], 9);
     }
 
