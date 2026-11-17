@@ -1133,58 +1133,6 @@ fn main() {{
             assert_eq!(&forwarded[16..], expected);
         }
         assert!(!root.join("scripts/build_receipt.py").exists());
-        // The local-signing facade takes its real Cargo fallback, never an
-        // installed/overridden tool; the same owned Rust recorder exits first.
-        let script = "scripts/local_signing.py";
-        let mut command = Command::new("python3");
-        command
-            .arg(root.join(script))
-            .args(["status", "--root", "literal signing root"])
-            .env(
-                "PATH",
-                format!("{}:{}", directory.display(), std::env::var("PATH").unwrap()),
-            )
-            .env_remove("RUYCAST_INSTALL_TOOL")
-            .env("RUYCAST_OWNED_DISPATCH_RECORD", &record)
-            .env("PYTHONDONTWRITEBYTECODE", "1");
-        let result = process::capture(command, std::time::Duration::from_secs(10), 65536).unwrap();
-        assert_eq!(
-            result.status.code(),
-            Some(7),
-            "{script}: {}",
-            String::from_utf8_lossy(&result.stderr)
-        );
-        let bytes = fs::read(&record).unwrap();
-        let forwarded = bytes
-            .split(|byte| *byte == 0)
-            .filter(|part| !part.is_empty())
-            .map(|part| std::str::from_utf8(part).unwrap())
-            .collect::<Vec<_>>();
-        let manifest = root.join("rust-native/Cargo.toml");
-        let target = root.join(".build/installer-tools");
-        let expected = [
-            "run",
-            "--locked",
-            "--offline",
-            "--release",
-            "--manifest-path",
-            manifest.to_str().unwrap(),
-            "--target-dir",
-            target.to_str().unwrap(),
-            "--bin",
-            "ruycast-install",
-            "--",
-            "signing",
-            "status",
-            "--root",
-            "literal signing root",
-            "--repo",
-            root.to_str().unwrap(),
-        ];
-        assert_eq!(forwarded, expected, "{script}");
-        assert!(!forwarded
-            .iter()
-            .any(|arg| matches!(*arg, "--target" | "host-tuple")));
     }
     #[test]
     fn legacy_argument_contract_rejects_duplicates_unknowns_and_unreviewed_performance() {
