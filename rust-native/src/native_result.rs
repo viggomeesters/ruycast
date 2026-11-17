@@ -157,7 +157,7 @@ pub struct ResultPanel {
     parent: Retained<NSView>,
     buttons: RefCell<Vec<Retained<ResultButton>>>,
     stamp: Cell<(u64, bool, bool)>,
-    width: f64,
+    width: Cell<f64>,
     #[cfg(feature = "test-tools")]
     undo_role_before: Cell<isize>,
     #[cfg(feature = "test-tools")]
@@ -202,7 +202,7 @@ impl ResultPanel {
             parent: parent.retain(),
             buttons: RefCell::new(vec![]),
             stamp: Cell::new((0, false, false)),
-            width,
+            width: Cell::new(width),
             #[cfg(feature = "test-tools")]
             undo_role_before: Cell::new(0),
             #[cfg(feature = "test-tools")]
@@ -268,7 +268,7 @@ impl ResultPanel {
                     if r.detail.is_some() {
                         specs.push(("Details ⌘D", "details", 238., 90.));
                     }
-                    specs.push(("Reload ⌘R", "reload", self.width - 118., 100.));
+                    specs.push(("Reload ⌘R", "reload", self.width.get() - 118., 100.));
                 }
                 for (title, name, x, w) in specs {
                     let b: Retained<ResultButton> = unsafe {
@@ -352,6 +352,27 @@ impl ResultPanel {
             if self.text.borrow().string().to_string() != detail {
                 self.text.borrow().setString(&NSString::from_str(detail));
             }
+        }
+    }
+    pub fn layout(&self, width: f64, height: f64) {
+        let width = width.max(1.);
+        let height = height.max(1.);
+        self.width.set(width);
+        self.scroll.setFrame(rect(18., 76., (width - 36.).max(1.), (height - 190.).max(1.)));
+        self.text.borrow().setFrame(rect(0., 0., (width - 40.).max(1.), (height - 194.).max(1.)));
+        let placeholder_y = (height - 61.).clamp(0., (height - 34.).max(0.));
+        self.placeholder.setFrame(rect(28., placeholder_y, (width - 56.).max(1.), 34.));
+        self.query_scroll.setFrame(rect(24., height - 64., (width - 48.).max(1.), 38.));
+        self.query.borrow().setFrame(rect(0., 0., (width - 48.).max(1.), 38.));
+        for button in self.buttons.borrow().iter() {
+            let frame = button.frame();
+            let x = match button.ivars().name {
+                "choose" => 118.,
+                "details" => 238.,
+                "reload" => width - 118.,
+                _ => 18.,
+            };
+            button.setFrame(rect(x, 10., frame.size.width, frame.size.height));
         }
     }
     pub fn focus(&self) {

@@ -74,6 +74,9 @@ pub fn palette_size(clipboard: bool, compact: bool) -> (f64, f64) {
         (760., 490.)
     }
 }
+pub fn empty_results_y(panel_height: f64) -> f64 {
+    (panel_height - 160.).clamp(0., (panel_height - 24.).max(0.))
+}
 pub fn palette_frame(visible: [f64; 4], clipboard: bool, compact: bool) -> [f64; 4] {
     let [x, y, w, h] = visible;
     let inset = (w.min(h) / 12.).clamp(0., 24.);
@@ -84,21 +87,23 @@ pub fn palette_frame(visible: [f64; 4], clipboard: bool, compact: bool) -> [f64;
 }
 pub fn resized_palette_frame(
     current: [f64; 4],
+    search_field: [f64; 4],
     visible: Option<[f64; 4]>,
     clipboard: bool,
     compact: bool,
 ) -> [f64; 4] {
-    if let Some(visible) = visible {
-        return palette_frame(visible, clipboard, compact);
+    let [x, current_y, _, current_height] = current;
+    let [_, input_y, _, field_height] = search_field;
+    let field_y = current_y + input_y;
+    let top_inset = (current_height - input_y - field_height).max(0.);
+    let (mut width, mut height) = palette_size(clipboard, compact);
+    if let Some([visible_x, visible_y, visible_width, _]) = visible {
+        width = width.min((visible_x + visible_width - 24. - x).max(1.));
+        let top = field_y + field_height + top_inset;
+        height = height.min((top - visible_y - 24.).max(1.));
     }
-    let [x, y, width, height] = current;
-    let (next_width, next_height) = palette_size(clipboard, compact);
-    [
-        x + (width - next_width) / 2.,
-        y + (height - next_height) / 2.,
-        next_width,
-        next_height,
-    ]
+    let input_y = height - top_inset - field_height;
+    [x, field_y - input_y, width, height]
 }
 pub fn kind_label(kind: &str) -> &'static str {
     match kind {
@@ -313,12 +318,37 @@ mod icon_tests {
             [24., 204., 592., 72.]
         );
         assert_eq!(
-            resized_palette_frame([24., 204., 592., 72.], Some([0., 0., 640., 480.]), false, false),
-            [24., 24., 592., 432.]
+            resized_palette_frame(
+                [420., 414., 600., 72.],
+                [24., 2., 552., 44.],
+                Some([0., 0., 1440., 900.]),
+                false,
+                false,
+            ),
+            [420., 24., 760., 462.]
         );
         assert_eq!(
-            resized_palette_frame([-20000., -20000., 760., 490.], None, false, true),
-            [-19920., -19791., 600., 72.]
+            resized_palette_frame(
+                [420., 24., 760., 462.],
+                [24., 392., 712., 44.],
+                Some([0., 0., 1440., 900.]),
+                false,
+                true,
+            ),
+            [420., 414., 600., 72.]
         );
+        assert_eq!(
+            resized_palette_frame(
+                [24., 204., 592., 72.],
+                [24., 2., 544., 44.],
+                Some([0., 0., 640., 480.]),
+                false,
+                false,
+            ),
+            [24., 24., 592., 252.]
+        );
+        assert_eq!(empty_results_y(252.), 92.);
+        assert_eq!(empty_results_y(490.), 330.);
+        assert_eq!(empty_results_y(72.), 0.);
     }
 }
