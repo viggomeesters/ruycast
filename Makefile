@@ -4,7 +4,7 @@ check:
 build:
 	bash scripts/build-native.sh -c release
 install:
-	bash scripts/install.sh
+	cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$(CURDIR)" --build
 source-tool:
 	cargo build --locked --manifest-path rust-native/Cargo.toml --bin ruycast-source
 export-source:

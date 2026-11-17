@@ -2,8 +2,28 @@
 use std::io::{Read, Write};
 fn main() {
     let args: Vec<_> = std::env::args().collect();
+    let command_start = if args.get(1).is_some_and(|arg| arg == "run") {
+        for required in [
+            "--locked",
+            "--offline",
+            "--release",
+            "--manifest-path",
+            "--target-dir",
+            "--bin",
+            "ruycast-install",
+            "--",
+        ] {
+            assert!(
+                args.iter().any(|arg| arg == required),
+                "missing Cargo argument: {required}"
+            );
+        }
+        args.iter().position(|arg| arg == "--").unwrap() + 1
+    } else {
+        1
+    };
     if args
-        .get(1)
+        .get(command_start)
         .is_some_and(|a| a == "install" || a == "signing")
     {
         let root = std::path::PathBuf::from(
@@ -43,7 +63,7 @@ fn main() {
             // Close only this child's inherited descriptor, never LOCK_UN.
         }
         std::io::stdout()
-            .write_all(args[1..].join("\0").as_bytes())
+            .write_all(args[command_start..].join("\0").as_bytes())
             .unwrap();
         return;
     }

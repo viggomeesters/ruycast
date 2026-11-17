@@ -483,7 +483,6 @@ scripts/check-settings.sh
 scripts/check-signing.py
 scripts/check.sh
 scripts/install.py
-scripts/install.sh
 scripts/local_signing.py
 scripts/package-app.py
 scripts/perf-probe.rs
