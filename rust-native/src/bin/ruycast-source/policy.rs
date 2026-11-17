@@ -483,7 +483,6 @@ scripts/check-settings-locked.sh
 scripts/check-settings.sh
 scripts/check.sh
 scripts/perf-probe.rs
-scripts/prepare_release.py
 rust-native/src/bin/macos_effects_probe.rs
 rust-native/src/bin/private_results_fixture.rs
 rust-native/src/builtin_effects.rs

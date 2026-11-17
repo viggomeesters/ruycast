@@ -532,7 +532,7 @@ pub(super) fn run(mut args: Vec<String>) -> Result<serde_json::Value> {
     let root = root.canonicalize().map_err(error)?;
     let tail = args.split_off(5);
     if tail == ["--help"] || tail == ["-h"] {
-        let usage=match entry.as_str(){"package"=>"ruycast-build compat package --repo ABSOLUTE_ROOT -- --out NEW_DIRECTORY --build-number POSITIVE_NUMBER | --verify DIRECTORY","version"=>"ruycast-build compat version --repo ABSOLUTE_ROOT","prepare-release"=>"prepare_release.py [--recover]","native-check"=>"native-check (complete native matrix; prepared v4 release required)","build-receipt"=>"ruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- build|verify|fingerprint|record|check|settings|performance|verify-check|verify-settings|verify-performance",_=>return Err("Unknown Rust compatibility entrypoint.".into())};
+        let usage=match entry.as_str(){"package"=>"ruycast-build compat package --repo ABSOLUTE_ROOT -- --out NEW_DIRECTORY --build-number POSITIVE_NUMBER | --verify DIRECTORY","version"=>"ruycast-build compat version --repo ABSOLUTE_ROOT","prepare-release"=>"ruycast-build compat prepare-release --repo ABSOLUTE_ROOT -- [--recover]","native-check"=>"native-check (complete native matrix; prepared v4 release required)","build-receipt"=>"ruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- build|verify|fingerprint|record|check|settings|performance|verify-check|verify-settings|verify-performance",_=>return Err("Unknown Rust compatibility entrypoint.".into())};
         return Ok(serde_json::Value::String(usage.into()));
     }
     match entry.as_str() {
@@ -1032,18 +1032,13 @@ fn main() {{
         .unwrap();
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let record = directory.join("arguments");
+        assert!(!root.join("scripts/prepare_release.py").exists());
         // Build/check facades must run without any Python interpreter in PATH.
         // The recorder itself executes no child; only dirname and the
         // locked wrappers' nested bash are available before Cargo.
         std::os::unix::fs::symlink("/usr/bin/dirname", directory.join("dirname")).unwrap();
         std::os::unix::fs::symlink("/bin/bash", directory.join("bash")).unwrap();
         for (interpreter, script, entry, tail) in [
-            (
-                "python3",
-                "scripts/prepare_release.py",
-                "prepare-release",
-                vec!["--recover"],
-            ),
             (
                 "bash",
                 "scripts/build-native.sh",

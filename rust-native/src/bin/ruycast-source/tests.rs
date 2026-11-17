@@ -107,7 +107,6 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
     for name in [
         "rust-native/tests/startup_config_repair.rs",
         ".github/pull_request_template.md",
-        "scripts/prepare_release.py",
         "rust-native/src/bin/ruycast-install/tests.rs",
         "assets/hero.png",
     ] {
@@ -115,6 +114,7 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
     }
     for name in [
         "scripts/local_signing.py",
+        "scripts/prepare_release.py",
         "Tests/test_local_signing.py",
         "scripts/check-signing.py",
         "scripts/build_receipt.py",
