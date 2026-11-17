@@ -391,7 +391,7 @@
     "rust-native/src/bin/ruycast-build/benchmark_host.rs": "45ea7a485a8a3b820929c79c958a214b632669aa42948b2cce71c658733642f7",
     "rust-native/src/bin/ruycast-build/candidate.rs": "c4969bdff5b73a58653ece4b68312e4e29ba6d110d618c1436929005b7dd7684",
     "rust-native/src/bin/ruycast-build/clipboard_cli.rs": "39065ac3eb12ee6a2f087d3e853cd820616c9bb5c7cffcdc2e0afbc9419eac9b",
-    "rust-native/src/bin/ruycast-build/compat.rs": "c55515f92e1e5f88c7f7b2c868ebb1d3e3abc0ae7888c04b7e4b617a5f427f3e",
+    "rust-native/src/bin/ruycast-build/compat.rs": "c44d5bcf58be684c61344fb02d45a5bf3fc99ee8ff756e5f3f85cf7f30a37398",
     "rust-native/src/bin/ruycast-build/disk_budget.rs": "a09df1667a80d316c2f0945818fc0b4504f09b9953556002167f59b13da657a9",
     "rust-native/src/bin/ruycast-build/macho.rs": "a30b9e17d2d86720573de34c0c9a8a4c51b1ee5d457fc0a4cf321c999029328c",
     "rust-native/src/bin/ruycast-build/oracles.rs": "b7dd6c313e91a3e3a2aeb8b8f7efc086d00bf271f91199f0f45b2133ee4d1cb1",
