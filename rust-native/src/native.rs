@@ -1235,7 +1235,7 @@ impl Controller {
         } else {
             rect(16., 76., width, table_height - 26.)
         });
-        state.empty.setHidden(count != 0);
+        state.empty.setHidden(count != 0 || hide_suggestions);
         if let Some(index) = selection {
             if state.table.selectedRow() != index as isize {
                 state.table.selectRowIndexes_byExtendingSelection(
@@ -1500,6 +1500,21 @@ impl Controller {
         if model.clipboard().is_some(){state.heading.setStringValue(&NSString::from_str("Clipboard"));state.input.setPlaceholderString(Some(&NSString::from_str("Search clipboard")));state.input.setAccessibilityLabel(Some(&NSString::from_str("Search clipboard")));state.footer.setStringValue(&NSString::from_str("Copy ⌘↵ · Paste ↵"));state.footer.setFrame(rect(100.,14.,state.panel.contentView().map_or(760.,|v|v.bounds().size.width)-270.,22.));state.surface.actions_button.setHidden(false);state.empty.setStringValue(&NSString::from_str(if model.query().is_empty(){"Clipboard is empty"}else{"No clipboard items found"}));state.empty.setFrame(rect(26.,230.,state.scroll.frame().size.width-20.,24.));state.empty.setTextColor(Some(&NSColor::secondaryLabelColor()));
             for column in state.table.tableColumns(){let title=column.identifier().to_string()=="title";column.setHidden(!title);if title{column.setWidth(state.scroll.frame().size.width-16.);}}
             state.input.setAccessibilityLabel(Some(&NSString::from_str("Search clipboard")));}}
+        let hide_empty_main_actions = {
+            let session = state.session.borrow();
+            hide_suggestions
+                && count == 0
+                && data.launcher_scope.is_none()
+                && session.clipboard().is_none()
+                && session.utility_scope().is_none()
+                && data.editor.is_none()
+                && session.script_result().is_none()
+                && dashboard.is_none()
+                && settings.is_none()
+        };
+        state.surface.actions_button.setHidden(
+            state.surface.actions_button.isHidden() || hide_empty_main_actions,
+        );
         if state.session.borrow().clipboard().is_some(){state.table.setFrameSize(NSSize::new(state.scroll.contentSize().width,state.table.frame().size.height));}
         let title_width = state.table.tableColumns().iter()
             .find(|column| column.identifier().to_string() == "title")
@@ -1719,6 +1734,21 @@ pub fn check(
         let controller = Controller::new(mtm, width, dark, Session::new(fixture(500)));
         let _cleanup = Cleanup(&controller);
         let state = controller.ivars();
+        if state.table.numberOfRows() != 0
+            || !state.empty.isHidden()
+            || !state.footer.stringValue().is_empty()
+            || !state.surface.actions_button.isHidden()
+            || state.input.isHidden()
+        {
+            return Err(format!(
+                "main launcher did not open as an empty search field (rows={}, empty_hidden={}, footer={:?}, actions_hidden={}, input_hidden={})",
+                state.table.numberOfRows(),
+                state.empty.isHidden(),
+                state.footer.stringValue(),
+                state.surface.actions_button.isHidden(),
+                state.input.isHidden()
+            ));
+        }
         crate::native_edit::check(
             &state.panel,
             &*state.panel.contentView().ok_or("missing native content")?,
@@ -1746,6 +1776,9 @@ pub fn check(
         }
         if state.session.borrow().selected().map(|c| c.id) != Some("fixture.42") {
             return Err("native input did not reconcile".into());
+        }
+        if state.surface.actions_button.isHidden() {
+            return Err("typing did not restore launcher actions".into());
         }
         let editor = state.input.currentEditor().ok_or("no field editor")?;
         let text = editor
@@ -1794,8 +1827,20 @@ pub fn check(
         unsafe {
             let _: () = msg_send![&*controller, controlTextDidChange: &*note];
         }
+        if state.table.numberOfRows() != 0
+            || !state.empty.isHidden()
+            || state.session.borrow().selection().is_some()
+            || !state.footer.stringValue().is_empty()
+            || !state.surface.actions_button.isHidden()
+        {
+            return Err("clearing search did not restore the empty launcher".into());
+        }
+        state.input.setStringValue(ns_string!(" "));
+        unsafe {
+            let _: () = msg_send![&*controller, controlTextDidChange: &*note];
+        }
         if state.table.numberOfRows() != 100 {
-            return Err("native result cap mismatch".into());
+            return Err("native result cap mismatch after typing".into());
         }
         for _ in 0..24 {
             unsafe {
@@ -1921,7 +1966,7 @@ pub fn check(
         {
             return Err("row click stole text editor focus".into());
         }
-        // Prepare a representative scrolling list for visual review.
+        // Return to the empty launcher for the native preview screenshot.
         state.session.borrow_mut().replace_commands(fixture(500));
         state.input.setStringValue(ns_string!(""));
         unsafe {

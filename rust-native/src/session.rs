@@ -135,6 +135,9 @@ impl Session {
     }
     fn search(&self) -> Vec<usize> {
         if self.clipboard_mode { return (0..self.catalog.len()).filter(|&i|self.query.is_empty()||crate::clipboard_history::matches(&self.catalog.command(i).target,&self.query)).collect(); }
+        if self.query.is_empty() && self.library.is_none() && self.launcher_scope.is_none() {
+            return vec![];
+        }
         if self.library.as_ref().is_some_and(|n| ["dashboard","general","advanced","clipboard"].contains(&n.tab.as_str())) { return vec![]; }
         let mut rows = self
             .catalog
@@ -310,14 +313,16 @@ mod tests {
         }
         session.launcher_scope = None;
         session.set_query("");
-        assert_eq!(session.results.len(), 100);
+        assert!(session.results.is_empty());
     }
     #[test]
     fn uses_exact_existing_kernel_order_including_unicode_and_empty() {
         let commands = fixture(500);
         let index = SearchIndex::new(&commands);
         let mut session = Session::new(commands);
-        for query in ["", "m", "alias42", "notes", "missing Ω", "fnider", "a\0b"] {
+        assert_eq!(session.catalog.search("", 0), index.search(""));
+        assert!(session.results.is_empty());
+        for query in ["m", "alias42", "notes", "missing Ω", "fnider", "a\0b"] {
             session.set_query(query);
             assert_eq!(
                 session.results,
@@ -332,8 +337,23 @@ mod tests {
         assert_eq!(session.selected().unwrap().id, "fixture.42");
     }
     #[test]
+    fn main_launcher_waits_for_query_and_clearing_restores_empty_state() {
+        let mut session = Session::new(fixture(20));
+        assert_eq!(session.row_count(), 0);
+        assert!(session.selection.is_none());
+        session.set_query("alias7");
+        assert_eq!(session.selected().unwrap().id, "fixture.7");
+        session.set_query("");
+        assert_eq!(session.row_count(), 0);
+        assert!(session.selection.is_none());
+        session.key("insertNewline:", false);
+        assert!(session.activated_id.is_none());
+    }
+    #[test]
     fn ime_must_not_navigate_activate_or_close() {
         let mut session = Session::new(fixture(8));
+        assert!(session.rows().next().is_none());
+        session.set_query(" ");
         session.visible = true;
         for key in ["insertNewline:", "cancelOperation:", "moveDown:"] {
             assert!(!session.key(key, true));
@@ -350,6 +370,8 @@ mod tests {
     #[test]
     fn empty_results_have_no_accidental_execution_and_navigation_is_bounded() {
         let mut session = Session::new(fixture(3));
+        assert!(session.selection.is_none());
+        session.set_query(" ");
         for _ in 0..20 {
             session.move_selection(1);
         }
@@ -362,6 +384,9 @@ mod tests {
     #[test]
     fn fresh_query_and_explicit_selection_clear_stale_activation() {
         let mut session = Session::new(fixture(120));
+        assert!(session.key("insertNewline:", false));
+        assert!(session.activated_id.is_none());
+        session.set_query(" ");
         session.key("insertNewline:", false);
         assert_eq!(session.activated_id.as_deref(), Some("fixture.0"));
         session.set_query("alias42");
