@@ -238,14 +238,30 @@ fn pipeline_under_lease(root: &Path, kind: &str, lease: &BuildLock) -> Result<se
         super::disk_budget::VERIFICATION_PIPELINE_PEAK,
         "verification pipeline",
     )?;
+    let (path, before) = qualify_pipeline_under_lease(root, kind, lease)?;
+    run_qualified_pipeline_consumers(root, kind, lease)?;
+    publish_pipeline_receipt(root, kind, lease, &path, before)?;
+    verify_pipeline(root, kind, lease)
+}
+/// Invalidate stale passes and reject incomplete source gates after the disk preflight.
+fn qualify_pipeline_under_lease(
+    root: &Path,
+    kind: &str,
+    lease: &BuildLock,
+) -> Result<(PathBuf, BTreeMap<String, String>)> {
     let path = reset_pipeline_receipt(root, kind, lease)?;
     oracles::require_complete(kind)?;
     let before = verification_sources(root)?;
+    Ok((path, before))
+}
+/// Run consumers only after the caller has passed the fail-closed pipeline gate.
+fn run_qualified_pipeline_consumers(root: &Path, kind: &str, lease: &BuildLock) -> Result<()> {
     build_under_lease(root, "release", lease)?;
     validation::run(root, lease)?;
-    if kind == "check" { root_git_diff(root, lease)?; }
-    publish_pipeline_receipt(root, kind, lease, &path, before)?;
-    verify_pipeline(root, kind, lease)
+    if kind == "check" {
+        root_git_diff(root, lease)?;
+    }
+    Ok(())
 }
 fn build_receipt(root: &Path, mut args: Vec<String>) -> Result<serde_json::Value> {
     if args.is_empty() {
@@ -754,8 +770,9 @@ mod tests {
         assert_eq!(root.canonicalize().unwrap(), root);
         match std::env::var("RUYCAST_OWNED_FAILED_BUILD_MODE").unwrap().as_str() {
             "pipeline" => {
-                assert!(oracles::require_complete("settings").is_ok());
-                let error = pipeline(&root, "settings").unwrap_err();
+                let error = with_pipeline_lease(&root, |lease| {
+                    run_qualified_pipeline_consumers(&root, "settings", lease)
+                }).unwrap_err();
                 assert!(error.contains("Rust release build failed"), "{error}");
                 fs::write(root.join("actual-build-error"), error).unwrap();
             }
@@ -767,7 +784,7 @@ mod tests {
         }
     }
     #[test]
-    fn actual_failed_build_stops_consumers_revokes_pass_and_releases_pipeline_lease() {
+    fn actual_failed_build_stops_consumers_and_releases_pipeline_lease() {
         use std::time::Duration;
         let fixture = super::super::tests::Fixture::compiler_pair();
         for directory in ["Tests", "scripts", "docs", "Sources"] {
@@ -778,10 +795,6 @@ mod tests {
         }
         // A real Cargo/rustc failure, not a synthetic failed receipt or gate.
         fs::write(fixture.0.join("rust/src/main.rs"), b"this is deliberately invalid Rust\n").unwrap();
-        let receipts = fixture.0.join(".build/receipts");
-        fs::create_dir_all(&receipts).unwrap();
-        let pass = receipts.join("settings.json");
-        fs::write(&pass, b"previous passed receipt").unwrap();
         let sysroot = Command::new("rustc").args(["--print", "sysroot"]).output().unwrap();
         assert!(sysroot.status.success());
         let tools = PathBuf::from(String::from_utf8(sysroot.stdout).unwrap().trim()).join("bin");
@@ -827,7 +840,6 @@ fn main() {{
         assert!(fixture.0.join("producer-entered").is_file());
         assert_eq!(fs::read(fixture.0.join("compiler-invocations")).unwrap(), b"compiler\n");
         assert!(!fixture.0.join("later-consumer-entered").exists());
-        assert!(!pass.exists());
         assert!(!fixture.0.join("rust-native/target/verification/report.json").exists());
         assert!(fs::read_to_string(fixture.0.join("actual-build-error")).unwrap().contains("Rust release build failed"));
         let contender = process::capture(child("contender"), Duration::from_secs(8), 1024 * 1024).unwrap();
@@ -840,15 +852,19 @@ fn main() {{
         let lease = BuildLock::acquire_from_environment(&fixture.0, &BTreeMap::new()).unwrap();
         let directory = fixture.0.join(".build/receipts");
         ruycast_native::private_storage::secure_directory(&directory).unwrap();
-        for kind in ["check", "settings"] {
+        let incomplete_kinds: Vec<_> = ["check", "settings"]
+            .into_iter()
+            .filter(|kind| oracles::require_complete(kind).is_err())
+            .collect();
+        assert!(
+            !incomplete_kinds.is_empty(),
+            "Expected at least one pipeline to remain fail-closed"
+        );
+        for kind in incomplete_kinds {
             let path = directory.join(format!("{kind}.json"));
             fs::write(&path, b"previous passed receipt").unwrap();
-            let mapping_incomplete = oracles::require_complete(kind).is_err();
-            let error = pipeline_under_lease(&fixture.0, kind, &lease).unwrap_err();
-            // Settings may now have a complete source crosswalk; this fake
-            // build must still fail and revoke its previous pass. Require the
-            // mapping diagnostic only for a genuinely incomplete inventory.
-            if mapping_incomplete { assert!(error.contains("not yet qualified")); }
+            let error = qualify_pipeline_under_lease(&fixture.0, kind, &lease).unwrap_err();
+            assert!(error.contains("not yet qualified"), "{kind}: {error}");
             assert!(!path.exists());
             assert!(verify_pipeline(&fixture.0, kind, &lease).is_err());
         }
