@@ -4,7 +4,7 @@ This source preview contains a neutral configuration and a fresh public Git hist
 
 ## Privacy boundary
 
-The public source is selected by `scripts/prepare-public.py`. Development workflow state, private adapters, build output, personal profiles and private git-history are forbidden in that export. The three PNG assets under `assets/` were visually inspected: they show demonstration commands and native views, with no personal paths or private data. Configuration and runtime folders are outside this repository.
+The public source is selected by the Rust `ruycast-source export` command and its explicit allowlist. Development workflow state, private adapters, build output, personal profiles and private git-history are forbidden in that export. The three PNG assets under `assets/` were visually inspected: they show demonstration commands and native views, with no personal paths or private data. Configuration and runtime folders are outside this repository.
 
 The config-directory fixtures in `rust-native/tests/startup_config_repair.rs` mentioning a synced vault describe isolated tests; they contain no real user configuration. References to local signing and mocked credential patterns test security behavior, and are not keys or tokens. These are reviewed public-safe test and implementation references, not an exemption for credentials. Automated secret scans, sensitive filename checks and the clean git-history check are required; any new false positive needs review against actual content.
 
