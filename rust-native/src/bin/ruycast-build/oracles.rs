@@ -1580,7 +1580,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "test_snippets_and_quicklinks_and_input_are_literal",
             "test_settings_command_is_searchable_and_headless_guarded",
             "test_script_literal_arguments_and_failure",
-            "test_new_identity_and_legacy_environment"
+            "test_new_identity_and_legacy_environment",
+            "test_config_set_validation_and_conflict"
         ]);
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["nativeTargets"] = serde_json::json!({
             "startup_process": [
@@ -2427,7 +2428,7 @@ mod tests {
     fn search_ranking_cli_case_maps_to_owned_rust_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"]
             .as_array()
             .unwrap()
@@ -2470,7 +2471,7 @@ mod tests {
     fn provider_failure_cli_case_maps_to_rust_private_results_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"]
             .as_array()
             .unwrap()
@@ -2510,7 +2511,7 @@ mod tests {
     fn graceful_quit_cli_case_maps_to_owned_runtime_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_graceful_quit_removes_control_socket"));
         let case = "quit_acknowledges_then_exits_normally_without_kill_fallback";
@@ -2527,7 +2528,7 @@ mod tests {
     fn performance_cli_case_maps_to_bounded_rust_private_results_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_bounded_privacy_safe_performance_summary_and_confirmed_reset"));
         let case = "public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy";
@@ -2549,7 +2550,7 @@ mod tests {
     fn invalid_external_config_cli_case_maps_to_last_good_runtime_process_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_invalid_external_config_retains_working_runtime"));
         let case = "atomic_replace_invalid_last_good_and_recovery";
@@ -2568,7 +2569,7 @@ mod tests {
     fn alias_dry_run_cli_case_maps_to_existing_rust_execution_case() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_alias_search_and_dry_run"));
         let case = "cli_literal_input_uuid_usage_and_private_logs";
@@ -2586,7 +2587,7 @@ mod tests {
     fn concurrent_config_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_concurrent_config_edits_preserve_both_settings"));
         let case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
@@ -2604,7 +2605,7 @@ mod tests {
     fn add_remove_alias_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_add_remove_and_duplicate_alias"));
         let case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
@@ -2622,7 +2623,7 @@ mod tests {
     fn unknown_config_field_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_unknown_config_field_is_rejected_by_rust_and_native_bridge"));
         let case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
@@ -2640,7 +2641,7 @@ mod tests {
     fn command_separation_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_command_separation_legacy_config_and_cli_toggle"));
         let case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
@@ -2656,7 +2657,7 @@ mod tests {
     fn atomic_replacement_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_atomic_replacement_preserves_new_fields_and_rejects_drift"));
         let case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
@@ -2672,7 +2673,7 @@ mod tests {
     fn snippet_output_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_snippet_output_roundtrip_and_rejection"));
         let case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
@@ -2689,7 +2690,7 @@ mod tests {
     fn snippets_quicklinks_input_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let cli_mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(cli_mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(cli_mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_snippets_and_quicklinks_and_input_are_literal"));
         let case = "startup_discovery_tests::current_cli_roundtrips_owned_headless_clipboard_files_and_json_argv_without_dry_run_effects";
@@ -2707,7 +2708,7 @@ mod tests {
     fn settings_headless_cli_case_maps_to_existing_rust_process_contract() {
         let value = inventory("check").unwrap();
         let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_settings_command_is_searchable_and_headless_guarded"));
         let case = "builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly";
@@ -2724,7 +2725,7 @@ mod tests {
     fn script_literal_failure_cli_case_maps_to_existing_rust_execution_case() {
         let value = inventory("check").unwrap();
         let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_script_literal_arguments_and_failure"));
         let case = "cli_literal_input_uuid_usage_and_private_logs";
@@ -2741,7 +2742,7 @@ mod tests {
     fn identity_legacy_environment_cli_case_maps_to_existing_runtime_process_case() {
         let value = inventory("check").unwrap();
         let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
-        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 19);
+        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 20);
         assert!(mapping["migratedMethods"].as_array().unwrap().iter()
             .any(|method| method == "test_new_identity_and_legacy_environment"));
         let case = "legacy_cli_status_search_reload_and_config_edit";
@@ -2751,6 +2752,24 @@ mod tests {
         assert!(source.contains("RUSTCAST_HOME"));
         assert!(source.contains("unused-legacy-profile"));
         assert!(source.contains("Some(0)"));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
+    }
+    #[test]
+    fn config_validation_conflict_cli_case_maps_to_existing_runtime_process_case() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert_eq!(mapping["migratedMethods"].as_array().unwrap().len(), 20);
+        assert!(mapping["migratedMethods"].as_array().unwrap().iter()
+            .any(|method| method == "test_config_set_validation_and_conflict"));
+        let case = "legacy_cli_status_search_reload_and_config_edit";
+        assert!(mapping["nativeTargets"]["runtime_process"].as_array().unwrap().iter().any(|name| name == case));
+        let source = include_str!("../../../tests/runtime_process.rs");
+        assert!(source.contains("let original = fs::read(&host.config).unwrap();"));
+        assert!(source.contains("clipboard.limit"));
+        assert!(source.contains("Some(1)"));
+        assert!(source.contains(r#"response["ok"], false"#));
+        assert!(source.contains("fs::read(&host.config).unwrap(), original"));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
     }

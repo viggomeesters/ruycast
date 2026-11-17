@@ -761,6 +761,19 @@ fn legacy_cli_status_search_reload_and_config_edit() {
         host.rpc(&json!({"op":"execute","id":"finder"}))["ok"],
         false
     );
+    let original = fs::read(&host.config).unwrap();
+    for args in [
+        vec!["config", "set", "clipboard.limit", "0"],
+        vec!["config", "set", "clipboard.limit", "50", "--expect-sha256", "wrong"],
+    ] {
+        let output = host.cli_output(&args);
+        assert_eq!(output.status.code(), Some(1));
+        let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(response["ok"], false);
+        assert_eq!(fs::read(&host.config).unwrap(), original);
+    }
+    assert_eq!(host.cli(&["config", "set", "clipboard.limit", "50"])["ok"], true);
+    assert_eq!(host.cli(&["config", "get"])["result"]["clipboard"]["limit"], 50);
     let unused_legacy = host.base.join("unused-legacy-profile");
     for (new_home, legacy_home) in [
         (None, Some(host.profile.as_path())),

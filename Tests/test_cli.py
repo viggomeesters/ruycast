@@ -125,15 +125,6 @@ class CLIIntegration(unittest.TestCase):
         r = self.cli('run', 'test.output', ok=True)
         self.assertEqual(len(r['result']['stdout']), 65536)
 
-    def test_config_set_validation_and_conflict(self):
-        original = (self.root / 'config.json').read_bytes()
-        self.cli('config', 'set', 'clipboard.limit', '0', ok=False)
-        self.assertEqual((self.root / 'config.json').read_bytes(), original)
-        self.cli('config', 'set', 'clipboard.limit', '50', '--expect-sha256', 'wrong', ok=False)
-        self.assertEqual((self.root / 'config.json').read_bytes(), original)
-        self.cli('config', 'set', 'clipboard.limit', '50', ok=True)
-        self.assertEqual(self.cli('config', 'get')['result']['clipboard']['limit'], 50)
-
     def test_clipboard_control_private_permissions_and_no_ui(self):
         self.cli('clipboard', 'pause', ok=True)
         self.assertTrue(self.cli('status')['result']['clipboardPaused'])
