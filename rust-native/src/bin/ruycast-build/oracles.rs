@@ -1527,7 +1527,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     };
     let python_modules = if kind == "check" {
         vec![
-            "Tests/test_build_pipeline.py",
             "Tests/test_local_signing.py",
             "Tests/test_bindings_v2.py",
             "Tests/test_personal_bridge.py",
@@ -1638,6 +1637,88 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             ],
             "remainingPythonCases": 0
         });
+        inventory["rustRootTestCrosswalk"]["Tests/test_build_pipeline.py"] = serde_json::json!({
+    "scope": "All eight original scenario groups are bound to existing Rust cases; Python consumer retired. These scoped fixtures do not qualify a complete check/native/F1 pipeline.",
+    "originalMethods": [
+        "test_checks_keep_debug_artifacts_until_the_last_consumer",
+        "test_lease_survives_controller_crash_while_consumer_is_live",
+        "test_lease_survives_controller_interrupt_while_consumer_is_live",
+        "test_source_edit_during_checks_cannot_receive_passed_receipt",
+        "test_artifact_edit_during_checks_cannot_receive_passed_receipt",
+        "test_settings_and_performance_share_the_whole_pipeline_lease",
+        "test_failed_build_releases_lease_and_does_not_start_consumer",
+        "test_receipt_revalidation_and_failed_attempt_remove_old_pass"
+    ],
+    "nativeCaseByMethod": {
+        "test_checks_keep_debug_artifacts_until_the_last_consumer": [
+            "compat::temporal_contract_tests::final_consumer_keeps_artifacts_leased_through_actual_receipt_publication"
+        ],
+        "test_lease_survives_controller_crash_while_consumer_is_live": [
+            "artifact_lease::tests::owned_crash_retains_child_lease_through_the_final_consumer"
+        ],
+        "test_lease_survives_controller_interrupt_while_consumer_is_live": [
+            "artifact_lease::tests::owned_interrupt_retains_child_lease_through_the_final_consumer"
+        ],
+        "test_source_edit_during_checks_cannot_receive_passed_receipt": [
+            "compat::temporal_contract_tests::source_mutation_during_final_consumer_cannot_publish_pipeline_pass"
+        ],
+        "test_artifact_edit_during_checks_cannot_receive_passed_receipt": [
+            "compat::temporal_contract_tests::artifact_mutation_during_final_consumer_cannot_publish_pipeline_pass"
+        ],
+        "test_settings_and_performance_share_the_whole_pipeline_lease": [
+            "compat::temporal_contract_tests::settings_writer_and_performance_authority_refusal_keep_the_pipeline_lease",
+            "compat::temporal_contract_tests::shared_pipeline_lease_survives_successful_consumer_and_final_return"
+        ],
+        "test_failed_build_releases_lease_and_does_not_start_consumer": [
+            "compat::tests::actual_failed_build_stops_consumers_and_releases_pipeline_lease"
+        ],
+        "test_receipt_revalidation_and_failed_attempt_remove_old_pass": [
+            "compat::tests::pipeline_receipt_bindings_accept_check_and_settings_and_reject_field_drift",
+            "compat::tests::pipeline_receipt_readback_rejects_live_source_and_artifact_drift",
+            "compat::tests::failed_final_consumer_revokes_previous_pass_and_releases_pipeline_lease",
+            "compat::tests::incomplete_full_gate_invalidates_its_previous_pass_and_cannot_reverify",
+            "compat::temporal_contract_tests::artifact_mutation_during_final_consumer_cannot_publish_pipeline_pass"
+        ]
+    },
+    "nativeTargets": {
+        "rust-native --lib": {
+            "source": "rust-native/src/artifact_lease_tests.rs",
+            "cases": [
+                "artifact_lease::tests::owned_crash_retains_child_lease_through_the_final_consumer",
+                "artifact_lease::tests::owned_interrupt_retains_child_lease_through_the_final_consumer"
+            ]
+        },
+        "rust-native --bin ruycast-build": {
+            "source": "rust-native/src/bin/ruycast-build/compat.rs",
+            "cases": [
+                "compat::temporal_contract_tests::artifact_mutation_during_final_consumer_cannot_publish_pipeline_pass",
+                "compat::temporal_contract_tests::final_consumer_keeps_artifacts_leased_through_actual_receipt_publication",
+                "compat::temporal_contract_tests::settings_writer_and_performance_authority_refusal_keep_the_pipeline_lease",
+                "compat::temporal_contract_tests::shared_pipeline_lease_survives_successful_consumer_and_final_return",
+                "compat::temporal_contract_tests::source_mutation_during_final_consumer_cannot_publish_pipeline_pass",
+                "compat::tests::actual_failed_build_stops_consumers_and_releases_pipeline_lease",
+                "compat::tests::failed_final_consumer_revokes_previous_pass_and_releases_pipeline_lease",
+                "compat::tests::incomplete_full_gate_invalidates_its_previous_pass_and_cannot_reverify",
+                "compat::tests::pipeline_receipt_bindings_accept_check_and_settings_and_reject_field_drift",
+                "compat::tests::pipeline_receipt_readback_rejects_live_source_and_artifact_drift"
+            ]
+        }
+    },
+    "contractDifferences": {
+        "artifactConfiguration": "The historical disposable Swift debug host/modules are retired production artifacts. Current Rust check/settings builds use genuine prepared release host/CLI artifacts; temporal cases hold the same lease through final receipt publication and verify real artifact mutation.",
+        "performance": "The actual public performance path holds its lease while an owned authority validator refuses (exit 17), publishing no performance result. A separate successful disposable consumer proves the shared lease survives child success and the post-child tail. Neither case claims a successful reviewed F1 comparison.",
+        "receiptSchema": "Historical verification-receipt.v1 asserted status passed and steps [rustTests, build, verification]; it also carried elapsedSeconds, exitCode and lockWaitSeconds. Pipeline v2 replaces this receipt structure with sources, buildReceiptSha256 and nativeReportSha256 plus productionAccepted=false. v1 stage order/timings/lockWaitSeconds are not v2 fields or retained wire promises; actual producer/consumer ordering and refusal are covered separately.",
+        "staleArtifacts": "The old revalidation test changed a Swift module and CLI binary. V2 readback covers test edits, added docs and changed build/native-report binding bytes. Actual executable mutation/no-pass is covered by the real prepared-artifact temporal case, not claimed from synthetic receipt hashes. No current Swift-module mutation equivalent is asserted."
+    },
+    "failureSemantics": "Producer failure starts no later consumer; incomplete gates revoke old passes and refuse revalidation; an actual final consumer exits 17 after observing the old fixturepass removed, cannot publish a new pass, and releases the lease to an independent process. Current production errors replace historical stub exit 7 and v1 error wording; no stub compiler status is a product CLI contract.",
+    "subprocessPolicy": "Rust owned subprocess fixtures replace Python Popen/communicate. Marker waits and captures remain bounded; process::capture retires owned process groups and reaps direct children. Lease tests separately check SIGKILL/SIGINT status, live-consumer nonblocking flock refusal, subsequent independent acquisition and orphan retirement. Temporal fixtures retain exclusively owned evidence for explicit post-review cleanup.",
+    "timeoutContract": {
+        "historical": "Python marker waits 6s, disposable consumer 10s, communicate 5/6/8s, controller wait 3s; cleanup releases consumers then waits 6s, kills and reaps within 3s.",
+        "rust": "Lease marker/orphan retirement waits 8s; temporal markers 45s, consumer capture 60s and outer capture 90s accommodate genuine tiny Rust producers. Failed-producer capture 30s and contender 8s; failed-final-consumer capture 5s, attempt 15s, contender 8s. These are explicit fixture budgets, not product-response promises."
+    },
+    "remainingMethods": [],
+    "remainingPythonCases": 0
+});
         inventory["rustRootTestCrosswalk"]["Tests/test_benchmark_host.py"] = serde_json::json!({
             "scope": "All seven original benchmark-driver scenarios now run through the Rust benchmark-host executable and Rust-only child fixtures; the Python test module has been deleted.",
             "originalMethods": [
@@ -3034,6 +3115,61 @@ mod tests {
             );
         }
         assert_eq!(unique_cases.len(), 9);
+    }
+    #[test]
+    fn retired_build_pipeline_crosswalk_preserves_all_eight_scenario_groups() {
+        let value = inventory("check").unwrap();
+        let retired = "Tests/test_build_pipeline.py";
+        assert!(!Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join(retired).exists());
+        let modules = value["pythonModuleInventory"].as_array().unwrap();
+        assert!(!modules.iter().any(|path| path == retired));
+        assert!(modules.iter().any(|path| path == "Tests/test_local_signing.py"));
+        assert!(value["unmappedGateIDs"].as_array().unwrap().iter()
+            .any(|gate| gate == "python-unittest-discover-Tests-test_*.py"));
+        assert!(require_complete("check").is_err());
+        let mapping = &value["rustRootTestCrosswalk"][retired];
+        let expected = serde_json::json!([
+            "test_checks_keep_debug_artifacts_until_the_last_consumer",
+            "test_lease_survives_controller_crash_while_consumer_is_live",
+            "test_lease_survives_controller_interrupt_while_consumer_is_live",
+            "test_source_edit_during_checks_cannot_receive_passed_receipt",
+            "test_artifact_edit_during_checks_cannot_receive_passed_receipt",
+            "test_settings_and_performance_share_the_whole_pipeline_lease",
+            "test_failed_build_releases_lease_and_does_not_start_consumer",
+            "test_receipt_revalidation_and_failed_attempt_remove_old_pass"
+]);
+        assert_eq!(mapping["originalMethods"], expected);
+        assert_eq!(mapping["remainingPythonCases"], 0);
+        assert_eq!(mapping["remainingMethods"], serde_json::json!([]));
+        let bindings = mapping["nativeCaseByMethod"].as_object().unwrap();
+        assert_eq!(bindings.len(), 8);
+        let sources = [
+            ("rust-native --lib", "rust-native/src/artifact_lease_tests.rs", include_str!("../../artifact_lease_tests.rs")),
+            ("rust-native --bin ruycast-build", "rust-native/src/bin/ruycast-build/compat.rs", include_str!("compat.rs")),
+        ];
+        let mut bound = std::collections::BTreeSet::new();
+        for method in expected.as_array().unwrap() {
+            let cases = bindings[method.as_str().unwrap()].as_array().unwrap();
+            assert!(!cases.is_empty());
+            for case in cases {
+                let case = case.as_str().unwrap();
+                let (target, source_path, source) = if case.starts_with("artifact_lease::tests::") { sources[0] } else { sources[1] };
+                assert_eq!(mapping["nativeTargets"][target]["source"], source_path);
+                assert!(mapping["nativeTargets"][target]["cases"].as_array().unwrap().iter().any(|entry| entry == case));
+                let name = case.rsplit("::").next().unwrap();
+                assert!(source.contains(&format!("fn {name}(")), "{case}");
+                bound.insert(case);
+            }
+        }
+        let declared: std::collections::BTreeSet<_> = mapping["nativeTargets"].as_object().unwrap().values()
+            .flat_map(|target| target["cases"].as_array().unwrap().iter().map(|case| case.as_str().unwrap())).collect();
+        assert_eq!(bound, declared);
+        assert_eq!(mapping["contractDifferences"].as_object().unwrap().len(), 4);
+        let temporal = include_str!("validation.rs");
+        for case in bound.iter().filter(|case| case.starts_with("compat::temporal_contract_tests::")) {
+            assert!(temporal.contains(*case), "temporal case must be explicitly selected: {case}");
+        }
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
     }
     #[test]
     fn socket_recovery_root_crosswalk_resolves_all_eight_original_methods() {
