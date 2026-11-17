@@ -211,6 +211,13 @@ mod tests {
         fs::create_dir(f.0.join(".go")).unwrap();
         assert!(bind_policy(&f.0, paths.clone()).is_err());
         fs::remove_dir(f.0.join(".go")).unwrap();
+        let original_source = fs::read(&source).unwrap();
+        fs::remove_file(&source).unwrap();
+        std::os::unix::fs::symlink(f.0.join("config/default.json"), &source).unwrap();
+        assert!(bind_policy(&f.0, paths.clone()).is_err());
+        fs::remove_file(&source).unwrap();
+        fs::write(&source, original_source).unwrap();
+        fs::set_permissions(&source, fs::Permissions::from_mode(0o644)).unwrap();
         assert_eq!(bind_policy(&f.0, paths).unwrap(), original);
         // The production guard keeps the real, compiled explicit policy;
         // the deliberately tiny owned policy is not a production bypass.
