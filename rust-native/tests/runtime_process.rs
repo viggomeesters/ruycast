@@ -11,8 +11,8 @@ use std::{
     io::{BufRead, BufReader, Read, Write},
     net::Shutdown,
     os::unix::{
-        fs::{symlink, PermissionsExt},
-        net::UnixStream,
+        fs::{symlink, FileTypeExt, MetadataExt, PermissionsExt},
+        net::{UnixListener, UnixStream},
     },
     path::{Path, PathBuf},
     process::Command,
@@ -742,4 +742,173 @@ fn quit_acknowledges_then_exits_normally_without_kill_fallback() {
         json!({"ok":true,"result":{"state":"stopped"}})
     );
     assert!(!host.socket().exists());
+}
+
+fn rejected_socket_start(host: &Host) -> std::process::Output {
+    runtime_host::run(
+        host.command(&host.settings.host).arg("--headless-test"),
+        Duration::from_secs(4),
+    )
+}
+
+fn request_open_stream(stream: &mut UnixStream, request: &Value) -> Value {
+    stream
+        .write_all(&serde_json::to_vec(request).unwrap())
+        .unwrap();
+    stream.write_all(b"\n").unwrap();
+    let mut line = String::new();
+    BufReader::new(stream).read_line(&mut line).unwrap();
+    serde_json::from_str(&line).unwrap()
+}
+
+fn start_socket_recovery(host: &mut Host) {
+    host.start();
+    let status = host.rpc_timeout(&json!({"op": "status"}), Duration::from_secs(2));
+    assert_eq!(status["ok"], true);
+    assert_eq!(status["result"]["pid"], host.process.as_ref().unwrap().id());
+    assert_eq!(status["result"]["headless"], true);
+    let profile = PathBuf::from(status["result"]["profile"].as_str().unwrap())
+        .canonicalize()
+        .unwrap();
+    assert_eq!(profile, host.profile.canonicalize().unwrap());
+}
+
+#[test]
+fn socket_recovery_regular_endpoint_is_preserved_then_retry_recovers() {
+    let mut host = host(false);
+    let payload = b"An unrelated file must survive failed server startup.";
+    fs::write(host.socket(), payload).unwrap();
+    let rejected = rejected_socket_start(&host);
+    assert!(!rejected.status.success());
+    assert_eq!(fs::read(host.socket()).unwrap(), payload);
+    fs::remove_file(host.socket()).unwrap();
+    start_socket_recovery(&mut host);
+    host.stop(true);
+    assert!(!host.socket().exists());
+}
+
+#[test]
+fn socket_recovery_linked_endpoint_and_target_are_preserved() {
+    let mut host = host(false);
+    let target = host.base.join("endpoint-target");
+    fs::write(&target, b"preserved target").unwrap();
+    symlink(&target, host.socket()).unwrap();
+    let rejected = rejected_socket_start(&host);
+    assert!(!rejected.status.success());
+    assert!(fs::symlink_metadata(host.socket())
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(fs::read(&target).unwrap(), b"preserved target");
+    fs::remove_file(host.socket()).unwrap();
+    start_socket_recovery(&mut host);
+    host.stop(true);
+}
+
+#[test]
+fn socket_recovery_live_endpoint_without_instance_lock_is_preserved() {
+    let mut host = host(false);
+    let listener = UnixListener::bind(host.socket()).unwrap();
+    let before = fs::metadata(host.socket()).unwrap();
+    let rejected = rejected_socket_start(&host);
+    assert!(!rejected.status.success());
+    let after = fs::metadata(host.socket()).unwrap();
+    assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
+    drop(listener);
+    start_socket_recovery(&mut host);
+    host.stop(true);
+}
+
+#[test]
+fn socket_recovery_stale_endpoint_recovers_and_graceful_quit_removes_it() {
+    let mut host = host(false);
+    drop(UnixListener::bind(host.socket()).unwrap());
+    start_socket_recovery(&mut host);
+    host.stop(true);
+    assert!(!host.socket().exists());
+}
+
+#[test]
+fn socket_recovery_graceful_stop_preserves_replacement_regular_file() {
+    let mut host = host(false);
+    start_socket_recovery(&mut host);
+    let mut stream = host.connect(Duration::from_secs(2));
+    fs::remove_file(host.socket()).unwrap();
+    let replacement = b"replacement while host is alive";
+    fs::write(host.socket(), replacement).unwrap();
+    assert_eq!(
+        request_open_stream(&mut stream, &json!({"op":"quit"}))["ok"],
+        true
+    );
+    let output = host.wait_exit(Duration::from_secs(3), false);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fs::read(host.socket()).unwrap(), replacement);
+}
+
+#[test]
+fn socket_recovery_graceful_stop_preserves_replacement_socket() {
+    let mut host = host(false);
+    start_socket_recovery(&mut host);
+    let mut stream = host.connect(Duration::from_secs(2));
+    fs::remove_file(host.socket()).unwrap();
+    let replacement = UnixListener::bind(host.socket()).unwrap();
+    let before = fs::metadata(host.socket()).unwrap();
+    assert_eq!(
+        request_open_stream(&mut stream, &json!({"op":"quit"}))["ok"],
+        true
+    );
+    let output = host.wait_exit(Duration::from_secs(3), false);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let after = fs::metadata(host.socket()).unwrap();
+    assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
+    assert!(runtime_host::status_rpc::connect(
+        &host.socket(),
+        Instant::now() + Duration::from_secs(3)
+    )
+    .is_ok());
+    drop(replacement);
+    start_socket_recovery(&mut host);
+    host.stop(true);
+}
+
+#[test]
+fn socket_recovery_linked_instance_lock_is_preserved_then_retry_recovers() {
+    let mut host = host(false);
+    let target = host.base.join("lock-target");
+    fs::write(&target, b"preserved lock target").unwrap();
+    let lock = host.profile.join("instance.lock");
+    symlink(&target, &lock).unwrap();
+    let rejected = rejected_socket_start(&host);
+    assert!(!rejected.status.success());
+    assert!(fs::symlink_metadata(&lock)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(fs::read(&target).unwrap(), b"preserved lock target");
+    fs::remove_file(&lock).unwrap();
+    start_socket_recovery(&mut host);
+    host.stop(true);
+}
+
+#[test]
+fn socket_recovery_fifo_instance_lock_is_rejected_without_blocking() {
+    use std::os::unix::ffi::OsStrExt;
+    let mut host = host(false);
+    let lock = host.profile.join("instance.lock");
+    let name = std::ffi::CString::new(lock.as_os_str().as_bytes()).unwrap();
+    assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0);
+    let rejected = rejected_socket_start(&host);
+    assert!(!rejected.status.success());
+    assert!(fs::symlink_metadata(&lock).unwrap().file_type().is_fifo());
+    fs::remove_file(&lock).unwrap();
+    start_socket_recovery(&mut host);
+    host.stop(true);
 }

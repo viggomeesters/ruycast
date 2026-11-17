@@ -1533,7 +1533,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "Tests/test_cli.py",
             "Tests/test_local_signing.py",
             "Tests/test_public_contract.py",
-            "Tests/test_socket_recovery.py",
             "Tests/test_bindings_v2.py",
             "Tests/test_personal_bridge.py",
             "Tests/test_transition_catalog.py",
@@ -1621,6 +1620,31 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 "Tests/test_private_storage.py",
                 "Tests/LauncherCoreTests/CoreTests.swift::--private-storage-probe",
                 "Tests/LauncherCoreTests/PrivateFileChecks.swift::runPrivateStorageWriteProbe"
+            ],
+            "remainingPythonCases": 0
+        });
+        inventory["rustRootTestCrosswalk"]["Tests/test_socket_recovery.py"] = serde_json::json!({
+            "scope": "all eight original socket recovery scenarios run against the actual Rust headless host in an owned profile; Python consumer retired",
+            "originalMethods": [
+                "test_regular_endpoint_is_preserved_then_retry_recovers",
+                "test_linked_endpoint_and_target_are_preserved",
+                "test_live_endpoint_without_instance_lock_is_preserved",
+                "test_stale_endpoint_recovers_and_graceful_quit_removes_it",
+                "test_graceful_stop_preserves_replacement_regular_file",
+                "test_graceful_stop_preserves_replacement_socket",
+                "test_linked_instance_lock_is_preserved_then_retry_recovers",
+                "test_fifo_instance_lock_is_rejected_without_blocking"
+            ],
+            "nativeTarget": "runtime_process",
+            "nativeCases": [
+                "socket_recovery_regular_endpoint_is_preserved_then_retry_recovers",
+                "socket_recovery_linked_endpoint_and_target_are_preserved",
+                "socket_recovery_live_endpoint_without_instance_lock_is_preserved",
+                "socket_recovery_stale_endpoint_recovers_and_graceful_quit_removes_it",
+                "socket_recovery_graceful_stop_preserves_replacement_regular_file",
+                "socket_recovery_graceful_stop_preserves_replacement_socket",
+                "socket_recovery_linked_instance_lock_is_preserved_then_retry_recovers",
+                "socket_recovery_fifo_instance_lock_is_rejected_without_blocking"
             ],
             "remainingPythonCases": 0
         });
@@ -2247,6 +2271,25 @@ mod tests {
             );
         }
         assert_eq!(unique_cases.len(), 9);
+    }
+    #[test]
+    fn socket_recovery_root_crosswalk_resolves_all_eight_original_methods() {
+        let value = inventory("check").unwrap();
+        assert!(!value["pythonModuleInventory"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|path| path == "Tests/test_socket_recovery.py"));
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_socket_recovery.py"];
+        assert_eq!(mapping["originalMethods"].as_array().unwrap().len(), 8);
+        assert_eq!(mapping["nativeTarget"], "runtime_process");
+        assert_eq!(mapping["nativeCases"].as_array().unwrap().len(), 8);
+        assert_eq!(mapping["remainingPythonCases"], 0);
+        let source = include_str!("../../../tests/runtime_process.rs");
+        for case in mapping["nativeCases"].as_array().unwrap() {
+            let name = case.as_str().unwrap();
+            assert!(source.contains(&format!("fn {name}(")), "{name}");
+        }
     }
     #[test]
     fn bridge_rust_crosswalk_resolves_cases_and_current_shared_inputs() {
