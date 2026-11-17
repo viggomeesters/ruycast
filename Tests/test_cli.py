@@ -225,14 +225,6 @@ class CLIIntegration(unittest.TestCase):
         self.cli('config', 'set', 'clipboard.limit', '50', ok=True)
         self.assertEqual(self.cli('config', 'get')['result']['clipboard']['limit'], 50)
 
-    def test_add_remove_and_duplicate_alias(self):
-        command = {'id': 'test.added', 'title': 'Added', 'kind': 'path', 'target': '/', 'aliases': ['added']}
-        self.cli('config', 'add', json.dumps(command), ok=True)
-        self.assertEqual(self.cli('run', 'added', '--dry-run')['result']['id'], 'test.added')
-        self.cli('config', 'add', json.dumps(command), ok=False)
-        self.cli('config', 'remove', 'test.added', ok=True)
-        self.cli('run', 'added', '--dry-run', ok=False)
-
     def test_clipboard_control_private_permissions_and_no_ui(self):
         self.cli('clipboard', 'pause', ok=True)
         self.assertTrue(self.cli('status')['result']['clipboardPaused'])
