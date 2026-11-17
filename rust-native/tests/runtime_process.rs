@@ -774,6 +774,24 @@ fn legacy_cli_status_search_reload_and_config_edit() {
     }
     assert_eq!(host.cli(&["config", "set", "clipboard.limit", "50"])["ok"], true);
     assert_eq!(host.cli(&["config", "get"])["result"]["clipboard"]["limit"], 50);
+    for theme in ["system", "light", "dark", "graphite"] {
+        assert_eq!(host.cli(&["config", "set", "theme", &format!("\"{theme}\"")])["ok"], true);
+        assert_eq!(host.cli(&["config", "get"])["result"]["theme"], theme);
+    }
+    let appearance_config = fs::read(&host.config).unwrap();
+    let invalid_theme = host.cli_output(&["config", "set", "theme", "\"unknown\""]);
+    assert_eq!(invalid_theme.status.code(), Some(1));
+    assert_eq!(serde_json::from_slice::<Value>(&invalid_theme.stdout).unwrap()["ok"], false);
+    assert_eq!(fs::read(&host.config).unwrap(), appearance_config);
+    for visible in ["false", "true"] {
+        assert_eq!(host.cli(&["config", "set", "menuBarVisible", visible])["ok"], true);
+        assert_eq!(host.cli(&["config", "get"])["result"]["menuBarVisible"], visible == "true");
+    }
+    let appearance_config = fs::read(&host.config).unwrap();
+    let invalid_menu_bar = host.cli_output(&["config", "set", "menuBarVisible", "\"yes\""]);
+    assert_eq!(invalid_menu_bar.status.code(), Some(1));
+    assert_eq!(serde_json::from_slice::<Value>(&invalid_menu_bar.stdout).unwrap()["ok"], false);
+    assert_eq!(fs::read(&host.config).unwrap(), appearance_config);
     let unused_legacy = host.base.join("unused-legacy-profile");
     for (new_home, legacy_home) in [
         (None, Some(host.profile.as_path())),

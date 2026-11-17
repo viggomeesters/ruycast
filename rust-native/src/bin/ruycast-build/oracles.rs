@@ -1561,6 +1561,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_script_timeout_and_bounded_output": "runtime_process::legacy_cli_script_timeout_and_bounded_output",
+            "test_appearance_preferences_validate_and_persist": "runtime_process::legacy_cli_status_search_reload_and_config_edit",
             "test_second_instance_does_not_replace_socket": "runtime_process::second_instance_refused_and_crashed_socket_recovers",
             "test_script_timeout_kills_descendants_and_inherited_pipes": [
                 "script_basic_process::timeout_cleans_group",
@@ -2782,6 +2783,24 @@ mod tests {
         assert!(source.contains("Some(1)"));
         assert!(source.contains(r#"response["ok"], false"#));
         assert!(source.contains("fs::read(&host.config).unwrap(), original"));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
+    }
+    #[test]
+    fn appearance_preferences_cli_case_maps_to_existing_runtime_process_case() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        assert_eq!(
+            mapping["supplementalCurrentMethodByMethod"]["test_appearance_preferences_validate_and_persist"],
+            "runtime_process::legacy_cli_status_search_reload_and_config_edit"
+        );
+        assert!(mapping["nativeTargets"]["runtime_process"]
+            .as_array().unwrap().iter()
+            .any(|name| name == "legacy_cli_status_search_reload_and_config_edit"));
+        let source = include_str!("../../../tests/runtime_process.rs");
+        assert!(source.contains("for theme in [\"system\", \"light\", \"dark\", \"graphite\"]"));
+        assert!(source.contains("\"menuBarVisible\", \"\\\"yes\\\"\""));
+        assert!(source.contains("assert_eq!(fs::read(&host.config).unwrap(), appearance_config)"));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("runtime-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test runtime_process --locked"));
     }
