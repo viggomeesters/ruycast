@@ -697,9 +697,18 @@ mod tests {
         let original = f.root.0.join(&record.artifacts[name].unstripped_path);
         fs::remove_file(f.root.0.join(name)).unwrap();
         copy(&original, &f.root.0.join(name)).unwrap();
-        recover(&f.root.0).unwrap();
-        assert_eq!(f.current(), before);
+        // The next ordinary preparation call must recover the interrupted
+        // pair before building the settled record.
+        let settled_binding = prepare(&f.root.0, &f.target).unwrap();
+        let settled = verify(&f.root.0, &f.target).unwrap();
+        for name in f.names() {
+            assert_eq!(settled.artifacts[&name].unstripped_sha256, before[&name]);
+        }
         assert!(!f.root.0.join(PENDING).exists());
+        let repeated_binding = prepare(&f.root.0, &f.target).unwrap();
+        assert_eq!(repeated_binding.path, settled_binding.path);
+        assert_eq!(repeated_binding.sha256, settled_binding.sha256);
+        assert_eq!(verify(&f.root.0, &f.target).unwrap(), settled);
     }
     #[test]
     fn recovery_rejects_changed_staged_original_before_replacing_either_binary() {
