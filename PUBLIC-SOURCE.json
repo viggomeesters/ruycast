@@ -8,11 +8,11 @@
     ".github/pull_request_template.md": "079ef0a64b83e12ac7f46eb5925c245a2686a60c611c035ab4514ec2faf3f794",
     ".gitignore": "74721f4eb43c6b7dc7c5eeff9e2d62304bc6363696403f40c9f2a4ab5543547a",
     "CHANGELOG.md": "ed96d1064623b50fda51022d3162ad11e4e98e5c60ef92aed1b20e8e03d959ca",
-    "CONTRIBUTING.md": "b906f7afc5a8fe0bcf900a083f4201704e03cd3e5640470bb2d577eed2f23321",
+    "CONTRIBUTING.md": "77f3b61a2b8a0b2629779f4ea8800350aa84eba04a414892d2be27045c14e8ca",
     "LICENSE": "9ed7ad5e032beac4221cf6b90f5b38521dc9b8aa024807a992d3b88531c7db96",
     "Makefile": "af888297497f971b478194a0498814e3a6a30d0918d578e20eb267b06311cfcc",
     "Package.swift": "b961e8312d4a73bda92d93d628069cd35bc86365ae6826a2d66bbfb18622a16b",
-    "README.md": "c13610a539642c970138dd893377b2edf709ba55670c6069ef97efec45d75477",
+    "README.md": "628e7fef3c576307ebe84c2ecbe918a8c0798cbcdf5050a11a1c53d2dba18900",
     "SECURITY.md": "10341d430572a274608e7bff04121b7a6a6b3913567f90ab3aad60e1159f01dc",
     "Sources/CRuycastCore/abi.c": "319b41ec9b238ea9b7d7d2f39b8ca6ea564904b6231fe68ec245b892cb534f9c",
     "Sources/CRuycastCore/include/ruycast_core.h": "ddeb465a9fc8a01be9929778e79f42b1ee695865dff9949ba749fc025f49bcee",
@@ -350,7 +350,7 @@
     "rust-native/.gitignore": "306fd52e74fca6746e12acc750f232de15e71da917756a1270d74c91f5eb7368",
     "rust-native/Cargo.lock": "3ea0eb855d24f0b7b143746b49fa4dd1f311116e46c6561c7b5984e2383094e5",
     "rust-native/Cargo.toml": "9de2408564b5c751b1dbe084a49ce25e4267176e88205c95fbd49d6748a03c1c",
-    "rust-native/README.md": "b2860f409fc78282f566b0a5d510d016f4be78b4f073fe521e9f3e1184d7a10d",
+    "rust-native/README.md": "6e7864f15cc1444ba0b762c9cdc2a79b93f07cead965c4ef96e6844fba611160",
     "rust-native/examples/clipboard_history_sdk_probe.rs": "205bd28c8953954ffb9063d1f4244629ac189327fe87e96cdb68e7283b9387c6",
     "rust-native/examples/snippet_effects_probe.rs": "5d9fa47bbca1517764e65d15ec54919f2c8ae11ae26c98d40dca1db74aedec58",
     "rust-native/examples/ui_completion.rs": "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909",
@@ -388,10 +388,10 @@
     "rust-native/src/bin/ruycast-build/benchmark_host.rs": "45ea7a485a8a3b820929c79c958a214b632669aa42948b2cce71c658733642f7",
     "rust-native/src/bin/ruycast-build/candidate.rs": "c4969bdff5b73a58653ece4b68312e4e29ba6d110d618c1436929005b7dd7684",
     "rust-native/src/bin/ruycast-build/clipboard_cli.rs": "39065ac3eb12ee6a2f087d3e853cd820616c9bb5c7cffcdc2e0afbc9419eac9b",
-    "rust-native/src/bin/ruycast-build/compat.rs": "e8ae8d52a842ffa6f8405a62b272d8567d59d4d3c27697fb336818a021ea9e1a",
+    "rust-native/src/bin/ruycast-build/compat.rs": "6061774c37bea54d0a010d44af31b42e4c22eb44789556362a42113418de8796",
     "rust-native/src/bin/ruycast-build/disk_budget.rs": "a09df1667a80d316c2f0945818fc0b4504f09b9953556002167f59b13da657a9",
     "rust-native/src/bin/ruycast-build/macho.rs": "a30b9e17d2d86720573de34c0c9a8a4c51b1ee5d457fc0a4cf321c999029328c",
-    "rust-native/src/bin/ruycast-build/oracles.rs": "5e4aae0587aead37de745119cb5f6c3e481be6efb3843c93a1daa0c30fb6e48b",
+    "rust-native/src/bin/ruycast-build/oracles.rs": "b48cc541dc9d7007ee9f2fd4495e823ed1ecde79b993428e487f35e88830e0a2",
     "rust-native/src/bin/ruycast-build/parity_bootstrap.rs": "87e37a5c7a203f5a9d45c07dfe5e22ad5e3b26ffbc5f28d5d9681b65bfa20172",
     "rust-native/src/bin/ruycast-build/parity_compile.rs": "3ac765bb33348d04dfafec6f7f53ea8de15e503dfd80b8205c99e71a8b9d6bd9",
     "rust-native/src/bin/ruycast-build/parity_families.rs": "ddc70e69644a37326a0654e96db03a690883bb19fb7047959d57ddd78d1b1432",
@@ -423,7 +423,7 @@
     "rust-native/src/bin/ruycast-source.rs": "fe584c5ad1243d0c295ccaf24f2a4888d45638d50a7d23f6186d8bbe38cd1869",
     "rust-native/src/bin/ruycast-source/archive.rs": "0d6f13ae08e191f148c5dadd54a618b0714987d1e181b06b88f67665737791cd",
     "rust-native/src/bin/ruycast-source/mod.rs": "859cf84fc00cf1212378336ac2d54ba8f44aad617968dc77dce27ed22db94e3e",
-    "rust-native/src/bin/ruycast-source/policy.rs": "114beade63585a2141baab49da45b2958b0f466cbaba65099318703828463cd6",
+    "rust-native/src/bin/ruycast-source/policy.rs": "96aae05ea057e348796ad89a7729463414f0d4fe56f85221f57f7108afa997d3",
     "rust-native/src/bin/ruycast-source/tests.rs": "8c6e862961dcdd5e41d5e8c68996e9aba663bbabb6a83aeb31a2727e38fc3bbc",
     "rust-native/src/bin/script_probe.rs": "3ac379a4a10ed66127beae50b8f7063e64541bc56f0567ace351354e8a45b371",
     "rust-native/src/bin/snippet_choice_probe.rs": "12c9ea0b13c2ca1966bd1ddb5e8361fe49abaddbf22d6e0e46cba638e69f76c0",
@@ -747,7 +747,6 @@
     "rust/src/script.rs": "16974362c399c6c5a92596d7563d501eb0492df9f5e2463d8147eeb70108bfb0",
     "scripts/check-settings-locked.sh": "21dd51c98e8b04d82e82168a4bd804cb36d2e5eff914a183451ab08329757cd8",
     "scripts/check-settings.sh": "15c0254b6b58cf28a625c3bc3b3ad95aec5486ed609a51279b80b8f7b30187f6",
-    "scripts/check.sh": "233d48bab4697eed4ae191717e5db376c773267993cdb4faedef4ee2d939198d",
     "scripts/perf-probe.rs": "8970bd938ec5171322323b26def82fe7383358f8a261a2ef36565d0f799238b1"
   },
   "modes": {
@@ -1495,7 +1494,6 @@
     "rust/src/script.rs": 420,
     "scripts/check-settings-locked.sh": 420,
     "scripts/check-settings.sh": 420,
-    "scripts/check.sh": 493,
     "scripts/perf-probe.rs": 420
   },
   "roles": {
@@ -2243,7 +2241,6 @@
     "rust/src/script.rs": "Rust product or Rust tool",
     "scripts/check-settings-locked.sh": "product documentation, assets, default configuration or test support",
     "scripts/check-settings.sh": "product documentation, assets, default configuration or test support",
-    "scripts/check.sh": "product documentation, assets, default configuration or test support",
     "scripts/perf-probe.rs": "product documentation, assets, default configuration or test support"
   },
   "historicalReferences": [
