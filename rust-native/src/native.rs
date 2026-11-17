@@ -19,17 +19,42 @@ define_class!(
     // SAFETY: NSView drawing remains on AppKit's main thread.
     #[unsafe(super = NSView)]
     #[thread_kind = MainThreadOnly]
-    #[ivars=Cell<bool>]
+    #[ivars=PaletteStyle]
     struct PaletteContent;
     impl PaletteContent {
         #[unsafe(method(drawRect:))]
-        fn draw(&self, dirty: NSRect) {
+        fn draw(&self, _dirty: NSRect) {
             let _timing = ruycast_native::performance_trace::shared().scope(ruycast_native::performance_trace::Stage::HostDraw);
-            crate::native_settings::color(crate::native_settings::palette(self,self.ivars().get()).background).setFill();
-            NSRectFill(dirty);
+            let bounds=self.bounds();
+            let palette=crate::native_settings::palette(self,self.ivars().graphite.get());
+            if !self.ivars().launcher {
+                crate::native_settings::color(palette.background).setFill();
+                NSRectFill(bounds);
+                return;
+            }
+            let card=NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                rect(0.5,0.5,(bounds.size.width-1.).max(0.),(bounds.size.height-1.).max(0.)),
+                16.,
+                16.,
+            );
+            crate::native_settings::color(palette.background).setFill();
+            card.fill();
+            NSColor::colorWithSRGBRed_green_blue_alpha(
+                palette.muted[0],
+                palette.muted[1],
+                palette.muted[2],
+                0.24,
+            )
+            .setStroke();
+            card.setLineWidth(1.);
+            card.stroke();
         }
     }
 );
+struct PaletteStyle {
+    graphite: Cell<bool>,
+    launcher: bool,
+}
 
 struct PanelState {
     failed: Cell<bool>,
@@ -831,7 +856,10 @@ impl Controller {
             .as_deref(),
         );
         let view: Retained<PaletteContent> = unsafe {
-            let view = PaletteContent::alloc(mtm).set_ivars(Cell::new(false));
+            let view = PaletteContent::alloc(mtm).set_ivars(PaletteStyle {
+                graphite: Cell::new(false),
+                launcher: !management,
+            });
             msg_send![super(view), initWithFrame: rect(0., 0., width, height)]
         };
         panel.setContentView(Some(&view));
@@ -1219,7 +1247,7 @@ impl Controller {
         if state.scroll.hasVerticalScroller() != show_scroller {
             state.scroll.setHasVerticalScroller(show_scroller);
         }
-        if let Some(parent)=state.panel.contentView(){let size=parent.bounds().size;state.surface.layout(size.width,size.height,state.session.borrow().management());state.result_panel.layout(size.width,size.height);state.empty.setFrame(rect(24.,presentation::empty_results_y(size.height),size.width-48.,24.));let graphite=self.management_graphite();if let Some(content)=parent.downcast_ref::<PaletteContent>(){content.ivars().set(graphite);content.setNeedsDisplay(true);}state.surface.theme(graphite);}
+        if let Some(parent)=state.panel.contentView(){let size=parent.bounds().size;state.surface.layout(size.width,size.height,state.session.borrow().management());state.result_panel.layout(size.width,size.height);state.empty.setFrame(rect(24.,presentation::empty_results_y(size.height),size.width-48.,24.));let graphite=self.management_graphite();if let Some(content)=parent.downcast_ref::<PaletteContent>(){content.ivars().graphite.set(graphite);content.setNeedsDisplay(true);}state.surface.theme(graphite);}
         if state.session.borrow().management() {
             if let Some(parent)=state.panel.contentView(){
                 let size=parent.bounds().size;
@@ -1953,6 +1981,13 @@ pub fn check(
         let empty_y=state.empty.frame().origin.y;
         if empty_y<0. || empty_y+state.empty.frame().size.height>typed_frame.size.height {
             return Err("empty-results label does not fit the shortened panel".into());
+        }
+        if let Some(path)=std::env::var_os("RUYCAST_NATIVE_EXPANDED_SCREENSHOT") {
+            let path=std::path::PathBuf::from(path);
+            if !path.is_absolute() {
+                return Err("expanded launcher screenshot path must be absolute".into());
+            }
+            snapshot(&controller,Some(&path))?;
         }
         state.result_panel.layout(592.,252.);
         if state.result_panel.scroll.frame().origin.y+state.result_panel.scroll.frame().size.height>252. {
