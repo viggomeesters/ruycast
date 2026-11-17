@@ -10,7 +10,7 @@
     "CHANGELOG.md": "ed96d1064623b50fda51022d3162ad11e4e98e5c60ef92aed1b20e8e03d959ca",
     "CONTRIBUTING.md": "e48acf3ebf234bb5e3219bbaa708723ee597a476348184e5c62375e918c2a96f",
     "LICENSE": "9ed7ad5e032beac4221cf6b90f5b38521dc9b8aa024807a992d3b88531c7db96",
-    "Makefile": "0841e1aa2093b820b17c840a388ebd183778286f4ac8db6819bf461778fc43e9",
+    "Makefile": "f6394feeaeedeaf20650148636e693163896b96376a91264735c768a8dbf43f0",
     "Package.swift": "b961e8312d4a73bda92d93d628069cd35bc86365ae6826a2d66bbfb18622a16b",
     "README.md": "f25dfe492ec3d1721d530fefc129a457c6582e73953a136133d6675a4e1b7c5f",
     "SECURITY.md": "10341d430572a274608e7bff04121b7a6a6b3913567f90ab3aad60e1159f01dc",
@@ -330,14 +330,14 @@
     "bench/reference/SwiftF1Bridge.swift": "76d216984dcf371ff17940c368559e65deff934b42d5c3fccd16490ba7741c8b",
     "config/default.json": "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c",
     "docs/ANALYTICS.md": "687241571aeed541bbbf9ad49e4cef71be2eaefefe6a5a124eb5e201d83cccf2",
-    "docs/ARCHITECTURE.md": "fe3cd106bb046bde751f07eac011397602bbf4c2fe6e3130c75afe100bba876e",
+    "docs/ARCHITECTURE.md": "71d19fe821b0b27aac8f8711ac1cc8e6f3f55cec890404c18ef71ac67e5fa648",
     "docs/CONFIG.md": "0c43e58012ef1e55fc0f85bf090a73122b53e1e327135424e38ce7f5e1be97f7",
     "docs/DIAGNOSTICS.md": "63a09f06d7d3223f5ca9043097ea018dfb8b6cce6c2afbf748a8007c1fe2ad03",
     "docs/GETTING-STARTED.md": "41f2f51f8594f44fab62620b6c578f589776f5cbae6ff989900b73695940e6b9",
     "docs/IMPLEMENTATION-REFERENCES.md": "7ebd7944d2ddc5216ccd5525676d1fdd6b876386635deb3734624ebf7f0a4550",
     "docs/INSTALLATION.md": "ef41a46e4949b5d47b8c87f97cacc45933c567146dc544a27da510d9da121c51",
     "docs/PERFORMANCE.md": "9a2b588d8ff8b09a723e75df5c9ce0b7d467ee718ae41fb9bed030d98a587357",
-    "docs/RELEASING.md": "31a86e2e91992ebebcfa5c785652c930d8abbd10be195b13854af5374fe787b4",
+    "docs/RELEASING.md": "5e883c8844162c0da3975fdf09c3f325d7c0d0eada85c864132adfb762b89e70",
     "docs/SOURCE-EXPORT.md": "009995344838aac36c41df34f64dfe1b97dd7a41b47883df254a8dc35cdd775a",
     "docs/VISUALS.md": "8bfb5594a25e4a0b4866092f56638f3fc6ca3cfc919a299f4bec767771913c5f",
     "docs/adr/0001-native-modular-core.md": "a072c64c8a59276f727f78223938240cdfb88f0a18bebe9789f31911f09ce560",
@@ -385,7 +385,7 @@
     "rust-native/src/bin/ruycast-build.rs": "c919b7fd021719a7be0b4f91dcf24f86cca5a5b1897c4e5b2381e1e8745ed544",
     "rust-native/src/bin/ruycast-build/candidate.rs": "c4969bdff5b73a58653ece4b68312e4e29ba6d110d618c1436929005b7dd7684",
     "rust-native/src/bin/ruycast-build/clipboard_cli.rs": "39065ac3eb12ee6a2f087d3e853cd820616c9bb5c7cffcdc2e0afbc9419eac9b",
-    "rust-native/src/bin/ruycast-build/compat.rs": "49603e298b2d65774c676210faeba19a3e1c31139c4e3c1ec790dfa49a835996",
+    "rust-native/src/bin/ruycast-build/compat.rs": "8e0fff9650bdf6fefbdef344b5efb95b46561dedad8f8ebeadf4b06ae452a92d",
     "rust-native/src/bin/ruycast-build/macho.rs": "a30b9e17d2d86720573de34c0c9a8a4c51b1ee5d457fc0a4cf321c999029328c",
     "rust-native/src/bin/ruycast-build/oracles.rs": "cc2407040f3a5fd32dc3689af30da12d637eec69794d4b4cdf84ac420afd795f",
     "rust-native/src/bin/ruycast-build/parity_bootstrap.rs": "87e37a5c7a203f5a9d45c07dfe5e22ad5e3b26ffbc5f28d5d9681b65bfa20172",
@@ -403,7 +403,7 @@
     "rust-native/src/bin/ruycast-build/sample_performance.rs": "f83d022f382e220b848f42e5e47c3d52bf328187c6b2d4ede20a33134ec3cb18",
     "rust-native/src/bin/ruycast-build/test_catalog.rs": "f8d61fe5d973141f9672afa9f949e800bb4680510b999846a17c74e7647efb1a",
     "rust-native/src/bin/ruycast-build/validation.rs": "5ec3578f26422da58e25fe3e272d80a27d9d29ff6164f850945ed84a4f1864f9",
-    "rust-native/src/bin/ruycast-build/version.rs": "dfc864bc5b01945a416485177d810596cd78b829e5ecee59cc97dc57154074b9",
+    "rust-native/src/bin/ruycast-build/version.rs": "61d989138dfc7579674b3aa89eaa5f791e54994fed6cc470eafe02288c4f6118",
     "rust-native/src/bin/ruycast-install.rs": "55f570be10002dca090704793e5c099f6ca641a8fc6821cf01dcfb06390f8816",
     "rust-native/src/bin/ruycast-install/descendant_fixture.rs": "c7ce03ef8f22d79705d1c6a2abf997391fa31fcadeb782bdecd66882119c614f",
     "rust-native/src/bin/ruycast-install/fixture_process.rs": "96fd2951b6f56f92996db6f92d10fa944ed6bbab74033bf17c82c81cd39ceacc",
@@ -419,7 +419,7 @@
     "rust-native/src/bin/ruycast-source.rs": "fe584c5ad1243d0c295ccaf24f2a4888d45638d50a7d23f6186d8bbe38cd1869",
     "rust-native/src/bin/ruycast-source/archive.rs": "0d6f13ae08e191f148c5dadd54a618b0714987d1e181b06b88f67665737791cd",
     "rust-native/src/bin/ruycast-source/mod.rs": "859cf84fc00cf1212378336ac2d54ba8f44aad617968dc77dce27ed22db94e3e",
-    "rust-native/src/bin/ruycast-source/policy.rs": "857ae51c02331796fce25290d76880649389ee2d01e0b2b35f5d769bf644c165",
+    "rust-native/src/bin/ruycast-source/policy.rs": "374fbfd78a008626594309a406da383018825cbbe6b4caabbc272d2f3ee69cf1",
     "rust-native/src/bin/ruycast-source/tests.rs": "67c6d7f7645960d7451826c6d287e895ea953f0e79f8dab8a04a865cf130e9e0",
     "rust-native/src/bin/script_probe.rs": "3ac379a4a10ed66127beae50b8f7063e64541bc56f0567ace351354e8a45b371",
     "rust-native/src/bin/snippet_choice_probe.rs": "12c9ea0b13c2ca1966bd1ddb5e8361fe49abaddbf22d6e0e46cba638e69f76c0",
@@ -750,8 +750,7 @@
     "scripts/check.sh": "5d6ec907843be4ef3bc69d1238ebd3246edd15ac688a33107284480a0f5892d9",
     "scripts/local_signing.py": "a4a11329926e50606189823863b974fcf8d7dd71047eba1898aeb33b6ad1246a",
     "scripts/perf-probe.rs": "8970bd938ec5171322323b26def82fe7383358f8a261a2ef36565d0f799238b1",
-    "scripts/prepare_release.py": "92dde1c77fe8d3f60bde8b788eba5ac224b5b21770ca2027d3f8707668e5aed7",
-    "scripts/product_version.py": "6f59793bb74fc3582a6b0896a9f1fb439cbf44a61e0421a254054a05025b450f"
+    "scripts/prepare_release.py": "92dde1c77fe8d3f60bde8b788eba5ac224b5b21770ca2027d3f8707668e5aed7"
   },
   "modes": {
     ".github/ISSUE_TEMPLATE/bug_report.md": 420,
@@ -1501,8 +1500,7 @@
     "scripts/check.sh": 493,
     "scripts/local_signing.py": 420,
     "scripts/perf-probe.rs": 420,
-    "scripts/prepare_release.py": 420,
-    "scripts/product_version.py": 420
+    "scripts/prepare_release.py": 420
   },
   "roles": {
     ".github/ISSUE_TEMPLATE/bug_report.md": "product documentation, assets, default configuration or test support",
@@ -2252,8 +2250,7 @@
     "scripts/check.sh": "product documentation, assets, default configuration or test support",
     "scripts/local_signing.py": "product documentation, assets, default configuration or test support",
     "scripts/perf-probe.rs": "product documentation, assets, default configuration or test support",
-    "scripts/prepare_release.py": "product documentation, assets, default configuration or test support",
-    "scripts/product_version.py": "product documentation, assets, default configuration or test support"
+    "scripts/prepare_release.py": "product documentation, assets, default configuration or test support"
   },
   "historicalReferences": [
     "Package.swift",

@@ -204,11 +204,11 @@ mod tests {
         assert_eq!(manifest["versionAuthority"], SOURCE);
         assert_eq!(read(&output).unwrap(), "17.23.409");
         assert!(manifest["files"]
-            .get("scripts/product_version.py")
-            .is_some());
-        assert!(manifest["files"]
             .get("rust-native/src/bin/ruycast-build/version.rs")
             .is_some());
+        assert!(manifest["files"]
+            .get("scripts/product_version.py")
+            .is_none());
         assert!(manifest["files"]
             .get("Tests/test_product_version.py")
             .is_none());
