@@ -516,3 +516,62 @@ pub(super) fn check(
         "bothVerifyAgainstPinnedCertificate":true,"certificate_sha1":fingerprint,
         "requirement":requirement,"privacySettingsChanged":false,"fixturesLaunched":false}))
 }
+
+#[cfg(test)]
+mod private_keychain_tests {
+    use super::*;
+
+    const SECRET: &str = "owned-private-keychain-secret-canary";
+    struct PrivateRunner {
+        mode: &'static str,
+        calls: Vec<tools::Call>,
+    }
+    impl tools::Runner for PrivateRunner {
+        fn secret(&mut self) -> Result<String> {
+            panic!("private keychain transport must not provision an identity")
+        }
+        fn running_host(&mut self, _: i32, _: &Path) -> Result<()> {
+            panic!("private keychain transport must not launch a host")
+        }
+        fn run(&mut self, call: tools::Call) -> Result<tools::Output> {
+            // Record only: never delegate to System or execute any tool.
+            self.calls.push(call);
+            if self.mode == "runner-error" {
+                return Err(format!("private runner error: {SECRET}"));
+            }
+            Ok(tools::Output {
+                success: self.mode == "success",
+                stdout: format!("private stdout: {SECRET}").into_bytes(),
+                stderr: format!("private stderr: {SECRET}").into_bytes(),
+            })
+        }
+    }
+
+    #[test]
+    fn private_keychain_stdin_and_redacted_failures_use_only_fake_runner() {
+        for mode in ["success", "failed-output", "runner-error"] {
+            let mut runner = PrivateRunner { mode, calls: vec![] };
+            let result = security(&mut runner, Path::new("/owned/home"), &[
+                "unlock-keychain".into(), "-p".into(), SECRET.into(),
+                "/owned/identity.keychain-db".into(),
+            ]);
+            if mode == "success" {
+                assert_eq!(result, Ok(()));
+            } else {
+                let error = result.unwrap_err();
+                assert_eq!(error, "security: private keychain operation failed.");
+                assert!(!error.contains(SECRET));
+                assert!(!error.contains("private stdout"));
+                assert!(!error.contains("private stderr"));
+                assert!(!error.contains("private runner error"));
+            }
+            assert_eq!(runner.calls.len(), 1, "{mode}: no fallback command");
+            let call = &runner.calls[0];
+            assert_eq!(call.program, Path::new("/usr/bin/security"));
+            assert_eq!(call.args, ["-i"]);
+            assert!(!call.args.iter().any(|arg| arg.contains(SECRET)));
+            assert_eq!(call.timeout, std::time::Duration::from_secs(30));
+            assert_eq!(call.input, format!("'unlock-keychain' '-p' '{SECRET}' '/owned/identity.keychain-db'\n").as_bytes());
+        }
+    }
+}
