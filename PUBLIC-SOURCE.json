@@ -644,7 +644,7 @@
     "rust-native/tests/fixtures/utility_security_fixture.rs": "b3975f3e42a0a1a859c149ef4dd77d7aee36caefe0906f857445d4787a291a1f",
     "rust-native/tests/fixtures/workspace_fixture.rs": "893eaba2a1a537958085554a78d7cd69131003c0c705d0a6c5952b16a9f5cb06",
     "rust-native/tests/fixtures/workspace_sdk.rs": "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05",
-    "rust-native/tests/foundation_process.rs": "6d5a84e96117c66cc9cab8f239bfb909c259e695739b6aedd9162d2a2015a2f6",
+    "rust-native/tests/foundation_process.rs": "8be0041cfbc88d45345b28d128a6bfdcb1cf34bdb3874f6b51e674f138beed3a",
     "rust-native/tests/hid_host_provider.rs": "a36bb60c1d077f6c5d0f4320b6adfc8637bc7294d7e7175e83429e796ef3f124",
     "rust-native/tests/hid_rust_provider.rs": "15f8945547a041bd2fbb2a25b382276eafb4b8f4d2012d3296e7e73e9a481b83",
     "rust-native/tests/hid_sdk_process.rs": "a16d29200965a3ead18597c12be5ebf1e8308cfdcfe4cbf7d29da58ed02c133f",
