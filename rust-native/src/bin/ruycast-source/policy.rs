@@ -482,7 +482,6 @@ scripts/check-performance-locked.sh
 scripts/check-performance.sh
 scripts/check-settings-locked.sh
 scripts/check-settings.sh
-scripts/check-signing.py
 scripts/check.sh
 scripts/local_signing.py
 scripts/perf-probe.rs

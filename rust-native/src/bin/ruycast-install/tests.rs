@@ -1846,3 +1846,51 @@ fn signing_check_owned_failure_table_redacts_stops_and_cleans_only_its_staging()
         }
     }
 }
+
+#[test]
+fn signing_check_cli_owned_dispatch_and_legacy_status_help_preserve_boundaries() {
+    let f = Fixture::new();
+    f.signer();
+    let parent = f.root.join("cli-check-work");
+    fs::directory(&parent, 0o700).unwrap();
+    let mut runner = CheckRunner { calls: vec![], requirement: signing::requirement(&"a".repeat(40)) };
+    let result = signing_cli_dispatch(vec!["check".into(), "--root".into(), f.o.signer.display().to_string(),
+        "--repo".into(), f.o.repo.display().to_string()], &f.o.home, &f.o.repo,
+        || Ok((parent.clone(), PathBuf::from("/owned/rustc"))), &mut runner).unwrap().unwrap();
+    assert_eq!(result, json!({"ok":true,"differentNativeBinaries":true,"sameDesignatedRequirement":true,
+        "bothVerifyAgainstPinnedCertificate":true,"certificate_sha1":"A".repeat(40),
+        "requirement":signing::requirement(&"A".repeat(40)),"privacySettingsChanged":false,"fixturesLaunched":false}));
+    assert_eq!(runner.calls.len(), 8);
+    assert_eq!(stdfs::read_dir(&parent).unwrap().count(), 0);
+    runner.calls.clear();
+    let status = signing_cli_dispatch(vec!["status".into()], &f.o.home, &f.o.repo,
+        || panic!("status must not discover compiler or staging"), &mut runner).unwrap().unwrap();
+    assert_eq!(status, signing::load(&f.o.signer, &f.o.repo).unwrap());
+    for args in [vec![], vec!["check".into(), "--help".into()]] {
+        assert!(signing_cli_dispatch(args, &f.o.home, &f.o.repo,
+            || panic!("help must not discover compiler or staging"), &mut runner).unwrap().is_none());
+    }
+    assert!(runner.calls.is_empty());
+    assert!(SIGNING_USAGE.contains("prepare|status|check|sign"));
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    assert!(!repo.join("scripts/check-signing.py").exists());
+    assert!(repo.join("scripts/local_signing.py").is_file());
+}
+#[test]
+fn signing_check_cli_owned_invalid_arguments_or_identity_never_reach_effects() {
+    let f = Fixture::new();
+    let mut runner = CheckRunner { calls: vec![], requirement: String::new() };
+    for args in [vec!["unknown"], vec!["check", "APP"], vec!["sign"], vec!["check", "--root"],
+        vec!["check", "--repo", "one", "--repo", "two"], vec!["check", "--root", "one", "--root", "two"]] {
+        assert!(signing_cli_dispatch(args.into_iter().map(str::to_owned).collect(), &f.o.home, &f.o.repo,
+            || panic!("invalid command must not reach staging/compiler"), &mut runner).is_err());
+    }
+    // Default root is inside the injected owned HOME, never the local signer.
+    assert!(signing_cli_dispatch(vec!["check".into()], &f.o.home, &f.o.repo,
+        || panic!("missing identity must refuse before effects"), &mut runner).is_err());
+    f.signer();
+    stdfs::set_permissions(f.o.signer.join("keychain-password"), stdfs::Permissions::from_mode(0o644)).unwrap();
+    assert!(signing_cli_dispatch(vec!["check".into()], &f.o.home, &f.o.repo,
+        || panic!("unsafe identity must refuse before effects"), &mut runner).is_err());
+    assert!(runner.calls.is_empty());
+}

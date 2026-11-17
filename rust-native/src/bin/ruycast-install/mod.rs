@@ -228,10 +228,45 @@ pub fn cli() -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&value).map_err(err)?);
     Ok(())
 }
-fn signing_cli(mut args: Vec<String>) -> Result<()> {
-    if args.is_empty() || args.iter().any(|v| v == "--help" || v == "-h") {
-        println!("ruycast-install signing prepare|status|sign [APP] [--root SIGNING_ROOT] [--repo ABSOLUTE_REPOSITORY]");
+const SIGNING_USAGE: &str = "ruycast-install signing prepare|status|check|sign [APP] [--root SIGNING_ROOT] [--repo ABSOLUTE_REPOSITORY]";
+fn signing_cli(args: Vec<String>) -> Result<()> {
+    if args.is_empty() || args.iter().any(|arg| arg == "--help" || arg == "-h") {
+        println!("{SIGNING_USAGE}");
         return Ok(());
+    }
+    let home = match std::env::var_os("HOME").filter(|v| !v.is_empty()) {
+        Some(v) => fs::absolute(&PathBuf::from(v))?,
+        None => fs::absolute(&PathBuf::from(objc2_foundation::NSHomeDirectory().to_string()))?,
+    };
+    let cwd = std::env::current_dir().map_err(err)?;
+    let value = signing_cli_dispatch(args, &home, &cwd, || {
+        // This closure is reached only by explicit check, after identity load.
+        let base = std::env::var_os("VIGGO_TEST_ROOT").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+        // Use an existing parent; even directory discovery must not modify
+        // signer state when VIGGO_TEST_ROOT points inside it.
+        let staging = std::fs::canonicalize(base)
+            .map_err(|_| "Signing check work directory must already exist.".to_string())?;
+        let compiler = std::env::var_os("PATH").and_then(|path| {
+            std::env::split_paths(&path).map(|entry| entry.join("rustc"))
+                .find(|path| path.is_absolute() && path.is_file())
+        }).ok_or("Rust compiler is required for signing check.")?;
+        Ok((staging, compiler))
+    }, &mut tools::System)?;
+    match value {
+        Some(value) => println!("{}", serde_json::to_string_pretty(&value).map_err(err)?),
+        None => println!("{SIGNING_USAGE}"),
+    }
+    Ok(())
+}
+fn signing_cli_dispatch(
+    mut args: Vec<String>,
+    home: &Path,
+    cwd: &Path,
+    check_context: impl FnOnce() -> Result<(PathBuf, PathBuf)>,
+    runner: &mut dyn tools::Runner,
+) -> Result<Option<Value>> {
+    if args.is_empty() || args.iter().any(|v| v == "--help" || v == "-h") {
+        return Ok(None);
     }
     let mut root = None;
     let mut repo = None;
@@ -254,23 +289,16 @@ fn signing_cli(mut args: Vec<String>) -> Result<()> {
         return Err("Missing signing command.".into());
     }
     let command = args.remove(0);
-    if !["prepare", "status", "sign"].contains(&command.as_str())
+    if !["prepare", "status", "check", "sign"].contains(&command.as_str())
         || args.len() != usize::from(command == "sign")
     {
-        return Err("Expected prepare|status or sign APP.".into());
+        return Err("Expected prepare|status|check or sign APP.".into());
     }
-    let home = match std::env::var_os("HOME").filter(|v| !v.is_empty()) {
-        Some(v) => fs::absolute(&PathBuf::from(v))?,
-        None => fs::absolute(&PathBuf::from(
-            objc2_foundation::NSHomeDirectory().to_string(),
-        ))?,
-    };
-    let cwd = std::env::current_dir().map_err(err)?;
     let root = match root {
         None => home.join(".local/share/ruycast/signing"),
         Some(value) => {
             let expanded = if value == "~" {
-                home.clone()
+                home.to_path_buf()
             } else if let Some(tail) = value.strip_prefix("~/") {
                 home.join(tail)
             } else {
@@ -283,12 +311,17 @@ fn signing_cli(mut args: Vec<String>) -> Result<()> {
             })?
         }
     };
-    let repo = repo.map(PathBuf::from).unwrap_or_else(|| cwd.clone());
+    let repo = repo.map(PathBuf::from).unwrap_or_else(|| cwd.to_path_buf());
     fs::absolute(&repo)?;
-    let mut runner = tools::System;
     let value = match command.as_str() {
-        "prepare" => signing::prepare(&root, &repo, &home, &mut runner)?,
+        "prepare" => signing::prepare(&root, &repo, &home, runner)?,
         "status" => signing::load(&root, &repo)?,
+        "check" => {
+            // No temporary-directory or compiler discovery effects on refusal.
+            signing::load(&root, &repo)?;
+            let (staging, compiler) = check_context()?;
+            signing::check(&root, &repo, home, &staging, &compiler, runner)?
+        }
         _ => {
             let app = PathBuf::from(&args[0]);
             signing::sign(
@@ -300,12 +333,11 @@ fn signing_cli(mut args: Vec<String>) -> Result<()> {
                 &root,
                 &repo,
                 &home,
-                &mut runner,
+                runner,
             )?
         }
     };
-    println!("{}", serde_json::to_string_pretty(&value).map_err(err)?);
-    Ok(())
+    Ok(Some(value))
 }
 pub fn verify_download(archive: &Path, expected: &str) -> Result<Value> {
     if expected.len() != 64 || !expected.bytes().all(|b| b.is_ascii_hexdigit()) {
