@@ -286,6 +286,9 @@ fn build_receipt(root: &Path, mut args: Vec<String>) -> Result<serde_json::Value
     if matches!(action.as_str(), "--help" | "-h") || args == ["--help"] || args == ["-h"] {
         return Ok(serde_json::Value::String("ruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- build [--configuration debug|release]\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- fingerprint|record --before SHA|verify\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- check|settings|verify-check|verify-settings\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- performance --runner PATH --runner-sha SHA --authority PATH --authority-sha SHA --dataset PATH --out NEW_REPORT\nruycast-build compat build-receipt --repo ABSOLUTE_ROOT -- verify-performance".into()));
     }
+    if matches!(action.as_str(), "check" | "settings" | "verify-check" | "verify-settings") {
+        oracles::require_compiled_source_root(root)?;
+    }
     match action.as_str() {
         "build" => {
             let configuration =
@@ -578,6 +581,15 @@ pub(super) fn run(mut args: Vec<String>) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gate_pipeline_entrypoints_reject_a_different_repository_checkout() {
+        let fixture = super::super::tests::Fixture::new();
+        for action in ["check", "settings", "verify-check", "verify-settings"] {
+            let error = build_receipt(&fixture.0, vec![action.into()]).unwrap_err();
+            assert!(error.contains("Rust tool's source checkout"), "{action}: {error}");
+        }
+    }
 
     fn pipeline_receipt(kind: &str, sources: BTreeMap<String, String>) -> Pipeline {
         Pipeline {
