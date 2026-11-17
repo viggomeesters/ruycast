@@ -953,6 +953,19 @@ fn direct_native_sdk_geometry_and_workspace_effects_have_complete_owned_substitu
 #[test]
 fn builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly() {
     let host = Host::new(false, "light");
+    for (alias, identifier) in [
+        ("open-config", "builtin.open-config"),
+        ("reload-config", "builtin.reload-config"),
+        ("settings", "builtin.settings"),
+    ] {
+        let search = host.cli(&["search", alias]);
+        assert_eq!(search["ok"], true, "{search}");
+        assert!(search["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == identifier), "{search}");
+    }
     let search = child_output::wait(
         Command::new(cli())
             .args(["search", "settings"])
@@ -985,6 +998,42 @@ fn builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly(
     let run: Value = serde_json::from_slice(&run.stdout).unwrap();
     assert_eq!(run["ok"], false);
     assert!(run["error"].as_str().unwrap().contains("headless"));
+    let snapshot = host.cli(&["config", "get"]);
+    assert_eq!(snapshot["ok"], true, "{snapshot}");
+    let settings = json!({"id":"builtin.settings","title":"Ruycast Settings","kind":"builtin","target":"settings","hotkey":"ctrl+alt+cmd+s"});
+    let mut commands = snapshot["result"]["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|command| command["id"] != settings["id"])
+        .cloned()
+        .collect::<Vec<_>>();
+    commands.push(settings.clone());
+    let commands = serde_json::to_string(&commands).unwrap();
+    let saved = host.cli(&["config", "set", "commands", &commands]);
+    assert_eq!(saved["ok"], true, "{saved}");
+    let persisted = host.cli(&["config", "get"]);
+    assert_eq!(persisted["ok"], true, "{persisted}");
+    assert_eq!(
+        persisted["result"]["commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|command| command["id"] == settings["id"])
+            .unwrap()["hotkey"],
+        settings["hotkey"]
+    );
+    let settings_search = host.cli(&["search", "settings"]);
+    assert_eq!(settings_search["ok"], true, "{settings_search}");
+    assert_eq!(
+        settings_search["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|row| row["id"] == settings["id"])
+            .count(),
+        1
+    );
     let reloaded = host.ok(json!({"op":"execute","id":"builtin.reload-config"}));
     assert_eq!(reloaded["result"]["state"], "reloaded");
     assert_eq!(
