@@ -10,8 +10,11 @@ use std::{
     fs,
     io::{BufRead, BufReader, Read, Write},
     net::Shutdown,
-    os::unix::{fs::PermissionsExt, net::UnixStream},
-    path::PathBuf,
+    os::unix::{
+        fs::{symlink, PermissionsExt},
+        net::UnixStream,
+    },
+    path::{Path, PathBuf},
     process::Command,
     sync::mpsc,
     thread,
@@ -89,6 +92,23 @@ fn wait_marker(path: &std::path::Path) {
         );
         thread::sleep(Duration::from_millis(2));
     }
+}
+fn acl_rows(path: &Path) -> Vec<String> {
+    let output = runtime_host::run(
+        Command::new("/bin/ls").args(["-lde"]).arg(path),
+        Duration::from_secs(4),
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .skip(1)
+        .map(str::to_owned)
+        .collect()
 }
 fn writer_host(delayed: bool, mutation: bool) -> (Host, PathBuf) {
     let mut host = host(false);
@@ -279,6 +299,70 @@ fn empty_or_missing_explicit_profile_never_modifies_cwd() {
         );
         assert!(fs::read_dir(&owned.0).unwrap().next().is_none());
     }
+}
+#[test]
+fn headless_start_removes_profile_acl_through_legacy_alias() {
+    let mut host = host(false);
+    let alias = host.base.join("profile-alias");
+    symlink(&host.profile, &alias).unwrap();
+    fs::set_permissions(&host.profile, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&host.config, fs::Permissions::from_mode(0o600)).unwrap();
+    let original = fs::read(&host.config).unwrap();
+    let acl = "everyone allow read,execute,readattr,readextattr,readsecurity,file_inherit,directory_inherit";
+    let installed = runtime_host::run(
+        Command::new("/bin/chmod")
+            .args(["+a", acl])
+            .arg(&host.profile),
+        Duration::from_secs(4),
+    );
+    assert!(
+        installed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&installed.stderr)
+    );
+    assert!(
+        !acl_rows(&host.profile).is_empty(),
+        "fixture must add inherited ACL"
+    );
+    host.env
+        .insert("RUYCAST_HOME".into(), alias.as_os_str().to_owned());
+
+    let deadline = Instant::now() + Duration::from_secs(6);
+    host.start_entry_with_timeout(
+        runtime_host::Entry::HeadlessTest,
+        deadline.saturating_duration_since(Instant::now()),
+    );
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    assert!(!remaining.is_zero(), "headless status exceeded six seconds");
+    let status_output =
+        runtime_host::run(host.command(&host.settings.cli).arg("status"), remaining);
+    assert_eq!(
+        status_output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&status_output.stderr)
+    );
+    let response: Value = serde_json::from_slice(&status_output.stdout).unwrap();
+    assert_eq!(response["ok"], true);
+    assert_eq!(
+        response["result"]["pid"],
+        host.process.as_ref().unwrap().id()
+    );
+    assert_eq!(response["result"]["headless"], true);
+    assert_eq!(
+        fs::metadata(&host.profile).unwrap().permissions().mode() & 0o7777,
+        0o700
+    );
+    assert!(
+        acl_rows(&host.profile).is_empty(),
+        "profile ACL must be removed"
+    );
+    assert!(fs::symlink_metadata(&alias)
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert_eq!(fs::read_link(&alias).unwrap(), host.profile);
+    assert_eq!(fs::read(&host.config).unwrap(), original);
 }
 #[test]
 fn legacy_cli_status_search_reload_and_config_edit() {

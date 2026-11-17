@@ -684,7 +684,7 @@
     "rust-native/tests/private_results.rs": "b6ebce860a21a4b82bac987c9d4987c3960d05277d25ddbaecbc8fd1e2b344d1",
     "rust-native/tests/remaining_macos_process.rs": "3fd6aa6c6a3c8321dde7a9f4b85a01045e18aad1e0bfeea89d2a9d5d0f935409",
     "rust-native/tests/rich_process.rs": "f9522d26818085cc7f919ef2d7b6f66ac544b08bf3777859b8222ab2171a56d6",
-    "rust-native/tests/runtime_process.rs": "7f8052dac2862c65661e4b07db67a03cd45a340ecf787accc119cd4810613ca9",
+    "rust-native/tests/runtime_process.rs": "bcdbd97552737222112476a7b36f66fe4ca9a96eab70b47c5b7c35e2e6917957",
     "rust-native/tests/rust_only_policy.rs": "3d28ac1800b2b611c87f5d52e9b1b6f6e603aa5e709d7fe459335f0290310a82",
     "rust-native/tests/script_basic_process.rs": "68aef6144d1bff4cda0708e11e3c5789eb6450f3d315595deb619b9d2398775c",
     "rust-native/tests/script_fault_process.rs": "75b60d9057cca115b0e1e29461325ff3cc9296ee55d15dd1e9c32e1f7296907f",
