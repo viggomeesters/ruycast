@@ -204,13 +204,6 @@ class CLIIntegration(unittest.TestCase):
         result=subprocess.run([str(CLI),'status'],env=env,capture_output=True,text=True,check=True)
         self.assertEqual(json.loads(result.stdout)['result']['profile'],str(self.root))
 
-    def test_alias_search_and_dry_run(self):
-        r = self.cli('search', 'echo-test', ok=True)
-        self.assertEqual(r['result'][0]['id'], 'test.echo')
-        before = self.cli('usage')['result']
-        self.assertEqual(self.cli('run', 'echo-test', '--dry-run', ok=True)['result']['target'], '/usr/bin/printf')
-        self.assertEqual(self.cli('usage')['result'], before)
-
     def test_script_literal_arguments_and_failure(self):
         r = self.cli('run', 'echo-test', ok=True)
         self.assertEqual(r['result']['stdout'], 'literal $(not a command)\nΩ')
