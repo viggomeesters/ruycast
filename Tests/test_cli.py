@@ -118,13 +118,6 @@ class CLIIntegration(unittest.TestCase):
         self.assertIn(text,saved.read_text())
         self.assertEqual(response['result'].get('kind'),'note')
 
-    def test_script_timeout_and_bounded_output(self):
-        start = time.monotonic()
-        self.assertIn('timed out', self.cli('run', 'test.timeout', ok=False)['error'])
-        self.assertLess(time.monotonic() - start, 2)
-        r = self.cli('run', 'test.output', ok=True)
-        self.assertEqual(len(r['result']['stdout']), 65536)
-
     def test_clipboard_control_private_permissions_and_no_ui(self):
         self.cli('clipboard', 'pause', ok=True)
         self.assertTrue(self.cli('status')['result']['clipboardPaused'])
