@@ -157,6 +157,7 @@ rust-native/src/actions.rs
 rust-native/src/activity.rs
 rust-native/src/analytics.rs
 rust-native/src/analytics_dashboard.rs
+rust-native/src/benchmark_host.rs
 rust-native/src/app_choice.rs
 rust-native/src/applications.rs
 rust-native/src/bin/analytics_probe.rs
