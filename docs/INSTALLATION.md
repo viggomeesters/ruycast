@@ -8,7 +8,7 @@ After the combined candidate is accepted for your use, build and install locally
 make install
 ```
 
-`install.sh` forwards `--build` to Rust. `install.py` without that flag consumes an existing verified release build. Production build/install policy is Rust; Python/shell only dispatch. No Swift host/compiler/helper is used for production. The local signer prepares one persistent identity when absent and refuses silent rotation or ad-hoc fallback. The transaction preserves the profile and uses a per-user login service.
+`make install` invokes the Rust installer directly through Cargo with `--build`. `install.py` remains a compatibility entrypoint; without that flag it consumes an existing verified release build. Production build/install policy is Rust; remaining helper entrypoints only dispatch. No Swift host/compiler/helper is used for production. The local signer prepares one persistent identity when absent and refuses silent rotation or ad-hoc fallback. The transaction preserves the profile and uses a per-user login service.
 
 ## Requirements
 

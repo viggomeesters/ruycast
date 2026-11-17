@@ -47,7 +47,7 @@ pub fn verify(
     r: &mut dyn tools::Runner,
 ) -> Result<(Receipt, Vec<u8>)> {
     lease.validate()?;
-    let authority=tools::checked(r,compiler_call(root,home,lease,"verify")?).map_err(|_|"Rust release verification failed; run scripts/install.sh to create a fresh prepared build.".to_string())?.json()?;
+    let authority=tools::checked(r,compiler_call(root,home,lease,"verify")?).map_err(|_|"Rust release verification failed; run make install to create a fresh prepared build.".to_string())?.json()?;
     lease.validate()?;
     let path = root.join(".build/full-rust-release/development-build.json");
     if authority["ok"] != true
