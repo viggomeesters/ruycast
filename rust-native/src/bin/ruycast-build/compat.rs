@@ -239,9 +239,22 @@ fn pipeline_under_lease(root: &Path, kind: &str, lease: &BuildLock) -> Result<se
         "verification pipeline",
     )?;
     let (path, before) = qualify_pipeline_under_lease(root, kind, lease)?;
-    run_qualified_pipeline_consumers(root, kind, lease)?;
-    publish_pipeline_receipt(root, kind, lease, &path, before)?;
+    publish_pipeline_after_consumers(root, kind, lease, &path, before, || {
+        run_qualified_pipeline_consumers(root, kind, lease)
+    })?;
     verify_pipeline(root, kind, lease)
+}
+/// A failed consumer must never publish a replacement for the revoked pass.
+fn publish_pipeline_after_consumers(
+    root: &Path,
+    kind: &str,
+    lease: &BuildLock,
+    path: &Path,
+    before: BTreeMap<String, String>,
+    consume: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    consume()?;
+    publish_pipeline_receipt(root, kind, lease, path, before)
 }
 /// Invalidate stale passes and reject incomplete source gates after the disk preflight.
 fn qualify_pipeline_under_lease(
@@ -845,6 +858,106 @@ fn main() {{
         let contender = process::capture(child("contender"), Duration::from_secs(8), 1024 * 1024).unwrap();
         assert!(contender.status.success(), "{}", String::from_utf8_lossy(&contender.stderr));
         assert!(fixture.0.join("contender-acquired").is_file());
+    }
+    #[test]
+    #[ignore = "Internal owned failed-consumer subprocess; exact parent invokes it"]
+    fn owned_failed_consumer_process_entry() {
+        use std::time::Duration;
+        let root = PathBuf::from(std::env::var_os("RUYCAST_OWNED_FAILED_CONSUMER_ROOT").unwrap());
+        assert_eq!(root.canonicalize().unwrap(), root);
+        let pass = root.join(".build/receipts/check.json");
+        match std::env::var("RUYCAST_OWNED_FAILED_CONSUMER_MODE").unwrap().as_str() {
+            "attempt" => {
+                let error = with_pipeline_lease(&root, |lease| {
+                    assert!(pass.is_file());
+                    // Private lifecycle fixture only. Public qualification and
+                    // disk preflight remain untouched, as in temporal fixtures.
+                    let path = reset_pipeline_receipt(&root, "check", lease)?;
+                    let before = verification_sources(&root)?;
+                    publish_pipeline_after_consumers(&root, "check", lease, &path, before, || {
+                        let mut consumer = failed_consumer_child(&root, "consumer");
+                        lease.apply_to_child(&mut consumer)?;
+                        let result = process::capture(consumer, Duration::from_secs(5), 1024 * 1024)?;
+                        assert_eq!(result.status.code(), Some(17));
+                        assert!(String::from_utf8_lossy(&result.stderr).contains("owned final consumer failed"));
+                        fs::write(root.join("consumer-exit-code"), b"17").map_err(super::error)?;
+                        if !result.status.success() {
+                            return Err("Owned final consumer failed (exit 17).".into());
+                        }
+                        Ok(())
+                    })
+                }).unwrap_err();
+                assert_eq!(error, "Owned final consumer failed (exit 17).");
+                assert!(!pass.exists());
+                fs::write(root.join("attempt-error"), error).unwrap();
+            }
+            "consumer" => {
+                let lease = BuildLock::acquire(&root).unwrap();
+                lease.validate().unwrap();
+                assert!(!pass.exists(), "old pass survived until consumer start");
+                fs::write(root.join("consumer-saw-no-old-pass"), b"observed before failure").unwrap();
+                eprintln!("owned final consumer failed");
+                std::process::exit(17);
+            }
+            "contender" => {
+                let lease = BuildLock::acquire_from_environment(&root, &BTreeMap::new()).unwrap();
+                lease.validate().unwrap();
+                fs::write(root.join("contender-acquired"), b"independent acquisition after failure").unwrap();
+            }
+            _ => panic!("unknown owned failed-consumer phase"),
+        }
+    }
+    fn failed_consumer_child(root: &Path, mode: &str) -> Command {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command.args(["--ignored", "--exact", "compat::tests::owned_failed_consumer_process_entry", "--test-threads=1", "--nocapture"])
+            .env_clear().env("HOME", root).env("TMPDIR", root)
+            .env("RUYCAST_OWNED_FAILED_CONSUMER_ROOT", root)
+            .env("RUYCAST_OWNED_FAILED_CONSUMER_MODE", mode)
+            .current_dir(root);
+        command
+    }
+    #[test]
+    fn failed_final_consumer_revokes_previous_pass_and_releases_pipeline_lease() {
+        use std::time::Duration;
+        let fixture = super::super::tests::Fixture::new();
+        for directory in ["Tests", "scripts", "docs", "Sources"] {
+            fs::create_dir(fixture.0.join(directory)).unwrap();
+        }
+        for name in ["Package.swift", "README.md", "CONTRIBUTING.md", "Makefile"] {
+            fs::write(fixture.0.join(name), b"owned verification input").unwrap();
+        }
+        let build = fixture.0.join(OUTPUT).join("development-build.json");
+        let report = fixture.0.join("rust-native/target/verification/report.json");
+        for (path, bytes) in [(&build, b"owned fixture build binding; no product authority".as_slice()),
+                              (&report, b"owned fixture report binding; no native matrix pass".as_slice())] {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, bytes).unwrap();
+        }
+        // Positive control for the actual writer, not a qualified product pass.
+        // No producer, native matrix, or complete source gate is simulated.
+        let lease = BuildLock::acquire_from_environment(&fixture.0, &BTreeMap::new()).unwrap();
+        let pass = reset_pipeline_receipt(&fixture.0, "check", &lease).unwrap();
+        publish_pipeline_receipt(&fixture.0, "check", &lease, &pass, verification_sources(&fixture.0).unwrap()).unwrap();
+        let previous: Pipeline = serde_json::from_slice(&regular_bytes(&pass).unwrap()).unwrap();
+        assert_eq!(previous.status, "passed");
+        verify_pipeline_bindings(&previous, "check", || verification_sources(&fixture.0),
+            || digest(&build), || digest(&report)).unwrap();
+        let build_before = fs::read(&build).unwrap();
+        let report_before = fs::read(&report).unwrap();
+        drop(lease);
+
+        let attempt = process::capture(failed_consumer_child(&fixture.0, "attempt"), Duration::from_secs(15), 1024 * 1024).unwrap();
+        assert!(attempt.status.success(), "{}", String::from_utf8_lossy(&attempt.stderr));
+        assert!(fixture.0.join("consumer-saw-no-old-pass").is_file());
+        assert_eq!(fs::read(fixture.0.join("consumer-exit-code")).unwrap(), b"17");
+        assert_eq!(fs::read_to_string(fixture.0.join("attempt-error")).unwrap(), "Owned final consumer failed (exit 17).");
+        assert!(!pass.exists());
+        assert_eq!(fs::read(&build).unwrap(), build_before);
+        assert_eq!(fs::read(&report).unwrap(), report_before);
+        let contender = process::capture(failed_consumer_child(&fixture.0, "contender"), Duration::from_secs(8), 1024 * 1024).unwrap();
+        assert!(contender.status.success(), "{}", String::from_utf8_lossy(&contender.stderr));
+        assert!(fixture.0.join("contender-acquired").is_file());
+        assert!(!pass.exists());
     }
     #[test]
     fn incomplete_full_gate_invalidates_its_previous_pass_and_cannot_reverify() {
