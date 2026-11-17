@@ -387,7 +387,7 @@
     "rust-native/src/bin/ruycast-build/clipboard_cli.rs": "39065ac3eb12ee6a2f087d3e853cd820616c9bb5c7cffcdc2e0afbc9419eac9b",
     "rust-native/src/bin/ruycast-build/compat.rs": "2b990a9bc66629a12d2020f7c71ad468db15cd409996d25339e6eaf7fc56abde",
     "rust-native/src/bin/ruycast-build/macho.rs": "a30b9e17d2d86720573de34c0c9a8a4c51b1ee5d457fc0a4cf321c999029328c",
-    "rust-native/src/bin/ruycast-build/oracles.rs": "a5bf091784988772393ad570799652b68d5847c2ce909ed0984a9c63dbc23817",
+    "rust-native/src/bin/ruycast-build/oracles.rs": "9d099278f525c3500e0b1ac2023b44efe32b786c9403ddf12e225aadb0b14681",
     "rust-native/src/bin/ruycast-build/parity_bootstrap.rs": "87e37a5c7a203f5a9d45c07dfe5e22ad5e3b26ffbc5f28d5d9681b65bfa20172",
     "rust-native/src/bin/ruycast-build/parity_compile.rs": "3ac765bb33348d04dfafec6f7f53ea8de15e503dfd80b8205c99e71a8b9d6bd9",
     "rust-native/src/bin/ruycast-build/parity_families.rs": "ddc70e69644a37326a0654e96db03a690883bb19fb7047959d57ddd78d1b1432",
