@@ -1563,6 +1563,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
             "test_script_timeout_and_bounded_output": "runtime_process::legacy_cli_script_timeout_and_bounded_output",
             "test_appearance_preferences_validate_and_persist": "runtime_process::legacy_cli_status_search_reload_and_config_edit",
+            "test_launcher_management_commands_and_settings_hotkey": "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly",
             "test_second_instance_does_not_replace_socket": "runtime_process::second_instance_refused_and_crashed_socket_recovers",
             "test_script_timeout_kills_descendants_and_inherited_pipes": [
                 "script_basic_process::timeout_cleans_group",
@@ -2821,6 +2822,22 @@ mod tests {
         assert!(history.contains("dataFile\":\"../private\""));
         let validation = include_str!("validation.rs");
         assert!(validation.contains("clipboard-history-host-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test clipboard_history_host_process --locked"));
+    }
+    #[test]
+    fn launcher_management_cli_case_maps_to_existing_headless_builtin_case() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_cli.py"];
+        let case = "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly";
+        assert_eq!(mapping["supplementalCurrentMethodByMethod"]["test_launcher_management_commands_and_settings_hotkey"], case);
+        assert!(mapping["nativeTargets"]["remaining_macos_process"].as_array().unwrap()
+            .iter().any(|name| name == "builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"));
+        let source = include_str!("../../../tests/remaining_macos_process.rs");
+        assert!(source.contains("(\"open-config\", \"builtin.open-config\")"));
+        assert!(source.contains("(\"reload-config\", \"builtin.reload-config\")"));
+        assert!(source.contains("\"hotkey\":\"ctrl+alt+cmd+s\""));
+        assert!(source.contains("settings_search[\"result\"]"));
+        let validation = include_str!("validation.rs");
+        assert!(validation.contains("remaining-macos-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test remaining_macos_process --locked"));
     }
     #[test]
     fn script_timeout_output_cli_case_maps_to_owned_rust_cli_process_case() {
