@@ -408,6 +408,29 @@ pub(super) fn tick(w: &mut WindowRuntime, state: &SharedState, ui: &Arc<Connecti
         w.show_serial,
         w.session.query.clone(),
     );
+    if w.system.scope == Scope::MainTabs && w.session.query.is_empty() {
+        let cancel_search = w.system.search.is_some()
+            || w.system.completed.is_some()
+            || w.system.retry.is_some()
+            || w.system.refreshing;
+        let clear_rows = w.session.row_count() != 0 || w.session.selected().is_some();
+        let clear_snapshot = !w.system.snapshot.commands.is_empty()
+            || !w.system.snapshot.metadata.is_empty()
+            || w.system.snapshot.foreground.is_some();
+        if cancel_search {
+            w.system.refresh();
+        }
+        if clear_rows {
+            w.session.set_external_results(vec![], false);
+        }
+        if clear_snapshot {
+            w.system.snapshot = Results::default();
+        }
+        if cancel_search || clear_rows || clear_snapshot {
+            w.stamp = None;
+        }
+        return;
+    }
     if w.system.search.as_ref().is_some_and(|s| s.stamp != stamp) {
         w.system.refresh();
     }
@@ -1707,6 +1730,28 @@ mod shortcut_budget_tests {
                 std::thread::sleep(Duration::from_millis(1));
             }
         }
+    }
+    #[test]
+    fn main_launcher_stays_empty_until_typed_and_after_clear() {
+        let mut case = BrowserCase::new();
+        case.query("");
+        assert!(case.window.session.rows().next().is_none());
+        assert!(case.window.session.selected().is_none());
+        assert!(case.window.system.search.is_none());
+
+        case.query("Owned");
+        assert!(case.window.session.rows().any(|row| row.id == "fixture.local"));
+
+        case.window.system.refreshing = true;
+        case.query("");
+        assert!(case.window.session.rows().next().is_none());
+        assert!(case.window.session.selected().is_none());
+        assert!(case.window.system.search.is_none());
+        assert!(!case.window.system.refreshing);
+
+        case.query("Owned");
+        assert!(case.window.session.rows().any(|row| row.id == "fixture.local"));
+        assert!(case.fixture.effects.lock().unwrap().is_empty());
     }
     #[test]
     fn browser_busy_main_cli_preserves_local_results_and_exactly_one_response() {
