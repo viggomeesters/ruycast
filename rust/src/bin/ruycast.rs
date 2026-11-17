@@ -994,6 +994,169 @@ fn main() {
 }
 #[cfg(test)]mod startup_discovery_tests{
     use super::*;
+    fn wait_socket(fd: libc::c_int, events: libc::c_short, deadline: std::time::Instant) -> io::Result<()> {
+        loop {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                return Err(io::Error::new(io::ErrorKind::TimedOut, "Unix socket deadline expired"));
+            }
+            let timeout = remaining.as_millis().saturating_add(1).min(i32::MAX as u128) as i32;
+            let mut descriptor = libc::pollfd { fd, events, revents: 0 };
+            let result = unsafe { libc::poll(&mut descriptor, 1, timeout) };
+            if std::time::Instant::now() >= deadline {
+                return Err(io::Error::new(io::ErrorKind::TimedOut, "Unix socket deadline expired"));
+            }
+            if result > 0 {
+                if descriptor.revents & libc::POLLNVAL != 0 {
+                    return Err(io::Error::from_raw_os_error(libc::EBADF));
+                }
+                if descriptor.revents & (events | libc::POLLERR | libc::POLLHUP) != 0 {
+                    return Ok(());
+                }
+            } else if result == 0 {
+                return Err(io::Error::new(io::ErrorKind::TimedOut, "Unix socket deadline expired"));
+            } else {
+                let error = io::Error::last_os_error();
+                if error.kind() != io::ErrorKind::Interrupted {
+                    return Err(error);
+                }
+            }
+        }
+    }
+    fn connect_socket_until(path: &Path, deadline: std::time::Instant) -> io::Result<UnixStream> {
+        use std::os::{fd::FromRawFd, unix::ffi::OsStrExt};
+        let fd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM, 0) };
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let stream = unsafe { UnixStream::from_raw_fd(fd) };
+        stream.set_nonblocking(true)?;
+        let one: libc::c_int = 1;
+        if unsafe {
+            libc::setsockopt(
+                fd,
+                libc::SOL_SOCKET,
+                libc::SO_NOSIGPIPE,
+                (&one as *const libc::c_int).cast(),
+                std::mem::size_of_val(&one) as libc::socklen_t,
+            )
+        } < 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+        let bytes = path.as_os_str().as_bytes();
+        if bytes.is_empty() || bytes.contains(&0) || bytes.len() >= address.sun_path.len() {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid Unix socket path"));
+        }
+        let address_len = std::mem::offset_of!(libc::sockaddr_un, sun_path) + bytes.len() + 1;
+        if address_len > u8::MAX as usize {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid Unix socket path"));
+        }
+        address.sun_len = address_len as u8;
+        address.sun_family = libc::AF_UNIX as libc::sa_family_t;
+        for (destination, source) in address.sun_path.iter_mut().zip(bytes) {
+            *destination = *source as libc::c_char;
+        }
+        let result = unsafe {
+            libc::connect(
+                fd,
+                (&address as *const libc::sockaddr_un).cast(),
+                address_len as libc::socklen_t,
+            )
+        };
+        if result < 0 {
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::EINPROGRESS)
+                && error.raw_os_error() != Some(libc::EINTR)
+                && error.raw_os_error() != Some(libc::EAGAIN)
+            {
+                return Err(error);
+            }
+            wait_socket(fd, libc::POLLOUT, deadline)?;
+            let mut socket_error: libc::c_int = 0;
+            let mut length = std::mem::size_of_val(&socket_error) as libc::socklen_t;
+            if unsafe {
+                libc::getsockopt(
+                    fd,
+                    libc::SOL_SOCKET,
+                    libc::SO_ERROR,
+                    (&mut socket_error as *mut libc::c_int).cast(),
+                    &mut length,
+                )
+            } < 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+            if socket_error != 0 {
+                return Err(io::Error::from_raw_os_error(socket_error));
+            }
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(io::Error::new(io::ErrorKind::TimedOut, "Unix socket deadline expired"));
+        }
+        Ok(stream)
+    }
+    fn unix_request_until(path: &Path, request: &[u8], timeout: Duration) -> io::Result<Vec<u8>> {
+        use std::os::fd::AsRawFd;
+        let deadline = std::time::Instant::now() + timeout;
+        let stream = connect_socket_until(path, deadline)?;
+        let mut written = 0;
+        while written < request.len() {
+            if std::time::Instant::now() >= deadline {
+                return Err(io::Error::new(io::ErrorKind::TimedOut, "Unix socket deadline expired"));
+            }
+            let count = unsafe {
+                libc::send(
+                    stream.as_raw_fd(),
+                    request[written..].as_ptr().cast(),
+                    request.len() - written,
+                    0,
+                )
+            };
+            if count > 0 {
+                written += count as usize;
+            } else if count == 0 {
+                return Err(io::Error::new(io::ErrorKind::WriteZero, "Unix socket closed while writing"));
+            } else {
+                let error = io::Error::last_os_error();
+                if error.kind() == io::ErrorKind::WouldBlock {
+                    wait_socket(stream.as_raw_fd(), libc::POLLOUT, deadline)?;
+                } else if error.kind() != io::ErrorKind::Interrupted {
+                    return Err(error);
+                }
+            }
+        }
+        let mut response = Vec::new();
+        loop {
+            wait_socket(stream.as_raw_fd(), libc::POLLIN, deadline)?;
+            let mut byte = 0u8;
+            let count = unsafe {
+                libc::recv(stream.as_raw_fd(), (&mut byte as *mut u8).cast(), 1, 0)
+            };
+            if count == 1 {
+                response.push(byte);
+                if byte == b'\n' {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(io::Error::new(io::ErrorKind::TimedOut, "Unix socket deadline expired"));
+                    }
+                    return Ok(response);
+                }
+                if response.len() > 8192 {
+                    return Err(io::Error::new(io::ErrorKind::InvalidData, "Unix response exceeds 8192 bytes"));
+                }
+            } else if count == 0 {
+                return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Unix socket closed before newline"));
+            } else {
+                let error = io::Error::last_os_error();
+                if error.kind() != io::ErrorKind::WouldBlock
+                    && error.kind() != io::ErrorKind::Interrupted
+                {
+                    return Err(error);
+                }
+            }
+        }
+    }
     fn bound_test_binary(path_key:&str,sha_key:&str)->(PathBuf,String) {
         let path=PathBuf::from(env::var_os(path_key).unwrap_or_else(||panic!("Builder must supply {path_key}")));
         let sha=env::var(sha_key).unwrap_or_else(|_|panic!("Builder must supply {sha_key}"));
@@ -1292,17 +1455,15 @@ fn main() {
             fs::write(&file,&before).unwrap();assert_eq!(run(&["reload"])["ok"],true);
         }
         {
-            use std::{io::BufRead,os::unix::net::UnixStream};
             // The original unknown-operation case is a valid wire request,
             // distinct from CLI syntax or malformed-JSON refusal.
-            let mut stream=UnixStream::connect(owned.0.join("p/control.sock")).unwrap();
-            stream.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
-            stream.set_write_timeout(Some(Duration::from_secs(3))).unwrap();
-            stream.write_all(b"{\"op\":\"missing\"}\n").unwrap();
-            let mut line=String::new();
-            std::io::BufReader::new(stream.take(8193)).read_line(&mut line).unwrap();
-            assert!(line.len()<=8192&&line.ends_with('\n'));
-            let response:Value=serde_json::from_str(&line).unwrap();
+            let line=unix_request_until(
+                &owned.0.join("p/control.sock"),
+                b"{\"op\":\"missing\"}\n",
+                Duration::from_secs(3),
+            ).unwrap();
+            assert!(line.len()<=8192&&line.ends_with(b"\n"));
+            let response:Value=serde_json::from_slice(&line).unwrap();
             assert_eq!(response["ok"],false);assert!(response["error"].is_string());
         }
         let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64;
