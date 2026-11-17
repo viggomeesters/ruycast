@@ -538,6 +538,7 @@ mod guarded_publication_tests {
     }
     #[test]
     fn unsearchable_umask_refuses_before_payload_in_an_isolated_process() {
+        use std::time::{Duration, Instant};
         const CHILD: &str = "RUYCAST_PRIVATE_UMASK_CHILD";
         const CASE: &str = "private_storage::guarded_publication_tests::unsearchable_umask_refuses_before_payload_in_an_isolated_process";
         assert!(
@@ -545,11 +546,26 @@ mod guarded_publication_tests {
             "explicit owned fixture parent required"
         );
         if std::env::var_os(CHILD).as_deref() != Some(std::ffi::OsStr::new("1")) {
-            let result = std::process::Command::new(std::env::current_exe().unwrap())
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
                 .args([CASE, "--exact", "--test-threads=1"])
                 .env(CHILD, "1")
-                .output()
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
                 .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                if child.try_wait().unwrap().is_some() {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("isolated mask test exceeded its 10-second deadline");
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let result = child.wait_with_output().unwrap();
             assert!(
                 result.status.success(),
                 "isolated mask test failed: {}",

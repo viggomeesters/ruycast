@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use std::{
     fs,
     os::unix::fs::{DirBuilderExt, PermissionsExt},
+    os::unix::process::CommandExt,
     path::PathBuf,
     process::{Command, Output, Stdio},
     sync::atomic::{AtomicU64, Ordering},
@@ -441,6 +442,32 @@ fn cli_init_with_inherited_read_acl_publishes_private_config() {
 #[test]
 fn cli_edit_with_inherited_read_acl_keeps_parent_and_publishes_private_config() {
     cli_private_acl_fixture(true);
+}
+
+#[test]
+fn cli_failed_private_write_preserves_old_config_under_unsearchable_umask() {
+    let f = Fixture::new();
+    let portable = f.base.join("portable");
+    fs::DirBuilder::new().mode(0o755).create(&portable).unwrap();
+    fs::set_permissions(&portable, fs::Permissions::from_mode(0o755)).unwrap();
+    let target = portable.join("config.json");
+    let original = include_bytes!("../../config/default.json");
+    fs::write(&target, original).unwrap();
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+    let mut command = f.command(false);
+    command
+        .env("RUYCAST_CONFIG_DIR", &portable)
+        .args(["config", "set", "clipboard.limit", "51"]);
+    // umask is process-global; apply it only in the owned CLI child.
+    unsafe {
+        command.pre_exec(|| {
+            libc::umask(0o777);
+            Ok(())
+        });
+    }
+    bounded_value(&mut command, false);
+    assert_eq!(fs::read(&target).unwrap(), original);
+    assert_eq!(entry_names(&portable), ["config.json"]);
 }
 #[test]
 fn both_profile_and_config_aliases_select_the_same_owned_write_target() {
