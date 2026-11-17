@@ -1,26 +1,34 @@
 # Performance
 
-## Rust rewrite acceptance
+## Current performance checks and limits
 
-The measurements later in this document describe historical Swift-host revisions. They do not establish a Rust speed, memory, size, energy or physical-latency improvement.
+The full Swift-comparison/F1 campaign ended on 10 November 2026. It is not a current issue or release gate. Run focused behavior checks for each change; when a task needs performance evidence, use the Rust passive sampler or isolated host driver below with a short, explicitly chosen duration.
 
-Current performance verification requires the complete reviewed F1 runner and authority, a preserved baseline/candidate dataset and independent SHA256 pins. It validates existing data; it never launches the installed app or collects workloads implicitly:
+The Rust probes measure software and process behavior. They do not establish physical keyboard-to-display latency, energy use, a Raycast comparison, or a repository-wide Rust performance gain. The measurements later in this document describe historical Swift-host revisions and remain historical evidence.
+
+### Optional retrospective F1 dataset validator
+
+The Rust build tool retains an opt-in validator for a completed full F1 dataset. This validates supplied evidence; it does not launch the installed app or collect workloads. It is not required for current issue or release acceptance. Invoke the Rust entrypoint directly when an independently reviewed authority and complete preserved dataset are available:
 
 ```sh
-bash scripts/check-performance.sh \
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
+  --target-dir .build/delivery-tools --bin ruycast-build -- \
+  compat build-receipt --repo "$PWD" -- performance \
   --runner "$F1_RUNNER" --runner-sha "$REVIEWED_RUNNER_SHA256" \
   --authority "$F1_AUTHORITY" --authority-sha "$INDEPENDENT_AUTHORITY_SHA256" \
   --dataset "$F1_DATASET" --out "$NEW_ABSOLUTE_REPORT"
-python3 scripts/build_receipt.py verify-performance
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
+  --target-dir .build/delivery-tools --bin ruycast-build -- \
+  compat build-receipt --repo "$PWD" -- verify-performance
 ```
 
-The Make target forwards the same six options through `PERFORMANCE_ARGS`: use `make check-performance PERFORMANCE_ARGS='...'` with those arguments. With no arguments it keeps the same refusal; it does not collect a workload or create authority.
+The existing `make check-performance` and `scripts/check-performance.sh` commands are compatibility wrappers around this optional validator. With no arguments they refuse; they do not start a workload or create authority. The wrappers still use shell/Python during the remaining helper migration.
 
 All paths must be absolute and output must be new. Pins come from independent review, not from self-generating authority from a dataset. Missing complete authority fails closed. Validation binds runner, authority, raw dataset, current build/source inventory and the actual new report before/after. Revalidation checks retained report integrity and recomputes the full comparison in an owned temporary stage.
 
-The authority must include all functional scopes, complete pre-entry SDK audits and the same full workloads/instrumentation for frozen 0.8.26 baseline and final Rust candidate. Keep AB/BA ordering, warmups, every raw observation, full ordered functional outputs, diagnostics and 10,000-cycle natural checkpoints. A smaller model probe cannot replace this gate. Preserve the historical 500/5000-command p95 budgets of 5/15 ms, cached process reads of 0.5 ms, clipboard enqueue of 5 ms and 10 MiB retained-growth/checkpoint bounds in the complete validator.
+For this retrospective validator, the authority must include all functional scopes, complete pre-entry SDK audits and the same full workloads/instrumentation for frozen 0.8.26 baseline and final Rust candidate. It checks AB/BA ordering, warmups, raw observations, ordered functional outputs, diagnostics and 10,000-cycle checkpoints against the retained historical budgets. These requirements describe only the optional F1 dataset validator, not current issue or release acceptance.
 
-Raw historical Swift-host performance commands are unsafe without a complete SDK guard installed before initialization. Their preserved script is an oracle contract, not an automatic production measurement route. There is currently no claim that a complete accepted Rust F1 authority/dataset has been delivered by the build-tool migration.
+Raw historical Swift-host performance commands are unsafe without a complete SDK guard installed before initialization. Their preserved script is an oracle contract, not an automatic production measurement route. No complete Rust F1 comparison is accepted or documented; its absence does not block the current focused issue work.
 
 ## Historical measurements and commands
 
@@ -36,38 +44,37 @@ The result separates `idleEndpoint`, `coldShutdowns` and `finalShutdown` from th
 
 The older driver could force-terminate fixture hosts yet exit zero with `ok: true`; an isolated reproduction demonstrates this measurement false positive, not a production Ruycast hang. Previously collected OS resource observations retain their stated scope, but cannot establish idle-endpoint or graceful-shutdown acceptance. Tests exercise responding, hanging, partial-response and termination-resistant children inside exclusive temporary process groups.
 
-## Reproduce locally
+## Rust probe commands
 
 ```sh
-bash scripts/check-performance.sh
+make disk-status
 ```
 
-This builds release binaries, calibrates CPU counter units against `getrusage`, checks clipboard/configuration races, runs fixed search/clipboard/process fixtures, and measures 1,000 hidden native view/model cycles. Output defaults to `.build/performance`; set `RUYCAST_CHECK_OUTPUT` for another destination.
-
-The deterministic gate checks model search at500/5000 commands, process result reads, clipboard query enqueue cost and retained footprint after1000 cycles. These are absolute local regression budgets, not end-to-end desktop guarantees. It never orders windows front, sends global keys, reads your clipboard or invokes real process termination.
-
-To sample a running host without interacting with it:
+Check the disk budget before a producer build. The Rust passive sampler observes an explicitly selected PID; it never launches a host. A short 60-second sample can be started with:
 
 ```sh
-cargo build --manifest-path rust-native/Cargo.toml --features test-tools --release --locked --bin perf-probe
+cargo build --locked --manifest-path rust-native/Cargo.toml --features test-tools --release --bin perf-probe
 rust-native/target/release/perf-probe --self-check
 cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
   --target-dir .build/delivery-tools --bin ruycast-build -- sample-performance \
-  --pid PID --seconds 600 \
-  --probe rust-native/target/release/perf-probe --out .build/performance/host.json --label local-host
+  --pid PID --seconds 60 \
+  --probe "$PWD/rust-native/target/release/perf-probe" \
+  --out "$PWD/.build/performance/passive-short.json" --label local-host-short
 ```
 
-Use the Rust driver for an isolated headless profile with500 commands and 200 text fixtures. It measures30 process starts,1000 real CLI calls per operation, and active/idle intervals. Arguments `--active-seconds 1800 --idle-seconds 3600` select a90-minute stress run; the shorter600/600-second run is the recorded initial soak. Headless readiness excludes hotkeys, app discovery and visible presentation.
+`benchmark-host` runs an isolated headless host/CLI fixture. Explicit 60-second active and idle windows keep a local probe bounded; cold starts and CLI calls add time. It does not test hotkeys, app discovery or visible presentation.
 
 ```sh
 cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
   --target-dir .build/delivery-tools --bin ruycast-build -- benchmark-host \
   --host "$PWD/.build/full-rust-release/native/aarch64-apple-darwin/release/ruycast-native" \
   --cli "$PWD/.build/full-rust-release/core/aarch64-apple-darwin/release/ruycast" \
-  --probe "$PWD/rust-native/target/release/perf-probe" --out "$PWD/.build/performance/host.json"
+  --probe "$PWD/rust-native/target/release/perf-probe" \
+  --active-seconds 60 --idle-seconds 60 --cold-starts 3 --samples 20 \
+  --out "$PWD/.build/performance/benchmark-short.json"
 ```
 
-## Measurement contract
+## Retained F1 measurement contract
 
 Release comparisons use500,1000,5000 and 10000 commands, fixed queries/seed,200 approximately8kB clipboard items,1000 synthetic processes, a960k-pixel image and a native Finder icon. Paired baseline/current runs alternate on the same Apple M4 Mac with16GiB RAM, on mains power. Counts and timings are fixtures, not personal usage data.
 
@@ -135,7 +142,7 @@ A separate ten-minute passive observation of the installed 0.7.2 personal profil
 
 The selected background acceptance is complete. Physical hotkey/focus/frame latency, Energy/battery and a live Raycast comparison remain unmeasured by explicit scope choice; they are not successful measurements.
 
-Reproduce the bounded native gate with `bash scripts/check-performance.sh`. Longer background probes are opt-in:
+Longer background probes are opt-in:
 
 The historical Swift-host comparison used the pre-migration Python runner. That runner has been retired; the current Rust driver accepts the Rust native host contract described above. Historical measurements remain historical and cannot be recreated with the current command. Use frozen copies of binaries for long probes. The probe never opens the launcher, installs global input hooks or uses the general clipboard. Do not substitute these numbers for the deliberately excluded physical latency, battery and Raycast practice checks.
 
