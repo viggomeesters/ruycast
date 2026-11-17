@@ -852,6 +852,7 @@ fn atomic_replace_invalid_last_good_and_recovery() {
     let host = host(true);
     let mut changed = default_config();
     changed["commands"].as_array_mut().unwrap().push(json!({"id":"fixture.extra","title":"Extra","kind":"url","target":"https://example.com","aliases":[]}));
+    changed["commands"].as_array_mut().unwrap().push(json!({"id":"test.echo","title":"Echo test fixture","kind":"url","target":"https://example.com/echo","aliases":["echo-test"]}));
     host.replace(&changed, None);
     host.wait(|s| s["commands"] == changed["commands"].as_array().unwrap().len());
     host.replace_bytes(b"broken PRIVATE-SENTINEL", None);
@@ -862,6 +863,13 @@ fn atomic_replace_invalid_last_good_and_recovery() {
     );
     assert!(!status.to_string().contains("PRIVATE-SENTINEL"));
     assert_eq!(fs::read(&host.config).unwrap(), b"broken PRIVATE-SENTINEL");
+    let reload = host.cli_output(&["reload"]);
+    assert_eq!(reload.status.code(), Some(1));
+    let reload: Value = serde_json::from_slice(&reload.stdout).unwrap();
+    assert_eq!(reload["ok"], false);
+    let search = host.cli(&["search", "echo-test"]);
+    assert_eq!(search["result"][0]["id"], "test.echo");
+    assert_eq!(host.cli(&["status"])["result"]["headless"], true);
     host.replace(&default_config(), None);
     host.wait(|s| {
         s["configError"].is_null()
