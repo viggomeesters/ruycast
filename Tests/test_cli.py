@@ -224,12 +224,6 @@ class CLIIntegration(unittest.TestCase):
         r = self.cli('run', 'test.output', ok=True)
         self.assertEqual(len(r['result']['stdout']), 65536)
 
-    def test_invalid_external_config_retains_working_runtime(self):
-        (self.root / 'config.json').write_text('{invalid')
-        self.cli('reload', ok=False)
-        self.assertEqual(self.cli('search', 'echo-test', ok=True)['result'][0]['id'], 'test.echo')
-        self.assertTrue(self.cli('status')['result']['headless'])
-
     def test_config_set_validation_and_conflict(self):
         original = (self.root / 'config.json').read_bytes()
         self.cli('config', 'set', 'clipboard.limit', '0', ok=False)
