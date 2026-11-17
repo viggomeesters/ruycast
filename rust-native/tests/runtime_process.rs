@@ -1363,3 +1363,41 @@ fn rust_benchmark_driver_publishes_complete_success_and_graceful_failure_reports
     assert_eq!(failure["cleanup"]["forcedCleanup"], false);
     assert_eq!(fs::read_dir(&failure_dir.0).unwrap().count(), 1);
 }
+
+#[test]
+#[ignore = "Requires configured Quick Note provider fixture"]
+fn existing_quick_note_provider_writes_only_into_its_owned_fixture_vault() {
+    let configured_provider = std::env::var_os("RUYCAST_CAPTURE_PROVIDER")
+        .expect("Set RUYCAST_CAPTURE_PROVIDER to the owned fixture provider");
+    let configured_provider = PathBuf::from(configured_provider);
+    let provider = if configured_provider.is_absolute() {
+        configured_provider
+    } else {
+        std::env::current_dir().unwrap().join(configured_provider)
+    };
+    assert!(provider.is_file(), "{}", provider.display());
+
+    let mut host = Host::new(Config::current(), false);
+    let vault = host.base.join("fixture-vault");
+    let inbox = vault.join("00-inbox");
+    fs::create_dir_all(&inbox).unwrap();
+    let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
+    config["commands"].as_array_mut().unwrap().push(json!({
+        "id": "capture.quick-note",
+        "title": "Quick Note",
+        "kind": "script",
+        "target": "/bin/sh",
+        "arguments": [provider, inbox, "{input}", vault],
+        "inputPrompt": "Note"
+    }));
+    host.replace(&config, None);
+    host.start();
+
+    let text = "Rust provider fixture\n- [ ] literal text stays intact";
+    let input = json!({"input": text}).to_string();
+    let response = host.cli(&["run", "capture.quick-note", "--input", &input]);
+    let saved = PathBuf::from(response["result"]["note_path"].as_str().unwrap());
+    assert!(saved.starts_with(&vault), "{}", saved.display());
+    assert!(fs::read_to_string(saved).unwrap().contains(text));
+    assert_eq!(response["result"]["kind"], "note");
+}
