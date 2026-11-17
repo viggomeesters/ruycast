@@ -8,7 +8,7 @@ mod child_output;
 use std::{
     fs,
     io::{BufRead, BufReader, Write},
-    os::unix::net::UnixStream,
+    os::unix::{fs::PermissionsExt, net::UnixStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{
@@ -1046,6 +1046,62 @@ fn builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly(
     );
     let usage = host.ok(json!({"op":"usage"}));
     assert_eq!(usage["result"]["builtin.reload-config"], 1);
+}
+#[test]
+fn cli_clipboard_controls_keep_private_files_and_reject_headless_ui() {
+    let host = Host::new(false, "light");
+    let run = |args: &[&str]| {
+        let output = child_output::wait(
+            Command::new(cli())
+                .args(args)
+                .env_clear()
+                .env("HOME", &host.base)
+                .env("RUYCAST_HOME", &host.profile)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap(),
+            Duration::from_secs(10),
+        );
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(if value["ok"] == true { 0 } else { 1 }),
+            "CLI exit status disagrees with JSON: {value}"
+        );
+        value
+    };
+    let seed = json!([{"id":"raycast-cli-private","text":"private fixture","date":"2026-11-17T00:00:00Z","source":"fixture"}]);
+    let imported = run(&["clipboard", "import", &seed.to_string()]);
+    assert_eq!(imported["ok"], true, "{imported}");
+    let paused = run(&["clipboard", "pause"]);
+    assert_eq!(paused["ok"], true, "{paused}");
+    let status = run(&["status"]);
+    assert_eq!(status["ok"], true, "{status}");
+    assert_eq!(status["result"]["clipboardPaused"], true);
+    let resumed = run(&["clipboard", "resume"]);
+    assert_eq!(resumed["ok"], true, "{resumed}");
+    let cleared = run(&["clipboard", "clear"]);
+    assert_eq!(cleared["ok"], true, "{cleared}");
+    assert_eq!(run(&["clipboard", "list"])["result"], json!([]));
+    assert_eq!(run(&["clipboard", "copy", "missing"])["ok"], false);
+    assert_eq!(run(&["show"])["ok"], false);
+    assert_eq!(
+        fs::metadata(&host.profile).unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    assert_eq!(
+        fs::metadata(&host.socket).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    assert_eq!(
+        fs::metadata(host.profile.join("clipboard.json"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o600
+    );
 }
 #[test]
 fn custom_window_inputs_unicode_alias_and_disabled_override_use_original_command_authority() {
