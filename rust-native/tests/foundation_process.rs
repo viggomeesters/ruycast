@@ -85,10 +85,12 @@ fn fixture(
         fs::Permissions::from_mode(0o600),
     )
     .unwrap();
-    if portable_acl {
-        let portable = owned.base.join("portable");
+    let portable = owned.base.join("portable");
+    if mode == "relocate" || portable_acl {
         fs::DirBuilder::new().mode(0o755).create(&portable).unwrap();
         fs::set_permissions(&portable, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    if portable_acl {
         let output=command_output(Command::new("/bin/chmod").args(["+a","everyone allow read,execute,readattr,readextattr,readsecurity,file_inherit,directory_inherit"]).arg(&portable));
         assert!(
             output.status.success(),
@@ -176,6 +178,14 @@ fn injected(mode: &str) -> Fixture {
 }
 fn json_file(path: &Path) -> Value {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+}
+fn entry_names(directory: &Path) -> Vec<String> {
+    let mut names = fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
 }
 
 #[test]
@@ -323,6 +333,21 @@ fn destination_fsync_failure_cleans_only_owned_copy() {
     assert_eq!(r["sourcePreserved"], true);
     assert_eq!(r["targetExists"], false);
     assert_eq!(r["selectorExists"], false);
+    assert_eq!(entry_names(&f.base.join("portable")), Vec::<String>::new());
+}
+#[test]
+fn destination_fsync_failure_preserves_in_place_edit() {
+    let f = fixture("relocate", Some("portable"), Some("edit"), false);
+    let r = &f.result;
+    assert_eq!(r["ok"], false);
+    assert_eq!(r["sourcePreserved"], true);
+    assert_eq!(r["targetExists"], true);
+    assert_eq!(r["selectorExists"], false);
+    assert_eq!(
+        fs::read(f.base.join("portable/config.json")).unwrap(),
+        b"external fixture edit"
+    );
+    assert_eq!(entry_names(&f.base.join("portable")), ["config.json"]);
 }
 #[test]
 fn destination_replacement_is_preserved_on_failed_move() {
@@ -335,6 +360,10 @@ fn destination_replacement_is_preserved_on_failed_move() {
     assert_eq!(
         fs::read(f.base.join("portable/config.json")).unwrap(),
         b"external fixture edit"
+    );
+    assert_eq!(
+        entry_names(&f.base.join("portable")),
+        ["config.json", "published.copy"]
     );
 }
 #[test]
