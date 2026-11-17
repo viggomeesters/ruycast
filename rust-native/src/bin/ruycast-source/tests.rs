@@ -107,7 +107,6 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
     for name in [
         "rust-native/tests/startup_config_repair.rs",
         ".github/pull_request_template.md",
-        "scripts/build_receipt.py",
         "scripts/prepare_release.py",
         "rust-native/src/bin/ruycast-install/tests.rs",
         "assets/hero.png",
@@ -115,6 +114,7 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
         assert!(exported_names.contains(name), "missing {name}");
     }
     for name in [
+        "scripts/build_receipt.py",
         "Tests/test_config_directory.py",
         "scripts/import-raycast.py",
         "Tests/test_install_migration.py",
