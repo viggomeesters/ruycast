@@ -26,6 +26,11 @@ name = "perf-probe"
 path = "../scripts/perf-probe.rs"
 required-features = ["test-tools"]
 
+[[bin]]
+name = "benchmark-host-fixture"
+path = "tests/fixtures/benchmark_host_fixture.rs"
+required-features = ["test-tools"]
+
 [[example]]
 name = "system-fixture"
 path = "tests/fixtures/system_fixture.rs"

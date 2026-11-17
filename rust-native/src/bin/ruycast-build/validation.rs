@@ -176,8 +176,10 @@ clipboard-import-text-identity|c|test --manifest-path rust-native/Cargo.toml --l
 clipboard-import-file-references|c|test --manifest-path rust-native/Cargo.toml --lib --locked clipboard_import::tests::files_are_references_and_missing_images_explicit -- --exact
 clipboard-import-invalid-input|c|test --manifest-path rust-native/Cargo.toml --lib --locked clipboard_import::tests::malformed_oversize_and_unsupported -- --exact
 clipboard-import-batches|c|test --manifest-path rust-native/Cargo.toml --lib --locked clipboard_import::tests::batches_are_bounded_ordered_and_retry_stable -- --exact
+benchmark-driver-tools|c|build --manifest-path rust-native/Cargo.toml --features test-tools --locked --bin ruycast-build --bin benchmark-host-fixture
 benchmark-contract-1|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_ignores_external_configuration_with_500_commands -- --ignored --exact
 benchmark-contract-2|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_rejects_changed_cli_and_quits_gracefully -- --ignored --exact
+benchmark-driver-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test benchmark_host_process --locked -- --test-threads=1
 temporal-contract-1|c|test --manifest-path rust-native/Cargo.toml --bin ruycast-build --locked compat::temporal_contract_tests::final_consumer_keeps_artifacts_leased_through_actual_receipt_publication -- --ignored --exact
 temporal-contract-2|c|test --manifest-path rust-native/Cargo.toml --bin ruycast-build --locked compat::temporal_contract_tests::source_mutation_during_final_consumer_cannot_publish_pipeline_pass -- --ignored --exact
 temporal-contract-3|c|test --manifest-path rust-native/Cargo.toml --bin ruycast-build --locked compat::temporal_contract_tests::artifact_mutation_during_final_consumer_cannot_publish_pipeline_pass -- --ignored --exact
@@ -399,7 +401,6 @@ fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "rust-native/examples/ui_completion.rs",
         "rust/src",
         "Tests/test_cli.py",
-        "scripts/benchmark-host.py",
     ] {
         source_folder(root, &root.join(name), &mut rows)?;
     }
@@ -648,7 +649,7 @@ fn step(
         let inputs = cli_contract_environment(root, receipt, owned.path(), &mut command)?;
         Some((owned, inputs))
     } else { None };
-    let benchmark = if entry.name.starts_with("benchmark-contract-") {
+    let benchmark = if entry.name.starts_with("benchmark-contract-") || entry.name == "benchmark-driver-process" {
         let owned = preparation::Stage::in_parent(&root.join(".build"), "u")?;
         cli_contract_socket_budget(owned.path())?;
         let inputs = benchmark_environment(root, receipt, owned.path(), &mut command)?;
@@ -742,9 +743,15 @@ fn step(
     }
     Ok(result)
 }
-const BENCHMARK_CASES: [&str;2] = [
+const BENCHMARK_CASES: [&str; 2] = [
     "benchmark_cli_contracts::real_rust_benchmark_ignores_external_configuration_with_500_commands",
     "benchmark_cli_contracts::real_rust_benchmark_rejects_changed_cli_and_quits_gracefully",
+];
+const BENCHMARK_DRIVER_CASES: [&str; 4] = [
+    "shutdown_requires_acknowledged_quit_and_distinguishes_signals",
+    "child_timeouts_write_failure_receipts",
+    "idle_status_hang_and_drip_cannot_pass_on_healthy_counters",
+    "active_socket_failure_keeps_completed_requests_and_partial_samples",
 ];
 const TEMPORAL_CASES: [&str;5] = [
     "compat::temporal_contract_tests::final_consumer_keeps_artifacts_leased_through_actual_receipt_publication",
@@ -753,29 +760,89 @@ const TEMPORAL_CASES: [&str;5] = [
     "compat::temporal_contract_tests::settings_writer_and_performance_authority_refusal_keep_the_pipeline_lease",
     "compat::temporal_contract_tests::shared_pipeline_lease_survives_successful_consumer_and_final_return",
 ];
-fn benchmark_environment(root:&Path, receipt:&Receipt, fixture:&Path, command:&mut Command)->Result<serde_json::Value> {
-    let contract=cli_contract_environment(root,receipt,fixture,command)?;
-    let python=std::env::split_paths(&std::env::var_os("PATH").ok_or("Missing benchmark interpreter search path.")?)
-        .map(|directory|directory.join("python3")).find(|path|path.is_file())
-        .ok_or("Missing supported benchmark interpreter.")?.canonicalize().map_err(error)?;
-    if python.parent().ok_or("Missing interpreter parent.")?.join("python3").canonicalize().map_err(error)?!=python {
-        return Err("Benchmark shebang does not select the qualified interpreter.".into());
+fn benchmark_environment(
+    root: &Path,
+    receipt: &Receipt,
+    fixture: &Path,
+    command: &mut Command,
+) -> Result<serde_json::Value> {
+    let contract = cli_contract_environment(root, receipt, fixture, command)?;
+    artifact_paths(&receipt.target)?;
+    let tools = root
+        .join("rust-native/target/validation-build")
+        .join(&receipt.target)
+        .join("debug");
+    let driver = tools.join("ruycast-build");
+    let fixture_bin = tools.join("benchmark-host-fixture");
+    for path in [&driver, &fixture_bin] {
+        owned_path(root, path)?;
+        regular_file(path)?;
     }
-    let python_sha=digest(&python)?;
-    command.env("RUYCAST_BENCHMARK_PYTHON",&python).env("RUYCAST_BENCHMARK_PYTHON_SHA256",&python_sha);
-    let mut sources=BTreeMap::new();
-    for name in ["scripts/benchmark-host.py","Tests/test_cli.py"] {source_folder(root,&root.join(name),&mut sources)?;}
-    Ok(serde_json::json!({"contract":contract,"python":python,"pythonSHA256":python_sha,"sources":sources}))
+    let driver_sha = digest(&driver)?;
+    let fixture_sha = digest(&fixture_bin)?;
+    command
+        .env("RUYCAST_BENCHMARK_RUST_DRIVER", &driver)
+        .env("RUYCAST_BENCHMARK_RUST_DRIVER_SHA256", &driver_sha)
+        .env("RUYCAST_BENCHMARK_FIXTURE", &fixture_bin)
+        .env("RUYCAST_BENCHMARK_FIXTURE_SHA256", &fixture_sha);
+    let mut sources = BTreeMap::new();
+    for name in [
+        "rust-native/src/bin/ruycast-build/benchmark_host.rs",
+        "rust-native/src/benchmark_host.rs",
+        "rust-native/src/benchmark_host/rpc.rs",
+        "rust-native/tests/startup_process.rs",
+        "rust-native/tests/benchmark_host_process.rs",
+        "rust-native/tests/fixtures/benchmark_host_fixture.rs",
+    ] {
+        source_folder(root, &root.join(name), &mut sources)?;
+    }
+    Ok(
+        serde_json::json!({"contract":contract,"driver":driver,"driverSHA256":driver_sha,"fixture":fixture_bin,"fixtureSHA256":fixture_sha,"sources":sources}),
+    )
 }
-fn check_benchmark_inputs(root:&Path, receipt:&Receipt, inputs:&serde_json::Value)->Result<()> {
-    check_cli_contract_inputs(root,receipt,&inputs["contract"])?;
-    let python=Path::new(inputs["python"].as_str().ok_or("Missing qualified benchmark interpreter.")?);
-    if !python.is_absolute()||python.canonicalize().map_err(error)?!=python
-        ||python.parent().ok_or("Missing interpreter parent.")?.join("python3").canonicalize().map_err(error)?!=python
-        ||inputs["pythonSHA256"]!=digest(python)? {return Err("Benchmark interpreter changed.".into());}
-    let mut sources=BTreeMap::new();
-    for name in ["scripts/benchmark-host.py","Tests/test_cli.py"] {source_folder(root,&root.join(name),&mut sources)?;}
-    if inputs["sources"]!=serde_json::to_value(sources).map_err(error)? {return Err("Benchmark contract sources changed.".into());}
+fn check_benchmark_inputs(
+    root: &Path,
+    receipt: &Receipt,
+    inputs: &serde_json::Value,
+) -> Result<()> {
+    check_cli_contract_inputs(root, receipt, &inputs["contract"])?;
+    artifact_paths(&receipt.target)?;
+    let tools = root
+        .join("rust-native/target/validation-build")
+        .join(&receipt.target)
+        .join("debug");
+    for (name, key, hash_key) in [
+        ("ruycast-build", "driver", "driverSHA256"),
+        ("benchmark-host-fixture", "fixture", "fixtureSHA256"),
+    ] {
+        let expected = tools.join(name);
+        let actual = Path::new(
+            inputs[key]
+                .as_str()
+                .ok_or("Missing bound Rust benchmark tool.")?,
+        );
+        if actual != expected
+            || !actual.is_absolute()
+            || actual.canonicalize().map_err(error)? != actual
+            || inputs[hash_key] != digest(actual)?
+        {
+            return Err(format!("Rust benchmark tool changed: {name}"));
+        }
+    }
+    let mut sources = BTreeMap::new();
+    for name in [
+        "rust-native/src/bin/ruycast-build/benchmark_host.rs",
+        "rust-native/src/benchmark_host.rs",
+        "rust-native/src/benchmark_host/rpc.rs",
+        "rust-native/tests/startup_process.rs",
+        "rust-native/tests/benchmark_host_process.rs",
+        "rust-native/tests/fixtures/benchmark_host_fixture.rs",
+    ] {
+        source_folder(root, &root.join(name), &mut sources)?;
+    }
+    if inputs["sources"] != serde_json::to_value(sources).map_err(error)? {
+        return Err("Benchmark contract sources changed.".into());
+    }
     Ok(())
 }
 fn temporal_environment(root:&Path, receipt:&Receipt, command:&mut Command)->Result<serde_json::Value> {
@@ -1083,6 +1150,33 @@ fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
             ||text.lines().filter(|line|line.starts_with("test result:")).count()!=1
             ||!text.lines().any(|line|line.starts_with("test result: ok. 1 passed; 0 failed; 0 ignored;")) {
             return Err("The selected mandatory contract must actually pass exactly once without skips.".into());
+        }
+    }
+    if name == "benchmark-driver-process" {
+        let text = std::str::from_utf8(stdout).map_err(error)?;
+        if BENCHMARK_DRIVER_CASES.iter().any(|case| {
+            text.lines()
+                .filter(|line| *line == format!("test {case} ... ok"))
+                .count()
+                != 1
+        }) || text
+            .lines()
+            .filter(|line| line.starts_with("test ") && line.contains(" ... "))
+            .count()
+            != BENCHMARK_DRIVER_CASES.len()
+            || text
+                .lines()
+                .filter(|line| line.starts_with("test result:"))
+                .count()
+                != 1
+            || !text
+                .lines()
+                .any(|line| line.starts_with("test result: ok. 4 passed; 0 failed; 0 ignored;"))
+        {
+            return Err(
+                "Every migrated Rust benchmark-driver case must pass exactly once without skips."
+                    .into(),
+            );
         }
     }
     if name=="cli-contract-process" {
@@ -2383,7 +2477,11 @@ mod tests {
         assert!(policy.arguments.windows(2).any(|pair|pair==["--test","rust_only_policy"]));
         assert!(!steps.iter().any(|step| step.arguments.iter().any(|arg| arg.ends_with("rust_only_policy.py"))));
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 146);
+        assert_eq!(steps.len(), 148);
+        let benchmark_tools = steps.iter().position(|step| step.name == "benchmark-driver-tools").unwrap();
+        for name in ["benchmark-contract-1", "benchmark-contract-2", "benchmark-driver-process"] {
+            assert!(benchmark_tools < steps.iter().position(|step| step.name == name).unwrap());
+        }
         for (name, case) in [
             ("clipboard-import-text-identity", "text_stable_identity_dedup_and_date"),
             ("clipboard-import-file-references", "files_are_references_and_missing_images_explicit"),

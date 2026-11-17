@@ -118,7 +118,6 @@ Tests/fixtures/private_fsync_shim.rs
 Tests/fixtures/private_fsync_probe.rs
 Tests/fixtures/search-quality.json
 Tests/test_architecture.py
-Tests/test_benchmark_host.py
 Tests/test_build_pipeline.py
 Tests/test_cli.py
 Tests/test_local_signing.py
@@ -470,7 +469,6 @@ rust/src/lib.rs
 rust/src/private_storage.rs
 rust/src/product_version.rs
 rust/src/script.rs
-scripts/benchmark-host.py
 scripts/build-native-locked.sh
 scripts/build-native.sh
 scripts/build_receipt.py
@@ -515,6 +513,8 @@ rust-native/tests/private_results.rs
 rust-native/tests/remaining_macos_process.rs
 rust-native/tests/startup_config_repair.rs
 rust-native/tests/startup_process.rs
+rust-native/tests/benchmark_host_process.rs
+rust-native/tests/fixtures/benchmark_host_fixture.rs
 rust-native/tests/support/child_output.rs
 rust-native/tests/support/hid_state_goldens.rs
 rust-native/tests/support/status_rpc.rs
