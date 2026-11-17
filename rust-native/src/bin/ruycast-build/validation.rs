@@ -35,8 +35,8 @@ const SYSTEM_UI_SOURCES: &[&str] = &[
     "rust-native/tests/system_search_sdk.rs",
     "rust-native/tests/support/owned_keyboard.rs",
 ];
-// Ordered transcription of the former check.py matrix. `p` invokes an existing
-// validator; `b` builds an explicit probe; `c` preserves a full Cargo command.
+// Ordered native validation matrix. `b` builds an explicit probe; `c` preserves
+// a full Cargo command; `s` dispatches the bound Rust-only policy artifact.
 const MATRIX: &str = r#"
 rust-only-policy-build|c|build --quiet --manifest-path rust-native/Cargo.toml --bin rust-only-policy --locked
 rust-only-policy|s|rust-only-policy
@@ -228,7 +228,6 @@ fn matrix(target: &str) -> Result<Vec<Step>> {
             "s" if fields[0] == "rust-only-policy" && fields[2] == "rust-only-policy" => {
                 vec![RUST_POLICY_ALIAS.into(), "--root".into(), ".".into()]
             }
-            "p" => vec!["python3".into(), fields[2].into()],
             "c" => {
                 let mut args = vec!["cargo".to_owned()];
                 args.extend(fields[2].split_whitespace().map(str::to_owned));
@@ -2525,6 +2524,10 @@ mod tests {
         assert!(!steps.iter().any(|step| step.arguments.iter().any(|arg| arg.ends_with("rust_only_policy.py"))));
         assert_eq!(steps.last().unwrap().name, "release-build");
         assert_eq!(steps.len(), 149);
+        assert!(steps.iter().all(|step| matches!(
+            step.arguments.first().map(String::as_str),
+            Some("cargo") | Some(RUST_POLICY_ALIAS)
+        )));
         let architecture = steps.iter().find(|step| step.name == "architecture-policy-process").unwrap();
         assert!(architecture.arguments.windows(2).any(|pair| pair == ["--test", "architecture_policy"]));
         let benchmark_tools = steps.iter().position(|step| step.name == "benchmark-driver-tools").unwrap();
