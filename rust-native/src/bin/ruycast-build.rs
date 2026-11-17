@@ -592,6 +592,8 @@ fn run() -> Result<()> {
         if !Path::new(&args[2]).is_absolute() {
             return Err("Choose an absolute repository path.".into());
         }
+        let root = Path::new(&args[2]).canonicalize().map_err(error)?;
+        oracles::require_compiled_source_root(&root)?;
         println!("{}", oracles::inventory(&args[4])?);
         return Ok(());
     }

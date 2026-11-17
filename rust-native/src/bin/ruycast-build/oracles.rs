@@ -1501,7 +1501,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     }
 }
 fn root_git_mapping_state(source: &[u8]) -> &'static str {
-    if format!("{:x}", Sha256::digest(source)) == "08e8adeaa358ca7d5acedb5a569615b2a558a57cd311c20115384ea9796678a8" {
+    if format!("{:x}", Sha256::digest(source)) == "f3901b855c3554bbce6cbef5a0dc7dd6dda529ad324cd6467fcca4f6c1572147" {
         "source-qualified-root-bound-whitespace-check"
     } else {
         "requires-source-requalification"
@@ -1570,6 +1570,18 @@ fn python_discovery_state(modules: &[String], packages: &[String]) -> &'static s
     } else {
         "requires-complete-transport-and-case-mapping"
     }
+}
+pub(super) fn require_compiled_source_root(root: &Path) -> Result<()> {
+    let selected = root.canonicalize().map_err(error)?;
+    let compiled = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .ok_or("Rust tool has no repository source root.")?
+        .canonicalize()
+        .map_err(error)?;
+    if selected != compiled {
+        return Err("Gate qualification requires --repo to be the Rust tool's source checkout.".into());
+    }
+    Ok(())
 }
 pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     let (python_modules, python_packages) = if kind == "check" {
@@ -2227,14 +2239,16 @@ mod tests {
         let inventory = super::inventory("check").unwrap();
         assert_eq!(inventory["pythonModuleInventory"], serde_json::json!([]));
         assert_eq!(inventory["pythonPackageInitializers"], serde_json::json!([]));
-        assert_eq!(inventory["unmappedGateIDs"], serde_json::json!(["git-diff-check"]));
+        assert_eq!(inventory["unmappedGateIDs"], serde_json::json!([]));
         assert_eq!(
             inventory["gates"].as_array().unwrap().iter()
                 .find(|gate| gate[0] == "python-unittest-discover-Tests-test_*.py").unwrap()[1],
             "source-qualified-empty-test-discovery"
         );
+        assert_eq!(super::root_git_mapping_state(include_bytes!("compat.rs")), "source-qualified-root-bound-whitespace-check");
 
         let fixture = super::super::tests::Fixture::new();
+        assert!(super::require_compiled_source_root(repo).is_ok());
         let tests = fixture.0.join("Tests");
         std::fs::create_dir_all(tests.join("loose")).unwrap();
         std::fs::create_dir_all(tests.join("package")).unwrap();
@@ -2254,6 +2268,9 @@ mod tests {
             packages,
             ["Tests/init_only/__init__.py", "Tests/package/__init__.py"]
         );
+        assert!(super::require_compiled_source_root(&fixture.0)
+            .unwrap_err()
+            .contains("Rust tool's source checkout"));
         assert_eq!(
             super::python_discovery_state(&[], &["Tests/init_only/__init__.py".to_owned()]),
             "requires-complete-transport-and-case-mapping"
@@ -3358,7 +3375,7 @@ mod tests {
         }
         let modules = value["pythonModuleInventory"].as_array().unwrap();
         assert!(!modules.iter().any(|path| path == "Tests/test_local_signing.py"));
-        assert!(require_complete("check").is_err());
+        assert!(require_complete("check").is_ok());
     }
     #[test]
     fn retired_build_pipeline_crosswalk_preserves_all_eight_scenario_groups() {
@@ -3367,7 +3384,7 @@ mod tests {
         assert!(!Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join(retired).exists());
         let modules = value["pythonModuleInventory"].as_array().unwrap();
         assert!(!modules.iter().any(|path| path == retired));
-        assert!(require_complete("check").is_err());
+        assert!(require_complete("check").is_ok());
         let mapping = &value["rustRootTestCrosswalk"][retired];
         let expected = serde_json::json!([
             "test_checks_keep_debug_artifacts_until_the_last_consumer",
@@ -4044,9 +4061,15 @@ mod tests {
             .any(|id| gate["id"] == *id)
                 || !gate["unprovenInvariants"].as_array().unwrap().is_empty()));
         assert!(require_complete("settings").is_err());
-        assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!(["git-diff-check"]));
+        assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!([]));
+        assert_eq!(
+            inventory("check").unwrap()["gates"].as_array().unwrap().iter()
+                .find(|gate| gate[0] == "git-diff-check").unwrap()[1],
+            "source-qualified-root-bound-whitespace-check"
+        );
+        assert_eq!(root_git_mapping_state(include_bytes!("compat.rs")), "source-qualified-root-bound-whitespace-check");
         assert_eq!(root_git_mapping_state(b"unreviewed compatibility source"), "requires-source-requalification");
-        assert!(require_complete("check").is_err());
+        assert!(require_complete("check").is_ok());
         assert!(require_complete("unknown").is_err());
         assert_eq!(value["productionAccepted"], false);
     }
