@@ -122,7 +122,6 @@ Tests/test_benchmark_host.py
 Tests/test_build_pipeline.py
 Tests/test_cli.py
 Tests/test_local_signing.py
-Tests/test_public_contract.py
 assets/AppIcon.icns
 assets/app-icon.png
 assets/apple-shortcuts.png

@@ -118,6 +118,7 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
         "Tests/test_config_directory.py",
         "scripts/import-raycast.py",
         "Tests/test_install_migration.py",
+        "Tests/test_public_contract.py",
         "scripts/install_support.py",
         "scripts/personal_bridge.py",
         "scripts/transition_catalog.py",
