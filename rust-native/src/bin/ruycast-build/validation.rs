@@ -401,7 +401,6 @@ fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "rust-native/scripts",
         "rust-native/examples/ui_completion.rs",
         "rust/src",
-        "Tests/test_cli.py",
         "Tests/fixtures/architecture_boundary_positive.rs",
         "Tests/fixtures/architecture_boundary_main_state_on_worker.rs",
         "Tests/fixtures/architecture_boundary_worker_captures_main_state.rs",

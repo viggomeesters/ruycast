@@ -121,7 +121,6 @@ Tests/fixtures/private_fsync_shim.rs
 Tests/fixtures/private_fsync_probe.rs
 Tests/fixtures/search-quality.json
 Tests/test_build_pipeline.py
-Tests/test_cli.py
 Tests/test_local_signing.py
 assets/AppIcon.icns
 assets/app-icon.png
