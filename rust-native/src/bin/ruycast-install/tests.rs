@@ -1230,62 +1230,6 @@ fn installer_owned_real_process_stdin_output_bounds_timeout_and_reaping() {
 }
 
 #[test]
-fn installer_owned_local_signing_python_dispatcher_forwards_only() {
-    let f = Fixture::new();
-    let source = f.root.join("dispatch.rs");
-    let tool = f.root.join("dispatch-tool");
-    stdfs::write(&source, include_str!("fixture_process.rs")).unwrap();
-    let output = std::process::Command::new("rustc")
-        .args(["--edition=2021"])
-        .arg(&source)
-        .arg("-o")
-        .arg(&tool)
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    stdfs::write(f.root.join("owned-process-marker"), b"owned").unwrap();
-    let source_repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .to_owned();
-    let repo = f.o.repo.clone();
-    stdfs::create_dir(repo.join("scripts")).unwrap();
-    stdfs::copy(
-        source_repo.join("scripts/local_signing.py"),
-        repo.join("scripts/local_signing.py"),
-    )
-    .unwrap();
-    let lease = Lease::acquire_from_environment(&repo, &BTreeMap::new()).unwrap();
-    let output = std::process::Command::new("/usr/bin/python3")
-        .arg(repo.join("scripts/local_signing.py"))
-        .args(["--root", "literal signing root", "status"])
-        .env_clear()
-        .env("HOME", &f.o.home)
-        .env("PATH", "/usr/bin:/bin")
-        .env("RUYCAST_INSTALL_TOOL", &tool)
-        .env("RUYCAST_DISPATCH_FIXTURE_ROOT", &f.root)
-        .envs(lease.environment().unwrap())
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    assert_eq!(
-        output.stdout,
-        [
-            "signing",
-            "--root",
-            "literal signing root",
-            "status",
-            "--repo",
-            &repo.display().to_string()
-        ]
-        .join("\0")
-        .as_bytes()
-    );
-    lease.validate().unwrap();
-    assert!(!f.o.apps.exists());
-}
-
-#[test]
 fn make_install_routes_directly_to_the_rust_installer() {
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned();
     let f = Fixture::new();
@@ -1874,7 +1818,6 @@ fn signing_check_cli_owned_dispatch_and_legacy_status_help_preserve_boundaries()
     assert!(SIGNING_USAGE.contains("prepare|status|check|sign"));
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     assert!(!repo.join("scripts/check-signing.py").exists());
-    assert!(repo.join("scripts/local_signing.py").is_file());
 }
 #[test]
 fn signing_check_cli_owned_invalid_arguments_or_identity_never_reach_effects() {

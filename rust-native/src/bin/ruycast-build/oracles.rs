@@ -1527,7 +1527,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     };
     let python_modules = if kind == "check" {
         vec![
-            "Tests/test_local_signing.py",
             "Tests/test_bindings_v2.py",
             "Tests/test_personal_bridge.py",
             "Tests/test_transition_catalog.py",
@@ -1716,6 +1715,93 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         "historical": "Python marker waits 6s, disposable consumer 10s, communicate 5/6/8s, controller wait 3s; cleanup releases consumers then waits 6s, kills and reaps within 3s.",
         "rust": "Lease marker/orphan retirement waits 8s; temporal markers 45s, consumer capture 60s and outer capture 90s accommodate genuine tiny Rust producers. Failed-producer capture 30s and contender 8s; failed-final-consumer capture 5s, attempt 15s, contender 8s. These are explicit fixture budgets, not product-response promises."
     },
+    "remainingMethods": [],
+    "remainingPythonCases": 0
+});
+        inventory["rustRootTestCrosswalk"]["Tests/test_local_signing.py"] = serde_json::json!({
+    "scope": "All eleven original signer methods are bound to existing Rust tests, including private-keychain stdin/redaction, ordinary pinned sign and installed-certificate/ad-hoc contracts. The Python implementation and its test consumer are retired; no real signer acceptance is claimed.",
+    "originalMethods": [
+        "test_repeat_prepare_reuses_without_generating_or_touching_keychain",
+        "test_missing_private_state_never_rotates_identity",
+        "test_unsafe_private_modes_and_symlinks_are_refused",
+        "test_requirement_cannot_be_weakened",
+        "test_signer_failure_never_uses_adhoc_or_modifies_trust",
+        "test_success_signs_and_verifies_exact_pinned_requirement",
+        "test_unexpected_installed_certificate_is_refused",
+        "test_one_time_adhoc_migration_checks_bundle_identity",
+        "test_signing_keychain_preserves_existing_search_entries",
+        "test_adhoc_is_refused_after_first_certificate_install",
+        "test_private_keychain_password_is_only_sent_via_stdin"
+    ],
+    "nativeBinary": "ruycast-install",
+    "nativeCaseByMethod": {
+        "test_repeat_prepare_reuses_without_generating_or_touching_keychain": [
+            "installer::tests::installer_owned_first_install_provisions_and_pins_without_secret_argv",
+            "installer::tests::installer_owned_signer_never_rotates_weakens_or_downgrades"
+        ],
+        "test_missing_private_state_never_rotates_identity": [
+            "installer::tests::installer_owned_signer_never_rotates_weakens_or_downgrades",
+            "installer::tests::installer_owned_incomplete_signer_without_manifest_is_preserved"
+        ],
+        "test_unsafe_private_modes_and_symlinks_are_refused": [
+            "installer::tests::installer_owned_signer_never_rotates_weakens_or_downgrades",
+            "installer::tests::installer_owned_signer_root_symlink_or_permissive_mode_is_refused"
+        ],
+        "test_requirement_cannot_be_weakened": [
+            "installer::tests::installer_owned_signer_never_rotates_weakens_or_downgrades"
+        ],
+        "test_signer_failure_never_uses_adhoc_or_modifies_trust": [
+            "installer::tests::ordinary_sign_owned_pins_verification_and_refuses_without_fallback_or_mutation"
+        ],
+        "test_success_signs_and_verifies_exact_pinned_requirement": [
+            "installer::tests::ordinary_sign_owned_pins_verification_and_refuses_without_fallback_or_mutation"
+        ],
+        "test_unexpected_installed_certificate_is_refused": [
+            "installer::tests::installed_signing_owned_certificate_refusal_and_initial_adhoc_preserve_state"
+        ],
+        "test_one_time_adhoc_migration_checks_bundle_identity": [
+            "installer::tests::installed_signing_owned_certificate_refusal_and_initial_adhoc_preserve_state"
+        ],
+        "test_signing_keychain_preserves_existing_search_entries": [
+            "installer::tests::installer_owned_enrollment_blocks_adhoc_and_search_list_keeps_existing_entries"
+        ],
+        "test_adhoc_is_refused_after_first_certificate_install": [
+            "installer::tests::installer_owned_enrollment_blocks_adhoc_and_search_list_keeps_existing_entries",
+            "installer::tests::installer_owned_signer_never_rotates_weakens_or_downgrades"
+        ],
+        "test_private_keychain_password_is_only_sent_via_stdin": [
+            "installer::signing::private_keychain_tests::private_keychain_stdin_and_redacted_failures_use_only_fake_runner"
+        ]
+    },
+    "nativeCases": [
+        "installer::signing::private_keychain_tests::private_keychain_stdin_and_redacted_failures_use_only_fake_runner",
+        "installer::tests::installed_signing_owned_certificate_refusal_and_initial_adhoc_preserve_state",
+        "installer::tests::installer_owned_enrollment_blocks_adhoc_and_search_list_keeps_existing_entries",
+        "installer::tests::installer_owned_first_install_provisions_and_pins_without_secret_argv",
+        "installer::tests::installer_owned_incomplete_signer_without_manifest_is_preserved",
+        "installer::tests::installer_owned_signer_never_rotates_weakens_or_downgrades",
+        "installer::tests::installer_owned_signer_root_symlink_or_permissive_mode_is_refused",
+        "installer::tests::ordinary_sign_owned_pins_verification_and_refuses_without_fallback_or_mutation"
+    ],
+    "nativeCaseSources": {
+        "installer::signing::private_keychain_tests::private_keychain_stdin_and_redacted_failures_use_only_fake_runner": "rust-native/src/bin/ruycast-install/signing.rs",
+        "installer::tests::installed_signing_owned_certificate_refusal_and_initial_adhoc_preserve_state": "rust-native/src/bin/ruycast-install/tests.rs",
+        "installer::tests::installer_owned_enrollment_blocks_adhoc_and_search_list_keeps_existing_entries": "rust-native/src/bin/ruycast-install/tests.rs",
+        "installer::tests::installer_owned_first_install_provisions_and_pins_without_secret_argv": "rust-native/src/bin/ruycast-install/tests.rs",
+        "installer::tests::installer_owned_incomplete_signer_without_manifest_is_preserved": "rust-native/src/bin/ruycast-install/tests.rs",
+        "installer::tests::installer_owned_signer_never_rotates_weakens_or_downgrades": "rust-native/src/bin/ruycast-install/tests.rs",
+        "installer::tests::installer_owned_signer_root_symlink_or_permissive_mode_is_refused": "rust-native/src/bin/ruycast-install/tests.rs",
+        "installer::tests::ordinary_sign_owned_pins_verification_and_refuses_without_fallback_or_mutation": "rust-native/src/bin/ruycast-install/tests.rs"
+    },
+    "contractDifferences": {
+        "authority": "The removed Python __main__ already forwarded to the Rust installer; no signing authority, identity schema, certificate pin, search-list or enrollment policy is replaced. Historical Python error wording is represented by current Rust refusal contracts.",
+        "execution": "Original Python mocks and temporary directories are replaced by owned fixture identities and fake Runner calls. Ordinary sign and checker tests remain distinct: ordinary sign tests model its existing unlock/search-list protocol; checker tests never unlock or provision. No real security/codesign/trust/privacy/app effects are required.",
+        "deadlinesAndCleanup": "Private keychain/sign/check calls retain explicit 30-second Call budgets. Existing Rust runner tests preserve bounded stdin/stdout, timeout and process-group reaping; owned filesystem fixtures remove only their own temporary roots."
+    },
+    "retiredConsumers": [
+        "Tests/test_local_signing.py",
+        "scripts/local_signing.py"
+    ],
     "remainingMethods": [],
     "remainingPythonCases": 0
 });
@@ -3117,13 +3203,69 @@ mod tests {
         assert_eq!(unique_cases.len(), 9);
     }
     #[test]
+    fn retired_local_signing_crosswalk_preserves_all_eleven_scenarios() {
+        let value = inventory("check").unwrap();
+        let mapping = &value["rustRootTestCrosswalk"]["Tests/test_local_signing.py"];
+        let expected = serde_json::json!([
+            "test_repeat_prepare_reuses_without_generating_or_touching_keychain",
+            "test_missing_private_state_never_rotates_identity",
+            "test_unsafe_private_modes_and_symlinks_are_refused",
+            "test_requirement_cannot_be_weakened",
+            "test_signer_failure_never_uses_adhoc_or_modifies_trust",
+            "test_success_signs_and_verifies_exact_pinned_requirement",
+            "test_unexpected_installed_certificate_is_refused",
+            "test_one_time_adhoc_migration_checks_bundle_identity",
+            "test_signing_keychain_preserves_existing_search_entries",
+            "test_adhoc_is_refused_after_first_certificate_install",
+            "test_private_keychain_password_is_only_sent_via_stdin"
+]);
+        assert_eq!(mapping["originalMethods"], expected);
+        assert_eq!(mapping["remainingPythonCases"], 0);
+        assert_eq!(mapping["remainingMethods"], serde_json::json!([]));
+        assert_eq!(mapping["nativeBinary"], "ruycast-install");
+        let bindings = mapping["nativeCaseByMethod"].as_object().unwrap();
+        assert_eq!(bindings.len(), 11);
+        let mut bound = std::collections::BTreeSet::new();
+        for method in expected.as_array().unwrap() {
+            let cases = bindings[method.as_str().unwrap()].as_array().unwrap();
+            assert!(!cases.is_empty());
+            for case in cases {
+                let case = case.as_str().unwrap();
+                let path = mapping["nativeCaseSources"][case].as_str().unwrap();
+                let source = match path {
+                    "rust-native/src/bin/ruycast-install/tests.rs" => include_str!("../ruycast-install/tests.rs"),
+                    "rust-native/src/bin/ruycast-install/signing.rs" => include_str!("../ruycast-install/signing.rs"),
+                    _ => panic!("unbound signer source: {path}"),
+                };
+                assert!(source.contains(&format!("fn {}(", case.rsplit("::").next().unwrap())), "{case}");
+                bound.insert(case);
+            }
+        }
+        let declared: std::collections::BTreeSet<_> = mapping["nativeCases"].as_array().unwrap().iter()
+            .map(|case| case.as_str().unwrap()).collect();
+        assert_eq!(bound, declared);
+        assert_eq!(bound.len(), 8);
+        assert_eq!(mapping["nativeCaseSources"].as_object().unwrap().len(), 8);
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        for path in ["Tests/test_local_signing.py", "scripts/local_signing.py"] {
+            assert!(!root.join(path).exists());
+            assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == path));
+        }
+        let modules = value["pythonModuleInventory"].as_array().unwrap();
+        assert!(!modules.iter().any(|path| path == "Tests/test_local_signing.py"));
+        assert!(modules.iter().any(|path| path == "Tests/test_bindings_v2.py"));
+        assert!(value["unmappedGateIDs"].as_array().unwrap().iter()
+            .any(|gate| gate == "python-unittest-discover-Tests-test_*.py"));
+        assert!(require_complete("check").is_err());
+    }
+    #[test]
     fn retired_build_pipeline_crosswalk_preserves_all_eight_scenario_groups() {
         let value = inventory("check").unwrap();
         let retired = "Tests/test_build_pipeline.py";
         assert!(!Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join(retired).exists());
         let modules = value["pythonModuleInventory"].as_array().unwrap();
         assert!(!modules.iter().any(|path| path == retired));
-        assert!(modules.iter().any(|path| path == "Tests/test_local_signing.py"));
+        assert!(modules.iter().any(|path| path == "Tests/test_bindings_v2.py"));
         assert!(value["unmappedGateIDs"].as_array().unwrap().iter()
             .any(|gate| gate == "python-unittest-discover-Tests-test_*.py"));
         assert!(require_complete("check").is_err());
