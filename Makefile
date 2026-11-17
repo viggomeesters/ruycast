@@ -1,6 +1,6 @@
 .PHONY: check build install source-tool export-source verify-source disk-status clean-build-caches
 check:
-	bash scripts/check.sh
+	cargo run --quiet --locked --offline --target-dir "$(CURDIR)/.build/delivery-tools" --manifest-path "$(CURDIR)/rust-native/Cargo.toml" --bin ruycast-build -- compat build-receipt --repo "$(CURDIR)" -- check
 build:
 	cargo run --quiet --locked --offline --target-dir "$(CURDIR)/.build/delivery-tools" --manifest-path "$(CURDIR)/rust-native/Cargo.toml" --bin ruycast-build -- compat build-receipt --repo "$(CURDIR)" -- build --configuration release
 install:
