@@ -36,7 +36,14 @@ fn shim() -> &'static Path {
                     .unwrap()
                     .join(".build/full-rust-release/native")
             });
-        let path = target.join("release/examples/libworkspace_fixture.dylib");
+        let target_specific = std::env::current_exe()
+            .ok()
+            .and_then(|path| path.parent()?.parent()?.parent().map(Path::to_path_buf))
+            .map(|target| target.join("release/examples/libworkspace_fixture.dylib"));
+        let default_path = target.join("release/examples/libworkspace_fixture.dylib");
+        let path = target_specific
+            .filter(|path| path.is_file())
+            .unwrap_or(default_path);
         assert!(
             path.is_absolute() && path.is_file(),
             "Build --features test-tools --example workspace-fixture first"
