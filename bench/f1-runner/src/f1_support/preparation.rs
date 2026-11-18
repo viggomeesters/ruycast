@@ -1709,55 +1709,6 @@ mod native_compiler_capture_tests {
         assert!(fs::symlink_metadata(&root).is_err());
     }
     #[test]
-    fn reference_plain_actor_files_preserve_pinned_history_and_refuse_source_mutation() {
-        use std::os::unix::fs::{MetadataExt,PermissionsExt};
-        let parent=PathBuf::from(std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("explicit owned fixture parent"));
-        let owner=unsafe{libc::geteuid()};
-        let metadata=fs::symlink_metadata(&parent).unwrap();
-        assert!(metadata.is_dir()&&metadata.uid()==owner&&metadata.mode()&0o777==0o700);
-        assert_eq!(fs::canonicalize(&parent).unwrap(),parent);
-        let root=parent.join(format!("reference-actor-inputs-{}",std::process::id()));
-        fs::create_dir(&root).unwrap();
-        fs::set_permissions(&root,fs::Permissions::from_mode(0o700)).unwrap();
-        fs::create_dir(root.join("assets")).unwrap();
-        let icon=fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/app-icon.png")).unwrap();
-        fs::write(root.join("assets/app-icon.png"),&icon).unwrap();
-        let history=serde_json::to_vec(&vec![json!({"text":"owned test history"});200]).unwrap();
-        let history_path=root.join("clipboard-200.json");
-        fs::write(&history_path,&history).unwrap();
-        let manifest=root.join("fixture.json");
-        fs::write(&manifest,serde_json::to_vec(&json!({"schema":"ruycast.f1.fixture.v1","epoch_unix_seconds":1730000000_u64,
-            "files":{"clipboard-200.json":file_binding(&history_path).unwrap()}})).unwrap()).unwrap();
-        let fixture:Binding=serde_json::from_value(file_binding(&manifest).unwrap()).unwrap();
-        let make_roots=|suffix:&str|{
-            let base=root.join(suffix);fs::create_dir(&base).unwrap();
-            ["home","cache","temp","applications"].map(|name|{
-                let path=base.join(name);fs::create_dir(&path).unwrap();
-                fs::set_permissions(&path,fs::Permissions::from_mode(0o700)).unwrap();path
-            })
-        };
-        let roots=make_roots("first");
-        let (files,origins)=reference_actor_environment(&root,&roots,&fixture,owner,1730000000).unwrap();
-        assert_eq!(files.len(),4);
-        assert_eq!(origins[0].sha256,sha(&history));
-        assert_eq!(origins[1].sha256,sha(&icon));
-        assert_eq!(fs::read(&files["history"].path).unwrap(),history);
-        assert_eq!(fs::read(&files["icon"].path).unwrap(),icon);
-        for binding in files.values() {
-            assert_eq!(fs::metadata(&binding.path).unwrap().mode()&0o777,0o400);
-            assert_eq!(file_binding(&binding.path).unwrap()["sha256"],binding.sha256);
-        }
-        assert_eq!(fs::metadata(&files["executable"].path).unwrap().mode()&0o111,0);
-        assert_eq!(fs::read_dir(&roots[3]).unwrap().count(),1);
-        let roots2=make_roots("refused");
-        assert!(reference_actor_environment(&root,&roots2,&fixture,owner,1730000001).is_err());
-        fs::write(&history_path,b"[]").unwrap();
-        assert!(reference_actor_environment(&root,&roots2,&fixture,owner,1730000000).is_err());
-        assert_eq!(fs::read_dir(&roots2[0]).unwrap().count(),0);
-        assert_eq!(fs::read_dir(&roots2[3]).unwrap().count(),0);
-        fs::remove_dir_all(root).unwrap();
-    }
-    #[test]
     fn fixture_epoch_comes_from_the_bounded_manifest_not_an_environment_default() {
         use std::os::unix::fs::{MetadataExt,PermissionsExt};
         let parent=PathBuf::from(std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("explicit owned fixture parent"));
@@ -2995,48 +2946,6 @@ fn fixture_epoch_binding(path:&Path,owner:u32)->Result<(Binding,u64)> {
     let manifest:Epoch=serde_json::from_slice(&bytes).map_err(|e|e.to_string())?;
     if manifest.schema!="ruycast.f1.fixture.v1" {return Err("fixture epoch schema differs".into());}
     Ok((pinned,manifest.epoch_unix_seconds))
-}
-
-/// Plain deterministic SDK environment, separate from original F1 workloads.
-fn reference_actor_environment(root:&Path,roots:&[PathBuf;4],fixture:&Binding,owner:u32,epoch:u64)->Result<(BTreeMap<&'static str,Binding>,[Binding;2])> {
-    use std::os::unix::fs::PermissionsExt;
-    let (manifest_pin,bytes)=declaration_bytes(&fixture.path,owner)?;
-    if manifest_pin.sha256!=fixture.sha256 {return Err("Reference actor fixture manifest changed".into());}
-    let manifest:Value=serde_json::from_slice(&bytes).map_err(|e|e.to_string())?;
-    if manifest["schema"]!="ruycast.f1.fixture.v1" || manifest["epoch_unix_seconds"].as_u64()!=Some(epoch) {
-        return Err("Reference actor fixture schema/epoch differs".into());
-    }
-    let history_pin:Binding=serde_json::from_value(manifest["files"]["clipboard-200.json"].clone()).map_err(|e|e.to_string())?;
-    if history_pin.path!=fixture.path.with_file_name("clipboard-200.json") || !history_pin.path.starts_with(root) {
-        return Err("Reference actor history is not the exact owned fixture member".into());
-    }
-    let (actual,history)=declaration_bytes(&history_pin.path,owner)?;
-    if actual.sha256!=history_pin.sha256
-        || serde_json::from_slice::<Value>(&history).map_err(|e|e.to_string())?.as_array().is_none_or(|v|v.len()!=200) {
-        return Err("Reference actor history bytes/count differ".into());
-    }
-    let (icon_pin,icon)=declaration_bytes(&root.join("assets/app-icon.png"),owner)?;
-    if !icon.starts_with(b"\x89PNG\r\n\x1a\n") {return Err("Reference actor icon is not actual PNG data".into());}
-    let bundle=roots[3].join("Fixture.app");
-    let contents=bundle.join("Contents");
-    let metadata=roots[0].join("actor-inputs");
-    for directory in [&bundle,&contents,&contents.join("MacOS"),&contents.join("Resources"),&metadata] {
-        fs::create_dir(directory).map_err(|e|e.to_string())?;
-        fs::set_permissions(directory,fs::Permissions::from_mode(0o700)).map_err(|e|e.to_string())?;
-    }
-    let info=b"<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>org.ruycast.f1.fixture</string><key>CFBundleName</key><string>Fixture</string><key>CFBundleDisplayName</key><string>Fixture</string><key>CFBundleExecutable</key><string>Fixture</string><key>CFBundleIconFile</key><string>Fixture.png</string></dict></plist>";
-    let mut files=BTreeMap::new();
-    for (name,path,data) in [
-        ("info",contents.join("Info.plist"),info.as_slice()),
-        ("executable",contents.join("MacOS/Fixture"),b"owned fixture metadata\n".as_slice()),
-        ("icon",contents.join("Resources/Fixture.png"),icon.as_slice()),
-        ("history",metadata.join("clipboard-200.json"),history.as_slice()),
-    ] {
-        native_private_bytes(&path,data)?;
-        fs::set_permissions(&path,fs::Permissions::from_mode(0o400)).map_err(|e|e.to_string())?;
-        files.insert(name,declaration_file(&path,owner)?);
-    }
-    Ok((files,[actual,icon_pin]))
 }
 
 /// Actual two-image construction; deliberately never loads either image. The
