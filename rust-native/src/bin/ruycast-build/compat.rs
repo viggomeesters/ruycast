@@ -77,7 +77,6 @@ fn verification_sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "Package.swift",
         "README.md",
         "CONTRIBUTING.md",
-        "Makefile",
     ] {
         validation::source_folder(root, &root.join(name), &mut values)?;
     }
@@ -733,7 +732,7 @@ mod tests {
         for directory in ["Tests", "scripts", "docs", "Sources"] {
             fs::create_dir_all(fixture.0.join(directory)).unwrap();
         }
-        for name in ["Package.swift", "README.md", "CONTRIBUTING.md", "Makefile"] {
+        for name in ["Package.swift", "README.md", "CONTRIBUTING.md"] {
             fs::write(fixture.0.join(name), b"owned verification input").unwrap();
         }
         let test_source = fixture.0.join("Tests/hold.rs");
@@ -815,7 +814,7 @@ mod tests {
         for directory in ["Tests", "scripts", "docs", "Sources"] {
             fs::create_dir(fixture.0.join(directory)).unwrap();
         }
-        for name in ["Package.swift", "README.md", "CONTRIBUTING.md", "Makefile"] {
+        for name in ["Package.swift", "README.md", "CONTRIBUTING.md"] {
             fs::write(fixture.0.join(name), b"owned verification input").unwrap();
         }
         // A real Cargo/rustc failure, not a synthetic failed receipt or gate.
@@ -935,7 +934,7 @@ fn main() {{
         for directory in ["Tests", "scripts", "docs", "Sources"] {
             fs::create_dir(fixture.0.join(directory)).unwrap();
         }
-        for name in ["Package.swift", "README.md", "CONTRIBUTING.md", "Makefile"] {
+        for name in ["Package.swift", "README.md", "CONTRIBUTING.md"] {
             fs::write(fixture.0.join(name), b"owned verification input").unwrap();
         }
         let build = fixture.0.join(OUTPUT).join("development-build.json");
@@ -1476,7 +1475,7 @@ fn main() {{
         let fixture=std::mem::ManuallyDrop::new(super::super::tests::Fixture::compiler_pair());
         let root=&fixture.0;fs::set_permissions(root,fs::Permissions::from_mode(0o700)).unwrap();
         for directory in ["Tests","scripts","docs","Sources"] {fs::create_dir(root.join(directory)).unwrap();}
-        for name in ["Package.swift","README.md","CONTRIBUTING.md","Makefile"] {fs::write(root.join(name),b"owned verification input\n").unwrap();}
+        for name in ["Package.swift","README.md","CONTRIBUTING.md"] {fs::write(root.join(name),b"owned verification input\n").unwrap();}
         event(root,".temporal-owned",b"disposable-temporal-v1");
         let receipts=root.join(".build/receipts");fs::create_dir_all(&receipts).unwrap();
         let kind=match mode {"settings"=>"settings","performance"|"performance-success"=>"performance",_=>"check"};

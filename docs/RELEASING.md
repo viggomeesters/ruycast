@@ -20,12 +20,12 @@ the beta host with:
 CARGO_INCREMENTAL=0 cargo build --locked --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --features local-preview --bin ruycast-native
 ```
 
-The `make disk-status` target is available in the current repository checkout,
-not in the beta.17 archive.
+The `ruycast-build disk-status` Cargo command is available in the current
+repository checkout, not in the beta.17 archive.
 
 This command builds only the host executable. It does not build the CLI or stage
 an `.app` bundle, and there is no supported Rust preview-bundle staging command
-in this repository. `make install-preview` updates an already staged and
+in this repository. `ruycast-install install-preview` updates an already staged and
 enrolled preview; it does not create the bundle. The separate preview must use
 the preview bundle ID, place the host at `Contents/MacOS/RuycastApp` and CLI at
 `Contents/Resources/ruycast`, and have a strictly higher numeric
@@ -34,7 +34,7 @@ the preview bundle ID, place the host at `Contents/MacOS/RuycastApp` and CLI at
 Update an already staged and enrolled preview with:
 
 ```sh
-make install-preview APP="/absolute/path/to/staged-preview.app"
+CARGO_INCREMENTAL=0 cargo run --locked --release --manifest-path rust-native/Cargo.toml --bin ruycast-install -- install-preview "/absolute/path/to/staged-preview.app"
 ```
 
 The command uses the existing local Ruycast signing identity from
@@ -62,7 +62,7 @@ System Settings because the preview's signing identity changes. The command
 reports the actual permission and health state without claiming grants were retained.
 The replacement host must provide the `storageAndKeyboardHealthy` status field;
 independent storage or keyboard errors still cause rollback.
-Future ordinary `make install-preview` updates reuse the separate preview signer
+Future ordinary `ruycast-install install-preview` updates reuse the separate preview signer
 and again require existing permissions to remain enabled. If signing recovery
 fails before replacement, the original preview stays installed; rerun the
 explicit recovery command to reuse the prepared dedicated signer.
@@ -84,7 +84,7 @@ RUYCAST_SOURCE="$PWD/.dist/public-source"
 cargo run --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-source -- export --repo "$PWD" --out "$RUYCAST_SOURCE"
 cargo run --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-source -- verify --source "$RUYCAST_SOURCE" --repo "$PWD"
 cd "$RUYCAST_SOURCE"
-make disk-status
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- build --repo "$PWD"
 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- verify --repo "$PWD"
 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat package --repo "$PWD" -- --out "$PWD/.dist/new-candidate" --build-number "$RUYCAST_BUILD_NUMBER"
@@ -97,7 +97,7 @@ Complete functional/native/accessibility parity, safe installation/readback and 
 
 ### Updating the Rust product version
 
-Change the single `CURRENT` semantic-version literal in `rust/src/product_version.rs`. The Rust build tool checks that source value against the compiled host and CLI; installer and source-export authority use it too. Run `make version` to read the value through the Rust build tool. Installer-flow tests no longer import the historical Swift-version reader. Product-version compiler/export/refusal tests now execute in Rust under #174.
+Change the single `CURRENT` semantic-version literal in `rust/src/product_version.rs`. The Rust build tool checks that source value against the compiled host and CLI; installer and source-export authority use it too. Run `cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat version --repo "$PWD" --` to read the value through the Rust build tool. Installer-flow tests no longer import the historical Swift-version reader. Product-version compiler/export/refusal tests now execute in Rust under #174.
 
 Update current release examples and the changelog, rebuild the tools, then regenerate and verify the public source snapshot. Build and verify the prepared release pair from that reviewed clean snapshot before running the required local gates. The Cargo package versions and historical release notes are separate from the product version. Keep the frozen Swift reference unchanged.
 
@@ -112,18 +112,18 @@ The remaining release/distribution notes predate the rewrite. They record the pr
 | Repository | [viggomeesters/ruycast](https://github.com/viggomeesters/ruycast) · public · MIT |
 | Release | [v0.8.25](https://github.com/viggomeesters/ruycast/releases/tag/v0.8.25) · source preview |
 | Source asset | `ruycast-0.8.25-source.tar.gz` with SHA-256 checksum |
-| Installation | Clone or extract source, then run `make install` |
+| Installation | Historical source preview; the Rust installer below applies only to the current source |
 | Local signing | A persistent per-Mac signing identity is reused on updates |
 | Public binary | No Developer ID notarization or prebuilt app download |
 | Validation | Local Rust, Swift, Python and hidden-native checks; no GitHub Actions |
 
-## Build this release
+## Build from the current source
 
 ```sh
-git clone --branch v0.8.25 https://github.com/viggomeesters/ruycast.git
+git clone https://github.com/viggomeesters/ruycast.git
 cd ruycast
-make check
-make install
+cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- check
+CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD" --build
 ```
 
 Existing configuration and permissions are preserved by the local installer. Configuration defaults to `~/.config/ruycast/config.json`; choose a different folder through Settings or `ruycast config directory /absolute/folder`. Private history, logs, sockets and signing material remain outside the source tree.
@@ -143,7 +143,7 @@ A prebuilt app release requires a maintained Developer ID identity, hardened run
 Use the reviewed **public** checkout, never a private development checkout or an installed personal app. `ruycast-build compat package` checks the public manifest and release-build receipt, copies only the app executable, CLI and icon, and writes an explicitly non-publishable candidate receipt. It does not install, sign, upload, publish, copy configuration or include personal adapters. Existing output is preserved.
 
 ```sh
-make disk-status
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
 : "${RUYCAST_BUILD_NUMBER:?Set this to a positive number greater than the last distributed build}"
 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- build --repo "$PWD"
 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- verify --repo "$PWD"
@@ -229,7 +229,7 @@ Test upgrades with preexisting configuration/history and permissions. Preserve `
 
 Only after all gates pass: finish the linked PR review, merge, publish versioned ZIP/checksum and matching source assets from that public commit, download them again, verify hashes/signature/stapling, and update the original issue/note. Until then keep issue #1 open and describe the current release as source-only. No GitHub Actions or updater is introduced.
 
-Local source builds can stage an explicitly supplied personal adapter with `RUYCAST_PERSONAL_BRIDGE=/absolute/path/to/adapter.py make install`. The adapter is copied directly into the staged app before signing; it is never copied into public source or source release assets. Without this override, the existing installed adapter is retained.
+Local source builds can stage an explicitly supplied personal adapter with `RUYCAST_PERSONAL_BRIDGE=/absolute/path/to/adapter.py CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD" --build`. The adapter is copied directly into the staged app before signing; it is never copied into public source or source release assets. Without this override, the existing installed adapter is retained.
 
 ## Historical Swift product-version procedure
 

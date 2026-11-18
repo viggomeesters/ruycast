@@ -615,7 +615,7 @@ fn installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop()
         let mut r = f.runner();
         let error = owned_install(&f.o, &mut r).unwrap_err();
         if ["binary", "source", "missing-receipt", "canonical-version"].contains(&fault) {
-            assert_eq!(error, "Rust release verification failed; run make install to create a fresh prepared build.");
+            assert_eq!(error, "Rust release verification failed; run the installer with `install --build` to create a fresh prepared build.");
             assert_eq!(r.calls.len(), 1, "{fault}: {:?}", r.calls);
             let (program, args, _) = &r.calls[0];
             assert!(program.ends_with("cargo"));

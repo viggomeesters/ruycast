@@ -22,7 +22,7 @@ cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml \
   compat build-receipt --repo "$PWD" -- verify-performance
 ```
 
-`make check-performance` invokes the Rust CLI directly. With no arguments it refuses before acquiring a lease, starting a workload or creating authority. The shell wrappers have been retired; no arguments are forwarded through a shell script.
+`cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- performance` invokes the Rust CLI directly. With no validator arguments it refuses before acquiring a lease, starting a workload or creating authority. Append validator arguments after `performance`; no shell wrapper is involved.
 
 All paths must be absolute and output must be new. Pins come from independent review, not from self-generating authority from a dataset. Missing complete authority fails closed. Validation binds runner, authority, raw dataset, current build/source inventory and the actual new report before/after. Revalidation checks retained report integrity and recomputes the full comparison in an owned temporary stage.
 
@@ -47,7 +47,7 @@ The older driver could force-terminate fixture hosts yet exit zero with `ok: tru
 ## Rust probe commands
 
 ```sh
-make disk-status
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
 ```
 
 Check the disk budget before a producer build. The Rust passive sampler observes an explicitly selected PID; it never launches a host. A short 60-second sample can be started with:

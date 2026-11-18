@@ -5,11 +5,11 @@ The native host, CLI, build tool and installer are implemented in Rust. The curr
 After the combined candidate is accepted for your use, build and install locally:
 
 ```sh
-make disk-status
-make install
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
+CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD" --build
 ```
 
-`make install` invokes the Rust installer directly through Cargo with `--build`. To install an existing verified release build without rebuilding, invoke the same Rust command without `--build`: `cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD"`. No Python install wrapper remains. No Swift host/compiler/helper is used for production. The local signer prepares one persistent identity when absent and refuses silent rotation or ad-hoc fallback. The transaction preserves the profile and uses a per-user login service.
+The installer builds a release and installs it with `--build`. To install an existing verified release build without rebuilding, invoke the same Rust command without `--build`: `cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD"`. No Python install wrapper remains. No Swift host/compiler/helper is used for production. The local signer prepares one persistent identity when absent and refuses silent rotation or ad-hoc fallback. The transaction preserves the profile and uses a per-user login service.
 
 ## Requirements
 

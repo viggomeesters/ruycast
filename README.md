@@ -71,14 +71,14 @@ Website icons contact the relevant websites and use a local cache. Only add scri
 ## Development
 
 ```sh
-make disk-status
-make clean-build-caches
-make check
-bash scripts/check-settings.sh
-cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify-check
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- clean-build-caches --repo "$PWD"
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat build-receipt --repo "$PWD" -- check
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat build-receipt --repo "$PWD" -- settings
+cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify-check
 ```
 
-`make disk-status` reports available bytes and the current headroom estimate for each producer. `make clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. `make check` invokes the Rust build tool directly. Its inventory qualifies the actual empty Python unittest tree and the current `git-diff-check` source; that does not itself prove the full validation pipeline ran or make the repository Rust-only. The native matrix still includes Python validators. The separate `settings` pipeline remains fail-closed while 7 selector gates await source requalification.
+`disk-status` reports available bytes and the current headroom estimate for each producer. `clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. The `check` command runs the Rust build tool directly. Its inventory qualifies the actual empty Python unittest tree and the current `git-diff-check` source; that does not itself prove the full validation pipeline ran or make the repository Rust-only. The native matrix still includes Python validators. The separate `settings` pipeline remains fail-closed while 7 selector gates await source requalification.
 
 The previous full Swift-comparison and F1 measurement campaign was discontinued on 10 November 2026. Current work uses focused checks for each change and separate short launcher-time and memory measurements. Historical comparison code remains pending retirement; its presence does not make the discontinued campaign a release requirement.
 
