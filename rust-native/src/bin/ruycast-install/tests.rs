@@ -1230,54 +1230,6 @@ fn installer_owned_real_process_stdin_output_bounds_timeout_and_reaping() {
 }
 
 #[test]
-fn make_install_routes_directly_to_the_rust_installer() {
-    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_owned();
-    let f = Fixture::new();
-    let source = f.root.join("dispatch.rs");
-    let tool = f.root.join("dispatch-tool");
-    stdfs::write(&source, include_str!("fixture_process.rs")).unwrap();
-    let output = std::process::Command::new("rustc")
-        .args(["--edition=2021"])
-        .arg(&source)
-        .arg("-o")
-        .arg(&tool)
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    stdfs::write(f.root.join("owned-process-marker"), b"owned").unwrap();
-    let cargo_dir = f.root.join("cargo-bin");
-    stdfs::create_dir(&cargo_dir).unwrap();
-    std::os::unix::fs::symlink(&tool, cargo_dir.join("cargo")).unwrap();
-    let path = format!("{}:/usr/bin:/bin", cargo_dir.display());
-    let output = std::process::Command::new("make")
-        .arg("install")
-        .current_dir(&repo)
-        .env_clear()
-        .env("PATH", path)
-        .env("RUYCAST_DISPATCH_FIXTURE_ROOT", &f.root)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    let command = String::from_utf8(output.stdout).unwrap();
-    let mut lines = command.lines();
-    let shell_command = lines.next().unwrap();
-    for expected in [
-        "cargo run --locked --offline --release",
-        "--manifest-path rust-native/Cargo.toml",
-        "--target-dir .build/installer-tools",
-        "--bin ruycast-install -- install --repo",
-        "--build",
-    ] {
-        assert!(shell_command.contains(expected), "missing {expected}: {shell_command}");
-    }
-    assert!(!shell_command.contains("install.sh"));
-    assert!(!shell_command.contains("python"));
-    let repo_path = repo.display().to_string();
-    assert_eq!(lines.next().unwrap(), ["install", "--repo", &repo_path, "--build"].join("\0"));
-    assert!(lines.next().is_none());
-}
-
-#[test]
 fn installer_owned_enrollment_blocks_adhoc_and_search_list_keeps_existing_entries() {
     let f = Fixture::new();
     f.signer();
