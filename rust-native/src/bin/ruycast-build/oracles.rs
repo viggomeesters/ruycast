@@ -886,6 +886,7 @@ const RENDER_UPDATES_ORACLE_SHA256: &str = "7f629804da223ea12989179e5a7f87c0fa37
 const ANALYTICS_ORACLE_SHA256: &str = "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876";
 const PERFORMANCE_PIPELINE_ORACLE_SHA256: &str = "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659";
 const BROWSER_TABS_ORACLE_SHA256: &str = "82189e7c80a7baab3e38a8b34619de06f343c21ddf3b023df2bf0cafd6f0ebb9";
+const WINDOW_SEARCH_ORACLE_SHA256: &str = "cae0f60d635d6aa5af41d8fe8ecc9bc8102c28e49e2aec87a7e53462829ddf7f";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1165,7 +1166,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/Cargo.lock", include_bytes!("../../../Cargo.lock"), "3ea0eb855d24f0b7b143746b49fa4dd1f311116e46c6561c7b5984e2383094e5"),
             ("rust/Cargo.toml", include_bytes!("../../../../rust/Cargo.toml"), "35f9cfa76ee0df1d4c8596264d5daf64c5683395330cc5db35be1a6e70138949"),
             ("rust-toolchain.toml", include_bytes!("../../../../rust-toolchain.toml"), "d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82"),
-            ("Sources/RuycastApp/WindowSearchChecks.swift", include_bytes!("../../../../Sources/RuycastApp/WindowSearchChecks.swift"), "cae0f60d635d6aa5af41d8fe8ecc9bc8102c28e49e2aec87a7e53462829ddf7f"),
         ],
         "--check-apple-shortcuts" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
@@ -1496,6 +1496,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/BrowserTabChecks.swift",
             BROWSER_TABS_ORACLE_SHA256,
         )),
+        "--check-window-search" => Some((
+            "Sources/RuycastApp/WindowSearchChecks.swift",
+            WINDOW_SEARCH_ORACLE_SHA256,
+        )),
         _ => None,
     }
 }
@@ -1525,6 +1529,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-analytics" => Some(ANALYTICS_ORACLE_SHA256),
             "--check-performance-pipeline" => Some(PERFORMANCE_PIPELINE_ORACLE_SHA256),
             "--check-browser-tabs" => Some(BROWSER_TABS_ORACLE_SHA256),
+            "--check-window-search" => Some(WINDOW_SEARCH_ORACLE_SHA256),
             _ => None,
         };
         path == gate.original_source
@@ -2567,6 +2572,25 @@ mod tests {
             assert!(bindings.contains(&(*path, *hash)), "missing Rust source binding {path}");
         }
         assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let value = inventory("settings").unwrap();
+        assert_eq!(value["productionAccepted"], false);
+        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn window_search_provenance_keeps_current_inputs_and_gate_status() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-window-search").unwrap();
+        assert_eq!(gate.required_native_steps, &["unit", "system-search-cli-process", "system-search-sdk"]);
+        assert_eq!(gate.native_cases.len(), 18);
+        let inputs = settings_sources(gate.id);
+        assert_eq!(inputs.len(), 33);
+        assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml"));
+        let bindings = settings_source_bindings(gate.id);
+        assert_eq!(bindings.len(), 34);
+        for (path, _, hash) in inputs {
+            assert!(bindings.contains(&(*path, *hash)), "missing current window-search binding {path}");
+        }
+        assert!(bindings.contains(&(gate.original_source, WINDOW_SEARCH_ORACLE_SHA256)));
         assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
@@ -3974,7 +3998,7 @@ mod tests {
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
         ];
         for (id, steps, case_count, source_count) in [
-            ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 34),
+            ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 33),
             ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 46),
             ("--check-render-updates", &["render-updates-process"][..], 1, 13),
         ] {
@@ -3984,7 +4008,13 @@ mod tests {
             assert_eq!(gate.native_cases.len(), case_count);
             let inputs = settings_sources(id);
             assert_eq!(inputs.len(), source_count);
-            if id == "--check-render-updates" {
+            if id == "--check-window-search" {
+                assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+                let bindings = settings_source_bindings(id);
+                assert_eq!(bindings.len(), 34);
+                assert!(bindings.contains(&(gate.original_source, WINDOW_SEARCH_ORACLE_SHA256)));
+                assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+            } else if id == "--check-render-updates" {
                 assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
                 assert_eq!(bindings.len(), 14);
