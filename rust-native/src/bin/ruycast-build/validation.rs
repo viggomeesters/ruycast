@@ -164,6 +164,7 @@ clipboard-preview-original|c|test --manifest-path rust-native/Cargo.toml --featu
 clipboard-preview-cancel-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset --locked -- --exact
 system-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example system-fixture --locked
 system-search-sdk|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test system_search_sdk --locked
+remaining-workspace-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example workspace-fixture --release --locked
 remaining-macos-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test remaining_macos_process --locked
 startup-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked
 private-results-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test private_results --locked
@@ -497,6 +498,15 @@ fn hid_sdk_environment(root: &Path, target: &str, command: &mut Command) -> Resu
     }
     Ok(())
 }
+fn workspace_fixture_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
+    artifact_paths(target)?;
+    let artifact = root.join("rust-native/target/validation-build").join(target)
+        .join("release/examples/libworkspace_fixture.dylib");
+    owned_path(root, &artifact)?;
+    regular_bytes(&artifact)?;
+    command.env("RUYCAST_TEST_WORKSPACE_SHIM", artifact);
+    Ok(())
+}
 fn clipboard_history_environment(root: &Path, target: &str, command: &mut Command) -> Result<()> {
     artifact_paths(target)?;
     let artifact = root.join("rust-native/target/validation-build").join(target).join("debug/examples/libclipboard_history_fixture.dylib");
@@ -667,6 +677,9 @@ fn step(
     }
     if entry.name == "hid-sdk-process" {
         hid_sdk_environment(root, &receipt.target, &mut command)?;
+    }
+    if entry.name == "remaining-macos-process" {
+        workspace_fixture_environment(root, &receipt.target, &mut command)?;
     }
     if entry.name == "clipboard-history-host-process" {
         clipboard_history_compatibility_sdk(root, &receipt.target, copies)?;
@@ -3260,7 +3273,7 @@ mod tests {
         assert!(policy.arguments.windows(2).any(|pair|pair==["--test","rust_only_policy"]));
         assert!(!steps.iter().any(|step| step.arguments.iter().any(|arg| arg.ends_with("rust_only_policy.py"))));
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 149);
+        assert_eq!(steps.len(), 150);
         assert!(steps.iter().all(|step| matches!(
             step.arguments.first().map(String::as_str),
             Some("cargo") | Some(RUST_POLICY_ALIAS)
@@ -3343,6 +3356,12 @@ mod tests {
         let manager_test = steps.iter().position(|step|step.name=="manager-process").unwrap();
         assert!(manager_sdk < manager_test);
         assert!(steps[manager_sdk].arguments.windows(2).any(|pair|pair==["--example","workspace-fixture"]));
+        assert!(!steps[manager_sdk].arguments.iter().any(|arg|arg=="--release"));
+        let remaining_workspace_sdk = steps.iter().position(|step|step.name=="remaining-workspace-sdk-build").unwrap();
+        let remaining_process = steps.iter().position(|step|step.name=="remaining-macos-process").unwrap();
+        assert!(remaining_workspace_sdk < remaining_process);
+        assert!(steps[remaining_workspace_sdk].arguments.windows(2).any(|pair|pair==["--example","workspace-fixture"]));
+        assert!(steps[remaining_workspace_sdk].arguments.iter().any(|arg|arg=="--release"));
         assert!(steps[manager_test].arguments.windows(2).any(|pair|pair==["--test","manager_process"]));
         assert!(!steps[manager_test].arguments.iter().any(|arg|arg.ends_with(".py")));
         let keyboard_sdk = steps.iter().position(|step|step.name=="native-keyboard-sdk-build").unwrap();
