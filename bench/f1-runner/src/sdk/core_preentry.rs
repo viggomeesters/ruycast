@@ -5302,7 +5302,7 @@ impl ReferenceAdmission {
             fn swift_release();
         }
         self.before_reference_initialization()?;
-        let source = include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/NativeEditCommands.swift");
+        let source_sha256 = crate::workspace::factory::reference_edit_construction_callsite().source_sha256;
         let path = self.root.path().join("bench/reference/0.8.26/Sources/RuycastApp/NativeEditCommands.swift");
         let bytes = self.root.read_optional(Path::new(&self.grant.source_manifest.path), 2 * 1024 * 1024)?
             .ok_or("Reference Edit-command source manifest absent")?;
@@ -5313,7 +5313,7 @@ impl ReferenceAdmission {
             .map_err(|_| "Reference Edit-command source manifest schema")?;
         let path = path.to_str().ok_or("Reference Edit-command source path encoding")?;
         let mut rows = manifest.sources.iter().filter(|row| row.path == path);
-        if rows.next().is_none_or(|row| row.sha256 != digest(source)) || rows.next().is_some() {
+        if rows.next().is_none_or(|row| row.sha256 != source_sha256) || rows.next().is_some() {
             return Err("Reference Edit-command source compiler member differs".into());
         }
         let base = unsafe { _NSGetMachExecuteHeader() } as usize;
