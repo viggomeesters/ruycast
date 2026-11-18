@@ -391,43 +391,44 @@ pub(super) fn source_folder(
     }
     Ok(())
 }
+const SOURCE_ROSTER: &[&str] = &[
+    "rust-native/Cargo.toml",
+    "rust-native/Cargo.lock",
+    "rust-native/README.md",
+    "rust-native/swift-reference-lock.json",
+    "rust/Cargo.toml",
+    "rust/Cargo.lock",
+    "config/default.json",
+    "Sources/LauncherCore/Templates.swift",
+    "Sources/LauncherModels/Models.swift",
+    "Sources/RuycastApp/AppState.swift",
+    "Sources/RuycastApp/CommandEditor.swift",
+    "Sources/LauncherCore/SnippetOutput.swift",
+    "Sources/LauncherCore/SnippetMatcher.swift",
+    "Sources/RuycastApp/SnippetClipboard.swift",
+    "Sources/RuycastApp/PaletteActions.swift",
+    "Sources/RuycastApp/HyperKey.swift",
+    "Sources/RuycastApp/Palette.swift",
+    "Sources/RuycastApp/Hotkeys.swift",
+    "Sources/LauncherCore/RustBridge.swift",
+    "Sources/LauncherCore/KeyboardState.swift",
+    "Sources/LauncherCore/Files.swift",
+    "Sources/RuycastApp/SnippetExpander.swift",
+    "Sources/RuycastApp/SnippetChoice.swift",
+    "Sources/RuycastApp/KeyboardChecks.swift",
+    "Sources/RuycastApp/SettingsChecks.swift",
+    "Sources/RuycastApp/AnalyticsStore.swift",
+    "rust-native/src",
+    "rust-native/tests",
+    "rust-native/examples/ui_completion.rs",
+    "rust/src",
+    "Tests/fixtures/architecture_boundary_positive.rs",
+    "Tests/fixtures/architecture_boundary_main_state_on_worker.rs",
+    "Tests/fixtures/architecture_boundary_worker_captures_main_state.rs",
+];
 fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
     let mut rows = BTreeMap::new();
-    for name in [
-        "rust-native/Cargo.toml",
-        "rust-native/Cargo.lock",
-        "rust-native/README.md",
-        "rust-native/swift-reference-lock.json",
-        "rust/Cargo.toml",
-        "rust/Cargo.lock",
-        "config/default.json",
-        "Sources/LauncherCore/Templates.swift",
-        "Sources/LauncherModels/Models.swift",
-        "Sources/RuycastApp/AppState.swift",
-        "Sources/RuycastApp/CommandEditor.swift",
-        "Sources/LauncherCore/SnippetOutput.swift",
-        "Sources/LauncherCore/SnippetMatcher.swift",
-        "Sources/RuycastApp/SnippetClipboard.swift",
-        "Sources/RuycastApp/PaletteActions.swift",
-        "Sources/RuycastApp/HyperKey.swift",
-        "Sources/RuycastApp/Palette.swift",
-        "Sources/RuycastApp/Hotkeys.swift",
-        "Sources/LauncherCore/RustBridge.swift",
-        "Sources/LauncherCore/KeyboardState.swift",
-        "Sources/LauncherCore/Files.swift",
-        "Sources/RuycastApp/SnippetExpander.swift",
-        "Sources/RuycastApp/SnippetChoice.swift",
-        "Sources/RuycastApp/KeyboardChecks.swift",
-        "Sources/RuycastApp/SettingsChecks.swift",
-        "Sources/RuycastApp/AnalyticsStore.swift",
-        "rust-native/src",
-        "rust-native/tests",
-        "rust-native/examples/ui_completion.rs",
-        "rust/src",
-        "Tests/fixtures/architecture_boundary_positive.rs",
-        "Tests/fixtures/architecture_boundary_main_state_on_worker.rs",
-        "Tests/fixtures/architecture_boundary_worker_captures_main_state.rs",
-    ] {
+    for name in SOURCE_ROSTER {
         source_folder(root, &root.join(name), &mut rows)?;
     }
     Ok(rows)
@@ -2255,10 +2256,13 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 mod tests {
     use super::*;
     #[test]
-    fn source_snapshot_accepts_the_migrated_checkout_without_retired_scripts() {
+    fn source_snapshot_accepts_the_migrated_checkout_with_or_without_empty_retired_directory() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        assert!(!root.join("rust-native/scripts").exists());
+        assert!(!SOURCE_ROSTER.contains(&"rust-native/scripts"));
         let snapshot = sources(root).unwrap();
+        assert!(!snapshot
+            .keys()
+            .any(|path| path.starts_with("rust-native/scripts/")));
         assert!(snapshot.contains_key("rust-native/src/bin/ruycast-build/validation.rs"));
         assert!(snapshot.keys().any(|path| path.ends_with(".rs")));
     }
