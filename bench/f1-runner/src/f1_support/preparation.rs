@@ -1,6 +1,7 @@
 //! Owned F1 build preparation and explicit guarded synthetic assembly. No installed-app launch.
 use super::{json, sha, write_new, Binding, Path, PathBuf, Result, Value};
 use std::{collections::BTreeMap, fs, process::Command, time::Instant};
+const REFERENCE_CAPTURE_SECONDS: u64 = 1200;
 #[path="../sdk/workspace_appdelegate_declarations.rs"]
 mod reference_swift_declarations;
 
@@ -84,17 +85,6 @@ pub fn verify(binding: &Binding) -> Result<()> {
 fn file_binding(path: &Path) -> Result<Value> {
     Ok(json!({"path":path,"sha256":sha(&fs::read(path).map_err(|e|e.to_string())?)}))
 }
-pub fn bridge(reference: &Path, bridge: &Path, out: &Path, full_host: bool) -> Result<()> {
-    if full_host { return Err("full Reference compilation requires an explicit existing build root and pinned compiler-input manifest".into()); }
-    reference_bridge_inner(reference,bridge,out,false,None)
-}
-
-pub fn full_reference_bridge(reference: &Path, bridge: &Path, build_root: &Path,
-    input_manifest: &Path, input_sha256: &str, out: &Path) -> Result<()> {
-    let manifest = Binding{path:input_manifest.into(),sha256:input_sha256.into()};
-    reference_bridge_inner(reference,bridge,out,true,Some((build_root,&manifest)))
-}
-
 /// Resume only capture from an actual retained full-reference compiler result.
 /// Saved metadata supplies no runnable grant or original-initializer authority.
 pub fn resume_reference_debug(build_root:&Path,input_manifest:&Path,input_sha256:&str,out:&Path)->Result<()> {
@@ -230,162 +220,6 @@ fn reference_build_inputs(reference: &Path, build_root: &Path, manifest: &Bindin
     Ok(inputs)
 }
 
-fn reference_bridge_inner(reference: &Path, bridge: &Path, out: &Path, full_host: bool,
-    build_inputs: Option<(&Path,&Binding)>) -> Result<()> {
-    let capture_deadline = full_host.then(||Instant::now()+std::time::Duration::from_secs(REFERENCE_CAPTURE_SECONDS));
-    let before = inventory(reference)?;
-    let expected_build_inputs = match build_inputs {
-        Some((root,manifest)) => Some(reference_build_inputs(reference,root,manifest,capture_deadline)?),
-        None if full_host => return Err("full Reference compiler inputs missing".into()),
-        None => None,
-    };
-    if bridge.file_name().and_then(|s| s.to_str()) != Some("SwiftF1Bridge.swift") {
-        return Err("only the specifically authorized test bridge can be compiled".into());
-    }
-    fs::create_dir(out).map_err(|e| e.to_string())?;
-    if full_host {
-        use std::os::unix::fs::PermissionsExt;
-        if bridge != checkout_root()?.join("bench/reference/SwiftF1Bridge.swift") {
-            return Err("full Reference compiler requires the source-owned bridge".into());
-        }
-        for path in [reference,bridge,out] {
-            if !path.is_absolute() || fs::canonicalize(path).map_err(|e|e.to_string())? != path {
-                return Err("full Reference compiler paths must be exact canonical absolute paths".into());
-            }
-        }
-        fs::set_permissions(out,fs::Permissions::from_mode(0o700)).map_err(|e|e.to_string())?;
-    }
-    let build_root = build_inputs.map_or(reference,|(root,_)|root);
-    let release = build_root.join(".build/swift/arm64-apple-macosx/release");
-    let mut sources = fs::read_dir(reference.join("Sources/RuycastApp"))
-        .map_err(|e| e.to_string())?
-        .map(|e| e.map(|v| v.path()).map_err(|e| e.to_string()))
-        .collect::<Result<Vec<_>>>()?;
-    sources.retain(|p| {
-        p.extension().is_some_and(|e| e == "swift")
-            && p.file_name()
-                .is_some_and(|n| full_host || n != "main.swift")
-    });
-    sources.sort();
-    let mut objects = vec![];
-    for dir in [
-        "LauncherCore.build",
-        "LauncherModels.build",
-        "CRuycastCore.build",
-    ] {
-        for item in fs::read_dir(release.join(dir)).map_err(|e| e.to_string())? {
-            let p = item.map_err(|e| e.to_string())?.path();
-            if p.extension().is_some_and(|e| e == "o") {
-                objects.push(p);
-            }
-        }
-    }
-    objects.sort();
-    let dylib = out.join(if full_host {
-        "RuycastF1Reference"
-    } else {
-        "libRuycastF1Reference.dylib"
-    });
-    let mut args = vec![
-        "-emit-library".into(),
-        "-parse-as-library".into(),
-        "-Osize".into(),
-        "-swift-version".into(),
-        "6".into(),
-        "-target".into(),
-        "arm64-apple-macosx14.0".into(),
-        "-module-name".into(),
-        "RuycastF1Reference".into(),
-        "-module-cache-path".into(),
-        release.join("ModuleCache").into_os_string(),
-        "-I".into(),
-        release.join("Modules").into_os_string(),
-        "-I".into(),
-        release.join("CRuycastCore.build").into_os_string(),
-        "-L".into(),
-        build_root.join(".build/rust/release").into_os_string(),
-        "-lrustcast_core".into(),
-        "-liconv".into(),
-        "-lresolv".into(),
-    ];
-    if full_host {
-        args.retain(|a| a != "-emit-library" && a != "-parse-as-library");
-        args.extend([
-            "-emit-executable".into(),
-            "-D".into(),
-            "F1_COMPLETE_HOST".into(),
-            "-Xlinker".into(),
-            "-export_dynamic".into(),
-        ]);
-        reference_debug_arguments(&mut args);
-    }
-    args.extend(sources.iter().map(|s| s.as_os_str().to_owned()));
-    args.push(bridge.as_os_str().to_owned());
-    args.extend(objects.iter().map(|s| s.as_os_str().to_owned()));
-    args.extend(["-o".into(), dylib.as_os_str().to_owned()]);
-    let start = Instant::now();
-    let compiler_tmp = out.join("compiler-tmp");
-    fs::create_dir(&compiler_tmp).map_err(|e| e.to_string())?;
-    let guard_source = bridge
-        .parent()
-        .ok_or("bridge parent missing")?
-        .join("ReferencePreentry.rs");
-    let guard_object = out.join("ReferencePreentry.o");
-    // The partial ABI fixture keeps its old recipe. A full OriginalMain needs
-    // same-period compiler/object/debug evidence, before any grant can exist.
-    let debug_before = if full_host {
-        Some(reference_debug_before((reference,build_root,expected_build_inputs.as_ref().ok_or("Reference input receipt missing")?,capture_deadline.ok_or("Reference whole deadline missing")?), bridge, &release, out, &sources, &objects)?)
-    } else { None };
-    let guard_compiler = if let Some(inputs) = &debug_before {
-        let tools: BTreeMap<String,Binding> = super::read(&out.join("swift-selected-tools.json"))?;
-        let compiler = tools.get("rustc").ok_or("Reference guard compiler absent")?.clone();
-        if inputs.get(&compiler.path)!=Some(&compiler.sha256) { return Err("Reference guard compiler is outside genuine before closure".into()); }
-        Some(compiler)
-    } else {None};
-    compile_guard(&guard_source, &guard_object, &compiler_tmp, out, full_host,guard_compiler.as_ref(),capture_deadline)?;
-    args.push(guard_object.as_os_str().to_owned());
-    let mut command = Command::new("/usr/bin/swiftc");
-    command.args(&args).env("TMPDIR", &compiler_tmp);
-    let output = if full_host {
-        command.current_dir(out);
-        native_private_bytes(&out.join("swift-command.json"), &serde_json::to_vec_pretty(&json!({
-            "compiler":"/usr/bin/swiftc","arguments":args.iter().map(|a|a.to_string_lossy()).collect::<Vec<_>>(),
-            "cwd":out,"TMPDIR":compiler_tmp,"product_execution":false
-        })).map_err(|e|e.to_string())?)?;
-        native_tool_until(&mut command, reference,capture_deadline.ok_or("Reference whole deadline missing")?)?
-    } else { command.output().map_err(|e|e.to_string())? };
-    if full_host {
-        native_private_bytes(&out.join("compiler.stdout"), &output.stdout)?;
-        native_private_bytes(&out.join("compiler.stderr"), &output.stderr)?;
-    } else {
-        fs::write(out.join("compiler.stdout"), &output.stdout).map_err(|e| e.to_string())?;
-        fs::write(out.join("compiler.stderr"), &output.stderr).map_err(|e| e.to_string())?;
-    }
-    let after = inventory(reference)?;
-    if before.files != after.files {
-        return Err("immutable reference source changed during interface compilation".into());
-    }
-    if let Some(deadline)=capture_deadline { reference_capture_alive(deadline)?; }
-    write_new(
-        &out.join("receipt.json"),
-        &json!({"scope":"test-only ABI compile, no loading or product execution; not a complete baseline acceptance","compiler":"/usr/bin/swiftc","arguments":args.iter().map(|a|a.to_string_lossy()).collect::<Vec<_>>(),"wall_ns":start.elapsed().as_nanos(),"exit_code":output.status.code(),"bridge":file_binding(bridge)?,"source":before,"core_object_bindings":objects.iter().map(|p|file_binding(p)).collect::<Result<Vec<_>>>()?,"artifact":if output.status.success(){file_binding(&dylib)?}else{Value::Null},"complete_sdk_guard":"missing; no bridge/objectinit permitted"}),
-    )?;
-    if !output.status.success() {
-        return Err(
-            "test-only reference interface compiler failed; retained diagnostic receipt/logs"
-                .into(),
-        );
-    }
-    if let Some(before) = debug_before {
-        let (root,manifest)=build_inputs.ok_or("Reference final compiler-input recipe absent")?;
-        reference_debug_capture(reference, out, &dylib, &before,capture_deadline.ok_or("Reference whole deadline missing")?,
-            (root,manifest,expected_build_inputs.as_ref().ok_or("Reference final input receipt absent")?))?;
-    }
-    if let Some(deadline)=capture_deadline { reference_capture_alive(deadline)?; }
-    Ok(())
-}
-
-const REFERENCE_CAPTURE_SECONDS:u64=1200;
 fn reference_capture_alive(deadline:Instant)->Result<()> {
     if Instant::now()>=deadline {Err("whole Reference capture absolute deadline".into())} else {Ok(())}
 }
