@@ -5688,6 +5688,44 @@ mod reference_guard_argument_tests {
             "-o".into(), object.as_os_str().to_owned()]
     }
     #[test]
+    fn retired_full_reference_host_cfg_fails_without_object() {
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let temp = std::env::temp_dir().join(format!(
+            "ruycast-retired-reference-cfg-{}-{nonce}", std::process::id()
+        ));
+        fs::create_dir(&temp).unwrap();
+        let _cleanup = Cleanup(temp.clone());
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../reference/ReferencePreentry.rs");
+        let object = temp.join("retired-reference.o");
+        let mut command = Command::new("rustc");
+        command
+            .arg("--edition=2021")
+            .arg("--crate-type=lib")
+            .arg("--emit=obj")
+            .arg("--cfg")
+            .arg("feature=\"full-reference-host\"")
+            .arg(&source)
+            .arg("-o")
+            .arg(&object)
+            .env("TMPDIR", &temp);
+        let output = native_tool_until(
+            &mut command,
+            &checkout_root().unwrap(),
+            Instant::now() + std::time::Duration::from_secs(15),
+        ).unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr)
+            .contains("full-reference-host preentry transport has been retired"));
+        assert!(!object.exists());
+    }
+    #[test]
     fn partial_bridge_preserves_all_previous_arguments() {
         let source=Path::new("reference/ReferencePreentry.rs");
         let object=Path::new("owned-output/ReferencePreentry.o");
