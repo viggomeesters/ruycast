@@ -451,21 +451,6 @@ pub unsafe fn initialize_process_monitor(
 ) -> Result<super::ModuleAttestation> {
     unsafe { super::process_router::initialize_owned(life, descriptors, registry, prewrite) }
 }
-/// Install the Reference role's Process/monitor imports from its sealed issuer.
-/// This does not substitute the Native role's main image or import cells.
-/// # Safety
-/// The caller retains the actual Reference admission and exact pinned process
-/// rules. The router derives its guardian/descriptors from that admission and
-/// checks the Reference import/absence roster before and after its transaction.
-#[cfg(all(not(test), rcf1_reference_sdk))]
-pub unsafe fn initialize_reference_process_monitor(
-    admission: Arc<super::core_preentry::ReferenceAdmission>,
-    registry: Arc<super::process_dispatch::Registry>,
-    prewrite: impl Fn() -> Result<()> + Send + Sync,
-) -> Result<super::ModuleAttestation> {
-    admission.before_reference_initialization()?;
-    unsafe { super::process_router::initialize_reference(admission, registry, prewrite) }
-}
 pub(crate) fn publish_profile_provider(
     life: &Arc<dyn AliveLease>,
     descriptors: &Arc<super::descriptors::DescriptorTable>,
