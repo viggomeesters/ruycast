@@ -64,8 +64,8 @@ pub(super) fn checkout_root() -> Result<PathBuf> {
 pub fn inventory(root: &Path) -> Result<Inventory> {
     let root = fs::canonicalize(root).map_err(|e| e.to_string())?;
     let checkout = checkout_root()?;
-    if root != checkout && root != checkout.join("bench/reference/0.8.26") {
-        return Err("preparation only inventories the compiled checkout or its pinned reference source".into());
+    if root != checkout {
+        return Err("preparation only inventories the compiled checkout".into());
     }
     let mut files = BTreeMap::new();
     walk(&root, &root, &mut files)?;
