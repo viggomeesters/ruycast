@@ -15,11 +15,14 @@ extern "C" fn cleanup() {
     if CLEANED.swap(true, std::sync::atomic::Ordering::AcqRel) {
         return;
     }
+    // This atexit handler can run after Rust thread-local destructors. Use the
+    // Objective-C runtime pool directly so cleanup does not touch objc2's
+    // debug-only Rust TLS bookkeeping at process exit.
+    let pool = unsafe { objc2::ffi::objc_autoreleasePoolPush() };
     unsafe {
-        objc2::rc::autoreleasepool(|_| {
-            choice_monitor_sdk::cleanup();
-            choice_board_sdk::cleanup();
-        });
+        choice_monitor_sdk::cleanup();
+        choice_board_sdk::cleanup();
+        objc2::ffi::objc_autoreleasePoolPop(pool);
     }
 }
 #[used]
