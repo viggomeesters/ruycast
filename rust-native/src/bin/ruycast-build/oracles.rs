@@ -891,6 +891,7 @@ const MENU_ACTIONS_ORACLE_SHA256: &str = "41d224340e00d1970fb953aad90c3c4a539e6a
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "87377916433de1fd22fea0ee92b586e741f635213d2b2472368f1a8ae62111a2";
+const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1340,7 +1341,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "922179b5495bd479c70eccece85735bfafaaec0cbd1accc4590ca28a75f98a07"),
             ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "0dfcbb5c3d0d5d15149af8fd128067832235819923bd813fda83e4c894a86333"),
-            ("Sources/RuycastApp/SettingsChecks.swift", include_bytes!("../../../../Sources/RuycastApp/SettingsChecks.swift"), "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d"),
             ("Sources/RuycastApp/SnippetEditingChecks.swift", include_bytes!("../../../../Sources/RuycastApp/SnippetEditingChecks.swift"), "adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e"),
         ],
         "--check-command-log" => &[
@@ -1513,6 +1513,7 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             APPLE_SHORTCUTS_ORACLE_SHA256,
         )),
         "--check-polish" => Some(("Sources/RuycastApp/PolishChecks.swift", POLISH_ORACLE_SHA256)),
+        "--check-settings" => Some(("Sources/RuycastApp/SettingsChecks.swift", SETTINGS_ORACLE_SHA256)),
         _ => None,
     }
 }
@@ -1547,6 +1548,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-rich-resources" => Some(RICH_RESOURCES_ORACLE_SHA256),
             "--check-apple-shortcuts" => Some(APPLE_SHORTCUTS_ORACLE_SHA256),
             "--check-polish" => Some(POLISH_ORACLE_SHA256),
+            "--check-settings" => Some(SETTINGS_ORACLE_SHA256),
             _ => None,
         };
         path == gate.original_source
@@ -2751,6 +2753,41 @@ mod tests {
             for name in &names {assert!(text.contains(&format!("fn {name}()")));}
             assert!(!entries.iter().any(|entry|entry.0=="rust-native/tests/settings_preferences_process.py"));
         }
+    }
+    #[test]
+    fn settings_provenance_preserves_inputs_routes_and_unqualified_status() {
+        let gate = super::SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
+        let inputs = super::settings_sources(gate.id);
+        let provenance = (gate.original_source, super::SETTINGS_ORACLE_SHA256);
+        let bindings = super::settings_source_bindings(gate.id);
+
+        assert_eq!(gate.native_cases.len(), 97);
+        assert_eq!(gate.required_native_steps.len(), 26);
+        assert_eq!(inputs.len(), 48);
+        assert_eq!(bindings.len(), 49);
+        assert_eq!(super::settings_provenance_source(gate.id), Some(provenance));
+        assert!(bindings.contains(&provenance));
+        assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/SnippetEditingChecks.swift" && *sha == "adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e"));
+        assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml" || *path == "Sources/RuycastApp/SnippetEditingChecks.swift"));
+        for (path, _, sha) in inputs {
+            assert!(bindings.contains(&(path, sha)), "missing current settings binding: {path}");
+        }
+        let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
+        let planned_steps = plan["steps"].as_array().unwrap();
+        for name in gate.required_native_steps {
+            assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing settings route: {name}");
+        }
+        let preferences = gate.native_cases.iter().filter_map(|case| case.strip_prefix("settings_preferences_process::")).collect::<Vec<_>>();
+        assert_eq!(preferences.len(), 4);
+        let source = std::str::from_utf8(inputs.iter().find(|(path, _, _)| *path == "rust-native/tests/settings_preferences_process.rs").unwrap().1).unwrap();
+        for name in preferences {
+            assert!(source.contains(&format!("fn {name}()")), "missing preferences case: {name}");
+        }
+        assert_eq!(super::settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let inventory = super::inventory("settings").unwrap();
+        assert_eq!(inventory["productionAccepted"], false);
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn general_keyboard_crosswalk_names_both_rust_tests() {
