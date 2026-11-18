@@ -895,6 +895,7 @@ const POLISH_ORACLE_SHA256: &str = "87377916433de1fd22fea0ee92b586e741f635213d2b
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
+const SNIPPET_EDITING_ORACLE_SHA256: &str = "adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1340,7 +1341,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "922179b5495bd479c70eccece85735bfafaaec0cbd1accc4590ca28a75f98a07"),
             ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "0dfcbb5c3d0d5d15149af8fd128067832235819923bd813fda83e4c894a86333"),
-            ("Sources/RuycastApp/SnippetEditingChecks.swift", include_bytes!("../../../../Sources/RuycastApp/SnippetEditingChecks.swift"), "adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e"),
         ],
         "--check-command-log" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
@@ -1539,6 +1539,7 @@ fn settings_source_bindings(id: &str) -> Vec<(&'static str, &'static str)> {
 fn settings_additional_provenance_sources(id: &str) -> &'static [(&'static str, &'static str)] {
     match id {
         "--check-feedback" => &[("Sources/RuycastApp/SystemChecks.swift", SYSTEM_CHECKS_ORACLE_SHA256)],
+        "--check-settings" => &[("Sources/RuycastApp/SnippetEditingChecks.swift", SNIPPET_EDITING_ORACLE_SHA256)],
         _ => &[],
     }
 }
@@ -1574,11 +1575,15 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             && settings_source_bindings(gate.id).contains(&(path, sha))
     });
     let additional = settings_additional_provenance_sources(gate.id);
-    let expected_additional_count = if gate.id == "--check-feedback" { 1 } else { 0 };
+    let expected_additional_count = match gate.id {
+        "--check-feedback" | "--check-settings" => 1,
+        _ => 0,
+    };
     let additional_provenance_current = additional.len() == expected_additional_count
         && additional.iter().all(|(path, sha)| {
             let expected = match (gate.id, *path) {
                 ("--check-feedback", "Sources/RuycastApp/SystemChecks.swift") => Some(SYSTEM_CHECKS_ORACLE_SHA256),
+                ("--check-settings", "Sources/RuycastApp/SnippetEditingChecks.swift") => Some(SNIPPET_EDITING_ORACLE_SHA256),
                 _ => None,
             };
             expected == Some(*sha) && settings_source_bindings(gate.id).contains(&(*path, *sha))
@@ -2788,17 +2793,24 @@ mod tests {
         let gate = super::SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
         let inputs = super::settings_sources(gate.id);
         let provenance = (gate.original_source, super::SETTINGS_ORACLE_SHA256);
+        let additional = super::settings_additional_provenance_sources(gate.id);
         let bindings = super::settings_source_bindings(gate.id);
 
         assert_eq!(gate.native_cases.len(), 97);
         assert_eq!(gate.required_native_steps.len(), 26);
-        assert_eq!(inputs.len(), 48);
+        assert_eq!(inputs.len(), 47);
         assert_eq!(bindings.len(), 49);
+        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 49);
         assert_eq!(super::settings_provenance_source(gate.id), Some(provenance));
         assert!(bindings.contains(&provenance));
+        assert_eq!(additional, &[("Sources/RuycastApp/SnippetEditingChecks.swift", "adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e")]);
+        assert!(bindings.contains(&additional[0]));
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
-        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/SnippetEditingChecks.swift" && *sha == "adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e"));
-        assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml" || *path == "Sources/RuycastApp/SnippetEditingChecks.swift"));
+        assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SnippetEditingChecks.swift"));
+        assert_eq!(super::settings_additional_provenance_sources("--check-feedback"), &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4")]);
+        assert!(super::settings_additional_provenance_sources("--check-actions-menu").is_empty());
+        assert!(super::settings_additional_provenance_sources("--check-interactions").is_empty());
+        assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml"));
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current settings binding: {path}");
         }
