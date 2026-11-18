@@ -422,7 +422,6 @@ fn sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "Sources/RuycastApp/AnalyticsStore.swift",
         "rust-native/src",
         "rust-native/tests",
-        "rust-native/scripts",
         "rust-native/examples/ui_completion.rs",
         "rust/src",
         "Tests/fixtures/architecture_boundary_positive.rs",
@@ -2255,6 +2254,14 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn source_snapshot_accepts_the_migrated_checkout_without_retired_scripts() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        assert!(!root.join("rust-native/scripts").exists());
+        let snapshot = sources(root).unwrap();
+        assert!(snapshot.contains_key("rust-native/src/bin/ruycast-build/validation.rs"));
+        assert!(snapshot.keys().any(|path| path.ends_with(".rs")));
+    }
     #[test]
     fn matrix_test_processes_receive_one_shared_serial_thread_flag() {
         let steps = matrix("aarch64-apple-darwin").unwrap();
