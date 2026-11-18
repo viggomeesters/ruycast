@@ -422,7 +422,6 @@ fn manifest(inputs: &Snapshot) -> Manifest {
             "Package.swift".into(),
             "Sources/".into(),
             "Tests/LauncherCoreTests/".into(),
-            "bench/reference/0.8.26/".into(),
         ],
         publication: "export-only; not published, installed or production-accepted".into(),
     }
@@ -764,7 +763,16 @@ pub fn cli(args: Vec<String>) -> Result<Value> {
 
 #[cfg(test)]
 #[test]
-fn historical_reference_role_requires_the_exact_versioned_prefix() {
+fn source_export_omits_duplicate_benchmark_reference_tree() {
+    let paths = policy().unwrap();
+    assert!(
+        !paths
+            .iter()
+            .any(|path| path.starts_with("bench/reference/0.8.26/"))
+    );
+    assert!(paths.contains("Package.swift"));
+    assert!(paths.contains("Sources/LauncherCore/Files.swift"));
+    assert!(paths.contains("Tests/LauncherCoreTests/CoreTests.swift"));
     let historical = role("Sources/LauncherCore/Files.swift");
     for path in [
         "bench/reference/0.8.26/Package.swift",
@@ -782,7 +790,8 @@ fn historical_reference_role_requires_the_exact_versioned_prefix() {
         assert_ne!(role(path), historical, "{path}");
     }
     let manifest = manifest(&Snapshot::new());
-    assert_eq!(manifest.historical_references, [
-        "Package.swift", "Sources/", "Tests/LauncherCoreTests/", "bench/reference/0.8.26/",
-    ]);
+    assert_eq!(
+        manifest.historical_references,
+        ["Package.swift", "Sources/", "Tests/LauncherCoreTests/",]
+    );
 }

@@ -83,7 +83,7 @@ fn bind_policy(root: &Path, allowlist: std::collections::BTreeSet<String>) -> Re
         || manifest.version != version::read(root)?
         || manifest.version_authority != "rust/src/product_version.rs"
         || manifest.historical_references
-            != ["Package.swift", "Sources/", "Tests/LauncherCoreTests/", "bench/reference/0.8.26/"]
+            != ["Package.swift", "Sources/", "Tests/LauncherCoreTests/"]
         || manifest.publication != "export-only; not published, installed or production-accepted"
         || bytes != canonical
     {
@@ -156,7 +156,6 @@ mod tests {
                 "Package.swift".into(),
                 "Sources/".into(),
                 "Tests/LauncherCoreTests/".into(),
-                "bench/reference/0.8.26/".into(),
             ],
             publication: "export-only; not published, installed or production-accepted".into(),
         };
@@ -170,11 +169,11 @@ mod tests {
         .unwrap();
         let original = bind_policy(&f.0, paths.clone()).unwrap();
         let correct = regular_bytes(&f.0.join("PUBLIC-SOURCE.json")).unwrap();
-        for lookalike in [None, Some("bench/reference/0.8.260/")] {
+        for lookalike in [None, Some("bench/reference/0.8.26/")] {
             let mut wrong: Manifest = serde_json::from_slice(&correct).unwrap();
             let references = &mut wrong.historical_references;
             if let Some(prefix) = lookalike {
-                references[3] = prefix.into();
+                references.push(prefix.into());
             } else {
                 references.pop();
             }
