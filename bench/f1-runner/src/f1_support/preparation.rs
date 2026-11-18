@@ -1589,34 +1589,6 @@ mod native_compiler_capture_tests {
         );
     }
     #[test]
-    #[ignore="explicit retained Main and private fixture parent required; never executes an image"]
-    fn actual_reference_main_table_and_initializer_are_statically_bound() {
-        use std::os::unix::fs::{MetadataExt,PermissionsExt};
-        let root=checkout_root().unwrap();
-        let capture=PathBuf::from(std::env::var_os("RUYCAST_F1_REFERENCE_CAPTURE_DIR").expect("actual Main capture required"));
-        assert_eq!(capture.parent(),Some(root.join("rust-native/target").as_path()));
-        assert_eq!(fs::canonicalize(&capture).unwrap(),capture);
-        let parent=PathBuf::from(std::env::var_os("RUYCAST_F1_WORKSPACE_FIXTURE_PARENT").expect("private fixture parent required"));
-        assert_eq!(fs::canonicalize(&parent).unwrap(),parent);
-        let metadata=fs::symlink_metadata(&parent).unwrap();
-        let owner=unsafe{libc::getuid()};assert!(metadata.is_dir()&&metadata.uid()==owner&&metadata.mode()&0o077==0);
-        let out=parent.join(format!("reference-main-static-{}",std::process::id()));
-        fs::create_dir(&out).unwrap();fs::set_permissions(&out,fs::Permissions::from_mode(0o700)).unwrap();
-        let main=reference_main_binding(&capture.join("RuycastF1Reference"),owner).unwrap();
-        let pins=reference_main_static_pins(&main,&root,&out,owner,Some(Instant::now()+std::time::Duration::from_secs(60))).unwrap();
-        assert_eq!(pins["main_functions"].as_array().unwrap().len(),25);
-        assert!(pins["main_initializer_offset"].as_u64().unwrap()>0);
-        assert!(pins["main_table_offset"].as_u64().unwrap()>0);
-        let bytes=fs::read(&main.path).unwrap();
-        let initializer=pins["main_initializer_offset"].as_u64().unwrap();
-        let table=pins["image_base"].as_u64().unwrap()+pins["main_table_offset"].as_u64().unwrap();
-        assert!(host_image_preflight_inner(&bytes,2,1,Some((initializer+4,table))).is_err());
-        assert!(host_image_preflight_inner(&bytes,2,1,Some((initializer,table+8))).is_err());
-        assert!(host_image_preflight(&bytes,2,1).is_err(),"ordinary Native/SDK parser must not acquire Reference offset-init permission");
-        main.verify().unwrap();
-        native_private_bytes(&out.join("result.json"),&serde_json::to_vec_pretty(&pins).unwrap()).unwrap();
-    }
-    #[test]
     #[ignore="explicit actual Native compiler capture required; no image execution"]
     fn actual_objc_doc_inputs_are_in_package_inventory() {
         let capture=PathBuf::from(std::env::var_os("RUYCAST_F1_NATIVE_CAPTURE_DIR").expect("actual capture required"));
@@ -3025,29 +2997,6 @@ fn fixture_epoch_binding(path:&Path,owner:u32)->Result<(Binding,u64)> {
     Ok((pinned,manifest.epoch_unix_seconds))
 }
 
-fn reference_main_binding(path:&Path,owner:u32)->Result<Binding> {
-    use std::{io::Read,os::unix::fs::{MetadataExt,OpenOptionsExt}};
-    if !path.is_absolute() || fs::canonicalize(path).map_err(|e|e.to_string())?!=path {
-        return Err("Reference MAIN path is not exact".into());
-    }
-    let file=fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW|libc::O_NONBLOCK|libc::O_CLOEXEC)
-        .open(path).map_err(|e|e.to_string())?;
-    let before=file.metadata().map_err(|e|e.to_string())?;
-    let identity=|v:&fs::Metadata|(v.dev(),v.ino(),v.uid(),v.mode(),v.nlink(),v.len(),v.mtime(),v.mtime_nsec(),v.ctime(),v.ctime_nsec());
-    if !before.is_file() || before.uid()!=owner || before.nlink()!=1 || before.mode()&0o022!=0 || before.len()>128*1024*1024 {
-        return Err("Reference MAIN readcap type/owner/size differs".into());
-    }
-    let mut bytes=Vec::new();(&file).take(128*1024*1024+1).read_to_end(&mut bytes).map_err(|e|e.to_string())?;
-    if bytes.len()>128*1024*1024 || identity(&before)!=identity(&file.metadata().map_err(|e|e.to_string())?)
-        || identity(&before)!=identity(&fs::symlink_metadata(path).map_err(|e|e.to_string())?) {
-        return Err("Reference MAIN changed during readcap".into());
-    }
-    if bytes.get(..4)!=Some(&[0xcf,0xfa,0xed,0xfe]) || bytes.get(12..16)!=Some(&2_u32.to_le_bytes()) {
-        return Err("Reference MAIN is not an actual Mach-O executable".into());
-    }
-    Ok(Binding{path:path.into(),sha256:sha(&bytes)})
-}
-
 /// Plain deterministic SDK environment, separate from original F1 workloads.
 fn reference_actor_environment(root:&Path,roots:&[PathBuf;4],fixture:&Binding,owner:u32,epoch:u64)->Result<(BTreeMap<&'static str,Binding>,[Binding;2])> {
     use std::os::unix::fs::PermissionsExt;
@@ -3088,62 +3037,6 @@ fn reference_actor_environment(root:&Path,roots:&[PathBuf;4],fixture:&Binding,ow
         files.insert(name,declaration_file(&path,owner)?);
     }
     Ok((files,[actual,icon_pin]))
-}
-
-fn reference_main_static_pins(endpoint:&Binding,root:&Path,out:&Path,owner:u32,whole:Option<Instant>)->Result<Value> {
-    let (_,main_image)=compiler_input_bytes(&endpoint.path,owner,whole)?;
-    if sha(&main_image)!=endpoint.sha256{return Err("Reference Main changed before static launch pins".into());}
-    let mut command=Command::new("/usr/bin/nm");
-    command.arg("-n").arg(&endpoint.path);
-    let result=native_tool_with_deadline(&mut command,root,whole)?;
-    native_private_bytes(&out.join("reference-main-symbols.stdout"),&result.stdout)?;
-    native_private_bytes(&out.join("reference-main-symbols.stderr"),&result.stderr)?;
-    if !result.status.success() || !result.stderr.is_empty(){return Err("Reference Main static symbol capture failed".into());}
-    let main_symbols=std::str::from_utf8(&result.stdout).map_err(|_|"Reference Main symbols UTF8")?;
-    let main_base=image_symbol(main_symbols,"__mh_execute_header",0)?;
-    let initializer=image_symbol(main_symbols,"_ruycast_reference_initializer_v1",main_base)?;
-    require_rx_offset(&main_image,main_base,initializer)?;
-    let table=image_symbol(main_symbols,"_RUYCAST_REFERENCE_MAIN_FUNCTIONS_V1",main_base)?;
-    let table_address=main_base.checked_add(table).ok_or("Reference table address overflow")?;
-    let (actual_base,_,_)=host_image_preflight_inner(&main_image,2,1,Some((initializer,table_address)))?;
-    if actual_base!=main_base{return Err("Reference Main text/header base differs".into());}
-    let header=readonly_file_range(&main_image,table_address,216)?;
-    if !table_address.is_multiple_of(8) || header[..8]!=0xF10000264D41494E_u64.to_le_bytes()
-        || header[8..12]!=1_u32.to_le_bytes() || header[12..16]!=25_u32.to_le_bytes() {
-        return Err("Reference Main static table header differs".into());
-    }
-    let main_names=["rcf1_install_guard","rcf1_borrow_delegate","rcf1_create_with_process_provider",
-        "rcf1_cancel_system_search","rcf1_drop","rcf1_query","rcf1_mode","rcf1_select",
-        "rcf1_actions","rcf1_set_commands","rcf1_snapshot","rcf1_result_count","rcf1_visible_count",
-        "rcf1_selected_id_count","rcf1_filtered_count","rcf1_apply_system_results","rcf1_process_sort",
-        "rcf1_set_process_sort","rcf1_process_snapshot","rcf1_config_data","rcf1_encode_clips",
-        "rcf1_record_timing","rcf1_record_recency","rcf1_call","rcf1_content_view"];
-    let mut main_functions=Vec::new();
-    for name in main_names {
-        let offset=image_symbol(main_symbols,&format!("_{name}"),main_base)?;
-        require_rx_offset(&main_image,main_base,offset)?;
-        main_functions.push(json!({"symbol":name,"image_offset":offset}));
-    }
-    let mut command=Command::new("/usr/bin/dyld_info");
-    command.arg("-fixups").arg(&endpoint.path);
-    let result=native_tool_with_deadline(&mut command,root,whole)?;
-    native_private_bytes(&out.join("reference-main-fixups.stdout"),&result.stdout)?;
-    native_private_bytes(&out.join("reference-main-fixups.stderr"),&result.stderr)?;
-    if !result.status.success() || !result.stderr.is_empty(){return Err("Reference Main static fixups failed".into());}
-    let fixup_text=std::str::from_utf8(&result.stdout).map_err(|_|"Reference fixups UTF8")?;
-    let rebases=static_rebases(fixup_text)?;
-    let table_end=table_address.checked_add(216).ok_or("Reference table range overflow")?;
-    if rebases.range(table_address..table_end).map(|(slot,_)|*slot).collect::<Vec<_>>()
-        !=(0..25).map(|index|table_address+16+index*8).collect::<Vec<_>>() {
-        return Err("Reference Main table fixup roster differs".into());
-    }
-    for (index,pin) in main_functions.iter().enumerate() {
-        let address=main_base.checked_add(pin["image_offset"].as_u64().ok_or("Reference Main offset absent")?)
-            .ok_or("Reference Main function address overflow")?;
-        if rebases.get(&(table_address+16+index as u64*8))!=Some(&address){return Err("Reference Main table typed slot differs".into());}
-    }
-    endpoint.verify()?;
-    Ok(json!({"main":endpoint,"image_base":main_base,"main_initializer_offset":initializer,"main_table_offset":table,"main_functions":main_functions}))
 }
 
 /// Actual two-image construction; deliberately never loads either image. The
