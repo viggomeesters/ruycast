@@ -168,10 +168,12 @@ impl Drop for Host {
 #[test]
 fn real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
-        .unwrap_or_else(|| root.parent().unwrap().join(".build/full-rust-release/native"));
+    let profile_examples = Path::new(env!("CARGO_BIN_EXE_ruycast-native"))
+        .parent()
+        .unwrap()
+        .join("examples");
     let source = std::env::var_os("RUYCAST_TEST_BOARD_SDK").map(PathBuf::from)
-        .unwrap_or_else(|| target.join("release/examples/libsnippet_board_fixture.dylib"));
+        .unwrap_or_else(|| profile_examples.join("libsnippet_board_fixture.dylib"));
     assert!(source.is_absolute() && source.is_file(), "Build the snippet-board-fixture Rust example first");
     let guard = root.join("target/pause-repair-board-guard.dylib");
     fs::copy(&source, &guard).unwrap();
@@ -279,10 +281,8 @@ fn real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume() {
     missing.stop();
     let output = root.join("target/clipboard-pause-repair");
     fs::create_dir_all(&output).unwrap();
-    let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
-        .unwrap_or_else(|| root.parent().unwrap().join(".build/full-rust-release/native"));
     let source = std::env::var_os("RUYCAST_TEST_HISTORY_SDK").map(PathBuf::from)
-        .unwrap_or_else(|| target.join("release/examples/libclipboard_history_fixture.dylib"));
+        .unwrap_or_else(|| profile_examples.join("libclipboard_history_fixture.dylib"));
     assert!(source.is_absolute() && source.is_file(), "Build the clipboard-history-fixture Rust example first");
     let native_shim = root.join("target/pause-repair-native.dylib");
     fs::copy(&source, &native_shim).unwrap();

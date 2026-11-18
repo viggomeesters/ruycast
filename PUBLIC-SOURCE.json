@@ -465,7 +465,7 @@
     "rust-native/tests/cli_open_basic_process.rs": "2a9c2537e8435b3974ee943b93ca96421993bed473b3888ec714de4672691015",
     "rust-native/tests/clipboard_history_host_process.rs": "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206",
     "rust-native/tests/clipboard_history_rust_provider.rs": "f98cd86a1215754abb85a0ae47c6d330c44b48934d492fc670215b2e59400c1b",
-    "rust-native/tests/clipboard_pause_repair.rs": "3e515451152145cec16bb66c290b85ae9d0f1c4098efa77f03a49ddb27c77b99",
+    "rust-native/tests/clipboard_pause_repair.rs": "f31fc572d43bcb5933592d6325830ab00021129e3a985ec31e7fa5b85c803c34",
     "rust-native/tests/clipboard_rich_paste.rs": "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8",
     "rust-native/tests/clipboard_text_process.rs": "406a3e8627430808baa7517e5170b48675fa6a51ded494ca235541498129c83a",
     "rust-native/tests/clipboard_text_reference.json": "1648bd57fadd592df1d09d711280c4d075ffe30ec931a4f65e21afe9012db9a2",
