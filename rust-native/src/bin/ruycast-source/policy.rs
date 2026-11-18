@@ -726,7 +726,6 @@ bench/reference/0.8.26/rust/src/bin/ruycast.rs
 bench/reference/0.8.26/rust/src/lib.rs
 bench/reference/0.8.26/rust/src/private_storage.rs
 bench/reference/ReferencePreentry.rs
-bench/reference/SwiftF1Bridge.swift
 bench/f1-runner/src/sdk/reference_source_actors.rs
 bench/f1-runner/src/sdk/workspace_appdelegate_callbacks.rs
 bench/f1-runner/src/sdk/workspace_appdelegate_callback_pins.rs
