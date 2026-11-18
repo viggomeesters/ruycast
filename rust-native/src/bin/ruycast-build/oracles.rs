@@ -2645,10 +2645,10 @@ mod tests {
             assert!(bindings.contains(&(*path, *hash)), "missing Rust source binding {path}");
         }
         assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
-        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
-        assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn window_search_provenance_keeps_current_inputs_and_gate_status() {
@@ -2686,10 +2686,10 @@ mod tests {
             gate.original_source,
             "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
         )));
-        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
-        assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn script_result_basic_binds_current_sources_and_route() {
@@ -3995,9 +3995,9 @@ mod tests {
             bindings.iter().find(|(path, _)| *path == log.original_source),
             Some(&(log.original_source, "9dd2ff68552ebcae0979530623309cafeb7a145a193444dc55a717e94a953455")),
         );
-        assert_eq!(settings_mapping_state(log), "source-qualified-rust-case-crosswalk");
+        assert_eq!(settings_mapping_state(log), "mapped-requires-source-requalification");
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
-        assert!(!inventory("settings").unwrap()["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(log.id)));
+        assert!(inventory("settings").unwrap()["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(log.id)));
         let sources = [
             ("activity::tests::", include_str!("../../activity.rs")),
             ("private_results::", include_str!("../../../tests/private_results.rs")),
@@ -4087,10 +4087,10 @@ mod tests {
                 assert!(std::str::from_utf8(rpc.1).unwrap().contains("pub fn connect("));
                 assert!(std::str::from_utf8(rpc.1).unwrap().contains("pub fn request("));
                 assert!(bindings.contains(&(gate.original_source, BROWSER_TABS_ORACLE_SHA256)));
-                assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+                assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
                 let inventory = inventory("settings").unwrap();
                 assert_eq!(inventory["productionAccepted"], false);
-                assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+                assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
             }
             if id == "--check-performance-pipeline" {
                 assert_eq!(gate.native_cases.len(), 14);
@@ -4164,7 +4164,7 @@ mod tests {
                 let bindings = settings_source_bindings(id);
                 assert_eq!(bindings.len(), 14);
                 assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
-                assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+                assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
             } else if id == "--check-apple-shortcuts" {
                 assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
@@ -4477,10 +4477,10 @@ mod tests {
         for name in gate.required_native_steps {
             assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing feedback route: {name}");
         }
-        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
-        assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn interactions_provenance_preserves_inputs_cases_routes_and_status() {
@@ -4529,10 +4529,10 @@ mod tests {
             assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
         }
         assert_eq!(gate.required_native_steps.len(), 14);
-        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
-        assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn polish_composition_and_partial_original_gates_keep_precise_cases_and_refusals() {
