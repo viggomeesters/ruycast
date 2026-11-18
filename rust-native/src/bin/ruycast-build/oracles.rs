@@ -4609,11 +4609,18 @@ mod tests {
         let unresolved = value["unmappedGateIDs"].as_array().unwrap();
         let expected_unresolved = serde_json::json!([
             "--check-settings",
+            "--check-interactions",
+            "--check-actions-menu",
+            "--check-browser-tabs",
             "--check-apple-shortcuts",
             "--check-window-search",
             "--check-menu-actions",
+            "--check-render-updates",
+            "--check-feedback",
             "--check-rich-resources",
             "--check-performance-pipeline",
+            "--check-visual-assets",
+            "--check-command-log",
             "--check-polish"
         ]);
         assert_eq!(
@@ -4626,7 +4633,7 @@ mod tests {
         let gates = value["gates"].as_array().unwrap();
         assert_eq!(gates.len(), 16);
         for gate in gates {
-            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" || gate[0] == "--check-render-updates" || gate[0] == "--check-browser-tabs" || gate[0] == "--check-feedback" || gate[0] == "--check-interactions" || gate[0] == "--check-visual-assets" || gate[0] == "--check-analytics" || gate[0] == "--check-actions-menu" {
+            if gate[0] == "--check-edit-commands" || gate[0] == "--check-analytics" {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
