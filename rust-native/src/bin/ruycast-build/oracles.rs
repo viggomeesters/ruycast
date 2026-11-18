@@ -1000,7 +1000,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
-            ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/InteractionChecks.swift", include_bytes!("../../../../Sources/RuycastApp/InteractionChecks.swift"), "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"),
         ],
 
@@ -1540,6 +1539,7 @@ fn settings_additional_provenance_sources(id: &str) -> &'static [(&'static str, 
     match id {
         "--check-feedback" => &[("Sources/RuycastApp/SystemChecks.swift", SYSTEM_CHECKS_ORACLE_SHA256)],
         "--check-settings" => &[("Sources/RuycastApp/SnippetEditingChecks.swift", SNIPPET_EDITING_ORACLE_SHA256)],
+        "--check-actions-menu" => &[("Sources/RuycastApp/FeedbackChecks.swift", FEEDBACK_ORACLE_SHA256)],
         _ => &[],
     }
 }
@@ -1576,7 +1576,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     });
     let additional = settings_additional_provenance_sources(gate.id);
     let expected_additional_count = match gate.id {
-        "--check-feedback" | "--check-settings" => 1,
+        "--check-feedback" | "--check-settings" | "--check-actions-menu" => 1,
         _ => 0,
     };
     let additional_provenance_current = additional.len() == expected_additional_count
@@ -1584,6 +1584,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             let expected = match (gate.id, *path) {
                 ("--check-feedback", "Sources/RuycastApp/SystemChecks.swift") => Some(SYSTEM_CHECKS_ORACLE_SHA256),
                 ("--check-settings", "Sources/RuycastApp/SnippetEditingChecks.swift") => Some(SNIPPET_EDITING_ORACLE_SHA256),
+                ("--check-actions-menu", "Sources/RuycastApp/FeedbackChecks.swift") => Some(FEEDBACK_ORACLE_SHA256),
                 _ => None,
             };
             expected == Some(*sha) && settings_source_bindings(gate.id).contains(&(*path, *sha))
@@ -2808,7 +2809,7 @@ mod tests {
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SnippetEditingChecks.swift"));
         assert_eq!(super::settings_additional_provenance_sources("--check-feedback"), &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4")]);
-        assert!(super::settings_additional_provenance_sources("--check-actions-menu").is_empty());
+        assert_eq!(super::settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04")]);
         assert!(super::settings_additional_provenance_sources("--check-interactions").is_empty());
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml"));
         for (path, _, sha) in inputs {
@@ -4195,14 +4196,18 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["actions-process", "actions-menu-process", "input-process-rust", "feedback-actions-process", "snippet-hotkey-process", "native-keyboard-process", "polish-original-process", "item-binding-original-process"]);
         assert_eq!(gate.native_cases.len(), 11);
-        assert_eq!(inputs.len(), 26);
+        assert_eq!(inputs.len(), 25);
         assert_eq!(bindings.len(), 27);
+        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 27);
         assert_eq!(provenance.1, "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f");
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
-        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/FeedbackChecks.swift" && *sha == "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"));
+        assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/FeedbackChecks.swift"));
         assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/InteractionChecks.swift" && *sha == "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"));
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert!(bindings.contains(&provenance));
+        let additional = settings_additional_provenance_sources(gate.id);
+        assert_eq!(additional, &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04")]);
+        assert!(bindings.contains(&additional[0]));
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current actions-menu binding: {path}");
         }
@@ -4384,7 +4389,7 @@ mod tests {
         assert_eq!(provenance.1, "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04");
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert_eq!(additional, &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4")]);
-        assert!(settings_additional_provenance_sources("--check-actions-menu").is_empty());
+        assert_eq!(settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04")]);
         assert!(settings_additional_provenance_sources("--check-interactions").is_empty());
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SystemChecks.swift"));
