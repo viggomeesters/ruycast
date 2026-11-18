@@ -888,6 +888,7 @@ const PERFORMANCE_PIPELINE_ORACLE_SHA256: &str = "429130589dd29b1c12fea7854b9e86
 const BROWSER_TABS_ORACLE_SHA256: &str = "82189e7c80a7baab3e38a8b34619de06f343c21ddf3b023df2bf0cafd6f0ebb9";
 const WINDOW_SEARCH_ORACLE_SHA256: &str = "cae0f60d635d6aa5af41d8fe8ecc9bc8102c28e49e2aec87a7e53462829ddf7f";
 const MENU_ACTIONS_ORACLE_SHA256: &str = "41d224340e00d1970fb953aad90c3c4a539e6af84634b1aa04b90972c166f1ed";
+const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f";
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "87377916433de1fd22fea0ee92b586e741f635213d2b2472368f1a8ae62111a2";
@@ -999,7 +1000,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
-            ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
             ("Sources/RuycastApp/InteractionChecks.swift", include_bytes!("../../../../Sources/RuycastApp/InteractionChecks.swift"), "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"),
         ],
 
@@ -1504,6 +1504,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/MenuActionChecks.swift",
             MENU_ACTIONS_ORACLE_SHA256,
         )),
+        "--check-actions-menu" => Some((
+            "Sources/RuycastApp/ActionMenuChecks.swift",
+            ACTIONS_MENU_ORACLE_SHA256,
+        )),
         "--check-rich-resources" => Some((
             "Sources/RuycastApp/RichResourceChecks.swift",
             RICH_RESOURCES_ORACLE_SHA256,
@@ -1545,6 +1549,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-browser-tabs" => Some(BROWSER_TABS_ORACLE_SHA256),
             "--check-window-search" => Some(WINDOW_SEARCH_ORACLE_SHA256),
             "--check-menu-actions" => Some(MENU_ACTIONS_ORACLE_SHA256),
+            "--check-actions-menu" => Some(ACTIONS_MENU_ORACLE_SHA256),
             "--check-rich-resources" => Some(RICH_RESOURCES_ORACLE_SHA256),
             "--check-apple-shortcuts" => Some(APPLE_SHORTCUTS_ORACLE_SHA256),
             "--check-polish" => Some(POLISH_ORACLE_SHA256),
@@ -4133,6 +4138,48 @@ mod tests {
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml" || *path == "config/default.json"));
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current Apple Shortcuts binding: {path}");
+        }
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let inventory = inventory("settings").unwrap();
+        assert_eq!(inventory["productionAccepted"], false);
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn actions_menu_provenance_preserves_cases_shared_sources_and_routes() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-actions-menu").unwrap();
+        let inputs = settings_sources(gate.id);
+        let provenance = (gate.original_source, ACTIONS_MENU_ORACLE_SHA256);
+        let bindings = settings_source_bindings(gate.id);
+        let case_sources = [
+            ("ui_completion::", "rust-native/examples/ui_completion.rs"),
+            ("actions_process::", "rust-native/tests/actions_process.rs"),
+            ("input_process::", "rust-native/tests/input_process.rs"),
+            ("native_keyboard_process::", "rust-native/tests/native_keyboard_process.rs"),
+        ];
+
+        assert_eq!(gate.required_native_steps, &["actions-process", "actions-menu-process", "input-process-rust", "feedback-actions-process", "snippet-hotkey-process", "native-keyboard-process", "polish-original-process", "item-binding-original-process"]);
+        assert_eq!(gate.native_cases.len(), 11);
+        assert_eq!(inputs.len(), 26);
+        assert_eq!(bindings.len(), 27);
+        assert_eq!(provenance.1, "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f");
+        assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/FeedbackChecks.swift" && *sha == "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"));
+        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/InteractionChecks.swift" && *sha == "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"));
+        assert_eq!(settings_provenance_source(gate.id), Some(provenance));
+        assert!(bindings.contains(&provenance));
+        for (path, _, sha) in inputs {
+            assert!(bindings.contains(&(path, sha)), "missing current actions-menu binding: {path}");
+        }
+        for case in gate.native_cases {
+            let (prefix, path) = case_sources.iter().find(|(prefix, _)| case.starts_with(*prefix)).unwrap();
+            let source = std::str::from_utf8(inputs.iter().find(|(input, _, _)| input == path).unwrap().1).unwrap();
+            let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
+            assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
+        }
+        let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
+        let planned_steps = plan["steps"].as_array().unwrap();
+        for name in gate.required_native_steps {
+            assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing actions-menu route: {name}");
         }
         assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let inventory = inventory("settings").unwrap();
