@@ -1433,7 +1433,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/presentation.rs",
                 include_bytes!("../../presentation.rs"),
-                "e178daee544e7ddec8120aeceae5fddf6f7704cff10cce7613d5b43d6361e8cd",
+                "dd9ecffe9e18537e56b5f26d66ba34ac6d68961c2b6bc267453248be2278bc00",
             ),
             (
                 "rust-native/src/website_icons.rs",
@@ -1448,12 +1448,12 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/native_rows.rs",
                 include_bytes!("../../native_rows.rs"),
-                "456a2d80b8a29c7902b023211b31bd9eddc56311e8468a177f0044060a44b895",
+                "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309",
             ),
             (
                 "rust-native/src/native.rs",
                 include_bytes!("../../native.rs"),
-                "fa986dcb9ba2fd5b1eac22a28afc67e6a328d70f184dd1fb0542acfaa8937b10",
+                "091eaaeeca37fb20067a9768243fc176df9cf9d9dce14dadfcd5eb9406a58cb3",
             ),
         ],
         _ => &[],
@@ -2681,10 +2681,10 @@ mod tests {
             gate.original_source,
             "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
         )));
-        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
-        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn script_result_basic_binds_current_sources_and_route() {
@@ -4578,7 +4578,6 @@ mod tests {
             "--check-rich-resources",
             "--check-analytics",
             "--check-performance-pipeline",
-            "--check-visual-assets",
             "--check-polish"
         ]);
         assert_eq!(
@@ -4591,7 +4590,7 @@ mod tests {
         let gates = value["gates"].as_array().unwrap();
         assert_eq!(gates.len(), 16);
         for gate in gates {
-            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" {
+            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" || gate[0] == "--check-visual-assets" {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
