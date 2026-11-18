@@ -1027,7 +1027,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
 
-            ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
             ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "9ebb1ecff6de79f76d0f69542e250a6d041b88afe0ca1ec5beb079a08b4f042c"),
             ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "14ce406b97d0a9bf0e7497a81f102425a73c6ac181f3d98f1b766b0bd899c49d"),
             ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "0c2c9f768bd6a911414ffea94335610eedebf8feea55eb6210fce6f5d72a7bdd"),
@@ -1543,7 +1542,10 @@ fn settings_additional_provenance_sources(id: &str) -> &'static [(&'static str, 
             ("Sources/RuycastApp/FeedbackChecks.swift", FEEDBACK_ORACLE_SHA256),
             ("Sources/RuycastApp/InteractionChecks.swift", RENDER_UPDATES_ORACLE_SHA256),
         ],
-        "--check-interactions" => &[("Sources/RuycastApp/FeedbackChecks.swift", FEEDBACK_ORACLE_SHA256)],
+        "--check-interactions" => &[
+            ("Sources/RuycastApp/FeedbackChecks.swift", FEEDBACK_ORACLE_SHA256),
+            ("Sources/RuycastApp/ActionMenuChecks.swift", ACTIONS_MENU_ORACLE_SHA256),
+        ],
         _ => &[],
     }
 }
@@ -1580,7 +1582,8 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     });
     let additional = settings_additional_provenance_sources(gate.id);
     let expected_additional_count = match gate.id {
-        "--check-settings" | "--check-interactions" => 1,
+        "--check-settings" => 1,
+        "--check-interactions" => 2,
         "--check-feedback" => 3,
         "--check-actions-menu" => 2,
         _ => 0,
@@ -1595,6 +1598,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
                 ("--check-actions-menu", "Sources/RuycastApp/FeedbackChecks.swift") => Some(FEEDBACK_ORACLE_SHA256),
                 ("--check-actions-menu", "Sources/RuycastApp/InteractionChecks.swift") => Some(RENDER_UPDATES_ORACLE_SHA256),
                 ("--check-interactions", "Sources/RuycastApp/FeedbackChecks.swift") => Some(FEEDBACK_ORACLE_SHA256),
+                ("--check-interactions", "Sources/RuycastApp/ActionMenuChecks.swift") => Some(ACTIONS_MENU_ORACLE_SHA256),
                 _ => None,
             };
             expected == Some(*sha) && settings_source_bindings(gate.id).contains(&(*path, *sha))
@@ -2820,7 +2824,7 @@ mod tests {
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SnippetEditingChecks.swift"));
         assert_eq!(super::settings_additional_provenance_sources("--check-feedback"), &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
         assert_eq!(super::settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
-        assert_eq!(super::settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04")]);
+        assert_eq!(super::settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml"));
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current settings binding: {path}");
@@ -4400,7 +4404,7 @@ mod tests {
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert_eq!(additional, &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
         assert_eq!(settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
-        assert_eq!(settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04")]);
+        assert_eq!(settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SystemChecks.swift"));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/ActionMenuChecks.swift"));
@@ -4446,16 +4450,16 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["bridge-process", "native-profile-process", "input-process-rust", "native-choice-host-process", "native-open-basic-process", "creation-process", "library-process", "settings-preferences-process", "feedback-actions-process", "native-snippet-choice-process-rust", "native-light-600", "native-light-760", "native-dark-600", "native-dark-760"]);
         assert_eq!(gate.native_cases.len(), 16);
-        assert_eq!(inputs.len(), 44);
+        assert_eq!(inputs.len(), 43);
         assert_eq!(bindings.len(), 46);
         assert_eq!(provenance.1, "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858");
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/FeedbackChecks.swift"));
-        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/ActionMenuChecks.swift" && *sha == "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"));
+        assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/ActionMenuChecks.swift"));
         let additional = settings_additional_provenance_sources(gate.id);
-        assert_eq!(additional, &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04")]);
-        assert!(bindings.contains(&additional[0]));
+        assert_eq!(additional, &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
+        for provenance in additional { assert!(bindings.contains(provenance)); }
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current interactions binding: {path}");
         }
@@ -4508,7 +4512,7 @@ mod tests {
             ("--check-polish", 10, 33, true),
             ("--check-feedback", 21, 39, true),
             ("--check-actions-menu", 11, 28, true),
-            ("--check-interactions", 16, 47, true),
+            ("--check-interactions", 16, 43, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.native_cases.len(), count);
