@@ -1352,11 +1352,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
                 include_bytes!("../../activity.rs"),
                 LOG_SOURCE_SHA256,
             ),
-            (
-                "Sources/RuycastApp/CommandLogChecks.swift",
-                include_bytes!("../../../../Sources/RuycastApp/CommandLogChecks.swift"),
-                LOG_ORACLE_SHA256,
-            ),
         ],
         "--check-edit-commands" => &[
             (
@@ -1483,6 +1478,25 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         _ => &[],
     }
 }
+fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> {
+    match id {
+        "--check-command-log" => Some((
+            "Sources/RuycastApp/CommandLogChecks.swift",
+            LOG_ORACLE_SHA256,
+        )),
+        _ => None,
+    }
+}
+fn settings_source_bindings(id: &str) -> Vec<(&'static str, &'static str)> {
+    let mut bindings = settings_sources(id)
+        .iter()
+        .map(|(path, _, sha)| (*path, *sha))
+        .collect::<Vec<_>>();
+    if let Some(provenance) = settings_provenance_source(id) {
+        bindings.push(provenance);
+    }
+    bindings
+}
 fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     if !gate.unproven_invariants.is_empty() || gate.native_cases.is_empty() {
         return "mapped-with-unproven-invariants";
@@ -1493,7 +1507,9 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     let current = !sources.is_empty()
         && sources
             .iter()
-            .all(|(_, bytes, expected)| format!("{:x}", Sha256::digest(bytes)) == *expected);
+            .all(|(_, bytes, expected)| format!("{:x}", Sha256::digest(bytes)) == *expected)
+        && settings_provenance_source(gate.id)
+            .is_none_or(|(path, sha)| path == gate.original_source && sha == LOG_ORACLE_SHA256);
     if current {
         "source-qualified-rust-case-crosswalk"
     } else {
@@ -1616,9 +1632,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         if settings_mapping_state(gate) == "source-qualified-rust-case-crosswalk" {
             qualified.insert(
                 gate.id,
-                settings_sources(gate.id)
-                    .iter()
-                    .map(|(path, _, sha)| (*path, *sha))
+                settings_source_bindings(gate.id)
+                    .into_iter()
                     .collect::<BTreeMap<_, _>>(),
             );
         }
@@ -3727,7 +3742,17 @@ mod tests {
             .unwrap();
         assert_eq!(log.native_cases.len(), 13);
         assert_eq!(log.required_native_steps, &["unit", "private-results-process"]);
-        assert_eq!(settings_sources(log.id).len(), 8);
+        let rust_sources = settings_sources(log.id);
+        assert_eq!(rust_sources.len(), 7);
+        assert!(rust_sources.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
+        let bindings = settings_source_bindings(log.id);
+        assert_eq!(bindings.len(), 8);
+        assert_eq!(
+            bindings.iter().find(|(path, _)| *path == log.original_source),
+            Some(&(log.original_source, "9dd2ff68552ebcae0979530623309cafeb7a145a193444dc55a717e94a953455")),
+        );
+        assert_eq!(settings_mapping_state(log), "mapped-requires-source-requalification");
+        assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
         let sources = [
             ("activity::tests::", include_str!("../../activity.rs")),
             ("private_results::", include_str!("../../../tests/private_results.rs")),
