@@ -76,45 +76,34 @@ binds both `fixture: {path, sha256}` and the identical `fixture_sha256`. The epo
 is read from that bounded, unchanged manifest, never from a free scalar.
 
 `prepare-reference-pins ROOT MAIN FIXTURE_JSON A|B OUT` writes source only. It
-creates genuine private SDK-cap/stdio bindings, four private runtime roots and
-a profile inside the admitted home, plus a compile-time eleven-field
-`ReferencePins` maker and its source manifest. Its cap expires when the command
-returns: the saved source/receipt is not runnable or replayable authority.
-The actual Reference SDK compilation must retain a fresh holder, use exactly
-the existing nine dependencies with a genuinely matched NativeLIB/compiler
-cohort, and pass only this SDK role `--cfg rcf1_reference_sdk --check-cfg
-cfg(rcf1_reference_sdk)`. It emits no SDK constructor; the separate Main keeps
-its one qualified preentry initializer. No Native capability is compiled or
-inherited by the Reference entry.
+creates private SDK-cap/stdio bindings, four private runtime roots and a
+profile, plus a compile-time `ReferencePins` maker and source manifest. Its cap
+expires when the command returns: the saved source/receipt is not runnable or
+replayable authority. No current runner command compiles or launches the
+Reference SDK. The historical `prepare-reference-images`,
+`run-reference-assembly` and `run-reference-input` commands fail before path
+access, output creation or process start. The original fixed Swift declaration
+roster is unavailable; recover its exact source before any future reactivation.
+Do not reconstruct or substitute declaration bytes.
 
-The fixed `sdk::reference_runtime::assemble_reference` actor builder must exist
-and construct the real admitted workspace, factories, catalog and all required
-module attestations. No placeholder assembler is generated. Complete actor
-assembly, actual nine-slot/foreign compiler joins and the static25-Main/five-SDK
-code pins remain required before a runnable Reference publication.
+No current command builds that actor or publishes a runnable Reference image.
+The old acceptance plan required the fixed
+`sdk::reference_runtime::assemble_reference` actor builder, complete module
+attestations, same-build compiler joins and static Main/SDK code pins; none of
+those requirements is satisfied by the retained source-only pins receipt.
 
 The historical `build-reference-full-host-interface`,
-`build-reference-interface`, and `resume-reference-debug` commands are retired.
+`build-reference-interface`, `resume-reference-debug`,
+`prepare-reference-images`, `run-reference-assembly` and
+`run-reference-input` commands are retired.
 The runner refuses them before path access or process start. Their old compiler
 and debug-capture implementation has been removed; no Swift bridge or Reference
 runtime authority is retained by this staging.
 
-The source-owned SDK producer resolves the locked Foundation package and selected
-SDK, requires the actual same-build NSString dep-info/rlib/extern join, and bakes
-the two declaration paths, hashes and owner IDs into the SDK. Cached rlibs
-without that receipt refuse. The SDK uses bounded read-only file capabilities
-and compares those compiled pins; runtime environment values cannot supply
-them. Bootstrap tests require an explicit canonical, user-owned mode0700
-`RUYCAST_NATIVE_TEST_FIXTURE_DIR` parent.
-
-Earlier bounded producer pure checks compile and pass; the new private
-ReferencePins/fixture-custody source requires its own scoped compiler review.
-The full SDK syntax attempt with
-the old Data Native rlib correctly refused its missing profile-I/O exports;
-that dependency is not a current SDK compiler closure. A fresh source-quiet
-Native release compiler receipt and matching dependency joins remain necessary
-before a joint canonical SDK build. No portable export or Data preparation has
-been run here.
+The SDK compiler/launch producer and its source-join helpers have been removed.
+Only the source-only pin preparer remains; it does not compile the SDK, start an
+endpoint or grant runnable authority. Any future reactivation needs a new,
+reviewed issue after the exact original declaration roster has been recovered.
 
 ## Protocol and admission
 
