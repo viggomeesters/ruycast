@@ -83,6 +83,16 @@ pub fn verify(binding: &Binding) -> Result<()> {
 fn file_binding(path: &Path) -> Result<Value> {
     Ok(json!({"path":path,"sha256":sha(&fs::read(path).map_err(|e|e.to_string())?)}))
 }
+const ORIGINAL_WORKLOADS_PATH: &str =
+    "bench/reference/0.8.26/Sources/RuycastApp/PerformanceChecks.swift";
+const ORIGINAL_WORKLOADS_SHA256: &str =
+    "a0534165a6df3d6afda628abaefdc8f740b4b0a54a969f814af76e8860382950";
+fn original_workloads_binding(measurement: &Path) -> Value {
+    json!({
+        "path": measurement.join(ORIGINAL_WORKLOADS_PATH),
+        "sha256": ORIGINAL_WORKLOADS_SHA256,
+    })
+}
 fn reference_capture_alive(deadline:Instant)->Result<()> {
     if Instant::now()>=deadline {Err("whole Reference capture absolute deadline".into())} else {Ok(())}
 }
@@ -1559,6 +1569,26 @@ fn input_capsule_section(image:&[u8], address:u64)->Result<()> {
 mod native_compiler_capture_tests {
     use super::*;
     #[test]
+    fn original_workloads_provenance_is_pinned_without_reading_the_historical_file() {
+        let measurement = std::env::temp_dir().join(format!(
+            "ruycast-missing-workload-source-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let source = measurement.join(ORIGINAL_WORKLOADS_PATH);
+        assert!(!source.exists());
+        assert_eq!(
+            original_workloads_binding(&measurement),
+            json!({
+                "path": source,
+                "sha256": "a0534165a6df3d6afda628abaefdc8f740b4b0a54a969f814af76e8860382950"
+            })
+        );
+    }
+    #[test]
     #[ignore="explicit retained Main and private fixture parent required; never executes an image"]
     fn actual_reference_main_table_and_initializer_are_statically_bound() {
         use std::os::unix::fs::{MetadataExt,PermissionsExt};
@@ -2962,8 +2992,7 @@ fn write_complete_fixture(measurement:&Path,out:&Path,epoch:i64)->Result<()> {
     put("process-commands-1000.json",&serde_json::to_vec_pretty(&fixture::process_commands()).map_err(|e|e.to_string())?)?;
     put("image-1200x800.rgba",&fixture::image_rgba())?;
     let source=measurement.join("rust-native/src/native_f1.rs");
-    let original=measurement.join("bench/reference/0.8.26/Sources/RuycastApp/PerformanceChecks.swift");
-    let manifest=json!({"schema":"ruycast.f1.fixture.v1","epoch_unix_seconds":epoch,"fixture_source":file_binding(&source)?,"original_workloads":file_binding(&original)?,"default_configuration":file_binding(&defaults)?,"files":files,
+    let manifest=json!({"schema":"ruycast.f1.fixture.v1","epoch_unix_seconds":epoch,"fixture_source":file_binding(&source)?,"original_workloads":original_workloads_binding(measurement),"default_configuration":file_binding(&defaults)?,"files":files,
         "catalog_sizes":[500,1000,5000,10000],"catalog_cached_query":"m","recency_search_query":"pro das","recency_entries":512,
         "clipboard_count":200,"clipboard_text_definition":"Fixture i: + native clipboard Ω repeated400; preserve originalUTF8bytes","clipboard_settings":{"enabled":true,"limit":200,"maxTextBytes":100000,"retentionDays":30,"excludedApps":[]},
         "process_count":1000,"process_cached_query":"","image":{"width":1200,"height":800,"channels":4,"format":"RGBA8","seed":42,"lcg_multiplier":1664525,"lcg_increment":1013904223},
