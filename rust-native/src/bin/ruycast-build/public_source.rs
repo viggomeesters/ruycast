@@ -1,8 +1,7 @@
 //! Post-build public-source binding. The clean archive verifier runs before
 //! compilation; this guard permits build outputs while binding every source.
 use super::*;
-#[path = "../ruycast-source/policy.rs"]
-mod policy;
+use super::source_policy as policy;
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Manifest {

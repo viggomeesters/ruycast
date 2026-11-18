@@ -123,11 +123,9 @@ pub(super) fn read(root: &Path) -> Result<String> {
     parse(&bytes)
 }
 #[cfg(test)]
-#[path = "../ruycast-source/policy.rs"]
-mod export_policy;
-#[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::source_policy as export_policy;
     #[test]
     #[ignore = "Owned Rust child for bounded nonregular-source reader regression"]
     fn nonregular_reader_child() {

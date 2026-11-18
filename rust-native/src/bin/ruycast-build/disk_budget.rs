@@ -44,8 +44,8 @@ pub fn available_bytes(path: &Path) -> Result<u64> {
         ));
     }
     let info = unsafe { info.assume_init() };
-    let blocks = u64::try_from(info.f_bavail).map_err(error)?;
-    let block_size = u64::try_from(info.f_frsize).map_err(error)?;
+    let blocks = u64::from(info.f_bavail);
+    let block_size = info.f_frsize;
     blocks
         .checked_mul(block_size)
         .ok_or_else(|| "Available filesystem byte count overflowed.".into())
