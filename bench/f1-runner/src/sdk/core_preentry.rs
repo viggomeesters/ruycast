@@ -9098,33 +9098,6 @@ impl ReferenceAdmission {
         self.registry_current()?;
         Ok(())
     }
-    #[cfg(all(not(test),rcf1_reference_sdk))]
-    pub(crate) fn initialize_bootstrap(
-        self: &Arc<Self>,
-        mut context: super::bootstrap::Bootstrap,
-        prepare_workspace: impl FnOnce() -> Result<Arc<crate::workspace::Workspace>>,
-    ) -> Result<(Arc<crate::workspace::Workspace>, super::ModuleAttestation)> {
-        self.before_reference_initialization()?;
-        if !Arc::ptr_eq(&context.life,&self.admitted.life)
-            || [&context.home,&context.cache,&context.temp,&context.applications].iter().zip(&self.roots)
-                .any(|(a,b)| a.path()!=b.path()) {
-            return Err("Reference bootstrap roots or guardian differ".into());
-        }
-        // Use the actual retained admitted roots, not caller-reopened aliases.
-        context.home=self.roots[0].clone();context.cache=self.roots[1].clone();
-        context.temp=self.roots[2].clone();context.applications=self.roots[3].clone();
-        unsafe {
-            super::bootstrap::initialize_owned_reference(
-                context,
-                self.life(),
-                self.descriptors(),
-                || self.before_reference_initialization(),
-                prepare_workspace,
-                |guard| self.install_profile_lock_import(guard),
-            )
-        }
-    }
-
     #[cfg(all(not(test), rcf1_reference_sdk, target_arch = "aarch64"))]
     fn install_profile_lock_import(self: &Arc<Self>, guard: &dyn AliveLease) -> Result<Vec<super::ImportReplacement>> {
         #[link(name = "swiftDarwin")]
