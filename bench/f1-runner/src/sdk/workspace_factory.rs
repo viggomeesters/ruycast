@@ -1838,12 +1838,9 @@ pub(crate) fn reference_edit_construction_callsite() -> crate::sdk::SourceCallsi
 
 #[cfg(any(rcf1_reference_sdk, test))]
 pub(crate) fn reference_palette_construction_callsite() -> crate::sdk::SourceCallsite {
-    use sha2::{Digest, Sha256};
     crate::sdk::SourceCallsite {
         file: "Sources/RuycastApp/Palette.swift",
-        source_sha256: format!("{:x}", Sha256::digest(include_bytes!(
-            "../../../reference/0.8.26/Sources/RuycastApp/Palette.swift"
-        ))),
+        source_sha256: "b3033c6bd07801c067f8fc524be61e81aa313e28243d9b926e74f042d98dc8b5".into(),
         operation: "PaletteController exact original PalettePanel allocation and super-init",
     }
 }

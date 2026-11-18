@@ -204,7 +204,7 @@
     "bench/f1-runner/src/sdk/workspace_controls.rs": "5ecdc047f391fe8ab462a52f75334f57cce69fabe4b213ebed7ec66bae633f2d",
     "bench/f1-runner/src/sdk/workspace_data_objc.rs": "2810535f721eade870b09a5dc27c98f82318d0a9735199af3f57612bc2203777",
     "bench/f1-runner/src/sdk/workspace_delegate.rs": "665f31fb0ded6993c58bf27e129c1d6983ab8b1b9cb963e1b71597a828b0e084",
-    "bench/f1-runner/src/sdk/workspace_factory.rs": "8576a16f77b32c24c9aa36b3be5b4c68a38ac946737dbc65d814b1cac9a0dfe9",
+    "bench/f1-runner/src/sdk/workspace_factory.rs": "f2faacc70284176c4a5bb65694267d04879cc940dd16d31ac67d03f6aba0c016",
     "bench/f1-runner/src/sdk/workspace_foundation.rs": "ed3c9332622773ceaaa5e161db8bde430849655ce5f04db9c6e112dfae5d8833",
     "bench/f1-runner/src/sdk/workspace_foundation_data.rs": "aec0bc5555ad94049f9f931c3637c1bee252f157cdbbd26c54d90a0614cfa497",
     "bench/f1-runner/src/sdk/workspace_images.rs": "f3abdbc46e35855631b5826fb23dd893825b3b5dacfca6aa42f1c992100226d5",
