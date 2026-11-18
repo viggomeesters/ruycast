@@ -885,6 +885,7 @@ const VISUAL_ASSET_ORACLE_SHA256: &str = "4bd5994c6cc34a504e3f1576a0a21ca903636e
 const RENDER_UPDATES_ORACLE_SHA256: &str = "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858";
 const ANALYTICS_ORACLE_SHA256: &str = "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876";
 const PERFORMANCE_PIPELINE_ORACLE_SHA256: &str = "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659";
+const BROWSER_TABS_ORACLE_SHA256: &str = "82189e7c80a7baab3e38a8b34619de06f343c21ddf3b023df2bf0cafd6f0ebb9";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1260,7 +1261,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/Cargo.lock", include_bytes!("../../../Cargo.lock"), "3ea0eb855d24f0b7b143746b49fa4dd1f311116e46c6561c7b5984e2383094e5"),
             ("rust/Cargo.toml", include_bytes!("../../../../rust/Cargo.toml"), "35f9cfa76ee0df1d4c8596264d5daf64c5683395330cc5db35be1a6e70138949"),
             ("rust-toolchain.toml", include_bytes!("../../../../rust-toolchain.toml"), "d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82"),
-            ("Sources/RuycastApp/BrowserTabChecks.swift", include_bytes!("../../../../Sources/RuycastApp/BrowserTabChecks.swift"), "82189e7c80a7baab3e38a8b34619de06f343c21ddf3b023df2bf0cafd6f0ebb9"),
         ],
         "--check-performance-pipeline" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
@@ -1492,6 +1492,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/PerformancePipelineChecks.swift",
             PERFORMANCE_PIPELINE_ORACLE_SHA256,
         )),
+        "--check-browser-tabs" => Some((
+            "Sources/RuycastApp/BrowserTabChecks.swift",
+            BROWSER_TABS_ORACLE_SHA256,
+        )),
         _ => None,
     }
 }
@@ -1520,6 +1524,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-render-updates" => Some(RENDER_UPDATES_ORACLE_SHA256),
             "--check-analytics" => Some(ANALYTICS_ORACLE_SHA256),
             "--check-performance-pipeline" => Some(PERFORMANCE_PIPELINE_ORACLE_SHA256),
+            "--check-browser-tabs" => Some(BROWSER_TABS_ORACLE_SHA256),
             _ => None,
         };
         path == gate.original_source
@@ -3892,7 +3897,7 @@ mod tests {
             (
                 "--check-browser-tabs",
                 &["unit",  "system-search-cli-process", "system-search-sdk"][..],
-                31,
+                30,
             ),
             (
                 "--check-performance-pipeline",
@@ -3904,6 +3909,20 @@ mod tests {
             assert_eq!(gate.required_native_steps, expected_steps);
             let entries = settings_sources(id);
             assert_eq!(entries.len(), expected_sources);
+            if id == "--check-browser-tabs" {
+                assert_eq!(gate.native_cases.len(), 28);
+                assert!(!entries.iter().any(|(path, _, _)| *path == gate.original_source));
+                let bindings = settings_source_bindings(id);
+                assert_eq!(bindings.len(), 31);
+                for (path, _, hash) in entries {
+                    assert!(bindings.contains(&(*path, *hash)), "missing current browser binding {path}");
+                }
+                assert!(bindings.contains(&(gate.original_source, BROWSER_TABS_ORACLE_SHA256)));
+                assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+                let inventory = inventory("settings").unwrap();
+                assert_eq!(inventory["productionAccepted"], false);
+                assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+            }
             if id == "--check-performance-pipeline" {
                 assert_eq!(gate.native_cases.len(), 14);
                 assert!(!entries.iter().any(|(path, _, _)| *path == gate.original_source));
