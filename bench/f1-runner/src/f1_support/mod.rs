@@ -862,10 +862,8 @@ pub fn entry(args: Vec<String>) -> Result<()> {
         [cmd,out] if cmd=="diagnose-apple-event-data" =>preparation::diagnose_apple_event_data(Path::new(out)),
         [cmd,root,fixture,out] if cmd=="prepare-owned-host-images" =>preparation::owned_host_images(Path::new(root),Path::new(fixture),Path::new(out)),
         [cmd,..] if cmd=="prepare-owned-host-images" =>Err("usage: f1-runner prepare-owned-host-images ROOT FIXTURE_JSON OUT; an explicit source-bound fixture manifest is required; the old ROOT OUT form is refused".into()),
-        [cmd,root,main,pinned,fixture,arm,out] if matches!(cmd.as_str(),"run-reference-assembly"|"run-reference-input") =>preparation::reference_images(Path::new(root),Path::new(main),Path::new(fixture),arm,Path::new(out),Some(pinned),cmd=="run-reference-input"),
-        [cmd,..] if matches!(cmd.as_str(),"run-reference-assembly"|"run-reference-input") =>Err(format!("usage: f1-runner {cmd} ROOT MAIN PINNED_MAIN_SHA256 FIXTURE_JSON A|B OUT; fresh compile/grant, no saved cap reuse")),
-        [cmd,root,main,fixture,arm,out] if cmd=="prepare-reference-images" =>preparation::reference_images(Path::new(root),Path::new(main),Path::new(fixture),arm,Path::new(out),None,false),
-        [cmd,..] if cmd=="prepare-reference-images" =>Err("usage: f1-runner prepare-reference-images ROOT MAIN FIXTURE_JSON A|B OUT; same-build compile, no execution, cap expires on return".into()),
+        [cmd,..] if matches!(cmd.as_str(),"prepare-reference-images"|"run-reference-assembly"|"run-reference-input") =>
+            Err(format!("retired historical Reference image command: {cmd}")),
         [cmd,root,main,fixture,arm,out] if cmd=="prepare-reference-pins" =>preparation::reference_pins_preparation(Path::new(root),Path::new(main),Path::new(fixture),arm,Path::new(out)),
         [cmd,..] if cmd=="prepare-reference-pins" =>Err("usage: f1-runner prepare-reference-pins ROOT MAIN FIXTURE_JSON A|B OUT; source-only, expires on return".into()),
         [cmd,root,out] if cmd=="prepare-native-owned-host" =>preparation::native_owned_host(Path::new(root),Path::new(out)),
@@ -920,6 +918,23 @@ mod tests {
         assert!(!Path::new("/not-created/partial-output").exists());
         assert!(!Path::new("/not-created/full-output").exists());
         assert!(!Path::new("/not-created/resume-output").exists());
+    }
+    #[test]
+    fn retired_reference_image_commands_refuse_before_path_io_or_process_start() {
+        for (command, complete_args, output) in [
+            ("prepare-reference-images", vec!["/not-opened/root", "/not-opened/main", "/not-opened/fixture.json", "A", "/not-created/reference-images"], "/not-created/reference-images"),
+            ("run-reference-assembly", vec!["/not-opened/root", "/not-opened/main", "deadbeef", "/not-opened/fixture.json", "A", "/not-created/reference-assembly"], "/not-created/reference-assembly"),
+            ("run-reference-input", vec!["/not-opened/root", "/not-opened/main", "deadbeef", "/not-opened/fixture.json", "B", "/not-created/reference-input"], "/not-created/reference-input"),
+        ] {
+            for args in [
+                std::iter::once(command).chain(complete_args.iter().copied()).collect::<Vec<_>>(),
+                vec![command],
+            ] {
+                let error = entry(args.into_iter().map(str::to_owned).collect()).unwrap_err();
+                assert_eq!(error, format!("retired historical Reference image command: {command}"));
+            }
+            assert!(!Path::new(output).exists());
+        }
     }
     #[test]
     fn retired_swift_ast_commands_refuse_before_plan_io_or_process_start() {
