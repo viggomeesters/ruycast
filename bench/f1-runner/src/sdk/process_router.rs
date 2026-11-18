@@ -489,22 +489,6 @@ pub(crate) unsafe fn initialize_owned(
     unsafe {initialize_for_role(life,descriptors,registry,prewrite,None)}
 }
 
-/// Separate sealed Reference role; there is no caller-supplied role flag or
-/// JSON roster. The admitted Main/source/compiler profile must freshly match
-/// the fixed25/absent9 contract before this initializer can succeed.
-#[cfg(all(not(test), rcf1_reference_sdk))]
-pub(crate) unsafe fn initialize_reference(
-    admission: Arc<super::core_preentry::ReferenceAdmission>,
-    registry: Arc<super::process_dispatch::Registry>,
-    prewrite: impl Fn() -> Result<()> + Send + Sync,
-) -> Result<ModuleAttestation> {
-    admission.before_reference_initialization()?;
-    admission.verify_process_source_members()?;
-    let life=admission.life();
-    let descriptors=admission.descriptors();
-    unsafe {initialize_for_role(life,descriptors,registry,prewrite,Some(admission))}
-}
-
 unsafe fn initialize_for_role(
     life: Arc<dyn AliveLease>,
     descriptors: Arc<DescriptorTable>,
