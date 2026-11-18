@@ -1827,7 +1827,7 @@ pub unsafe fn prepare_app_delegate_constructor(context:Arc<crate::sdk::core_pree
 }
 #[cfg(all(rcf1_reference_sdk,not(test),target_arch="aarch64"))]
 pub(crate) fn source_allocation_grant(pointer:*mut AnyObject)->Result<Arc<WorkspaceGrant>> {allocation_owner(pointer)}
-#[cfg(rcf1_reference_sdk)]
+#[cfg(any(rcf1_reference_sdk, test))]
 pub(crate) fn reference_edit_construction_callsite() -> crate::sdk::SourceCallsite {
     crate::sdk::SourceCallsite {
         file: "Sources/RuycastApp/NativeEditCommands.swift",
@@ -1836,7 +1836,7 @@ pub(crate) fn reference_edit_construction_callsite() -> crate::sdk::SourceCallsi
     }
 }
 
-#[cfg(rcf1_reference_sdk)]
+#[cfg(any(rcf1_reference_sdk, test))]
 pub(crate) fn reference_palette_construction_callsite() -> crate::sdk::SourceCallsite {
     use sha2::{Digest, Sha256};
     crate::sdk::SourceCallsite {
@@ -1848,7 +1848,7 @@ pub(crate) fn reference_palette_construction_callsite() -> crate::sdk::SourceCal
     }
 }
 
-#[cfg(rcf1_reference_sdk)]
+#[cfg(any(rcf1_reference_sdk, test))]
 pub(crate) fn reference_snippet_panel_construction_callsite() -> crate::sdk::SourceCallsite {
     crate::sdk::SourceCallsite {
         file: "Sources/RuycastApp/SnippetChoice.swift",
