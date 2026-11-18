@@ -1041,7 +1041,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/native_snippet_choice_process.rs", include_bytes!("../../../tests/native_snippet_choice_process.rs"), "a377189c20cb7af7710acfe989d3f514a92b4905f221e01e2e4a22934744af1d"),
             ("rust-native/tests/fixtures/choice_board_sdk.rs", include_bytes!("../../../tests/fixtures/choice_board_sdk.rs"), "b2cf3257801da488997df127933a9f29a09d3b93abec66f2dd14ea6808a34450"),
             ("rust-native/tests/fixtures/choice_monitor_sdk.rs", include_bytes!("../../../tests/fixtures/choice_monitor_sdk.rs"), "7d83558c04fb39fcac4369de5dac244c5387962b896bb4653817d55327325e74"),
-            ("rust-native/tests/fixtures/choice_fixture.rs", include_bytes!("../../../tests/fixtures/choice_fixture.rs"), "cf80241e31020b09f45243c22bd29df3682cb8e83bfe1b796a5c26b054f976d8"),
+            ("rust-native/tests/fixtures/choice_fixture.rs", include_bytes!("../../../tests/fixtures/choice_fixture.rs"), "56c974f5848de285196f5d3b59b30a058c684157415f4d8d04e195aa93a3022a"),
             ("rust-native/Cargo.toml", include_bytes!("../../../Cargo.toml"), "9de2408564b5c751b1dbe084a49ce25e4267176e88205c95fbd49d6748a03c1c"),
             ("rust-native/Cargo.lock", include_bytes!("../../../Cargo.lock"), "3ea0eb855d24f0b7b143746b49fa4dd1f311116e46c6561c7b5984e2383094e5"),
             ("rust/Cargo.toml", include_bytes!("../../../../rust/Cargo.toml"), "35f9cfa76ee0df1d4c8596264d5daf64c5683395330cc5db35be1a6e70138949"),
