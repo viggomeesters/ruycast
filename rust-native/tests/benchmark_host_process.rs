@@ -180,6 +180,6 @@ fn active_socket_failure_keeps_completed_requests_and_partial_samples() {
     assert_eq!(report["ok"], false);
     assert_eq!(report["phase"], "active");
     assert_eq!(report["active"]["complete"], false);
-    assert!(report["active"]["samples"].as_array().unwrap().len() >= 1);
+    assert!(!report["active"]["samples"].as_array().unwrap().is_empty());
     assert_eq!(report["active"]["requests"], 1);
 }
