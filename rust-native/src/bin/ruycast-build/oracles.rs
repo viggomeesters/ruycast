@@ -894,6 +894,7 @@ const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5
 const POLISH_ORACLE_SHA256: &str = "87377916433de1fd22fea0ee92b586e741f635213d2b2472368f1a8ae62111a2";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04";
+const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -967,7 +968,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "0cf0eb9765919ea4142fe4436df347a9ed7215663dfa699d218a970e39c1569c"),
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "3fd6aa6c6a3c8321dde7a9f4b85a01045e18aad1e0bfeea89d2a9d5d0f935409"),
-            ("Sources/RuycastApp/SystemChecks.swift", include_bytes!("../../../../Sources/RuycastApp/SystemChecks.swift"), "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
         ],
@@ -1533,7 +1533,14 @@ fn settings_source_bindings(id: &str) -> Vec<(&'static str, &'static str)> {
     if let Some(provenance) = settings_provenance_source(id) {
         bindings.push(provenance);
     }
+    bindings.extend_from_slice(settings_additional_provenance_sources(id));
     bindings
+}
+fn settings_additional_provenance_sources(id: &str) -> &'static [(&'static str, &'static str)] {
+    match id {
+        "--check-feedback" => &[("Sources/RuycastApp/SystemChecks.swift", SYSTEM_CHECKS_ORACLE_SHA256)],
+        _ => &[],
+    }
 }
 fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     if !gate.unproven_invariants.is_empty() || gate.native_cases.is_empty() {
@@ -1566,11 +1573,22 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             && expected == Some(sha)
             && settings_source_bindings(gate.id).contains(&(path, sha))
     });
+    let additional = settings_additional_provenance_sources(gate.id);
+    let expected_additional_count = if gate.id == "--check-feedback" { 1 } else { 0 };
+    let additional_provenance_current = additional.len() == expected_additional_count
+        && additional.iter().all(|(path, sha)| {
+            let expected = match (gate.id, *path) {
+                ("--check-feedback", "Sources/RuycastApp/SystemChecks.swift") => Some(SYSTEM_CHECKS_ORACLE_SHA256),
+                _ => None,
+            };
+            expected == Some(*sha) && settings_source_bindings(gate.id).contains(&(*path, *sha))
+        });
     let current = !sources.is_empty()
         && sources
             .iter()
             .all(|(_, bytes, expected)| format!("{:x}", Sha256::digest(bytes)) == *expected)
-        && provenance_current;
+        && provenance_current
+        && additional_provenance_current;
     if current {
         "source-qualified-rust-case-crosswalk"
     } else {
@@ -4328,6 +4346,7 @@ mod tests {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-feedback").unwrap();
         let inputs = settings_sources(gate.id);
         let provenance = (gate.original_source, FEEDBACK_ORACLE_SHA256);
+        let additional = settings_additional_provenance_sources(gate.id);
         let bindings = settings_source_bindings(gate.id);
         let case_sources = [
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
@@ -4347,11 +4366,17 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["unit", "creation-process", "input-process-rust", "actions-process", "feedback-actions-process", "utility-process", "polish-original-process", "system-search-cli-process", "remaining-macos-process"]);
         assert_eq!(gate.native_cases.len(), 21);
-        assert_eq!(inputs.len(), 37);
+        assert_eq!(inputs.len(), 36);
         assert_eq!(bindings.len(), 38);
+        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 38);
         assert_eq!(provenance.1, "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04");
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
+        assert_eq!(additional, &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4")]);
+        assert!(settings_additional_provenance_sources("--check-actions-menu").is_empty());
+        assert!(settings_additional_provenance_sources("--check-interactions").is_empty());
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+        assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SystemChecks.swift"));
+        assert!(bindings.contains(&additional[0]));
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current feedback binding: {path}");
         }
