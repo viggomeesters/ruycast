@@ -978,19 +978,20 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
-            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
-            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
-            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "be9b0bb1578133f914dc91ae9bbad8db83b53faeb536be610fd6bde3ece14330"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "59b4083c20646803fe9fda36ac0dace920b487cfe126de582a80cc33814d2728"),
+            ("rust-native/src/benchmark_host/rpc.rs", include_bytes!("../../benchmark_host/rpc.rs"), "1faf3f1955d922d30dc409fddb6ab499931c3ae3918b651f32cec21c97d206f9"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             // The final eight binding fields and real queued-recorder ACK are
             // carried by item-binding-original-process, never by Polish alone.
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
-            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "fa986dcb9ba2fd5b1eac22a28afc67e6a328d70f184dd1fb0542acfaa8937b10"),
-            ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "c00bfde67fef22f13fc2f1aebf80617ffaf4609d9d788dd9f14520fcd579a84a"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "f423bafab7e74325b54cf4f2d9f031cec5d8294685366a74d658e1818acddd64"),
+            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "091eaaeeca37fb20067a9768243fc176df9cf9d9dce14dadfcd5eb9406a58cb3"),
+            ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
-            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "5669c69dbab3032e16d6e5788fed43e4e930e77b71706c436878f27547c993d5"),
+            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "243795022623e692d88e7eec66bbe9a4c471d14fe4fa22ecb7dad93cbeae45a2"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
             ("rust-native/tests/library_drafts_process.rs", include_bytes!("../../../tests/library_drafts_process.rs"), "27676806949e31bb4679db9f2acfcf068fe7229d6deb51d2d6b6f3af2b4ec7b2"),
             ("rust-native/tests/library_navigation_process.rs", include_bytes!("../../../tests/library_navigation_process.rs"), "5c9ae7c66d226e7cb0178c047d36cfabee111b6f4dfd0097f9d39e06b1635186"),
@@ -4235,9 +4236,9 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["actions-process", "actions-menu-process", "input-process-rust", "feedback-actions-process", "snippet-hotkey-process", "native-keyboard-process", "polish-original-process", "item-binding-original-process"]);
         assert_eq!(gate.native_cases.len(), 11);
-        assert_eq!(inputs.len(), 24);
-        assert_eq!(bindings.len(), 27);
-        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 27);
+        assert_eq!(inputs.len(), 25);
+        assert_eq!(bindings.len(), 28);
+        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 28);
         assert_eq!(provenance.1, "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f");
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/FeedbackChecks.swift"));
@@ -4250,6 +4251,12 @@ mod tests {
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current actions-menu binding: {path}");
         }
+        let status_rpc = inputs.iter().find(|entry| entry.0 == "rust-native/tests/support/status_rpc.rs").unwrap();
+        assert!(std::str::from_utf8(status_rpc.1).unwrap().contains("benchmark_host::rpc::{connect, request}"));
+        let rpc = inputs.iter().find(|entry| entry.0 == "rust-native/src/benchmark_host/rpc.rs").unwrap();
+        assert_eq!(rpc.2, "1faf3f1955d922d30dc409fddb6ab499931c3ae3918b651f32cec21c97d206f9");
+        assert!(std::str::from_utf8(rpc.1).unwrap().contains("pub fn connect("));
+        assert!(std::str::from_utf8(rpc.1).unwrap().contains("pub fn request("));
         for case in gate.native_cases {
             let (prefix, path) = case_sources.iter().find(|(prefix, _)| case.starts_with(*prefix)).unwrap();
             let source = std::str::from_utf8(inputs.iter().find(|(input, _, _)| input == path).unwrap().1).unwrap();
@@ -4261,10 +4268,10 @@ mod tests {
         for name in gate.required_native_steps {
             assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing actions-menu route: {name}");
         }
-        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
-        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn menu_map_preserves_original_cases_required_routes_and_source_inputs() {
@@ -4576,7 +4583,6 @@ mod tests {
         let expected_unresolved = serde_json::json!([
             "--check-settings",
             "--check-interactions",
-            "--check-actions-menu",
             "--check-browser-tabs",
             "--check-apple-shortcuts",
             "--check-window-search",
@@ -4597,7 +4603,7 @@ mod tests {
         let gates = value["gates"].as_array().unwrap();
         assert_eq!(gates.len(), 16);
         for gate in gates {
-            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" || gate[0] == "--check-visual-assets" || gate[0] == "--check-analytics" {
+            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" || gate[0] == "--check-visual-assets" || gate[0] == "--check-analytics" || gate[0] == "--check-actions-menu" {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
