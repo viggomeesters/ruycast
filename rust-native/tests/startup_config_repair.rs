@@ -605,7 +605,7 @@ fn invalid_explicit_profile_never_uses_cwd_or_legacy_or_override() {
                 .unwrap(),
             true
         )["result"],
-        json!(f.root.join("config.json"))
+        json!(fs::canonicalize(&f.root).unwrap().join("config.json"))
     );
 }
 #[test]
