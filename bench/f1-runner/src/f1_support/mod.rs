@@ -905,7 +905,7 @@ mod tests {
         let source=preparation::inventory(&checkout).unwrap();
         assert!(source.files.contains_key(Path::new("rust-native/Cargo.toml")));
         assert!(source.files.contains_key(Path::new(
-            "bench/reference/0.8.26/Sources/RuycastApp/PerformanceChecks.swift"
+            "bench/f1-runner/src/f1_support/preparation.rs"
         )));
 
         let output=std::env::temp_dir().join(format!("ruycast-rejected-reference-inventory-{}.json",std::process::id()));
