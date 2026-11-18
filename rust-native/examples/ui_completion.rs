@@ -2085,6 +2085,9 @@ fn feedback_actions(root: &Path) {
 
         // A saved snippet has eleven command actions; provider actions use their own context.
         key(0,1<<20,"a");key(51,0,"");
+        let blank=h.probe(false,"read",json!({}));
+        assert_eq!(blank["input"],"");assert_eq!(blank["rows"],0);assert!(blank["selectedId"].is_null());
+        key(0,0,"snippet");
         h.wait(|_|h.probe(false,"read",json!({}))["selectedId"]=="snippet.fixture");
         key(40,1<<20,"k");
         let largest=h.probe(false,"read",json!({}));
