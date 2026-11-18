@@ -218,13 +218,13 @@ mod tests {
         let application = app();
         let settings = settings(2);
         assert!(tracker
-            .observe(clock(5), &[application.clone()], &settings)
+            .observe(clock(5), std::slice::from_ref(&application), &settings)
             .is_empty());
         assert!(tracker
-            .observe(clock(124), &[application.clone()], &settings)
+            .observe(clock(124), std::slice::from_ref(&application), &settings)
             .is_empty());
         let due = tracker
-            .observe(clock(125), &[application.clone()], &settings)
+            .observe(clock(125), std::slice::from_ref(&application), &settings)
             .pop()
             .unwrap();
         assert_eq!(due.application, application.application);
@@ -241,22 +241,22 @@ mod tests {
             let mut tracker = Tracker::default();
             let mut application = app();
             let settings = settings(1);
-            tracker.observe(clock(0), &[application.clone()], &settings);
+            tracker.observe(clock(0), std::slice::from_ref(&application), &settings);
             let due = tracker
-                .observe(clock(60), &[application.clone()], &settings)
+                .observe(clock(60), std::slice::from_ref(&application), &settings)
                 .pop()
                 .unwrap();
             application.activity = activity;
             assert!(tracker
-                .observe(clock(61), &[application.clone()], &settings)
+                .observe(clock(61), std::slice::from_ref(&application), &settings)
                 .is_empty());
             assert!(!tracker.is_current(&due));
             application.activity = Activity::Background;
             assert!(tracker
-                .observe(clock(61), &[application.clone()], &settings)
+                .observe(clock(61), std::slice::from_ref(&application), &settings)
                 .is_empty());
             assert!(tracker
-                .observe(clock(120), &[application.clone()], &settings)
+                .observe(clock(120), std::slice::from_ref(&application), &settings)
                 .is_empty());
             assert_eq!(
                 tracker.observe(clock(121), &[application], &settings).len(),
@@ -269,29 +269,29 @@ mod tests {
         let mut tracker = Tracker::default();
         let application = app();
         let mut settings = settings(1);
-        tracker.observe(clock(0), &[application.clone()], &settings);
+        tracker.observe(clock(0), std::slice::from_ref(&application), &settings);
         let due = tracker
-            .observe(clock(60), &[application.clone()], &settings)
+            .observe(clock(60), std::slice::from_ref(&application), &settings)
             .pop()
             .unwrap();
         settings.values_mut().next().unwrap().enabled = false;
         assert!(tracker
-            .observe(clock(61), &[application.clone()], &settings)
+            .observe(clock(61), std::slice::from_ref(&application), &settings)
             .is_empty());
         assert!(!tracker.is_current(&due));
         settings.values_mut().next().unwrap().enabled = true;
         assert!(tracker
-            .observe(clock(100), &[application.clone()], &settings)
+            .observe(clock(100), std::slice::from_ref(&application), &settings)
             .is_empty());
         settings.values_mut().next().unwrap().minutes = 2;
         assert!(tracker
-            .observe(clock(150), &[application.clone()], &settings)
+            .observe(clock(150), std::slice::from_ref(&application), &settings)
             .is_empty());
         assert!(tracker
-            .observe(clock(269), &[application.clone()], &settings)
+            .observe(clock(269), std::slice::from_ref(&application), &settings)
             .is_empty());
         let due = tracker
-            .observe(clock(270), &[application.clone()], &settings)
+            .observe(clock(270), std::slice::from_ref(&application), &settings)
             .pop()
             .unwrap();
         settings.clear();
@@ -305,22 +305,22 @@ mod tests {
         let mut tracker = Tracker::default();
         let application = app();
         let settings = settings(1);
-        tracker.observe(clock(0), &[application.clone()], &settings);
+        tracker.observe(clock(0), std::slice::from_ref(&application), &settings);
         let due = tracker
-            .observe(clock(60), &[application.clone()], &settings)
+            .observe(clock(60), std::slice::from_ref(&application), &settings)
             .pop()
             .unwrap();
         tracker.set_sleeping(true);
         assert!(!tracker.is_current(&due));
         assert!(tracker
-            .observe(clock(5000), &[application.clone()], &settings)
+            .observe(clock(5000), std::slice::from_ref(&application), &settings)
             .is_empty());
         tracker.set_sleeping(false);
         assert!(tracker
-            .observe(clock(5001), &[application.clone()], &settings)
+            .observe(clock(5001), std::slice::from_ref(&application), &settings)
             .is_empty());
         assert!(tracker
-            .observe(clock(5060), &[application.clone()], &settings)
+            .observe(clock(5060), std::slice::from_ref(&application), &settings)
             .is_empty());
         assert_eq!(
             tracker
@@ -336,9 +336,9 @@ mod tests {
             let mut tracker = Tracker::default();
             let mut application = app();
             let settings = settings(1);
-            tracker.observe(clock(0), &[application.clone()], &settings);
+            tracker.observe(clock(0), std::slice::from_ref(&application), &settings);
             let due = tracker
-                .observe(clock(60), &[application.clone()], &settings)
+                .observe(clock(60), std::slice::from_ref(&application), &settings)
                 .pop()
                 .unwrap();
             if replace_pid {
@@ -346,7 +346,7 @@ mod tests {
             }
             application.process.seconds += 1;
             assert!(tracker
-                .observe(clock(61), &[application.clone()], &settings)
+                .observe(clock(61), std::slice::from_ref(&application), &settings)
                 .is_empty());
             assert!(!tracker.is_current(&due));
             let replacement = tracker
@@ -363,22 +363,22 @@ mod tests {
         let settings = settings(1);
         for snapshot in [vec![], vec![application.clone(), application.clone()]] {
             let mut tracker = Tracker::default();
-            tracker.observe(clock(0), &[application.clone()], &settings);
+            tracker.observe(clock(0), std::slice::from_ref(&application), &settings);
             let due = tracker
-                .observe(clock(60), &[application.clone()], &settings)
+                .observe(clock(60), std::slice::from_ref(&application), &settings)
                 .pop()
                 .unwrap();
             assert!(tracker.observe(clock(61), &snapshot, &settings).is_empty());
             assert!(!tracker.is_current(&due));
         }
         let mut tracker = Tracker::default();
-        tracker.observe(clock(10), &[application.clone()], &settings);
+        tracker.observe(clock(10), std::slice::from_ref(&application), &settings);
         let due = tracker
-            .observe(clock(70), &[application.clone()], &settings)
+            .observe(clock(70), std::slice::from_ref(&application), &settings)
             .pop()
             .unwrap();
         assert!(tracker
-            .observe(clock(0), &[application.clone()], &settings)
+            .observe(clock(0), std::slice::from_ref(&application), &settings)
             .is_empty());
         assert!(!tracker.is_current(&due));
         assert_eq!(
@@ -395,9 +395,9 @@ mod tests {
             replacement.activity = Activity::Foreground;
             let settings = settings(1);
             let mut tracker = Tracker::default();
-            tracker.observe(clock(0), &[old.clone()], &settings);
+            tracker.observe(clock(0), std::slice::from_ref(&old), &settings);
             let due = tracker
-                .observe(clock(60), &[old.clone()], &settings)
+                .observe(clock(60), std::slice::from_ref(&old), &settings)
                 .pop()
                 .unwrap();
             let mut snapshot = vec![old, replacement.clone()];
@@ -408,13 +408,13 @@ mod tests {
             assert!(!tracker.is_current(&due));
             replacement.activity = Activity::Background;
             assert!(tracker
-                .observe(clock(62), &[replacement.clone()], &settings)
+                .observe(clock(62), std::slice::from_ref(&replacement), &settings)
                 .is_empty());
             assert!(tracker
-                .observe(clock(121), &[replacement.clone()], &settings)
+                .observe(clock(121), std::slice::from_ref(&replacement), &settings)
                 .is_empty());
             let current = tracker
-                .observe(clock(122), &[replacement.clone()], &settings)
+                .observe(clock(122), std::slice::from_ref(&replacement), &settings)
                 .pop()
                 .unwrap();
             assert_eq!(current.process, replacement.process);
@@ -429,10 +429,10 @@ mod tests {
         application.application.make_ascii_uppercase();
         let settings = settings(u32::MAX);
         assert!(tracker
-            .observe(Duration::MAX, &[application.clone()], &settings)
+            .observe(Duration::MAX, std::slice::from_ref(&application), &settings)
             .is_empty());
         assert!(tracker
-            .observe(clock(0), &[application.clone()], &settings)
+            .observe(clock(0), std::slice::from_ref(&application), &settings)
             .is_empty());
         let due = tracker
             .observe(clock(u64::from(u32::MAX) * 60), &[application], &settings)
@@ -445,14 +445,14 @@ mod tests {
         let application = app();
         let settings = settings(1);
         let mut previous = Tracker::default();
-        previous.observe(clock(0), &[application.clone()], &settings);
+        previous.observe(clock(0), std::slice::from_ref(&application), &settings);
         let old = previous
-            .observe(clock(60), &[application.clone()], &settings)
+            .observe(clock(60), std::slice::from_ref(&application), &settings)
             .pop()
             .unwrap();
         drop(previous);
         let mut replacement = Tracker::default();
-        replacement.observe(clock(0), &[application.clone()], &settings);
+        replacement.observe(clock(0), std::slice::from_ref(&application), &settings);
         assert!(!replacement.is_current(&old));
         let new = replacement
             .observe(clock(60), &[application], &settings)
