@@ -227,20 +227,6 @@ fn retire_input_actors(admission: &Arc<ReferenceAdmission>, model: &Arc<Workspac
     ].into_iter().collect()
 }
 
-/// Plain fixture values from the fixed source-built producer. They confer no
-/// class, lifecycle, executable, callback or module authority.
-pub struct ReferenceActorInputs {
-    pub applications: Vec<crate::workspace::Application>,
-    pub screens: Vec<crate::workspace::Screen>,
-    pub mouse: crate::workspace::Point,
-    pub history: Option<Vec<u8>>,
-    pub entropy: Vec<u8>,
-    pub browser_wire: Option<crate::workspace::objc::apple_events::Wire>,
-    pub browser_consent: i32,
-    pub open_fixture_url: Option<String>,
-    pub field_probe: bool,
-}
-
 /// Actual installed source actors supplied by their existing SDK owners.
 /// Module attestations are reverified by the SAME early Registry; the callback
 /// authority must independently qualify the original Swift/generated lifecycle.
