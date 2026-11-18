@@ -589,6 +589,7 @@ fn private_fixture(
     );
     window.session.visible = true;
     window.execution_serial = 7;
+    window.session.set_query("fixture");
     window.publish(&state, &ui);
     (temp, state, window, ui, command)
 }
