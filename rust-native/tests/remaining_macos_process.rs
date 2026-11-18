@@ -1385,7 +1385,10 @@ fn scoped_launcher_native_results_execute_and_reset_without_settings_navigation(
     host.wait_probe("read", |v| v["rows"] == 0);
     host.ok(json!({"op":"native.test","action":"launcher-back"}));
     host.wait_probe("read", |v| {
-        v["modelQuery"] == "" && v["rows"].as_u64().is_some_and(|n| n > 0)
+        v["modelQuery"] == ""
+            && v["rows"] == 0
+            && v["selectedRow"] == -1
+            && v["selectedId"].is_null()
     });
     host.ok(json!({"op":"show","mode":"quicklinks","query":"qzscopeowned"}));
     host.wait_probe("read", |v| v["rows"] == 1);
