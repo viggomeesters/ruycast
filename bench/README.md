@@ -96,8 +96,8 @@ code pins remain required before a runnable Reference publication.
 The historical `build-reference-full-host-interface`,
 `build-reference-interface`, and `resume-reference-debug` commands are retired.
 The runner refuses them before path access or process start. Their old compiler
-and debug-capture implementation is being removed separately; no Swift bridge
-or Reference runtime authority is retained by this staging.
+and debug-capture implementation has been removed; no Swift bridge or Reference
+runtime authority is retained by this staging.
 
 The source-owned SDK producer resolves the locked Foundation package and selected
 SDK, requires the actual same-build NSString dep-info/rlib/extern join, and bakes
