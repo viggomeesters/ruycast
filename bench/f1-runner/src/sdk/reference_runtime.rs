@@ -1,6 +1,6 @@
-//! Fixed Reference SDK consumer. No constructor or loader lives in this module.
-//! The explicit Main preentry calls the source-built SDK export; the genuine
-//! application CF loop installs the main owner only after DidFinishLaunching.
+//! Reference runtime consumers and lifecycle checks. The SDK export producer
+//! is retired; its legacy Main preentry handoff remains fail-closed. Native
+//! startup uses its separate admission route.
 use super::{core_preentry::ReferenceAdmission, owned::Result};
 use ruycast_native::native_f1::reference::{Guard, ProcessProvider, Reply, SourceCodeReader};
 use std::{ffi::CString, sync::Arc};
@@ -1207,87 +1207,6 @@ pub(crate) fn poll_main() -> Result<()> {
         };
     }
     Ok(())
-}
-
-/// The two source-built producer functions are fixed at compile time by the
-/// existing macro pattern below, never chosen by an environment/JSON registry.
-/// # Safety
-/// The producer independently source-qualifies both makers and the actual
-/// private ReferencePins. assemble must construct/install genuine source actors,
-/// factories, catalog and all module attestations from THIS admission. It must
-/// not publish a registry itself or call any Main-table pointer before complete
-/// code/table qualification. SDK role is zero constructors, Main exactly one.
-#[cfg(not(test))]
-pub unsafe fn enter_source_built(
-    pins: &super::core_preentry::ReferencePins<'_>,
-    guardian: crate::guardian::Guard,
-    table: usize,
-    entry_address: usize,
-    assemble: fn(Arc<ReferenceAdmission>) -> Result<ReferenceActors>,
-) -> Result<()> {
-    let (reply, provider) = native_f1::reference::callback_entrypoints();
-    let sdk = [
-        ("entry", entry_address),
-        ("guard", reference_guard as *const () as usize),
-        ("reply", reply as *const () as usize),
-        ("process_provider", provider as *const () as usize),
-        (
-            "main_owner_perform",
-            crate::workspace::cf_loop::perform_address(),
-        ),
-    ];
-    let admission = Arc::new(super::core_preentry::enter_reference_with_guard(
-        pins, guardian, table, sdk,
-    )?);
-    // This invokes only the compile-time source-built actor maker, never the
-    // caller-supplied Main table. Missing real modules fail Registry admission.
-    let actors = assemble(admission.clone())?;
-    install_assembled(admission, actors)
-}
-
-/// Same fixed source-built maker/finalizer pattern as the Native initializer,
-/// but this declares ONLY the explicit SDK entry: no SDK initializer is emitted.
-#[macro_export]
-macro_rules! reference_sdk_export {
-    ($make_pins:path, $assemble:path) => {
-        #[cfg(not(rcf1_reference_sdk))]
-        compile_error!("Reference SDK export requires the fixed Reference role cfg");
-        #[cfg(all(rcf1_reference_sdk, not(test)))]
-        #[unsafe(no_mangle)]
-        pub unsafe extern "C" fn ruycast_f1_reference_preentry_v1(
-            table: *const ruycast_native::native_f1::reference::MainFunctionsV1,
-        ) -> i32 {
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let guard = $crate::guardian::Guard::bootstrap()
-                    .map_err(|_| "Reference guardian admission failed".to_string())?;
-                let pins = $make_pins();
-                unsafe {
-                    $crate::sdk::reference_runtime::enter_source_built(
-                        &pins,
-                        guard,
-                        table as usize,
-                        ruycast_f1_reference_preentry_v1 as *const () as usize,
-                        $assemble,
-                    )
-                }
-            }));
-            match outcome {
-                Ok(Ok(())) => 1,
-                Ok(Err(error)) => {
-                    // Only the already owned child stdout is used. A bounded
-                    // diagnostic is not an admission or Ready response.
-                    let error=error.chars().take(512).collect::<String>();
-                    let packet=format!("{}\n",serde_json::json!({"reference_assembly_error":error}));
-                    let _=std::io::Write::write_all(&mut std::io::stdout(),packet.as_bytes());
-                    0
-                },
-                Err(payload) => {
-                    std::mem::forget(payload);
-                    0
-                }
-            }
-        }
-    };
 }
 
 /// The existing application run path calls this before destroying its sole CF
