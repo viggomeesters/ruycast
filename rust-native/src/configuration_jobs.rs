@@ -473,7 +473,8 @@ mod tests {
             std::fs::write(base.join("passed"), b"actual-postrename-warning-retained").unwrap();
             return;
         }
-        let temp = Temp::new();
+        let mut temp = Temp::new();
+        temp.0 = temp.0.canonicalize().unwrap();
         std::fs::set_permissions(&temp.0, std::fs::Permissions::from_mode(0o700)).unwrap();
         std::fs::write(temp.0.join(".ruycast-test-fixture"), b"own-disposable-fixture-v1").unwrap();
         let shim = crate::test_fixtures::fcntl(&temp.0.join("fixture-build.log"));
