@@ -1,8 +1,8 @@
 //! User-facing labels shared by the native launcher and its action surfaces.
 use rustcast_core::Command;
 
-pub const LAUNCHER_CARD_CORNER_RADIUS: f64 = 10.;
-pub const LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS: f64 = 5.;
+pub const LAUNCHER_CARD_CORNER_RADIUS: f64 = 6.;
+pub const LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS: f64 = 2.;
 pub const LAUNCHER_SEARCH_OUTLINE_ALPHA: f64 = 0.56;
 
 pub fn launcher_search_outline(width: f64, height: f64) -> [f64; 4] {
@@ -318,8 +318,8 @@ mod icon_tests {
 
     #[test]
     fn empty_launcher_uses_a_compact_search_bar_and_expands_for_results() {
-        assert_eq!(LAUNCHER_CARD_CORNER_RADIUS, 10.);
-        assert_eq!(LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS, 5.);
+        assert_eq!(LAUNCHER_CARD_CORNER_RADIUS, 6.);
+        assert_eq!(LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS, 2.);
         assert_eq!(LAUNCHER_SEARCH_OUTLINE_ALPHA, 0.56);
         assert_eq!(launcher_search_outline(600., 72.), [24.5, 2.5, 551., 43.]);
         assert_eq!(launcher_search_outline(760., 490.), [24.5, 420.5, 711., 43.]);
