@@ -881,6 +881,7 @@ const SETTINGS: &[SettingsGate] = &[
 const LOG_SOURCE_SHA256: &str = "e8b4b609655d7946bbb27f287aaa739ed1530133f22a7cfdca2d5003655aa462";
 const LOG_ORACLE_SHA256: &str = "9dd2ff68552ebcae0979530623309cafeb7a145a193444dc55a717e94a953455";
 const EDIT_COMMAND_ORACLE_SHA256: &str = "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145";
+const VISUAL_ASSET_ORACLE_SHA256: &str = "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1465,11 +1466,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
                 include_bytes!("../../native.rs"),
                 "fa986dcb9ba2fd5b1eac22a28afc67e6a328d70f184dd1fb0542acfaa8937b10",
             ),
-            (
-                "Sources/RuycastApp/VisualAssetChecks.swift",
-                include_bytes!("../../../../Sources/RuycastApp/VisualAssetChecks.swift"),
-                "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
-            ),
         ],
         _ => &[],
     }
@@ -1483,6 +1479,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
         "--check-edit-commands" => Some((
             "Sources/RuycastApp/EditCommandChecks.swift",
             EDIT_COMMAND_ORACLE_SHA256,
+        )),
+        "--check-visual-assets" => Some((
+            "Sources/RuycastApp/VisualAssetChecks.swift",
+            VISUAL_ASSET_ORACLE_SHA256,
         )),
         _ => None,
     }
@@ -1504,19 +1504,22 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     // These exact inputs have completed original-case crosswalks and scoped
     // independent review. This qualifies mapping, never a validation pass.
     let sources = settings_sources(gate.id);
+    let provenance_current = settings_provenance_source(gate.id).is_none_or(|(path, sha)| {
+        let expected = match gate.id {
+            "--check-command-log" => Some(LOG_ORACLE_SHA256),
+            "--check-edit-commands" => Some(EDIT_COMMAND_ORACLE_SHA256),
+            "--check-visual-assets" => Some(VISUAL_ASSET_ORACLE_SHA256),
+            _ => None,
+        };
+        path == gate.original_source
+            && expected == Some(sha)
+            && settings_source_bindings(gate.id).contains(&(path, sha))
+    });
     let current = !sources.is_empty()
         && sources
             .iter()
             .all(|(_, bytes, expected)| format!("{:x}", Sha256::digest(bytes)) == *expected)
-        && settings_provenance_source(gate.id)
-            .is_none_or(|(path, sha)| {
-                path == gate.original_source
-                    && match gate.id {
-                        "--check-command-log" => sha == LOG_ORACLE_SHA256,
-                        "--check-edit-commands" => sha == EDIT_COMMAND_ORACLE_SHA256,
-                        _ => false,
-                    }
-            });
+        && provenance_current;
     if current {
         "source-qualified-rust-case-crosswalk"
     } else {
@@ -2533,6 +2536,28 @@ mod tests {
         }
         let test = std::str::from_utf8(inputs.iter().find(|entry| entry.0 == "rust-native/tests/native_process.rs").unwrap().1).unwrap();
         assert!(test.contains("fn loaded_config_alias_unicode_disabled_and_native_labels("));
+    }
+    #[test]
+    fn visual_assets_provenance_keeps_all_current_inputs_and_gate_status() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-visual-assets").unwrap();
+        assert_eq!(gate.required_native_steps, &["unit", "native-profile-process"]);
+        assert_eq!(gate.native_cases.len(), 9);
+        let inputs = settings_sources(gate.id);
+        assert_eq!(inputs.len(), 10);
+        assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("config/")));
+        let bindings = settings_source_bindings(gate.id);
+        assert_eq!(bindings.len(), 11);
+        for (path, _, hash) in inputs {
+            assert!(bindings.contains(&(*path, *hash)), "missing current source binding {path}");
+        }
+        assert!(bindings.contains(&(
+            gate.original_source,
+            "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
+        )));
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let value = inventory("settings").unwrap();
+        assert_eq!(value["productionAccepted"], false);
+        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn script_result_basic_binds_current_sources_and_route() {
