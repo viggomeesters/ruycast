@@ -101,8 +101,8 @@ fn compiler_tool_deadline(now:Instant,whole:Option<Instant>)->Instant {
     whole.map_or(own,|end|end.min(own))
 }
 
-fn reference_guard_arguments(source: &Path, object: &Path, full_host: bool) -> Vec<std::ffi::OsString> {
-    let mut arguments = vec![
+fn reference_guard_arguments(source: &Path, object: &Path) -> Vec<std::ffi::OsString> {
+    vec![
         "--edition=2021".into(),
         "--crate-type=lib".into(),
         "--emit=obj".into(),
@@ -111,28 +111,22 @@ fn reference_guard_arguments(source: &Path, object: &Path, full_host: bool) -> V
         source.as_os_str().to_owned(),
         "-o".into(),
         object.as_os_str().to_owned(),
-    ];
-    if full_host {
-        arguments.extend(["--cfg".into(), "feature=\"full-reference-host\"".into(), "-Cdebuginfo=2".into()]);
-    }
-    arguments
+    ]
 }
-fn compile_guard(source: &Path, object: &Path, tmp: &Path, out: &Path, full_host: bool, compiler: Option<&Binding>,deadline:Option<Instant>) -> Result<()> {
-    let arguments = reference_guard_arguments(source, object, full_host);
+fn compile_guard(source: &Path, object: &Path, tmp: &Path, out: &Path) -> Result<()> {
+    let arguments = reference_guard_arguments(source, object);
     let source_before = file_binding(source)?;
-    if full_host && compiler.is_none() { return Err("full Reference guard needs the explicit before-bound Rust compiler".into()); }
-    if let Some(compiler) = compiler { compiler.verify()?; }
-    let mut command = Command::new(compiler.map_or_else(||Path::new("rustc"),|binding|binding.path.as_path()));
-    command.args(&arguments).env("TMPDIR",tmp);
-    let output = if full_host { native_tool_until(&mut command,&checkout_root()?,deadline.ok_or("whole Reference guard deadline absent")?)? }
-        else {command.output().map_err(|e|e.to_string())?};
-    if let Some(compiler) = compiler { compiler.verify()?; }
-    if file_binding(source)? != source_before { return Err("Reference preentry source changed across compiler invocation".into()); }
+    let mut command = Command::new("rustc");
+    command.args(&arguments).env("TMPDIR", tmp);
+    let output = command.output().map_err(|e| e.to_string())?;
+    if file_binding(source)? != source_before {
+        return Err("Reference preentry source changed across compiler invocation".into());
+    }
     fs::write(out.join("preentry-rustc.stdout"), &output.stdout).map_err(|e| e.to_string())?;
     fs::write(out.join("preentry-rustc.stderr"), &output.stderr).map_err(|e| e.to_string())?;
     write_new(
         &out.join("preentry-object.json"),
-        &json!({"source":source_before,"compiler":compiler,"arguments":arguments.iter().map(|a|a.to_string_lossy()).collect::<Vec<_>>(),"exit_code":output.status.code(),"object":if output.status.success(){file_binding(object)?}else{Value::Null},"scope":"admission constructor only, not complete SDK-selection evidence"}),
+        &json!({"source":source_before,"compiler":null,"arguments":arguments.iter().map(|a|a.to_string_lossy()).collect::<Vec<_>>(),"exit_code":output.status.code(),"object":if output.status.success(){file_binding(object)?}else{Value::Null},"scope":"admission constructor only, not complete SDK-selection evidence"}),
     )?;
     if !output.status.success() {
         return Err("Rust preentry constructor compilation failed".into());
@@ -146,7 +140,7 @@ pub fn preentry_test(out: &Path) -> Result<()> {
     fs::create_dir(&tmp).map_err(|e| e.to_string())?;
     let guard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../reference/ReferencePreentry.rs");
     let object = out.join("ReferencePreentry.o");
-    compile_guard(&guard, &object, &tmp, out, false,None,None)?;
+    compile_guard(&guard, &object, &tmp, out)?;
     let source = out.join("fake_main.rs");
     fs::write(&source,r#"
 #[cfg(not(no_ready))]
@@ -5697,22 +5691,14 @@ mod reference_guard_argument_tests {
     fn partial_bridge_preserves_all_previous_arguments() {
         let source=Path::new("reference/ReferencePreentry.rs");
         let object=Path::new("owned-output/ReferencePreentry.o");
-        assert_eq!(reference_guard_arguments(source,object,false),legacy(source,object));
+        assert_eq!(reference_guard_arguments(source,object),legacy(source,object));
     }
     #[test]
-    fn full_host_adds_exact_reference_cfg_and_object_debug_information() {
-        let source=Path::new("reference/ReferencePreentry.rs");
-        let object=Path::new("owned-output/ReferencePreentry.o");
-        let mut expected=legacy(source,object);
-        expected.extend(["--cfg".into(),"feature=\"full-reference-host\"".into(),"-Cdebuginfo=2".into()]);
-        assert_eq!(reference_guard_arguments(source,object,true),expected);
-    }
-    #[test]
-    fn fake_main_preentry_keeps_full_host_symbols_disabled() {
+    fn partial_bridge_preentry_has_no_rust_cfg_arguments() {
         let args=reference_guard_arguments(Path::new("fake/ReferencePreentry.rs"),
-            Path::new("fake/ReferencePreentry.o"),false);
+            Path::new("fake/ReferencePreentry.o"));
         assert_eq!(args,legacy(Path::new("fake/ReferencePreentry.rs"),Path::new("fake/ReferencePreentry.o")));
-        assert!(!args.iter().any(|arg|arg=="--cfg" || arg.to_string_lossy().contains("full-reference-host")));
+        assert!(!args.iter().any(|arg|arg=="--cfg"));
     }
 
 }
