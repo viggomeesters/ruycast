@@ -660,7 +660,7 @@
     "rust-native/tests/inline_focus_process.rs": "d780cdd8dddfd939907e058b9d5b30e18f01d05bc426276f9e41af5b4f287a69",
     "rust-native/tests/inline_sync_process.rs": "d0970feb8f34996a0916c2620f3d47aa9ff4753f899946130081ea4bcde7d128",
     "rust-native/tests/inline_transition_process.rs": "80102670115f757bd6fe3a7ff55012ff2a417001797cf825eccd7d18bd4ed7e7",
-    "rust-native/tests/input_process.rs": "5669c69dbab3032e16d6e5788fed43e4e930e77b71706c436878f27547c993d5",
+    "rust-native/tests/input_process.rs": "243795022623e692d88e7eec66bbe9a4c471d14fe4fa22ecb7dad93cbeae45a2",
     "rust-native/tests/installer_cli.rs": "d2e546f2c099882d712c91abb9b4b181bf2fd19a4d117d997ca2b7f8e0ea59a3",
     "rust-native/tests/keyboard_host_provider.rs": "bbfcf3095a217c917ef5b2cee6bfa91346695f9fb8b02980903c224e3fcd9ac5",
     "rust-native/tests/keyboard_keycodes_reference.json": "4cac352ef3da30cb8d25236cec5eb46789e623ee3c763fdbfcbb96f7c60cd4e8",
