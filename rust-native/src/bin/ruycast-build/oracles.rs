@@ -1032,7 +1032,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
 
             ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
-            ("Sources/RuycastApp/InteractionChecks.swift", include_bytes!("../../../../Sources/RuycastApp/InteractionChecks.swift"), "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"),
             ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "9ebb1ecff6de79f76d0f69542e250a6d041b88afe0ca1ec5beb079a08b4f042c"),
             ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "14ce406b97d0a9bf0e7497a81f102425a73c6ac181f3d98f1b766b0bd899c49d"),
             ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "0c2c9f768bd6a911414ffea94335610eedebf8feea55eb6210fce6f5d72a7bdd"),
@@ -1484,6 +1483,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/InteractionChecks.swift",
             RENDER_UPDATES_ORACLE_SHA256,
         )),
+        "--check-interactions" => Some((
+            "Sources/RuycastApp/InteractionChecks.swift",
+            RENDER_UPDATES_ORACLE_SHA256,
+        )),
         "--check-analytics" => Some((
             "Sources/RuycastApp/AnalyticsChecks.swift",
             ANALYTICS_ORACLE_SHA256,
@@ -1545,6 +1548,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-edit-commands" => Some(EDIT_COMMAND_ORACLE_SHA256),
             "--check-visual-assets" => Some(VISUAL_ASSET_ORACLE_SHA256),
             "--check-render-updates" => Some(RENDER_UPDATES_ORACLE_SHA256),
+            "--check-interactions" => Some(RENDER_UPDATES_ORACLE_SHA256),
             "--check-analytics" => Some(ANALYTICS_ORACLE_SHA256),
             "--check-performance-pipeline" => Some(PERFORMANCE_PIPELINE_ORACLE_SHA256),
             "--check-browser-tabs" => Some(BROWSER_TABS_ORACLE_SHA256),
@@ -4362,6 +4366,49 @@ mod tests {
         for name in gate.required_native_steps {
             assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing feedback route: {name}");
         }
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let inventory = inventory("settings").unwrap();
+        assert_eq!(inventory["productionAccepted"], false);
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn interactions_provenance_preserves_inputs_cases_routes_and_status() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-interactions").unwrap();
+        let inputs = settings_sources(gate.id);
+        let provenance = (gate.original_source, RENDER_UPDATES_ORACLE_SHA256);
+        let bindings = settings_source_bindings(gate.id);
+        let case_sources = [
+            ("bridge_process::", "rust-native/tests/bridge_process.rs"),
+            ("input_process::", "rust-native/tests/input_process.rs"),
+            ("native_open_basic_process::", "rust-native/tests/native_open_basic_process.rs"),
+            ("creation_process::", "rust-native/tests/creation_process.rs"),
+            ("library_lifecycle_process::", "rust-native/tests/library_lifecycle_process.rs"),
+            ("settings_preferences_process::", "rust-native/tests/settings_preferences_process.rs"),
+            ("native_choice_host_process::", "rust-native/tests/native_choice_host_process.rs"),
+            ("ui_completion::", "rust-native/examples/ui_completion.rs"),
+            ("native_edit::", "rust-native/src/native_edit.rs"),
+            ("native_snippet_choice_process::", "rust-native/tests/native_snippet_choice_process.rs"),
+        ];
+
+        assert_eq!(gate.required_native_steps, &["bridge-process", "native-profile-process", "input-process-rust", "native-choice-host-process", "native-open-basic-process", "creation-process", "library-process", "settings-preferences-process", "feedback-actions-process", "native-snippet-choice-process-rust", "native-light-600", "native-light-760", "native-dark-600", "native-dark-760"]);
+        assert_eq!(gate.native_cases.len(), 16);
+        assert_eq!(inputs.len(), 45);
+        assert_eq!(bindings.len(), 46);
+        assert_eq!(provenance.1, "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858");
+        assert_eq!(settings_provenance_source(gate.id), Some(provenance));
+        assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/FeedbackChecks.swift" && *sha == "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"));
+        assert!(inputs.iter().any(|(path, _, sha)| *path == "Sources/RuycastApp/ActionMenuChecks.swift" && *sha == "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"));
+        for (path, _, sha) in inputs {
+            assert!(bindings.contains(&(path, sha)), "missing current interactions binding: {path}");
+        }
+        for case in gate.native_cases {
+            let (prefix, path) = case_sources.iter().find(|(prefix, _)| case.starts_with(*prefix)).unwrap();
+            let source = std::str::from_utf8(inputs.iter().find(|(input, _, _)| input == path).unwrap().1).unwrap();
+            let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
+            assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
+        }
+        assert_eq!(gate.required_native_steps.len(), 14);
         assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
