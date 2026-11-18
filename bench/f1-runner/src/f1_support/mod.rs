@@ -900,17 +900,18 @@ mod tests {
         assert!(error.contains("old ROOT OUT form is refused"));
     }
     #[test]
-    fn source_inventory_accepts_checkout_and_refuses_standalone_reference_root() {
+    fn source_inventory_accepts_checkout_without_legacy_reference_tree() {
         let checkout=preparation::checkout_root().unwrap();
         let source=preparation::inventory(&checkout).unwrap();
         assert!(source.files.contains_key(Path::new("rust-native/Cargo.toml")));
         assert!(source.files.contains_key(Path::new(
             "bench/f1-runner/src/f1_support/preparation.rs"
         )));
+        assert!(!source.files.keys().any(|path| path.starts_with("bench/reference/0.8.26")));
 
         let output=std::env::temp_dir().join(format!("ruycast-rejected-reference-inventory-{}.json",std::process::id()));
         assert!(!output.exists());
-        let args=vec!["inventory".to_owned(),checkout.join("bench/reference/0.8.26").to_str().unwrap().to_owned(),output.to_str().unwrap().to_owned()];
+        let args=vec!["inventory".to_owned(),checkout.join("bench/f1-runner").to_str().unwrap().to_owned(),output.to_str().unwrap().to_owned()];
         let error=entry(args).unwrap_err();
         assert_eq!(error,"preparation only inventories the compiled checkout");
         assert!(!output.exists());
