@@ -336,67 +336,6 @@ pub(crate) unsafe fn initialize_owned_host(
     context.descriptors = Some(descriptors);
     unsafe { initialize(context) }
 }
-/// Constructor-free Reference setup uses the same retained roots/issuer, but
-/// patches the actual main cells transactionally rather than relying on dyld.
-/// # Safety
-/// Only sealed ReferenceAdmission supplies prewrite after qualifying the fixed
-/// source, actual images, private guardian and caller ABI. No original object
-/// or concurrent setup may exist; all failures revoke this installed context.
-/// Workspace preparation is limited to the owned model and constructor-free
-/// data factory registration. It must not invoke any unpatched selector.
-#[cfg(all(not(test),rcf1_reference_sdk))]
-pub(crate) unsafe fn initialize_owned_reference(
-    mut context:Bootstrap,
-    life:Arc<dyn AliveLease>,
-    descriptors:Arc<super::descriptors::DescriptorTable>,
-    prewrite:impl Fn()->Result<()>+Send+Sync,
-    prepare_workspace: impl FnOnce() -> Result<Arc<crate::workspace::Workspace>>,
-    install_profile_lock: impl FnOnce(&dyn AliveLease) -> Result<Vec<super::ImportReplacement>>,
-) -> Result<(Arc<crate::workspace::Workspace>, super::ModuleAttestation)> {
-    if !Arc::ptr_eq(&context.life,&life)
-        || context.descriptors.is_some() || CONTEXT.get().is_some() {
-        return Err("Reference bootstrap context/issuer differs or was published".into());
-    }
-    context.before()?;
-    prewrite()?;
-    context.reference_not_retired()?;
-    context.descriptors=Some(descriptors);
-    install_context(context)?;
-    let context=CONTEXT.get().ok_or("Reference bootstrap publication absent")?;
-    let mut publication = ReferenceBootstrapPublication { context, workspace: None, complete: false };
-    struct Guard<'a,F>{context:&'a Bootstrap,prewrite:&'a F}
-    impl<F:Fn()->Result<()>+Send+Sync> AliveLease for Guard<'_,F>{
-        fn is_alive(&self)->bool{self.before_effect().is_ok()}
-        fn before_effect(&self)->Result<()> {
-            self.context.before()?;
-            (self.prewrite)()?;
-            self.context.reference_not_retired()
-        }
-    }
-    let guard=Guard{context,prewrite:&prewrite};
-    let specs=INTERPOSE.iter().zip(required_imports()).map(|(entry,symbol)|super::ImportSpec {
-        symbol,original:entry.original as usize,replacement:entry.replacement as usize,
-    }).collect::<Vec<_>>();
-    let role=reference_required_imports();
-    let selected=specs.iter().filter(|spec|role.contains(&spec.symbol)).copied().collect::<Vec<_>>();
-    let mut imports=super::import_patch::install_exact_presence(&selected,&specs,&guard)?;
-    // The Reference data factory changes NSString lifecycle metadata. Finish
-    // that constructor-free transaction before capturing selector provenance
-    // for the complete loaded NSString family.
-    let workspace = prepare_workspace()?;
-    publication.workspace = Some(workspace.clone());
-    guard.before_effect()?;
-    imports.extend(install_profile_lock(&guard)?);
-    let objc=unsafe{install_selectors_checked(&||guard.before_effect())}?;
-    let handles=[("bootstrap.home",&context.home),("bootstrap.cache",&context.cache),
-        ("bootstrap.temp",&context.temp),("bootstrap.applications",&context.applications)]
-        .into_iter().map(|(namespace,root)|super::owned::OwnedHandleLease{namespace,root:root.clone(),life:life.clone()}).collect();
-    let module=super::ModuleAttestation{module:"bootstrap",workspace_factories:None,scopes:scopes(),callsites:source_roster(),imports,objc,handles};
-    module.verify()?;
-    guard.before_effect()?;
-    publication.complete=true;
-    Ok((workspace, module))
-}
 /// Borrow the existing full-Host capability issuer; never allocate a second
 /// DescriptorTable or discover another root through the environment.
 pub(crate) fn owned_module_context(
