@@ -35,6 +35,31 @@ const SYSTEM_UI_SOURCES: &[&str] = &[
     "rust-native/tests/system_search_sdk.rs",
     "rust-native/tests/support/owned_keyboard.rs",
 ];
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SystemUiDirectoryBinding {
+    path: PathBuf,
+    device: u64,
+    inode: u64,
+    owner: u32,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SystemUiToolBinding {
+    path: PathBuf,
+    sha256: String,
+    version: String,
+    details: Option<String>,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SystemUiBuilderContext {
+    toolchain: SystemUiDirectoryBinding,
+    cargo_home: SystemUiDirectoryBinding,
+    target_dir: SystemUiDirectoryBinding,
+    cargo: SystemUiToolBinding,
+    rustc: SystemUiToolBinding,
+}
 // Ordered native validation matrix. `b` builds an explicit probe; `c` preserves
 // a full Cargo command; `s` dispatches the bound Rust-only policy artifact.
 const MATRIX: &str = r#"
@@ -634,7 +659,7 @@ fn step(
     let mut system_ui = if entry.name == "system-search-sdk" {
         let owned = preparation::Stage::in_parent(&root.join(".build"), "u")?;
         system_ui_socket_budget(owned.path())?;
-        let inputs = system_ui_environment(root, entry, owned.path(), &mut command)?;
+        let inputs = system_ui_environment(root, receipt, entry, owned.path(), &mut command)?;
         Some((owned, inputs))
     } else {
         None
@@ -703,6 +728,7 @@ fn step(
         }
         inputs["artifacts"].as_object_mut().ok_or("Missing system UI input bindings.")?
             .extend(serde_json::to_value(generated).map_err(error)?.as_object().ok_or("Invalid UI evidence bindings.")?.clone());
+        check_system_ui_inputs(root, &receipt.target, receipt, inputs)?;
     }
     if entry.name == "rust-only-policy-build" { prepare_rust_policy_snapshot(root, &receipt.target, copies)?; }
     lease.validate()?;
@@ -1023,31 +1049,353 @@ fn check_example_ui_inputs(root: &Path, target: &str, inputs: &serde_json::Value
     if inputs != &expected { return Err("Incomplete or changed example UI sources, inputs or actual evidence.".into()); }
     Ok(())
 }
-fn system_ui_environment(root: &Path, entry: &Step, fixture: &Path, command: &mut Command) -> Result<serde_json::Value> {
+fn system_ui_directory_binding(path: &Path) -> Result<SystemUiDirectoryBinding> {
+    use std::os::unix::fs::MetadataExt;
+    if !path.is_absolute() || fs::canonicalize(path).map_err(error)? != path {
+        return Err(
+            "System UI fixture-builder directories must be canonical absolute paths.".into(),
+        );
+    }
+    let metadata = fs::symlink_metadata(path).map_err(error)?;
+    let owner = unsafe { libc::getuid() };
+    if metadata.file_type().is_symlink()
+        || !metadata.is_dir()
+        || metadata.uid() != owner
+        || metadata.mode() & 0o022 != 0
+    {
+        return Err("System UI fixture-builder directory ownership or mode differs.".into());
+    }
+    Ok(SystemUiDirectoryBinding {
+        path: path.to_owned(),
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        owner,
+    })
+}
+fn check_system_ui_directory(binding: &SystemUiDirectoryBinding) -> Result<()> {
+    let current = system_ui_directory_binding(&binding.path)?;
+    if current != *binding {
+        return Err("System UI fixture-builder directory identity changed.".into());
+    }
+    Ok(())
+}
+fn check_system_ui_cargo_config(cargo_home: &Path, fixture: &Path) -> Result<()> {
+    for base in std::iter::once(cargo_home.to_owned())
+        .chain(fixture.ancestors().map(|path| path.join(".cargo")))
+    {
+        for file in ["config", "config.toml"] {
+            if base.join(file).exists() {
+                return Err(format!(
+                    "Unqualified Cargo configuration: {}",
+                    base.display()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+fn system_ui_tool_path(
+    toolchain: &SystemUiDirectoryBinding,
+    name: &str,
+) -> Result<(PathBuf, String)> {
+    use std::os::unix::fs::MetadataExt;
+    let path = toolchain.path.join(name);
+    let metadata = fs::symlink_metadata(&path).map_err(error)?;
+    if fs::canonicalize(&path).map_err(error)? != path
+        || path.parent() != Some(toolchain.path.as_path())
+        || metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.uid() != toolchain.owner
+        || metadata.mode() & 0o111 == 0
+        || metadata.mode() & 0o022 != 0
+    {
+        return Err(format!(
+            "System UI fixture-builder {name} differs from the verified toolchain."
+        ));
+    }
+    Ok((path.clone(), digest(&path)?))
+}
+fn system_ui_tool_binding(
+    root: &Path,
+    path: PathBuf,
+    sha256: String,
+    name: &str,
+    receipt: &Receipt,
+    details: Option<String>,
+) -> Result<SystemUiToolBinding> {
+    let expected = receipt
+        .toolchains
+        .get(name)
+        .ok_or("Missing verified fixture-builder tool version.")?;
+    let arguments: &[&str] = if name == "rustc" {
+        &["-vV"]
+    } else {
+        &["--version"]
+    };
+    let version_output = output(
+        root,
+        path.to_str().ok_or("Invalid fixture-builder tool path.")?,
+        arguments,
+    )?;
+    let version = version_output
+        .lines()
+        .next()
+        .ok_or("Missing fixture-builder tool version output.")?
+        .to_owned();
+    if &version != expected {
+        return Err(format!(
+            "System UI fixture-builder {name} version differs from the verified build."
+        ));
+    }
+    if let Some(details) = &details {
+        if details != &version_output {
+            return Err("System UI rustc details changed during fixture-builder discovery.".into());
+        }
+    }
+    Ok(SystemUiToolBinding {
+        sha256,
+        path,
+        version,
+        details,
+    })
+}
+fn system_ui_builder_context(
+    root: &Path,
+    receipt: &Receipt,
+    fixture: &Path,
+) -> Result<SystemUiBuilderContext> {
+    let toolchain_file = fs::read_to_string(root.join("rust-toolchain.toml")).map_err(error)?;
+    let channels = toolchain_file
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("channel = \"")?.strip_suffix('\"'))
+        .collect::<Vec<_>>();
+    if channels.len() != 1 || channels[0].is_empty() || channels[0].contains('/') {
+        return Err("Pinned Rust toolchain channel is missing or ambiguous.".into());
+    }
+    let rustup_home = match std::env::var_os("RUSTUP_HOME") {
+        Some(path) => PathBuf::from(path),
+        None => {
+            PathBuf::from(std::env::var_os("HOME").ok_or("Missing home for Rustup toolchain.")?)
+                .join(".rustup")
+        }
+    };
+    let toolchain_root = fs::canonicalize(
+        rustup_home
+            .join("toolchains")
+            .join(format!("{}-{}", channels[0], receipt.target)),
+    )
+    .map_err(error)?;
+    let toolchain = system_ui_directory_binding(&toolchain_root.join("bin"))?;
+    let cargo_home = match std::env::var_os("CARGO_HOME") {
+        Some(path) => PathBuf::from(path),
+        None => PathBuf::from(std::env::var_os("HOME").ok_or("Missing home for Cargo cache.")?)
+            .join(".cargo"),
+    };
+    let cargo_home = system_ui_directory_binding(&cargo_home)?;
+    let target_dir =
+        system_ui_directory_binding(&root.join("rust-native/target/validation-build"))?;
+    // Stat and hash both tools before invoking either one. A linked or replaced
+    // binary therefore cannot be run and only rejected after the fact.
+    let (cargo_path, cargo_sha) = system_ui_tool_path(&toolchain, "cargo")?;
+    let (rustc_path, rustc_sha) = system_ui_tool_path(&toolchain, "rustc")?;
+    let rustc_details = output(
+        root,
+        rustc_path.to_str().ok_or("Invalid rustc tool path.")?,
+        &["-vV"],
+    )?;
+    if !rustc_details
+        .lines()
+        .any(|line| line == format!("host: {}", receipt.target))
+    {
+        return Err(
+            "System UI fixture-builder rustc target differs from the verified build.".into(),
+        );
+    }
+    let policy: serde_json::Value = serde_json::from_slice(
+        &fs::read(root.join("rust-native/tests/fixtures/keyboard_host_loader.json"))
+            .map_err(error)?,
+    )
+    .map_err(error)?;
+    if rustc_details
+        .lines()
+        .find_map(|line| line.strip_prefix("LLVM version: "))
+        != policy["observed"]["llvm"].as_str()
+        || receipt
+            .toolchains
+            .get("rustc")
+            .and_then(|version| version.strip_prefix("rustc "))
+            != policy["observed"]["rustc"].as_str()
+    {
+        return Err(
+            "System UI fixture-builder LLVM version differs from the pinned SDK policy.".into(),
+        );
+    }
+    let context = SystemUiBuilderContext {
+        cargo: system_ui_tool_binding(root, cargo_path, cargo_sha, "cargo", receipt, None)?,
+        rustc: system_ui_tool_binding(
+            root,
+            rustc_path,
+            rustc_sha,
+            "rustc",
+            receipt,
+            Some(rustc_details),
+        )?,
+        toolchain,
+        cargo_home,
+        target_dir,
+    };
+    check_system_ui_builder_context(root, receipt, &context)?;
+    check_system_ui_cargo_config(&context.cargo_home.path, fixture)?;
+    Ok(context)
+}
+fn check_system_ui_builder_context(
+    root: &Path,
+    receipt: &Receipt,
+    context: &SystemUiBuilderContext,
+) -> Result<()> {
+    check_system_ui_directory(&context.toolchain)?;
+    check_system_ui_directory(&context.cargo_home)?;
+    check_system_ui_directory(&context.target_dir)?;
+    if context.target_dir.path != root.join("rust-native/target/validation-build")
+        || context.cargo.path != context.toolchain.path.join("cargo")
+        || context.rustc.path != context.toolchain.path.join("rustc")
+        || context.cargo.version
+            != *receipt
+                .toolchains
+                .get("cargo")
+                .ok_or("Missing verified Cargo version.")?
+        || context.rustc.version
+            != *receipt
+                .toolchains
+                .get("rustc")
+                .ok_or("Missing verified rustc version.")?
+        || context
+            .rustc
+            .details
+            .as_deref()
+            .and_then(|value| value.lines().next())
+            != Some(context.rustc.version.as_str())
+        || !context.rustc.details.as_deref().is_some_and(|value| {
+            value
+                .lines()
+                .any(|line| line == format!("host: {}", receipt.target))
+        })
+    {
+        return Err(
+            "System UI fixture-builder receipt context differs from the verified build.".into(),
+        );
+    }
+    let policy: serde_json::Value = serde_json::from_slice(
+        &fs::read(root.join("rust-native/tests/fixtures/keyboard_host_loader.json"))
+            .map_err(error)?,
+    )
+    .map_err(error)?;
+    if context.rustc.details.as_deref().and_then(|value| {
+        value
+            .lines()
+            .find_map(|line| line.strip_prefix("LLVM version: "))
+    }) != policy["observed"]["llvm"].as_str()
+        || context.rustc.version.strip_prefix("rustc ") != policy["observed"]["rustc"].as_str()
+    {
+        return Err(
+            "System UI fixture-builder compiler differs from the pinned SDK policy.".into(),
+        );
+    }
+    check_system_ui_cargo_config(&context.cargo_home.path, &root.join(".build"))?;
+    for (name, tool) in [("cargo", &context.cargo), ("rustc", &context.rustc)] {
+        use std::os::unix::fs::MetadataExt;
+        let path = fs::canonicalize(&tool.path).map_err(error)?;
+        let metadata = fs::symlink_metadata(&path).map_err(error)?;
+        if path != tool.path
+            || path.parent() != Some(context.toolchain.path.as_path())
+            || metadata.file_type().is_symlink()
+            || !metadata.is_file()
+            || metadata.uid() != context.toolchain.owner
+            || metadata.mode() & 0o111 == 0
+            || metadata.mode() & 0o022 != 0
+            || digest(&path)? != tool.sha256
+            || tool.version
+                != *receipt
+                    .toolchains
+                    .get(name)
+                    .ok_or("Missing verified fixture-builder tool version.")?
+        {
+            return Err(format!("System UI fixture-builder {name} binding changed."));
+        }
+    }
+    Ok(())
+}
+fn system_ui_environment(
+    root: &Path,
+    receipt: &Receipt,
+    entry: &Step,
+    fixture: &Path,
+    command: &mut Command,
+) -> Result<serde_json::Value> {
+    let builder = system_ui_builder_context(root, receipt, fixture)?;
+    system_ui_environment_with_context(root, receipt, entry, fixture, command, &builder)
+}
+fn system_ui_environment_with_context(
+    root: &Path,
+    receipt: &Receipt,
+    entry: &Step,
+    fixture: &Path,
+    command: &mut Command,
+    builder: &SystemUiBuilderContext,
+) -> Result<serde_json::Value> {
     use std::os::unix::fs::DirBuilderExt;
-    let target = entry.arguments.windows(2).find(|pair| pair[0] == "--target")
-        .map(|pair| pair[1].as_str()).ok_or("Missing system UI Cargo target.")?;
+    check_system_ui_builder_context(root, receipt, builder)?;
+    check_system_ui_cargo_config(&builder.cargo_home.path, fixture)?;
+    let target = entry
+        .arguments
+        .windows(2)
+        .find(|pair| pair[0] == "--target")
+        .map(|pair| pair[1].as_str())
+        .ok_or("Missing system UI Cargo target.")?;
     artifact_paths(target)?;
-    let target_dir = entry.arguments.windows(2).find(|pair| pair[0] == "--target-dir")
-        .map(|pair| pair[1].as_str()).ok_or("Missing system UI Cargo target directory.")?;
+    let target_dir = entry
+        .arguments
+        .windows(2)
+        .find(|pair| pair[0] == "--target-dir")
+        .map(|pair| pair[1].as_str())
+        .ok_or("Missing system UI Cargo target directory.")?;
     if target_dir != "rust-native/target/validation-build" {
         return Err("Unexpected system UI Cargo target directory.".into());
     }
-    let native = root.join(target_dir).join(target).join("debug/ruycast-native");
+    let native = root
+        .join(target_dir)
+        .join(target)
+        .join("debug/ruycast-native");
     let native_sha = digest(&native)?;
     // This qualifies byte bindings only. The unchanged SDK consumer still
     // independently refuses any non-qualified artifact (including a fresh
     // producer hash outside its admitted contract); this is not SDK admission.
     let (sdk, _) = keyboard_fixture(root)?;
-    let manifest = root.join(DIRECTORY).join("native-profile/host-sdks/NativeKeyboard.json");
+    let manifest = root
+        .join(DIRECTORY)
+        .join("native-profile/host-sdks/NativeKeyboard.json");
     let marker = fixture.join(".ruycast-ui-fixture-parent");
     ruycast_native::private_storage::write(&marker, b"owned-ui-fixture-parent-v1", false)?;
-    let evidence = root.join(DIRECTORY).join(fixture.file_name().ok_or("Missing exclusive UI fixture name.")?);
-    fs::DirBuilder::new().mode(0o700).create(&evidence).map_err(error)?;
+    let evidence = root.join(DIRECTORY).join(
+        fixture
+            .file_name()
+            .ok_or("Missing exclusive UI fixture name.")?,
+    );
+    fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&evidence)
+        .map_err(error)?;
     let system = evidence.join("system");
-    fs::DirBuilder::new().mode(0o700).create(&system).map_err(error)?;
-    command.env("RUYCAST_NATIVE_TEST_FIXTURE_DIR", fixture)
+    fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&system)
+        .map_err(error)?;
+    command
+        .env("RUYCAST_NATIVE_TEST_FIXTURE_DIR", fixture)
         .env("TMPDIR", fixture)
+        .env("RUYCAST_FIXTURE_TOOLCHAIN", &builder.toolchain.path)
+        .env("RUYCAST_FIXTURE_CARGO_HOME", &builder.cargo_home.path)
+        .env("RUYCAST_FIXTURE_TARGET_DIR", &builder.target_dir.path)
         .env("RUYCAST_BROWSER_NATIVE_SHA", native_sha)
         .env("RUYCAST_BROWSER_KEYBOARD_MANIFEST", &manifest)
         .env("RUYCAST_BROWSER_EVIDENCE", evidence.join("browser"))
@@ -1056,34 +1404,89 @@ fn system_ui_environment(root: &Path, entry: &Step, fixture: &Path, command: &mu
     let mut sources = BTreeMap::new();
     for name in KEYBOARD_SDK_SOURCES.iter().chain(SYSTEM_UI_SOURCES) {
         let path = root.join(name);
-        sources.insert(path.strip_prefix(root).map_err(error)?.to_string_lossy().into_owned(), digest(&path)?);
+        sources.insert(
+            path.strip_prefix(root)
+                .map_err(error)?
+                .to_string_lossy()
+                .into_owned(),
+            digest(&path)?,
+        );
     }
     let mut artifacts = BTreeMap::new();
     for path in [&native, &manifest, &sdk] {
-        artifacts.insert(path.strip_prefix(root).map_err(error)?.to_string_lossy().into_owned(), digest(path)?);
+        artifacts.insert(
+            path.strip_prefix(root)
+                .map_err(error)?
+                .to_string_lossy()
+                .into_owned(),
+            digest(path)?,
+        );
     }
-    Ok(serde_json::json!({"sources":sources,"artifacts":artifacts,"evidenceDirectory":evidence.strip_prefix(root).map_err(error)?.to_string_lossy()}))
+    Ok(
+        serde_json::json!({"sources":sources,"artifacts":artifacts,"evidenceDirectory":evidence.strip_prefix(root).map_err(error)?.to_string_lossy(),"fixtureBuilder":builder}),
+    )
 }
-fn check_system_ui_inputs(root: &Path, target: &str, inputs: &serde_json::Value) -> Result<()> {
+fn check_system_ui_inputs(
+    root: &Path,
+    target: &str,
+    receipt: &Receipt,
+    inputs: &serde_json::Value,
+) -> Result<()> {
     artifact_paths(target)?;
-    let relative = Path::new(inputs["evidenceDirectory"].as_str().ok_or("Missing system UI evidence directory.")?);
-    if relative.parent() != Some(Path::new(DIRECTORY)) || !relative.file_name().is_some_and(|name|name.to_string_lossy().starts_with(".u-")) {
+    let relative = Path::new(
+        inputs["evidenceDirectory"]
+            .as_str()
+            .ok_or("Missing system UI evidence directory.")?,
+    );
+    if relative.parent() != Some(Path::new(DIRECTORY))
+        || !relative
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().starts_with(".u-"))
+    {
         return Err("System UI evidence escaped its exclusive validation directory.".into());
     }
     let mut generated = BTreeMap::new();
+    let builder: SystemUiBuilderContext =
+        serde_json::from_value(inputs["fixtureBuilder"].clone()).map_err(error)?;
+    check_system_ui_builder_context(root, receipt, &builder)?;
     source_folder(root, &root.join(relative), &mut generated)?;
-    if generated.is_empty() { return Err("Missing actual owned system UI evidence.".into()); }
+    if generated.is_empty() {
+        return Err("Missing actual owned system UI evidence.".into());
+    }
     let (sdk, _) = keyboard_fixture(root)?;
-    for path in [root.join("rust-native/target/validation-build").join(target).join("debug/ruycast-native"), root.join(DIRECTORY).join("native-profile/host-sdks/NativeKeyboard.json"), sdk] {
-        generated.insert(path.strip_prefix(root).map_err(error)?.to_string_lossy().into_owned(), digest(&path)?);
+    for path in [
+        root.join("rust-native/target/validation-build")
+            .join(target)
+            .join("debug/ruycast-native"),
+        root.join(DIRECTORY)
+            .join("native-profile/host-sdks/NativeKeyboard.json"),
+        sdk,
+    ] {
+        generated.insert(
+            path.strip_prefix(root)
+                .map_err(error)?
+                .to_string_lossy()
+                .into_owned(),
+            digest(&path)?,
+        );
     }
     let mut sources = BTreeMap::new();
     for name in KEYBOARD_SDK_SOURCES.iter().chain(SYSTEM_UI_SOURCES) {
         let path = root.join(name);
-        sources.insert(path.strip_prefix(root).map_err(error)?.to_string_lossy().into_owned(), digest(&path)?);
+        sources.insert(
+            path.strip_prefix(root)
+                .map_err(error)?
+                .to_string_lossy()
+                .into_owned(),
+            digest(&path)?,
+        );
     }
-    if inputs["sources"] != serde_json::to_value(sources).map_err(error)? || inputs["artifacts"] != serde_json::to_value(generated).map_err(error)? {
-        return Err("Incomplete or changed system UI source, input or actual evidence bindings.".into());
+    if inputs["sources"] != serde_json::to_value(sources).map_err(error)?
+        || inputs["artifacts"] != serde_json::to_value(generated).map_err(error)?
+    {
+        return Err(
+            "Incomplete or changed system UI source, input or actual evidence bindings.".into(),
+        );
     }
     Ok(())
 }
@@ -1590,7 +1993,7 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
             check_normal_host_inputs(root, &receipt, &step["normalHostInputs"])?;
         }
         if step["name"] == "system-search-sdk" {
-            check_system_ui_inputs(root, &receipt.target, &step["systemUiInputs"])?;
+            check_system_ui_inputs(root, &receipt.target, &receipt, &step["systemUiInputs"])?;
         }
         if matches!(step["name"].as_str(), Some("render-updates-process" | "polish-bindings-process" | "polish-original-process" | "task-date-process" | "actions-menu-process" | "item-binding-original-process" | "palette-lifecycle-process" | "interaction-trace-process" | "feedback-actions-process")) {
             check_example_ui_inputs(root, &receipt.target, &step["exampleUiInputs"], matches!(step["name"].as_str(), Some("task-date-process" | "polish-original-process")), step["name"]=="item-binding-original-process")?;
@@ -2189,7 +2592,15 @@ mod tests {
         for name in KEYBOARD_SDK_SOURCES {
             let path = root.join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
-            fs::write(&path, b"owned nonexecutable input").unwrap();
+            if *name == "rust-native/tests/fixtures/keyboard_host_loader.json" {
+                fs::write(
+                    &path,
+                    include_str!("../../../tests/fixtures/keyboard_host_loader.json"),
+                )
+                .unwrap();
+            } else {
+                fs::write(&path, b"owned nonexecutable input").unwrap();
+            }
             sources.insert(path.clone(), digest(&path).unwrap());
         }
         for name in SYSTEM_UI_SOURCES {
@@ -2198,57 +2609,285 @@ mod tests {
             fs::write(path, b"owned nonexecutable input").unwrap();
         }
         let sdk = sdk_dir.join("NativeKeyboard.dylib");
-        fs::write(&sdk, b"owned nonexecutable artifact; NOT qualified SDK code").unwrap();
+        fs::write(
+            &sdk,
+            b"owned nonexecutable artifact; NOT qualified SDK code",
+        )
+        .unwrap();
         let manifest = sdk_dir.join("NativeKeyboard.json");
         fs::write(&manifest, serde_json::to_vec(&serde_json::json!({"sources":sources,"artifact":sdk,"sha256":digest(&sdk).unwrap()})).unwrap()).unwrap();
-        let entry = matrix("aarch64-apple-darwin").unwrap().into_iter().find(|s| s.name == "system-search-sdk").unwrap();
-        let native = root.join("rust-native/target/validation-build/aarch64-apple-darwin/debug/ruycast-native");
+        let entry = matrix("aarch64-apple-darwin")
+            .unwrap()
+            .into_iter()
+            .find(|s| s.name == "system-search-sdk")
+            .unwrap();
+        let native = root
+            .join("rust-native/target/validation-build/aarch64-apple-darwin/debug/ruycast-native");
         fs::create_dir_all(native.parent().unwrap()).unwrap();
         fs::write(&native, b"owned nonexecutable host fixture").unwrap();
         let parent = root.join(".u-owned-fixture");
         fs::create_dir(&parent).unwrap();
+        let toolchain_path = root.join("fixture-toolchain/bin");
+        fs::create_dir_all(&toolchain_path).unwrap();
+        let cargo_home_path = root.join("cargo-home");
+        fs::create_dir(&cargo_home_path).unwrap();
+        let cargo_path = toolchain_path.join("cargo");
+        let rustc_path = toolchain_path.join("rustc");
+        fs::write(&cargo_path, b"owned nonexecutable test tool bytes").unwrap();
+        fs::write(&rustc_path, b"owned nonexecutable compiler test tool bytes").unwrap();
+        fs::set_permissions(&cargo_path, fs::Permissions::from_mode(0o700)).unwrap();
+        fs::set_permissions(&rustc_path, fs::Permissions::from_mode(0o700)).unwrap();
+        let cargo_version = "cargo 1.92.0 fixture";
+        let rustc_version = "rustc 1.92.0 (ded5c06cf 2025-12-08)";
+        let receipt = Receipt {
+            schema: "ruycast.build.v1".into(),
+            product_version: "0.0.0".into(),
+            configuration: "release".into(),
+            release_preparation: None,
+            target: "aarch64-apple-darwin".into(),
+            sources: BTreeMap::new(),
+            artifacts: BTreeMap::new(),
+            linked_libraries: BTreeMap::new(),
+            toolchains: BTreeMap::from([
+                ("cargo".into(), cargo_version.into()),
+                ("rustc".into(), rustc_version.into()),
+            ]),
+            commands: vec![],
+            environment_overrides: BTreeMap::new(),
+            production_accepted: false,
+            installed_or_published: false,
+        };
+        let builder = SystemUiBuilderContext {
+            toolchain: system_ui_directory_binding(&toolchain_path).unwrap(),
+            cargo_home: system_ui_directory_binding(&cargo_home_path).unwrap(),
+            target_dir: system_ui_directory_binding(
+                &root.join("rust-native/target/validation-build"),
+            )
+            .unwrap(),
+            cargo: SystemUiToolBinding {
+                path: cargo_path.clone(),
+                sha256: digest(&cargo_path).unwrap(),
+                version: cargo_version.into(),
+                details: None,
+            },
+            rustc: SystemUiToolBinding {
+                path: rustc_path.clone(),
+                sha256: digest(&rustc_path).unwrap(),
+                version: rustc_version.into(),
+                details: Some(format!(
+                    "{rustc_version}\nhost: aarch64-apple-darwin\nrelease: 1.92.0\nLLVM version: 21.1.3\n"
+                )),
+            },
+        };
         let mut command = Command::new("unexecuted-owned-plumbing-fixture");
-        command.env("RUYCAST_BROWSER_NATIVE_SHA", "untrusted ambient value")
+        command
+            .env("RUYCAST_BROWSER_NATIVE_SHA", "untrusted ambient value")
             .env("RUYCAST_BROWSER_EVIDENCE", "/untrusted/output")
             .env("RUYCAST_NATIVE_EVIDENCE_DIR", "/untrusted/output")
-            .env("RUYCAST_SYSTEM_UI_EVIDENCE", "/untrusted/output");
-        let inputs = system_ui_environment(root, &entry, &parent, &mut command).unwrap();
-        let env = command.get_envs().map(|(key,value)|(key.to_string_lossy().into_owned(),value.map(|v|v.to_string_lossy().into_owned()))).collect::<BTreeMap<_,_>>();
-        assert_eq!(env["RUYCAST_BROWSER_NATIVE_SHA"], Some(digest(&native).unwrap()));
-        assert_eq!(env["RUYCAST_BROWSER_KEYBOARD_MANIFEST"], Some(manifest.to_string_lossy().into_owned()));
-        assert_eq!(env["RUYCAST_NATIVE_TEST_FIXTURE_DIR"], Some(parent.to_string_lossy().into_owned()));
+            .env("RUYCAST_SYSTEM_UI_EVIDENCE", "/untrusted/output")
+            .env("RUYCAST_FIXTURE_TOOLCHAIN", "/untrusted/toolchain")
+            .env("RUYCAST_FIXTURE_CARGO_HOME", "/untrusted/cargo-home")
+            .env("RUYCAST_FIXTURE_TARGET_DIR", "/untrusted/target");
+        let inputs = system_ui_environment_with_context(
+            root,
+            &receipt,
+            &entry,
+            &parent,
+            &mut command,
+            &builder,
+        )
+        .unwrap();
+        let env = command
+            .get_envs()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.map(|v| v.to_string_lossy().into_owned()),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            env["RUYCAST_BROWSER_NATIVE_SHA"],
+            Some(digest(&native).unwrap())
+        );
+        assert_eq!(
+            env["RUYCAST_BROWSER_KEYBOARD_MANIFEST"],
+            Some(manifest.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            env["RUYCAST_NATIVE_TEST_FIXTURE_DIR"],
+            Some(parent.to_string_lossy().into_owned())
+        );
         let output = root.join(inputs["evidenceDirectory"].as_str().unwrap());
-        assert_eq!(env["RUYCAST_BROWSER_EVIDENCE"], Some(output.join("browser").to_string_lossy().into_owned()));
-        assert_eq!(env["RUYCAST_NATIVE_EVIDENCE_DIR"], Some(output.to_string_lossy().into_owned()));
-        assert_eq!(env["RUYCAST_SYSTEM_UI_EVIDENCE"], Some(output.join("system").to_string_lossy().into_owned()));
-        assert!(!output.join("browser").exists(), "Existing strict consumer must exclusively create its output");
+        assert_eq!(
+            env["RUYCAST_BROWSER_EVIDENCE"],
+            Some(output.join("browser").to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            env["RUYCAST_NATIVE_EVIDENCE_DIR"],
+            Some(output.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            env["RUYCAST_SYSTEM_UI_EVIDENCE"],
+            Some(output.join("system").to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            env["RUYCAST_FIXTURE_TOOLCHAIN"],
+            Some(toolchain_path.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            env["RUYCAST_FIXTURE_CARGO_HOME"],
+            Some(cargo_home_path.to_string_lossy().into_owned())
+        );
+        assert_eq!(
+            env["RUYCAST_FIXTURE_TARGET_DIR"],
+            Some(
+                root.join("rust-native/target/validation-build")
+                    .to_string_lossy()
+                    .into_owned()
+            )
+        );
+        assert_eq!(
+            inputs["fixtureBuilder"],
+            serde_json::to_value(&builder).unwrap()
+        );
+        assert!(
+            !output.join("browser").exists(),
+            "Existing strict consumer must exclusively create its output"
+        );
         assert!(output.join("system").is_dir());
-        assert_eq!(fs::metadata(&output).unwrap().permissions().mode() & 0o777, 0o700);
-        assert_eq!(fs::read(parent.join(".ruycast-ui-fixture-parent")).unwrap(), b"owned-ui-fixture-parent-v1");
+        assert_eq!(
+            fs::metadata(&output).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(
+            fs::read(parent.join(".ruycast-ui-fixture-parent")).unwrap(),
+            b"owned-ui-fixture-parent-v1"
+        );
         check_binding(root, &inputs).unwrap();
-        fs::write(output.join("system/owned-nonexecutable-receipt.json"), b"owned plumbing fixture; not a host result").unwrap();
+        fs::write(
+            output.join("system/owned-nonexecutable-receipt.json"),
+            b"owned plumbing fixture; not a host result",
+        )
+        .unwrap();
         let producer = output.join("keyboard-owned");
         fs::create_dir(&producer).unwrap();
-        fs::write(producer.join("fixture.dylib"), b"owned nonexecutable producer-output binding fixture").unwrap();
-        fs::write(producer.join("receipt.json"), b"owned nonexecutable producer receipt").unwrap();
+        fs::write(
+            producer.join("fixture.dylib"),
+            b"owned nonexecutable producer-output binding fixture",
+        )
+        .unwrap();
+        fs::write(
+            producer.join("receipt.json"),
+            b"owned nonexecutable producer receipt",
+        )
+        .unwrap();
         let mut complete = inputs.clone();
         let mut generated = BTreeMap::new();
         source_folder(root, &output, &mut generated).unwrap();
-        complete["artifacts"].as_object_mut().unwrap().extend(serde_json::to_value(generated).unwrap().as_object().unwrap().clone());
-        check_system_ui_inputs(root, "aarch64-apple-darwin", &complete).unwrap();
+        complete["artifacts"].as_object_mut().unwrap().extend(
+            serde_json::to_value(generated)
+                .unwrap()
+                .as_object()
+                .unwrap()
+                .clone(),
+        );
+        check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &complete).unwrap();
         let mut omitted = complete.clone();
         omitted["artifacts"] = serde_json::json!({});
-        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &omitted).is_err());
-        fs::write(producer.join("fixture.dylib"), b"late producer SDK byte mutation").unwrap();
-        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &complete).is_err());
-        fs::write(producer.join("fixture.dylib"), b"owned nonexecutable producer-output binding fixture").unwrap();
-        fs::write(output.join("system/owned-nonexecutable-receipt.json"), b"late receipt mutation").unwrap();
-        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &complete).is_err());
-        assert!(system_ui_environment(root, &entry, &parent, &mut command).is_err(), "Never reuse an existing evidence directory");
+        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &omitted).is_err());
+        let mut missing_builder = complete.clone();
+        missing_builder
+            .as_object_mut()
+            .unwrap()
+            .remove("fixtureBuilder");
+        assert!(
+            check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &missing_builder)
+                .is_err()
+        );
+        let mut missing_directory = builder.clone();
+        missing_directory.cargo_home.path = root.join("missing-cargo-home");
+        assert!(check_system_ui_builder_context(root, &receipt, &missing_directory).is_err());
+        let linked_directory = root.join("linked-cargo-home");
+        std::os::unix::fs::symlink(&cargo_home_path, &linked_directory).unwrap();
+        let mut linked_context = builder.clone();
+        linked_context.cargo_home.path = linked_directory;
+        assert!(check_system_ui_builder_context(root, &receipt, &linked_context).is_err());
+        let linked_tool = toolchain_path.join("linked-cargo");
+        std::os::unix::fs::symlink(&cargo_path, &linked_tool).unwrap();
+        let mut linked_tool_context = builder.clone();
+        linked_tool_context.cargo.path = linked_tool;
+        assert!(check_system_ui_builder_context(root, &receipt, &linked_tool_context).is_err());
+        let linked_toolchain_path = root.join("linked-toolchain/bin");
+        fs::create_dir_all(&linked_toolchain_path).unwrap();
+        std::os::unix::fs::symlink(&cargo_path, linked_toolchain_path.join("cargo")).unwrap();
+        let linked_toolchain = system_ui_directory_binding(&linked_toolchain_path).unwrap();
+        assert!(
+            system_ui_tool_path(&linked_toolchain, "cargo").is_err(),
+            "Reject linked tool before execution"
+        );
+        let mut changed_context = complete.clone();
+        changed_context["fixtureBuilder"]["cargoHome"]["path"] =
+            serde_json::json!("relative/cargo-home");
+        assert!(
+            check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &changed_context)
+                .is_err()
+        );
+        let mut changed_hash = complete.clone();
+        changed_hash["fixtureBuilder"]["cargo"]["sha256"] = serde_json::json!("0".repeat(64));
+        assert!(
+            check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &changed_hash).is_err()
+        );
+        let mut changed_version = complete.clone();
+        changed_version["fixtureBuilder"]["rustc"]["version"] = serde_json::json!("rustc other");
+        assert!(
+            check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &changed_version)
+                .is_err()
+        );
+        fs::write(cargo_home_path.join("config.toml"), b"unqualified config").unwrap();
+        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &complete).is_err());
+        fs::remove_file(cargo_home_path.join("config.toml")).unwrap();
+        fs::write(&cargo_path, b"late Cargo tool byte mutation").unwrap();
+        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &complete).is_err());
+        fs::write(&cargo_path, b"owned nonexecutable test tool bytes").unwrap();
+        fs::write(
+            producer.join("fixture.dylib"),
+            b"late producer SDK byte mutation",
+        )
+        .unwrap();
+        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &complete).is_err());
+        fs::write(
+            producer.join("fixture.dylib"),
+            b"owned nonexecutable producer-output binding fixture",
+        )
+        .unwrap();
+        fs::write(
+            output.join("system/owned-nonexecutable-receipt.json"),
+            b"late receipt mutation",
+        )
+        .unwrap();
+        assert!(check_system_ui_inputs(root, "aarch64-apple-darwin", &receipt, &complete).is_err());
+        assert!(
+            system_ui_environment_with_context(
+                root,
+                &receipt,
+                &entry,
+                &parent,
+                &mut command,
+                &builder
+            )
+            .is_err(),
+            "Never reuse an existing evidence directory"
+        );
         fs::write(&native, b"late native image replacement").unwrap();
         assert!(check_binding(root, &inputs).is_err());
         assert!(system_ui_socket_budget(Path::new("/owned/u")).is_ok());
-        assert!(system_ui_socket_budget(&root.join("this-owned-path-is-deliberately-too-long-for-a-Darwin-socket")).is_err());
+        assert!(
+            system_ui_socket_budget(
+                &root.join("this-owned-path-is-deliberately-too-long-for-a-Darwin-socket")
+            )
+            .is_err()
+        );
         // No child is spawned, no SDK or host bytes above are executable, and
         // none of these binding checks substitutes for SDK consumer admission.
     }
