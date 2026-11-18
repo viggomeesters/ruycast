@@ -70,6 +70,7 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
     let published: Value = serde_json::from_slice(&fs::read(a.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
     assert_eq!(published["version"], rustcast_core::product_version::CURRENT);
     assert_eq!(published["versionAuthority"], VERSION_SOURCE);
+    assert!(published["files"].get("Makefile").is_none());
     assert_eq!(one["version"], published["version"]);
     assert_eq!(fs::read(a.join(VERSION_SOURCE)).unwrap(), VERSION_BYTES);
     assert_eq!(one["archiveSHA256"], two["archiveSHA256"]);

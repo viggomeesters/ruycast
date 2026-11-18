@@ -7,7 +7,6 @@ rust-toolchain.toml
 CHANGELOG.md
 CONTRIBUTING.md
 LICENSE
-Makefile
 Package.swift
 README.md
 SECURITY.md
