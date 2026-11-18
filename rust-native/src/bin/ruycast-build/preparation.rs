@@ -69,6 +69,77 @@ impl Drop for Stage {
         }
     }
 }
+pub(super) struct ShortPathStage {
+    path: PathBuf,
+    device: u64,
+    inode: u64,
+}
+static SHORT_PATH_STAGE_NEXT: AtomicU64 = AtomicU64::new(0);
+impl ShortPathStage {
+    pub(super) fn new() -> Result<Self> {
+        use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+        let parent = fs::canonicalize("/tmp").map_err(error)?;
+        let metadata = fs::metadata(&parent).map_err(error)?;
+        if !metadata.is_dir()
+            || metadata.mode() & libc::S_ISVTX as u32 == 0
+            || metadata.mode() & libc::S_IWOTH as u32 == 0
+        {
+            return Err("Short fixture parent is not a sticky shared directory.".into());
+        }
+        for _ in 0..128 {
+            let serial = SHORT_PATH_STAGE_NEXT
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+                .map_err(|_| "Short fixture stage counter exhausted.")?;
+            let path = parent.join(format!(".rvs-{}-{serial}", std::process::id()));
+            let mut builder = fs::DirBuilder::new();
+            builder.mode(0o700);
+            match builder.create(&path) {
+                Ok(()) => {
+                    if let Err(error) = ruycast_native::private_storage::secure_directory(&path) {
+                        let _ = fs::remove_dir(&path);
+                        return Err(error);
+                    }
+                    let owned = match fs::symlink_metadata(&path) {
+                        Ok(owned) => owned,
+                        Err(cause) => {
+                            let _ = fs::remove_dir(&path);
+                            return Err(error(cause));
+                        }
+                    };
+                    if !owned.is_dir() || owned.file_type().is_symlink() {
+                        let _ = fs::remove_dir(&path);
+                        return Err("Short fixture stage is not a real directory.".into());
+                    }
+                    return Ok(Self {
+                        path,
+                        device: owned.dev(),
+                        inode: owned.ino(),
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(cause) => return Err(error(cause)),
+            }
+        }
+        Err("Cannot allocate an exclusive short fixture stage.".into())
+    }
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+}
+impl Drop for ShortPathStage {
+    fn drop(&mut self) {
+        use std::os::unix::fs::MetadataExt;
+        if fs::symlink_metadata(&self.path).is_ok_and(|metadata| {
+            metadata.is_dir()
+                && !metadata.file_type().is_symlink()
+                && metadata.dev() == self.device
+                && metadata.ino() == self.inode
+                && metadata.uid() == unsafe { libc::getuid() }
+        }) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+}
 pub(super) struct ShortPathAlias {
     path: PathBuf,
     target: PathBuf,
@@ -532,6 +603,39 @@ fn prepare_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn short_fixture_stages_are_private_real_unique_and_collision_safe() {
+        use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt};
+        struct Collision(PathBuf);
+        impl Drop for Collision {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir(&self.0);
+            }
+        }
+        let parent = fs::canonicalize("/tmp").unwrap();
+        let serial = SHORT_PATH_STAGE_NEXT.load(Ordering::Relaxed);
+        let collision = parent.join(format!(".rvs-{}-{serial}", std::process::id()));
+        let mut builder = fs::DirBuilder::new();
+        builder.mode(0o700);
+        builder.create(&collision).unwrap();
+        ruycast_native::private_storage::secure_directory(&collision).unwrap();
+        let _collision = Collision(collision.clone());
+
+        let stage = ShortPathStage::new().unwrap();
+        let path = stage.path().to_path_buf();
+        let metadata = fs::symlink_metadata(&path).unwrap();
+        assert_ne!(path, collision);
+        assert!(path.starts_with(&parent));
+        assert!(metadata.is_dir() && !metadata.file_type().is_symlink());
+        assert_eq!(metadata.uid(), unsafe { libc::getuid() });
+        assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
+        assert!(path.as_os_str().as_encoded_bytes().len() < 40);
+
+        drop(stage);
+        assert!(!fs::symlink_metadata(&path).is_ok());
+        assert!(collision.is_dir());
+    }
 
     #[test]
     fn short_validation_aliases_are_unique_bounded_and_remove_only_the_alias() {
