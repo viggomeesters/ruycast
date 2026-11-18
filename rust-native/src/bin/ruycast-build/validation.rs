@@ -68,7 +68,7 @@ rust-only-policy|s|rust-only-policy
 rust-only-policy-tests|c|test --manifest-path rust-native/Cargo.toml --test rust_only_policy --locked
 core-unit|c|test --manifest-path rust/Cargo.toml --locked
 unit|c|test --manifest-path rust-native/Cargo.toml --locked
-architecture-policy-process|c|test --manifest-path rust-native/Cargo.toml --test architecture_policy --locked -- --test-threads=1
+architecture-policy-process|c|test --manifest-path rust-native/Cargo.toml --test architecture_policy --locked
 clippy-default|c|clippy --manifest-path rust-native/Cargo.toml --locked --all-targets -- -D warnings
 clippy|c|clippy --manifest-path rust-native/Cargo.toml --locked --all-targets --all-features -- -D warnings
 host-build|b|ruycast-native default
@@ -205,7 +205,7 @@ clipboard-import-batches|c|test --manifest-path rust-native/Cargo.toml --lib --l
 benchmark-driver-tools|c|build --manifest-path rust-native/Cargo.toml --features test-tools --locked --bin ruycast-build --bin benchmark-host-fixture
 benchmark-contract-1|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_ignores_external_configuration_with_500_commands -- --ignored --exact
 benchmark-contract-2|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked benchmark_cli_contracts::real_rust_benchmark_rejects_changed_cli_and_quits_gracefully -- --ignored --exact
-benchmark-driver-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test benchmark_host_process --locked -- --test-threads=1
+benchmark-driver-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test benchmark_host_process --locked
 temporal-contract-1|c|test --manifest-path rust-native/Cargo.toml --bin ruycast-build --locked compat::temporal_contract_tests::final_consumer_keeps_artifacts_leased_through_actual_receipt_publication -- --ignored --exact
 temporal-contract-2|c|test --manifest-path rust-native/Cargo.toml --bin ruycast-build --locked compat::temporal_contract_tests::source_mutation_during_final_consumer_cannot_publish_pipeline_pass -- --ignored --exact
 temporal-contract-3|c|test --manifest-path rust-native/Cargo.toml --bin ruycast-build --locked compat::temporal_contract_tests::artifact_mutation_during_final_consumer_cannot_publish_pipeline_pass -- --ignored --exact
@@ -2255,6 +2255,21 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn matrix_test_processes_receive_one_shared_serial_thread_flag() {
+        let steps = matrix("aarch64-apple-darwin").unwrap();
+        for name in ["architecture-policy-process", "benchmark-driver-process"] {
+            let step = steps.iter().find(|step| step.name == name).unwrap();
+            assert_eq!(
+                step.arguments
+                    .iter()
+                    .filter(|argument| argument.as_str() == "--test-threads=1")
+                    .count(),
+                1,
+                "{name} must use the shared serial test-thread setting exactly once"
+            );
+        }
+    }
     #[test]
     fn full_unit_step_gets_a_bounded_suite_timeout() {
         assert_eq!(step_timeout("unit"), Duration::from_secs(300));
