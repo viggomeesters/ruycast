@@ -1,22 +1,21 @@
 # F1 source staging
 
-The existing runner, full SDK source basis and historical reference sources are
-staged here for review. This is an incomplete portability integration, not a
-reproducible or admitted benchmark yet. Ordinary product builds do not depend
-on this directory.
+The runner and its Rust SDK support are staged here for review. This is an
+incomplete portability integration, not a reproducible or admitted benchmark
+yet. Ordinary product builds do not depend on this directory.
 
 ## Source destinations
 
 - `f1-runner/Cargo.toml`, `Cargo.lock` and its explicitly selected existing
   `src/` files retain the runner, collector, Guardian, private-cap transport and
   SDK in one package. Its native dependency remains `../../rust-native`.
-- `reference/ReferencePreentry.rs` retains the Rust reference admission object;
-  it is not a complete reference endpoint implementation. The historical Swift
-  bridge source has been removed and its CLI routes refuse immediately.
-- `reference/0.8.26/` retains the specifically pinned reference `Package.swift`,
-  `Sources/`, Rust core sources/manifests, default configuration and required
-  test-source/fixture inputs. This is the historical oracle, not an alternative
-  production build or a fallback to the installed application.
+- `reference/ReferencePreentry.rs` retains Rust reference-admission scaffolding;
+  it is not a complete or active reference endpoint implementation. Its CLI
+  routes refuse immediately.
+- The historical `0.8.26` source tree has been removed. Its exact Git tree
+  `349cc54484e6b210b1125f32f6417f275c51bbe8` is recoverable from commit
+  `fff08adf6567ffe5ab2d8804c36c29483fa9390b`; it is not a current build or test
+  input.
 
 Only explicitly reviewed source files belong in this staging. Do not import a
 workspace tree, `.go` state, `.build` contents, compiler objects, old receipts,
@@ -33,9 +32,9 @@ The remaining producer work is:
 
 1. Independently verify the relocated checkout, reference and endpoint path
    restrictions against exact source inventories and ownership requirements.
-2. Keep Native and reference roots distinct. Resolve the historical oracle from
-   `bench/reference/0.8.26`; build its core and reference objects from those
-   bound sources. Never reuse old private object paths as public provenance.
+2. Keep Native source inputs distinct from historical provenance. The retired
+   Reference build route must not be restored from the removed source tree or
+   old private object paths.
 3. Replace private source/argument/dependency evidence paths with source-owned
    relative input declarations and fresh compiler receipts. Verify the complete
    actual dep-info closure and exact compiler/rlib joins before grants. A new
@@ -45,10 +44,8 @@ The remaining producer work is:
    them through the actual selected SDK/compiler dependency receipt and bind
    their bytes, owner and declaration provenance. Do not accept an arbitrary
    external root or a relocated string as equivalent evidence.
-5. Relocate SDK bootstrap reference-source includes to the pinned oracle, while
-   retaining Native source includes against the shipping checkout. The same
-   reviewed source identities must reach compiled pins, manifest and final
-   private grant. Preserve the image/code, initializer and one-shot cap checks.
+5. Reference SDK bootstrap compilation is retired. Any future reactivation
+   requires newly reviewed source inputs and a separately qualified route.
 6. Generate output only in the caller's exclusive owned build directory. Keep
    private captures out of source inventory/export. Preserve the current time,
    size, permissions, EOF, cancellation and cleanup limits.
@@ -101,10 +98,10 @@ The runner refuses them before path access or process start. Their old compiler
 and debug-capture implementation has been removed; no Swift bridge or Reference
 runtime authority is retained by this staging.
 
-The SDK compiler/launch producer and its source-join helpers have been removed.
-Only the source-only pin preparer remains; it does not compile the SDK, start an
-endpoint or grant runnable authority. Any future reactivation needs a new,
-reviewed issue after the exact original declaration roster has been recovered.
+The SDK compiler/launch producer, source-join helpers and source-only pin
+preparer have all been removed. No current command compiles or starts the
+Reference SDK. Any future reactivation needs a new reviewed issue after the
+exact original declaration roster has been recovered.
 
 ## Protocol and admission
 
