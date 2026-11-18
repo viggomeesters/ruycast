@@ -889,6 +889,7 @@ const BROWSER_TABS_ORACLE_SHA256: &str = "82189e7c80a7baab3e38a8b34619de06f343c2
 const WINDOW_SEARCH_ORACLE_SHA256: &str = "cae0f60d635d6aa5af41d8fe8ecc9bc8102c28e49e2aec87a7e53462829ddf7f";
 const MENU_ACTIONS_ORACLE_SHA256: &str = "41d224340e00d1970fb953aad90c3c4a539e6af84634b1aa04b90972c166f1ed";
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
+const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1213,7 +1214,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "5cbf5b70442aea92ceabefa122a42b18813f7f8ff2a100caa3d1f5a82f6a694b"),
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
-            ("Sources/RuycastApp/AppleShortcutChecks.swift", include_bytes!("../../../../Sources/RuycastApp/AppleShortcutChecks.swift"), "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74"),
         ],
         "--check-render-updates" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
@@ -1508,6 +1508,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/RichResourceChecks.swift",
             RICH_RESOURCES_ORACLE_SHA256,
         )),
+        "--check-apple-shortcuts" => Some((
+            "Sources/RuycastApp/AppleShortcutChecks.swift",
+            APPLE_SHORTCUTS_ORACLE_SHA256,
+        )),
         _ => None,
     }
 }
@@ -1540,6 +1544,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-window-search" => Some(WINDOW_SEARCH_ORACLE_SHA256),
             "--check-menu-actions" => Some(MENU_ACTIONS_ORACLE_SHA256),
             "--check-rich-resources" => Some(RICH_RESOURCES_ORACLE_SHA256),
+            "--check-apple-shortcuts" => Some(APPLE_SHORTCUTS_ORACLE_SHA256),
             _ => None,
         };
         path == gate.original_source
@@ -4009,7 +4014,7 @@ mod tests {
         ];
         for (id, steps, case_count, source_count) in [
             ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 33),
-            ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 46),
+            ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 45),
             ("--check-render-updates", &["render-updates-process"][..], 1, 13),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
@@ -4029,6 +4034,12 @@ mod tests {
                 let bindings = settings_source_bindings(id);
                 assert_eq!(bindings.len(), 14);
                 assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
+                assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+            } else if id == "--check-apple-shortcuts" {
+                assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+                let bindings = settings_source_bindings(id);
+                assert_eq!(bindings.len(), 46);
+                assert!(bindings.contains(&(gate.original_source, APPLE_SHORTCUTS_ORACLE_SHA256)));
                 assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
             } else {
                 assert!(inputs.iter().any(|(path, _, _)| *path == gate.original_source));
@@ -4066,6 +4077,28 @@ mod tests {
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
         assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn apple_shortcuts_provenance_keeps_current_inputs_and_gate_status() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-apple-shortcuts").unwrap();
+        let inputs = settings_sources(gate.id);
+        let provenance = (gate.original_source, APPLE_SHORTCUTS_ORACLE_SHA256);
+        let bindings = settings_source_bindings(gate.id);
+
+        assert_eq!(gate.required_native_steps, &["unit", "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"]);
+        assert_eq!(gate.native_cases.len(), 10);
+        assert_eq!(inputs.len(), 45);
+        assert_eq!(bindings.len(), 46);
+        assert_eq!(settings_provenance_source(gate.id), Some(provenance));
+        assert!(bindings.contains(&provenance));
+        assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml" || *path == "config/default.json"));
+        for (path, _, sha) in inputs {
+            assert!(bindings.contains(&(path, sha)), "missing current Apple Shortcuts binding: {path}");
+        }
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let inventory = inventory("settings").unwrap();
+        assert_eq!(inventory["productionAccepted"], false);
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn menu_map_preserves_original_cases_required_routes_and_source_inputs() {
