@@ -88,7 +88,8 @@ No current command builds that actor or publishes a runnable Reference image.
 The retained-Main capture reader and its ignored capture test were also removed;
 current code no longer reads that historical image. The uncalled fixed
 `sdk::reference_runtime::assemble_reference` actor assembler has also been
-removed. The historical acceptance still required complete module
+removed, along with its uncalled workspace-model/bootstrap construction path.
+The historical acceptance still required complete module
 attestations, same-build compiler joins and static Main/SDK code pins; the
 source-only pins receipt did not satisfy them.
 

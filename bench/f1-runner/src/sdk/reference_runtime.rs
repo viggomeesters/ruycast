@@ -173,29 +173,6 @@ unsafe impl SourceCodeReader for ReferenceReader {
     }
 }
 
-/// Construct the real existing bootstrap from precisely the admitted roots and
-/// actual descriptor ownership. This is ONE module, never a fourteen-scope
-/// registry/Ready shortcut; workspace/callback/source actors must follow.
-#[cfg(not(test))]
-pub(crate) fn initialize_bootstrap(
-    admission: &Arc<ReferenceAdmission>,
-    prepare_workspace: impl FnOnce() -> Result<Arc<Workspace>>,
-) -> Result<(Arc<Workspace>, super::ModuleAttestation)> {
-    let [home, cache, temp, applications] = admission.runtime_roots()?;
-    let (uid, gid) = home.owner_ids()?;
-    let account =
-        super::bootstrap::Account::fixture(uid, gid, "f1-owned", "Owned Fixture", home.path())?;
-    let context = super::bootstrap::Bootstrap::new(
-        home,
-        cache,
-        temp,
-        applications,
-        account,
-        admission.life(),
-    )?;
-    admission.initialize_bootstrap(context, prepare_workspace)
-}
-
 use crate::workspace::{
     event_loop::{Engine, Phase},
     Workspace,
@@ -272,30 +249,6 @@ pub struct ReferenceSourceActors {
     pub(super) rollback: super::reference_source_actors::SetupFailure,
     pub callback_catalog: Arc<crate::workspace::objc::application::SourceCallbackCatalog>,
     pub modules: Vec<super::ModuleAttestation>,
-}
-
-/// First actual assembly nodes. Fixture values are supplied by the fixed
-/// source-built producer; this function performs no desktop/account discovery.
-/// The context is borrowed from the bootstrap's real installed issuer rather
-/// than reconstructed from paths. Further factory/catalog installation and all
-/// remaining module attestations are still required before publication.
-#[cfg(not(test))]
-pub fn initialize_workspace_model(
-    admission: &Arc<ReferenceAdmission>,
-    applications: Vec<crate::workspace::Application>,
-    screens: Vec<crate::workspace::Screen>,
-    mouse: crate::workspace::Point,
-) -> Result<(Arc<Workspace>, super::ModuleAttestation)> {
-    admission.before_reference_initialization()?;
-    initialize_bootstrap(admission, || {
-        let context =
-            super::bootstrap::owned_module_context(&admission.life(), &admission.descriptors())?;
-        let model = Workspace::new(context, applications, screens, mouse)?;
-        model.verify_reference_context(admission)?;
-        // No receiver or arena exists until bootstrap finishes its selectors.
-        unsafe { crate::workspace::objc::prepare_reference_data_factories(model.clone(), admission) }?;
-        Ok(model)
-    })
 }
 
 /// Connect the genuine source catalog and existing joint factory transaction.
