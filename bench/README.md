@@ -26,7 +26,7 @@ The public exporter must select each approved path explicitly.
 ## Changes required in the existing producer
 
 The first relocation derives the checkout from the compiled manifest location,
-limits inventory to that checkout or its pinned reference, redirects bootstrap
+limits inventory to that checkout, redirects bootstrap
 reference includes and confines endpoint artifacts to this checkout's existing
 target. It does not modify any previously executed laboratory artifact.
 The remaining producer work is:
