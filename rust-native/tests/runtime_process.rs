@@ -1345,7 +1345,7 @@ fn socket_recovery_graceful_stop_preserves_replacement_socket() {
     );
     let after = fs::metadata(host.socket()).unwrap();
     assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
-    assert!(ruycast_native::benchmark_host::rpc::connect(
+    assert!(runtime_host::status_rpc::connect(
         &host.socket(),
         Instant::now() + Duration::from_secs(3)
     )

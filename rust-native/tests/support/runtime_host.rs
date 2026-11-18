@@ -324,11 +324,7 @@ impl Host {
         status_rpc::request(&self.socket(), request, Instant::now() + timeout).unwrap()
     }
     pub fn connect(&self, timeout: Duration) -> UnixStream {
-        let stream = ruycast_native::benchmark_host::rpc::connect(
-            &self.socket(),
-            Instant::now() + timeout,
-        )
-        .unwrap();
+        let stream = status_rpc::connect(&self.socket(), Instant::now() + timeout).unwrap();
         stream.set_nonblocking(false).unwrap();
         stream.set_read_timeout(Some(timeout)).unwrap();
         stream.set_write_timeout(Some(timeout)).unwrap();
