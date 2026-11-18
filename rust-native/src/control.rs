@@ -936,8 +936,7 @@ mod tests {
     impl Temp {
         fn new() -> Self {
             static NEXT: AtomicU64 = AtomicU64::new(0);
-            let root = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").map(PathBuf::from)
-                .unwrap_or_else(||PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"))
+            let root = std::env::temp_dir()
                 .join(format!(
                     "rpc-{}-{}",
                     std::process::id(),
@@ -1029,10 +1028,7 @@ mod tests {
     #[test]
     #[ignore = "Owned FIFO subprocess; invoked by the bounded exact parent test"]
     fn owned_instance_fifo_refusal_child() {
-        let parent = PathBuf::from(
-            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
-                .expect("Explicit owned fixture parent required"),
-        );
+        let parent = std::env::temp_dir();
         // The existing supervisor launches this exact child directly. Its
         // home argument expands ~; it deliberately does not mutate child env.
         let home = parent.join(format!("instance-fifo-{}", unsafe { libc::getppid() }));
@@ -1078,10 +1074,7 @@ mod tests {
     }
     #[test]
     fn instance_fifo_refusal_is_bounded_and_preserves_owned_namespace() {
-        let parent = PathBuf::from(
-            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
-                .expect("Explicit owned fixture parent required"),
-        );
+        let parent = std::env::temp_dir();
         assert!(parent.is_absolute());
         let path = parent.join(format!("instance-fifo-{}", std::process::id()));
         fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
