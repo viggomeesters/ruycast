@@ -616,6 +616,15 @@ fn check_rust_policy_pair(root: &Path, target: &str, steps: &[serde_json::Value]
     }
     Ok(())
 }
+fn step_timeout(name: &str) -> Duration {
+    // The unit entry runs every Rust test binary in one Cargo invocation.
+    // Its complete suite exceeds the ordinary per-step bound even when green.
+    if name == "unit" {
+        Duration::from_secs(300)
+    } else {
+        Duration::from_secs(180)
+    }
+}
 fn step(
     root: &Path,
     lease: &BuildLock,
@@ -707,7 +716,7 @@ fn step(
     } else { None };
     let captured = process::capture_logged(
         command,
-        Duration::from_secs(180),
+        step_timeout(&entry.name),
         64 * 1024 * 1024,
         Some((
             log(&root.join(DIRECTORY).join(format!("{}.stdout", entry.name)))?,
@@ -2242,6 +2251,12 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn full_unit_step_gets_a_bounded_suite_timeout() {
+        assert_eq!(step_timeout("unit"), Duration::from_secs(300));
+        assert_eq!(step_timeout("core-unit"), Duration::from_secs(180));
+        assert_eq!(step_timeout("native-check"), Duration::from_secs(180));
+    }
     #[test]
     fn supervision_fault_environment_requires_the_exact_matrix_artifact() {
         let fixture = super::super::tests::Fixture::new();
