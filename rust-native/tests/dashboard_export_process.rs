@@ -66,12 +66,12 @@ impl Host {
         )
         .unwrap();
         let binary = Path::new(env!("CARGO_BIN_EXE_ruycast-native"));
-        let child = Command::new(&binary)
+        let child = Command::new(binary)
             .arg("--native-hidden")
             .env_clear()
             .env("HOME", &base)
             .env("RUYCAST_HOME", base.join("p"))
-            .env("RUYCAST_APP_BINARY", &binary)
+            .env("RUYCAST_APP_BINARY", binary)
             .env(
                 "RUYCAST_NATIVE_TEST_APP_ROOTS",
                 serde_json::to_string(&[base.join("Applications")]).unwrap(),
