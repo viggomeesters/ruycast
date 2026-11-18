@@ -415,27 +415,6 @@ pub(crate) fn owned_module_context(
         life: context.life.clone(),
     })
 }
-/// Install only the private Security leaves from explicit owned fixture bytes.
-/// The returned exact Context Arc is retained for its existing retire API.
-/// # Safety
-/// The sealed Host coordinator has independently qualified this caller, the
-/// five actual imports and their ABI/source/images. prewrite is a pure final
-/// validator; neither this leaf module nor its empty scopes admit providers,
-/// network, Safari discovery/send or complete Source14.
-pub unsafe fn initialize_private_security(
-    life: Arc<dyn AliveLease>,
-    descriptors: Arc<super::descriptors::DescriptorTable>,
-    history: Option<Vec<u8>>,
-    entropy: Vec<u8>,
-    prewrite: impl Fn() -> Result<()> + Send + Sync,
-) -> Result<(super::ModuleAttestation, Arc<super::private_network::Context>)> {
-    let context = owned_module_context(&life, &descriptors)?;
-    let lease = context.lease("private-security")?;
-    prewrite()?;
-    let security = super::private_network::Context::new(life, history, entropy)?;
-    let module = unsafe { super::private_network::initialize_owned(security.clone(), lease, prewrite) }?;
-    Ok((module, security))
-}
 /// Install the existing Process/monitor owner through the same full-Host
 /// guardian and DescriptorTable. No rule is discovered or manufactured here.
 /// # Safety
