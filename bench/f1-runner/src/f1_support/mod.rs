@@ -864,8 +864,7 @@ pub fn entry(args: Vec<String>) -> Result<()> {
         [cmd,..] if cmd=="prepare-owned-host-images" =>Err("usage: f1-runner prepare-owned-host-images ROOT FIXTURE_JSON OUT; an explicit source-bound fixture manifest is required; the old ROOT OUT form is refused".into()),
         [cmd,..] if matches!(cmd.as_str(),"prepare-reference-images"|"run-reference-assembly"|"run-reference-input") =>
             Err(format!("retired historical Reference image command: {cmd}")),
-        [cmd,root,main,fixture,arm,out] if cmd=="prepare-reference-pins" =>preparation::reference_pins_preparation(Path::new(root),Path::new(main),Path::new(fixture),arm,Path::new(out)),
-        [cmd,..] if cmd=="prepare-reference-pins" =>Err("usage: f1-runner prepare-reference-pins ROOT MAIN FIXTURE_JSON A|B OUT; source-only, expires on return".into()),
+        [cmd,..] if cmd=="prepare-reference-pins" =>Err("retired historical Reference pin preparation command".into()),
         [cmd,root,out] if cmd=="prepare-native-owned-host" =>preparation::native_owned_host(Path::new(root),Path::new(out)),
         [cmd,root,manifest,pinned,main_sha,out] if cmd=="postprocess-native-owned-data" =>preparation::native_retained_data(Path::new(root),Path::new(manifest),pinned,main_sha,Path::new(out)),
         [cmd,..] if matches!(cmd.as_str(),"collect-reference-hotkeys-ast"|"collect-reference-hyperkey-ast"|"collect-reference-snippetexpander-ast") =>
@@ -886,7 +885,7 @@ pub fn entry(args: Vec<String>) -> Result<()> {
             check_authority(Path::new(receipt),pinned)?;write_new(Path::new(out),&report)?;
             println!("{}",json!({"ok":true,"schema":SCHEMA,"operation":"compare","authority_sha256":pinned,"dataset_sha256":sha(&raw),"report_path":fs::canonicalize(out).map_err(|e|e.to_string())?,"report_sha256":sha(&fs::read(out).map_err(|e|e.to_string())?)}));Ok(())
         },
-        _=>Err("usage: f1-runner protocol NEW.json | model-diagnostic NEW_DIRECTORY | prepare-owned-host-images ROOT FIXTURE_JSON OUT | prepare-reference-pins ROOT MAIN FIXTURE_JSON A|B OUT | validate-authority RECEIPT PINNED_SHA256 | compare RECEIPT PINNED_SHA256 RAW_DATASET NEW_REPORT. No normal-app/raw legacy flag launch is supported.".into()),
+        _=>Err("usage: f1-runner protocol NEW.json | model-diagnostic NEW_DIRECTORY | prepare-owned-host-images ROOT FIXTURE_JSON OUT | validate-authority RECEIPT PINNED_SHA256 | compare RECEIPT PINNED_SHA256 RAW_DATASET NEW_REPORT. No normal-app/raw legacy flag launch is supported.".into()),
     }
 }
 
@@ -899,8 +898,18 @@ mod tests {
         let error=entry(args.into_iter().map(str::to_owned).collect()).unwrap_err();
         assert!(error.contains("ROOT FIXTURE_JSON OUT"));
         assert!(error.contains("old ROOT OUT form is refused"));
-        let args=["prepare-reference-pins","/not-opened/root"];
-        assert!(entry(args.into_iter().map(str::to_owned).collect()).unwrap_err().contains("A|B OUT"));
+    }
+    #[test]
+    fn retired_reference_pin_preparation_refuses_before_path_io_or_process_start() {
+        let error = "retired historical Reference pin preparation command";
+        for args in [
+            vec!["prepare-reference-pins", "/not-opened/root", "/not-opened/main", "/not-opened/fixture.json", "A", "/not-created/reference-pins"],
+            vec!["prepare-reference-pins"],
+            vec!["prepare-reference-pins", "extra"],
+        ] {
+            assert_eq!(entry(args.into_iter().map(str::to_owned).collect()).unwrap_err(), error);
+        }
+        assert!(!Path::new("/not-created/reference-pins").exists());
     }
     #[test]
     fn retired_swift_f1_bridge_commands_refuse_before_path_io_or_process_start() {
