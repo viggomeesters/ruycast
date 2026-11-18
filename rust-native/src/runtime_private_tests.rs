@@ -1174,10 +1174,11 @@ fn clipboard_pipeline_admitted_maintenance_waits_for_held_capture() {
         .unwrap();
         return;
     }
-    let parent = std::path::PathBuf::from(
+    let fixture_parent = std::path::PathBuf::from(
         std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("explicit owned fixture parent"),
     );
-    assert!(parent.is_absolute() && parent.is_dir());
+    assert!(fixture_parent.is_absolute() && fixture_parent.is_dir());
+    let parent = std::env::temp_dir();
     let base = parent.join(format!("h{:x}", std::process::id()));
     std::fs::create_dir(&base).unwrap();
     std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o700)).unwrap();

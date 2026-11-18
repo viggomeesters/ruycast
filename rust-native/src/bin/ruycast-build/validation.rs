@@ -446,7 +446,13 @@ fn log(path: &Path) -> Result<File> {
     }
     Ok(file)
 }
-fn sanitized(command: &mut Command, root: &Path, lease: &BuildLock, fixture: &Path) -> Result<()> {
+fn sanitized(
+    command: &mut Command,
+    root: &Path,
+    lease: &BuildLock,
+    fixture: &Path,
+    short_tmp: &Path,
+) -> Result<()> {
     for (key, _) in std::env::vars_os() {
         let value = key.to_string_lossy();
         if value.starts_with("RUYCAST_")
@@ -465,7 +471,7 @@ fn sanitized(command: &mut Command, root: &Path, lease: &BuildLock, fixture: &Pa
         .env("RUYCAST_TEST_CLI", root.join(".build/rust/release/ruycast"))
         .env("RUYCAST_REPAIR_CLI", root.join(".build/rust/release/ruycast"))
         .env("RUYCAST_RICH_PASTE_CLI", root.join(".build/rust/release/ruycast"))
-        .env("TMPDIR", fixture)
+        .env("TMPDIR", short_tmp)
         .env("PYTHONDONTWRITEBYTECODE", "1")
         .env(
             "RUYCAST_NATIVE_EVIDENCE_DIR",
@@ -614,6 +620,7 @@ fn step(
     root: &Path,
     lease: &BuildLock,
     fixture: &Path,
+    short_tmp: &Path,
     entry: &Step,
     receipt: &Receipt,
     copies: &mut BTreeMap<String, serde_json::Value>,
@@ -627,7 +634,7 @@ fn step(
     let entry = resolved_policy.as_ref().unwrap_or(entry);
     let mut command = Command::new(&entry.arguments[0]);
     command.args(&entry.arguments[1..]).current_dir(root);
-    sanitized(&mut command, root, lease, fixture)?;
+    sanitized(&mut command, root, lease, fixture, short_tmp)?;
     let initial_policy = if matches!(entry.name.as_str(), "rust-only-policy" | "rust-only-policy-final") {
         let inputs = rust_policy_inputs(root, &receipt.target, copies)?;
         if entry.arguments != [inputs["artifact"].as_str().unwrap(), "--root", "."] || !entry.copies.is_empty() {
@@ -2080,6 +2087,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
         return Err("Validation fixture parent must be absolute.".into());
     }
     ruycast_native::private_storage::secure_directory(&fixture)?;
+    let short_tmp = preparation::ShortPathAlias::new(&fixture)?;
     let ui_marker = fixture.join(".ruycast-ui-fixture-parent");
     let marker_bytes = b"owned-ui-fixture-parent-v1";
     match fs::symlink_metadata(&ui_marker) {
@@ -2116,7 +2124,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     let mut steps = vec![];
     let mut renders = BTreeMap::new();
     for command in matrix(&target)? {
-        steps.push(step(root, lease, &fixture, &command, &receipt, &mut copies)?);
+        steps.push(step(root, lease, &fixture, short_tmp.path(), &command, &receipt, &mut copies)?);
     }
     for theme in ["light", "dark"] {
         for width in ["600", "760"] {
@@ -2139,7 +2147,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
                 ],
                 copies: vec![],
             };
-            steps.push(step(root, lease, &fixture, &command, &receipt, &mut copies)?);
+            steps.push(step(root, lease, &fixture, short_tmp.path(), &command, &receipt, &mut copies)?);
             let value: serde_json::Value =
                 serde_json::from_slice(&regular_bytes(&directory.join(format!("{name}.stdout")))?)
                     .map_err(error)?;
@@ -2156,6 +2164,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
         root,
         lease,
         &fixture,
+        short_tmp.path(),
         &final_rust_policy_step(root, &receipt.target, &copies)?,
         &receipt,
         &mut copies,

@@ -6165,8 +6165,7 @@ mod inline_tests {
         crate::actions::Target,
     ) {
         static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let root = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").map(std::path::PathBuf::from)
-            .unwrap_or_else(||std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"))
+        let root = std::env::temp_dir()
             .join(format!(
                 "ir{}-{}",
                 std::process::id(),

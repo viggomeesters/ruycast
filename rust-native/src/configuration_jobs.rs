@@ -629,8 +629,7 @@ mod tests {
     impl Temp {
         fn new() -> Self {
             static NEXT: AtomicU64 = AtomicU64::new(0);
-            let root = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").map(PathBuf::from)
-                .unwrap_or_else(||PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target"))
+            let root = std::env::temp_dir()
                 .join(format!(
                     "cj{}-{}",
                     std::process::id(),

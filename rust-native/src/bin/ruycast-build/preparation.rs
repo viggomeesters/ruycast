@@ -69,6 +69,51 @@ impl Drop for Stage {
         }
     }
 }
+pub(super) struct ShortPathAlias {
+    path: PathBuf,
+    target: PathBuf,
+}
+impl ShortPathAlias {
+    pub(super) fn new(target: &Path) -> Result<Self> {
+        use std::os::unix::fs::MetadataExt;
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let target = fs::canonicalize(target).map_err(error)?;
+        ruycast_native::private_storage::secure_directory(&target)?;
+        let parent = fs::canonicalize("/tmp").map_err(error)?;
+        let parent_meta = fs::metadata(&parent).map_err(error)?;
+        if !parent_meta.is_dir()
+            || parent_meta.mode() & libc::S_ISVTX as u32 == 0
+            || parent_meta.mode() & libc::S_IWOTH as u32 == 0
+        {
+            return Err("Short temporary parent is not a sticky shared directory.".into());
+        }
+        for _ in 0..128 {
+            let serial = NEXT
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
+                .map_err(|_| "Short temporary alias counter exhausted.")?;
+            let path = parent.join(format!(".rvf-{}-{serial}", std::process::id()));
+            match std::os::unix::fs::symlink(&target, &path) {
+                Ok(()) => return Ok(Self { path, target }),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(error(e)),
+            }
+        }
+        Err("Cannot allocate an exclusive short fixture alias.".into())
+    }
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+}
+impl Drop for ShortPathAlias {
+    fn drop(&mut self) {
+        if fs::symlink_metadata(&self.path)
+            .is_ok_and(|meta| meta.file_type().is_symlink())
+            && fs::read_link(&self.path).is_ok_and(|target| target == self.target)
+        {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
 // A publication stage may contain displaced external writes, including writes
 // through already-open descriptors. Retain it durably even after success; never
 // infer that a later cleanup is safe from a pre-publication digest.
@@ -487,6 +532,40 @@ fn prepare_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn short_validation_aliases_are_unique_bounded_and_remove_only_the_alias() {
+        use std::os::unix::fs::MetadataExt;
+        let root = super::super::tests::Fixture::new();
+        let target = root.0.join("validation-fixtures");
+        fs::create_dir(&target).unwrap();
+        ruycast_native::private_storage::secure_directory(&target).unwrap();
+        let canonical_target = fs::canonicalize(&target).unwrap();
+        let alias = ShortPathAlias::new(&target).unwrap();
+        let alias_path = alias.path().to_path_buf();
+        let second = ShortPathAlias::new(&target).unwrap();
+        let alias_metadata = fs::symlink_metadata(&alias_path).unwrap();
+        assert!(alias_path.starts_with(fs::canonicalize("/tmp").unwrap()));
+        assert!(alias_path.as_os_str().as_encoded_bytes().len() < 48);
+        assert!(alias_metadata.file_type().is_symlink());
+        assert_eq!(alias_metadata.uid(), unsafe { libc::getuid() });
+        assert_eq!(fs::canonicalize(&alias_path).unwrap(), canonical_target);
+        assert_ne!(alias_path, second.path());
+        let nested = Stage::in_parent(alias.path(), "u").unwrap();
+        let nested_path = nested.path().to_path_buf();
+        assert!(nested_path.as_os_str().as_encoded_bytes().len() < 72);
+        assert!(fs::canonicalize(&nested_path)
+            .unwrap()
+            .starts_with(&canonical_target));
+        drop(nested);
+        assert!(!fs::symlink_metadata(&target.join(nested_path.file_name().unwrap())).is_ok());
+        let second_path = second.path().to_path_buf();
+        drop(alias);
+        drop(second);
+        assert!(fs::symlink_metadata(&alias_path).is_err());
+        assert!(fs::symlink_metadata(&second_path).is_err());
+        assert!(target.is_dir());
+    }
     struct Fixture {
         root: super::super::tests::Fixture,
         target: String,
