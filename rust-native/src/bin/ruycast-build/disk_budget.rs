@@ -19,6 +19,8 @@ const CACHE_ROOTS: &[&str] = &[
     ".build/full-rust-debug/native",
     ".build/full-rust-release/core",
     ".build/full-rust-release/native",
+    ".build/delivery-tools",
+    "rust-native/target",
     "rust-native/target/validation-build",
     "rust-native/target/validation-headless",
     "rust-native/target/validation-native",
@@ -286,6 +288,12 @@ mod tests {
             let release_root = root.join(".build/full-rust-release");
             fs::create_dir_all(release_root.join("core/aarch64-apple-darwin/release/deps"))
                 .unwrap();
+            fs::create_dir_all(root.join(".build/delivery-tools/debug/incremental")).unwrap();
+            fs::create_dir_all(root.join(".build/delivery-tools/debug/deps")).unwrap();
+            fs::create_dir_all(root.join("rust-native/target/debug/.fingerprint")).unwrap();
+            fs::create_dir_all(root.join("rust-native/target/debug/build")).unwrap();
+            fs::create_dir_all(root.join("rust-native/target/debug/deps")).unwrap();
+            fs::create_dir_all(root.join("rust-native/target/debug/incremental")).unwrap();
             fs::create_dir_all(root.join("rust-native/target/verification")).unwrap();
             let evidence_cache =
                 root.join("rust-native/target/validation-build/evidence/debug/deps");
@@ -295,6 +303,46 @@ mod tests {
             fs::write(
                 release_root.join("core/aarch64-apple-darwin/release/deps/old.rlib"),
                 b"cache",
+            )
+            .unwrap();
+            fs::write(
+                root.join(".build/delivery-tools/debug/incremental/old.o"),
+                b"cache",
+            )
+            .unwrap();
+            fs::write(
+                root.join(".build/delivery-tools/debug/deps/old.rlib"),
+                b"cache",
+            )
+            .unwrap();
+            fs::write(
+                root.join("rust-native/target/debug/.fingerprint/old.json"),
+                b"cache",
+            )
+            .unwrap();
+            fs::write(
+                root.join("rust-native/target/debug/build/old.out"),
+                b"cache",
+            )
+            .unwrap();
+            fs::write(
+                root.join("rust-native/target/debug/deps/old.rlib"),
+                b"cache",
+            )
+            .unwrap();
+            fs::write(
+                root.join("rust-native/target/debug/incremental/old.o"),
+                b"cache",
+            )
+            .unwrap();
+            fs::write(
+                root.join("rust-native/target/debug/ruycast-native"),
+                b"binary",
+            )
+            .unwrap();
+            fs::write(
+                root.join(".build/delivery-tools/debug/ruycast-build"),
+                b"tool",
             )
             .unwrap();
             fs::write(
@@ -308,12 +356,28 @@ mod tests {
                 .unwrap()
                 .ino();
             let result = clean(&root, &lease).unwrap();
-            assert_eq!(result["removedLogicalBytes"], 5);
+            assert_eq!(result["removedLogicalBytes"], 35);
             assert_eq!(result["leaseHeld"], true);
-            assert!(
-                !release_root
-                    .join("core/aarch64-apple-darwin/release/deps")
-                    .exists()
+            assert!(!release_root
+                .join("core/aarch64-apple-darwin/release/deps")
+                .exists());
+            for cache in [
+                root.join(".build/delivery-tools/debug/incremental"),
+                root.join(".build/delivery-tools/debug/deps"),
+                root.join("rust-native/target/debug/.fingerprint"),
+                root.join("rust-native/target/debug/build"),
+                root.join("rust-native/target/debug/deps"),
+                root.join("rust-native/target/debug/incremental"),
+            ] {
+                assert!(!cache.exists(), "cache remains: {}", cache.display());
+            }
+            assert_eq!(
+                fs::read(root.join("rust-native/target/debug/ruycast-native")).unwrap(),
+                b"binary"
+            );
+            assert_eq!(
+                fs::read(root.join(".build/delivery-tools/debug/ruycast-build")).unwrap(),
+                b"tool"
             );
             assert_eq!(
                 fs::read(release_root.join("development-build.json")).unwrap(),
@@ -371,11 +435,9 @@ mod tests {
     #[test]
     fn cache_allowlist_never_includes_receipts_or_verification_evidence() {
         assert!(!CACHE_ROOTS.iter().any(|path| path.contains("receipts")));
-        assert!(
-            !CACHE_ROOTS
-                .iter()
-                .any(|path| path.ends_with("verification"))
-        );
+        assert!(!CACHE_ROOTS
+            .iter()
+            .any(|path| path.ends_with("verification")));
         assert_eq!(
             CACHE_DIRECTORIES,
             &["build", "deps", "incremental", ".fingerprint"]
