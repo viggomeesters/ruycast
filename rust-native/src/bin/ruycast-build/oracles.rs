@@ -4525,9 +4525,9 @@ mod tests {
             ("native_choice_host_process::", "rust-native/tests/native_choice_host_process.rs"),
         ];
         for (id, count, input_count, complete) in [
-            ("--check-polish", 10, 33, true),
-            ("--check-feedback", 21, 39, true),
-            ("--check-actions-menu", 11, 28, true),
+            ("--check-polish", 10, 32, true),
+            ("--check-feedback", 21, 34, true),
+            ("--check-actions-menu", 11, 24, true),
             ("--check-interactions", 16, 43, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
@@ -4536,7 +4536,7 @@ mod tests {
             let inputs = settings_sources(id);
             assert_eq!(inputs.len(), input_count);
             assert_eq!(inputs.iter().map(|(path, _, _)| *path).collect::<std::collections::BTreeSet<_>>().len(), input_count);
-            assert!(inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+            assert!(settings_source_bindings(id).iter().any(|(path, _)| *path == gate.original_source));
             for case in gate.native_cases {
                 let (prefix, path) = sources.iter().find(|(prefix, _)| case.starts_with(*prefix)).unwrap();
                 let source = std::str::from_utf8(inputs.iter().find(|(input, _, _)| input == path).unwrap().1).unwrap();
@@ -4557,7 +4557,7 @@ mod tests {
         assert!(matrix.contains("polish-original-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --polish-original-only"));
         assert!(matrix.contains("clipboard-preview-cancel-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset --locked -- --exact"));
         assert!(matrix.contains("actions-menu-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --actions-menu-only"));
-        assert!(require_complete("settings").is_ok());
+        assert!(require_complete("settings").is_err());
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
