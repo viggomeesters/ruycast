@@ -577,6 +577,17 @@ fn inline_open(host: &Bridge, tab: bool) {
 fn inline_type(host: &Bridge, text: &str) {
     host.probe("run-inline-type", json!({"text":text}));
 }
+fn inline_type_diagnostic(host: &Bridge, text: &str, phase: &str) {
+    let response = host.rpc(&json!({
+        "op":"native.test",
+        "action":"run-inline-type",
+        "text":text
+    }));
+    assert_eq!(
+        response["ok"], true,
+        "inline typing failed at {phase}: {response}"
+    );
+}
 fn inline_closed(host: &Bridge) -> Value {
     view(host, |v| {
         v["runInputInline"] == false && v["formVisible"] == false
@@ -1027,10 +1038,13 @@ fn newer_query_during_inline_run_finishes_without_hiding_search() {
     );
 }
 fn input_actions_fixture() -> Bridge {
+    input_actions_fixture_with_phase("input-actions fixture setup")
+}
+fn input_actions_fixture_with_phase(phase: &str) -> Bridge {
     let host = host();
     set_execution(&host, "/usr/bin/printf", json!(["fixture result"]), 3.0);
     inline_open(&host, false);
-    inline_type(&host, "PRIVATE literal Ω");
+    inline_type_diagnostic(&host, "PRIVATE literal Ω", phase);
     host
 }
 fn input_action(host: &Bridge, title: &str) {
@@ -1248,7 +1262,7 @@ fn alias_save_does_not_adopt_external_timeout_or_prompt() {
 }
 #[test]
 fn cancel_unpresented_child_preserves_live_ime_and_undo() {
-    let host = input_actions_fixture();
+    let host = input_actions_fixture_with_phase("initial typing before deferred child");
     let before = fs::read(&host.config).unwrap();
     key(&host, 40, "k", actions::CMD);
     let menu = view(&host, |v| v["actionsVisible"] == true);
@@ -1269,7 +1283,11 @@ fn cancel_unpresented_child_preserves_live_ime_and_undo() {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     key(&host, 53, "", 0);
-    inline_type(&host, " continued");
+    inline_type_diagnostic(
+        &host,
+        " continued",
+        "typing after Escape while the child remains unpresented",
+    );
     host.probe("run-inline-mark", json!({"text":"日本"}));
     let marked = actions::probe(&host, "run-inline-read");
     assert_eq!(marked["marked"], true);
