@@ -393,7 +393,7 @@ mod tests {
         }
         fs::write(root.join("quit-ack"), b"ack").unwrap();
         match mode.to_string_lossy().as_ref() {
-            "quit" => return,
+            "quit" => (),
             "quit-fails" => std::process::exit(7),
             "stays-alive" => thread::sleep(Duration::from_secs(5)),
             "term-exits-zero" => {
