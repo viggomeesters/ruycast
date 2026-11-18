@@ -314,7 +314,7 @@ fn signing_cli_dispatch(
     let repo = repo.map(PathBuf::from).unwrap_or_else(|| cwd.to_path_buf());
     fs::absolute(&repo)?;
     let value = match command.as_str() {
-        "prepare" => signing::prepare(&root, &repo, &home, runner)?,
+        "prepare" => signing::prepare(&root, &repo, home, runner)?,
         "status" => signing::load(&root, &repo)?,
         "check" => {
             // No temporary-directory or compiler discovery effects on refusal.
@@ -332,7 +332,7 @@ fn signing_cli_dispatch(
                 })?,
                 &root,
                 &repo,
-                &home,
+                home,
                 runner,
             )?
         }

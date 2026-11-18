@@ -381,7 +381,7 @@ mod tests {
             })
             .unwrap();
             assert_eq!(selected.0, original);
-            assert_eq!(loaded, [original.clone()]);
+            assert_eq!(loaded, std::slice::from_ref(&original));
         }
         let selected = select_signer(&original, &dedicated, false, |root| {
             if root == dedicated {
