@@ -883,6 +883,7 @@ const LOG_ORACLE_SHA256: &str = "9dd2ff68552ebcae0979530623309cafeb7a145a193444d
 const EDIT_COMMAND_ORACLE_SHA256: &str = "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145";
 const VISUAL_ASSET_ORACLE_SHA256: &str = "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0";
 const RENDER_UPDATES_ORACLE_SHA256: &str = "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858";
+const ANALYTICS_ORACLE_SHA256: &str = "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1418,11 +1419,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
                 include_bytes!("../../test_fixtures.rs"),
                 "3ee56f1afc0008bda747798f54aa1d3a039603d16451ed24b67f6ea8fb0b06b5",
             ),
-            (
-                "Sources/RuycastApp/AnalyticsChecks.swift",
-                include_bytes!("../../../../Sources/RuycastApp/AnalyticsChecks.swift"),
-                "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876",
-            ),
             ("rust-native/tests/analytics_runtime_process.rs", include_bytes!("../../../tests/analytics_runtime_process.rs"), "8ef18a852c782df0a469ea5ca4f22e2e4d2c9f0392f1edad6103389adedd871b"),
             ("rust-native/tests/fixtures/analytics_write_shim.rs", include_bytes!("../../../tests/fixtures/analytics_write_shim.rs"), "9e2add20464e7336d854171083e3861f79a4dbe6d49f67ecf723cf72f98b790c"),
             ("rust-native/tests/analytics_cast_reference.rs", include_bytes!("../../../tests/analytics_cast_reference.rs"), "9af609d17784a42a1847feec74d5e70ceccf84efc83be03c5a9578e3aac482c3"),
@@ -1488,6 +1484,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/InteractionChecks.swift",
             RENDER_UPDATES_ORACLE_SHA256,
         )),
+        "--check-analytics" => Some((
+            "Sources/RuycastApp/AnalyticsChecks.swift",
+            ANALYTICS_ORACLE_SHA256,
+        )),
         _ => None,
     }
 }
@@ -1514,6 +1514,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-edit-commands" => Some(EDIT_COMMAND_ORACLE_SHA256),
             "--check-visual-assets" => Some(VISUAL_ASSET_ORACLE_SHA256),
             "--check-render-updates" => Some(RENDER_UPDATES_ORACLE_SHA256),
+            "--check-analytics" => Some(ANALYTICS_ORACLE_SHA256),
             _ => None,
         };
         path == gate.original_source
@@ -2650,9 +2651,24 @@ mod tests {
     fn analytics_dashboard_export_crosswalk_uses_existing_rust_cases() {
         use sha2::Digest;
         let gate = super::SETTINGS.iter().find(|gate|gate.id=="--check-analytics").unwrap();
-        assert!(gate.required_native_steps.contains(&"dashboard-export-process"));
-        assert!(gate.required_native_steps.contains(&"native-dashboard-dialog-process"));
+        assert_eq!(gate.required_native_steps, &["unit", "analytics-runtime-process", "analytics-cast-reference", "dashboard-presentation-process", "native-dashboard-dialog-process", "dashboard-export-process", "startup-process"]);
+        assert_eq!(gate.native_cases.len(), 25);
         let entries=super::settings_sources(gate.id);
+        assert_eq!(entries.len(), 25);
+        assert!(entries.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
+        let bindings = super::settings_source_bindings(gate.id);
+        assert_eq!(bindings.len(), 26);
+        for (path, _, hash) in entries {
+            assert!(bindings.contains(&(*path, *hash)), "missing current analytics binding {path}");
+        }
+        assert!(bindings.contains(&(
+            gate.original_source,
+            "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876",
+        )));
+        assert_eq!(super::settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let inventory = super::inventory("settings").unwrap();
+        assert_eq!(inventory["productionAccepted"], false);
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
         let dialog = entries.iter().find(|entry| entry.0=="rust-native/tests/native_dashboard_dialog_process.rs").unwrap();
         assert_eq!(format!("{:x}",sha2::Sha256::digest(dialog.1)),dialog.2);
         let dialog_source = std::str::from_utf8(dialog.1).unwrap();
