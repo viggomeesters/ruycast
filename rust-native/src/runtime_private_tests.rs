@@ -1182,7 +1182,7 @@ fn clipboard_pipeline_admitted_maintenance_waits_for_held_capture() {
     let parent = std::env::temp_dir();
     let base = parent.join(format!("h{:x}", std::process::id()));
     std::fs::create_dir(&base).unwrap();
-    let base = base.canonicalize().unwrap();
+    let canonical_base = base.canonicalize().unwrap();
     std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o700)).unwrap();
     let _cleanup = Temp(base.clone());
     std::fs::write(
@@ -1203,7 +1203,7 @@ fn clipboard_pipeline_admitted_maintenance_waits_for_held_capture() {
         .env("RUYCAST_NATIVE_TEST_FIXTURE_DIR", &base)
         .env("CARGO_INCREMENTAL", "0")
         .env("DYLD_INSERT_LIBRARIES", &dylib)
-        .env("RUYCAST_TEST_FSYNC_DIRECTORY", base.join("p"))
+        .env("RUYCAST_TEST_FSYNC_DIRECTORY", canonical_base.join("p"))
         .env("RUYCAST_TEST_FSYNC_MARKER", base.join("entered"))
         .env("RUYCAST_TEST_FSYNC_RELEASE", base.join("release"))
         .env("RUYCAST_TEST_FSYNC_DELAY_ONLY", "1")
