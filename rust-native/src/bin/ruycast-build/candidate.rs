@@ -533,6 +533,33 @@ mod tests {
     }
     #[test]
     fn public_candidate_refuses_private_checkout_or_missing_manifest_before_staging() {
+        const CHILD: &str = "RUYCAST_PUBLIC_CANDIDATE_TEST_CHILD";
+        const NAME: &str = "candidate::tests::public_candidate_refuses_private_checkout_or_missing_manifest_before_staging";
+        if std::env::var_os(CHILD).is_none() {
+            let fixture_parent = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
+                .expect("explicit owned fixture parent");
+            let mut child = Command::new(std::env::current_exe().unwrap());
+            child
+                .args(["--exact", NAME, "--test-threads=1"])
+                .env_clear()
+                .env(CHILD, "1")
+                .env("RUYCAST_NATIVE_TEST_FIXTURE_DIR", fixture_parent);
+            let mut child = child.spawn().unwrap();
+            let until = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            loop {
+                if let Some(status) = child.try_wait().unwrap() {
+                    assert!(status.success(), "owned candidate test child exited {status}");
+                    break;
+                }
+                if std::time::Instant::now() >= until {
+                    child.kill().unwrap();
+                    child.wait().unwrap();
+                    panic!("owned candidate test child timed out");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            return;
+        }
         for private_checkout in [true, false] {
             let fixture = super::super::tests::Fixture::new();
             if private_checkout {

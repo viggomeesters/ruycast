@@ -351,7 +351,11 @@ mod tests {
             )
             .unwrap();
             fs::write(evidence_cache.join("preserve.rlib"), b"unknown").unwrap();
-            let lease = BuildLock::acquire(&root).unwrap();
+            let lease = BuildLock::acquire_from_environment(
+                &root,
+                &std::collections::BTreeMap::new(),
+            )
+            .unwrap();
             let lock_inode = fs::metadata(root.join(".build/artifacts.lock"))
                 .unwrap()
                 .ino();
@@ -423,7 +427,11 @@ mod tests {
         fs::create_dir_all(cache.parent().unwrap()).unwrap();
         fs::write(outside.join("keep.rlib"), b"outside").unwrap();
         std::os::unix::fs::symlink(&outside, &cache).unwrap();
-        let lease = BuildLock::acquire(&root).unwrap();
+        let lease = BuildLock::acquire_from_environment(
+            &root,
+            &std::collections::BTreeMap::new(),
+        )
+        .unwrap();
         assert!(clean(&root, &lease).is_err());
         assert_eq!(fs::read(outside.join("keep.rlib")).unwrap(), b"outside");
         lease.validate().unwrap();

@@ -161,7 +161,7 @@ mod tests {
     fn inner_timeout_reaps_before_outer_cleanup_margin() {
         let fixture = fixture();
         let root = &fixture.0;
-        let lease = BuildLock::acquire(root).unwrap();
+        let lease = BuildLock::acquire_from_environment(root, &BTreeMap::new()).unwrap();
         let pidfile = root.join("child.pid");
         let mut command = Command::new(std::env::current_exe().unwrap());
         command
