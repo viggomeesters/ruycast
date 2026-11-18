@@ -505,6 +505,17 @@ fn clipboard_history_environment(root: &Path, target: &str, command: &mut Comman
     command.env("RUYCAST_TEST_HISTORY_SDK", artifact);
     Ok(())
 }
+fn clipboard_history_process_environment(
+    root: &Path,
+    target: &str,
+    name: &str,
+    command: &mut Command,
+) -> Result<()> {
+    if matches!(name, "clipboard-history-host-process" | "clipboard-rich-paste") {
+        clipboard_history_environment(root, target, command)?;
+    }
+    Ok(())
+}
 fn clipboard_history_compatibility_sdk(root: &Path, target: &str, copies: &mut BTreeMap<String, serde_json::Value>) -> Result<()> {
     artifact_paths(target)?;
     let source = format!("rust-native/target/validation-build/{target}/debug/examples/libclipboard_history_fixture.dylib");
@@ -659,8 +670,8 @@ fn step(
     }
     if entry.name == "clipboard-history-host-process" {
         clipboard_history_compatibility_sdk(root, &receipt.target, copies)?;
-        clipboard_history_environment(root, &receipt.target, &mut command)?;
     }
+    clipboard_history_process_environment(root, &receipt.target, &entry.name, &mut command)?;
     if entry.name == "snippet-effects-host-process" {
         snippet_effects_environment(root, &receipt.target, &mut command)?;
     }
@@ -2354,6 +2365,25 @@ mod tests {
         fs::remove_file(&artifact).unwrap();
         std::os::unix::fs::symlink(root.join("outside"), &artifact).unwrap();
         assert!(clipboard_history_environment(root, target, &mut command).is_err());
+    }
+    #[test]
+    fn clipboard_history_sdk_is_bound_to_both_consuming_processes() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let target = "aarch64-apple-darwin";
+        let artifact = root.join("rust-native/target/validation-build")
+            .join(target).join("debug/examples/libclipboard_history_fixture.dylib");
+        fs::create_dir_all(artifact.parent().unwrap()).unwrap();
+        fs::write(&artifact, b"owned nonexecutable SDK fixture").unwrap();
+        for name in ["clipboard-history-host-process", "clipboard-rich-paste"] {
+            let mut command = Command::new("cargo");
+            clipboard_history_process_environment(root, target, name, &mut command).unwrap();
+            assert_eq!(command.get_envs().find(|(key, _)| *key == "RUYCAST_TEST_HISTORY_SDK").unwrap().1,
+                Some(artifact.as_os_str()), "{name} must receive the built fixture");
+        }
+        let mut unrelated = Command::new("cargo");
+        clipboard_history_process_environment(root, target, "clipboard-text-process", &mut unrelated).unwrap();
+        assert!(unrelated.get_envs().all(|(key, _)| key != std::ffi::OsStr::new("RUYCAST_TEST_HISTORY_SDK")));
     }
     #[test]
     fn clipboard_history_compatibility_sdk_binds_the_live_ui_alias() {
