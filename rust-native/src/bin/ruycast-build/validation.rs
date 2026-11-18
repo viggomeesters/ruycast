@@ -3243,9 +3243,8 @@ mod tests {
             assert!(!step.arguments.iter().any(|argument| argument.contains("Tests/test_clipboard_import.py")));
         }
         let history_build = steps.iter().position(|step| step.name == "clipboard-history-sdk-build").unwrap();
-        for name in ["clipboard-history-host-process"] {
-            assert!(history_build < steps.iter().position(|step| step.name == name).unwrap());
-        }
+        let name = "clipboard-history-host-process";
+        assert!(history_build < steps.iter().position(|step| step.name == name).unwrap());
         assert!(steps[history_build].arguments.windows(2).any(|pair| pair == ["--example", "clipboard-history-fixture"]));
         let history = steps.iter().find(|step| step.name == "clipboard-history-host-process").unwrap();
         assert!(history.arguments.windows(2).any(|pair| pair == ["--test", "clipboard_history_host_process"]));

@@ -29,6 +29,8 @@ mod process;
 mod public_source;
 #[path = "ruycast-build/sample_performance.rs"]
 mod sample_performance;
+#[path = "ruycast-source/policy.rs"]
+mod source_policy;
 #[path = "ruycast-build/benchmark_host.rs"]
 mod benchmark_host_driver;
 #[path = "ruycast-build/raycast_cli.rs"]

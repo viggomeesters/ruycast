@@ -82,7 +82,6 @@ pub(super) fn run(root: &Path, marker: &str) -> Result<serde_json::Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-use serde_json::json;
     #[test]
     fn python_line_and_quote_semantics() {
         assert_eq!(

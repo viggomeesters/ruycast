@@ -633,7 +633,7 @@ mod tests {
         assert!(path.as_os_str().as_encoded_bytes().len() < 40);
 
         drop(stage);
-        assert!(!fs::symlink_metadata(&path).is_ok());
+        assert!(fs::symlink_metadata(&path).is_err());
         assert!(collision.is_dir());
     }
 
@@ -662,7 +662,7 @@ mod tests {
             .unwrap()
             .starts_with(&canonical_target));
         drop(nested);
-        assert!(!fs::symlink_metadata(&target.join(nested_path.file_name().unwrap())).is_ok());
+        assert!(fs::symlink_metadata(target.join(nested_path.file_name().unwrap())).is_err());
         let second_path = second.path().to_path_buf();
         drop(alias);
         drop(second);
