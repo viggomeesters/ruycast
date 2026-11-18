@@ -466,7 +466,9 @@ fn sanitized(
         return Err("Validation fixture parent must be absolute.".into());
     }
     command
-        .env("RUYCAST_NATIVE_TEST_FIXTURE_DIR", fixture)
+        // Preserve the marked real directory as the symlink target while
+        // giving tests that create Unix sockets a short path prefix.
+        .env("RUYCAST_NATIVE_TEST_FIXTURE_DIR", short_tmp)
         .env("RUYCAST_INSTALL_TEST_ROOT", fixture)
         .env("RUYCAST_TEST_CLI", root.join(".build/rust/release/ruycast"))
         .env("RUYCAST_REPAIR_CLI", root.join(".build/rust/release/ruycast"))
@@ -2088,7 +2090,9 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     let pure_core_oracle = oracles::core(root, lease)?;
     let directory = root.join(DIRECTORY);
     ruycast_native::private_storage::secure_directory(&directory)?;
-    let owned_fixture = preparation::Stage::new(root, "validation-fixtures")?;
+    // Keep nested Unix-domain socket paths short enough for sockaddr_un.sun_path.
+    // The stage is still an exclusive, private child of the repository's .build.
+    let owned_fixture = preparation::Stage::in_parent(&root.join(".build"), "vf")?;
     let fixture = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| owned_fixture.path().to_path_buf());
@@ -2256,6 +2260,20 @@ mod tests {
         assert_eq!(step_timeout("unit"), Duration::from_secs(300));
         assert_eq!(step_timeout("core-unit"), Duration::from_secs(180));
         assert_eq!(step_timeout("native-check"), Duration::from_secs(180));
+    }
+    #[test]
+    fn owned_validation_fixture_socket_path_fits_unix_domain_limit() {
+        let pid = std::process::id();
+        let fixture_root = fs::canonicalize("/tmp")
+            .unwrap()
+            .join(format!(".rvf-{pid}-0"))
+            .join("rust-build-receipt-fixtures")
+            .join(format!("{pid}-0"));
+        let nested_socket = fixture_root
+            .join(format!("c-{pid}-0"))
+            .join("p/control.sock");
+        let address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+        assert!(nested_socket.as_os_str().as_encoded_bytes().len() < address.sun_path.len());
     }
     #[test]
     fn supervision_fault_environment_requires_the_exact_matrix_artifact() {
