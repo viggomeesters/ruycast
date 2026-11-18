@@ -1,6 +1,6 @@
 //! Source-owned arm64 Swift Date.init leaf. The Swift value has no Rust layout.
 //! Only the existing numeric Swift constructor may initialize caller x8.
-use super::{Fixture, PowerSourcePin, Result, FAULTED, FIXTURE};
+use super::{Fixture, MonitorCompiledSource, PowerSourcePin, Result, FAULTED, FIXTURE};
 use crate::sdk::{core_preentry::ReferenceAdmission, metadata, owned::AliveLease, ImportReplacement, ImportSpec};
 use std::{ffi::{c_void,CStr}, sync::{Arc,OnceLock,Weak,atomic::Ordering}};
 
@@ -35,13 +35,13 @@ pub(super) struct ClockSource {
 }
 
 #[cfg(rcf1_monitor_swift_clock)]
-fn compiled_sources() -> [(&'static str,&'static [u8]);5] {
+fn compiled_sources() -> [(&'static str,MonitorCompiledSource);5] {
     [
-        (env!("RUYCAST_F1_MONITOR_SWIFT_INTERFACE"),include_bytes!(env!("RUYCAST_F1_MONITOR_SWIFT_INTERFACE"))),
-        (env!("RUYCAST_F1_MONITOR_SWIFT_DATE_HEADER"),include_bytes!(env!("RUYCAST_F1_MONITOR_SWIFT_DATE_HEADER"))),
-        (concat!(env!("CARGO_MANIFEST_DIR"),"/../reference/0.8.26/Sources/RuycastApp/ResourceSampler.swift"),include_bytes!("../../../../reference/0.8.26/Sources/RuycastApp/ResourceSampler.swift")),
-        (concat!(env!("CARGO_MANIFEST_DIR"),"/../reference/0.8.26/Sources/RuycastApp/AnalyticsStore.swift"),include_bytes!("../../../../reference/0.8.26/Sources/RuycastApp/AnalyticsStore.swift")),
-        (concat!(env!("CARGO_MANIFEST_DIR"),"/src/sdk/system_providers/monitor_clock.rs"),include_bytes!("monitor_clock.rs")),
+        (env!("RUYCAST_F1_MONITOR_SWIFT_INTERFACE"),MonitorCompiledSource::Bytes(include_bytes!(env!("RUYCAST_F1_MONITOR_SWIFT_INTERFACE")))),
+        (env!("RUYCAST_F1_MONITOR_SWIFT_DATE_HEADER"),MonitorCompiledSource::Bytes(include_bytes!(env!("RUYCAST_F1_MONITOR_SWIFT_DATE_HEADER")))),
+        (concat!(env!("CARGO_MANIFEST_DIR"),"/../reference/0.8.26/Sources/RuycastApp/ResourceSampler.swift"),MonitorCompiledSource::Pinned(super::HISTORICAL_MONITOR_SOURCE_IDENTITIES[0].1)),
+        (concat!(env!("CARGO_MANIFEST_DIR"),"/../reference/0.8.26/Sources/RuycastApp/AnalyticsStore.swift"),MonitorCompiledSource::Pinned(super::HISTORICAL_MONITOR_SOURCE_IDENTITIES[1].1)),
+        (concat!(env!("CARGO_MANIFEST_DIR"),"/src/sdk/system_providers/monitor_clock.rs"),MonitorCompiledSource::Bytes(include_bytes!("monitor_clock.rs"))),
     ]
 }
 
@@ -56,13 +56,13 @@ fn source_pins(owner:u32)->Result<Vec<PowerSourcePin>> {
         if text.len()>32768 {return Err("Swift clock compiler pin bound".into());}
         let rows:[(std::path::PathBuf,String,u32);5]=serde_json::from_str(text).map_err(|_|"Swift clock compiler pin schema")?;
         let mut pins=Vec::new();
-        for (index,((path,hash,uid),(compiled_path,bytes))) in rows.into_iter().zip(compiled_sources()).enumerate() {
+        for (index,((path,hash,uid),(compiled_path,source))) in rows.into_iter().zip(compiled_sources()).enumerate() {
             let expected=std::fs::canonicalize(compiled_path).map_err(|_|"Swift clock compiled path absent")?;
-            if !path.is_absolute() || path!=expected || uid!=if index<2 {0}else{owner}
-                || hash.len()!=64 || !hash.bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b))
-                || hash!=format!("{:x}",Sha256::digest(bytes)) {
-                return Err("Swift clock pins differ from actual compiler bytes/issuer".into());
-            }
+            let compiled_hash=match source {
+                MonitorCompiledSource::Bytes(bytes)=>format!("{:x}",Sha256::digest(bytes)),
+                MonitorCompiledSource::Pinned(hash)=>hash.to_owned(),
+            };
+            super::validate_monitor_source_pin(index,&path,&hash,uid,owner,&expected,&compiled_hash)?;
             let mut digest=[0;32];
             for (at,byte) in digest.iter_mut().enumerate() {
                 *byte=u8::from_str_radix(&hash[at*2..at*2+2],16).map_err(|_|"Swift clock pin digest")?;

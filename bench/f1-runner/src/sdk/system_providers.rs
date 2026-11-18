@@ -286,6 +286,44 @@ unsafe extern "C" fn call_monitor_sample(_: usize, _: usize, _: *mut u8) {
     );
 }
 
+const HISTORICAL_MONITOR_SOURCE_IDENTITIES: [(&str, &str); 2] = [
+    (
+        "ResourceSampler.swift",
+        "d32b5efeddbf8d2e63d3e2c7846b9584ee918627011ed8202a95d31b1cb6e752",
+    ),
+    (
+        "AnalyticsStore.swift",
+        "43461d33394436195f3c7d7cbcaa66d1407ac53049bed3e8a2f91562d140ca7d",
+    ),
+];
+
+enum MonitorCompiledSource {
+    Bytes(&'static [u8]),
+    Pinned(&'static str),
+}
+
+fn validate_monitor_source_pin(
+    index: usize,
+    path: &std::path::Path,
+    hash: &str,
+    uid: u32,
+    owner: u32,
+    compiled_path: &std::path::Path,
+    compiled_hash: &str,
+) -> Result<()> {
+    if index >= 5
+        || !path.is_absolute()
+        || path != compiled_path
+        || uid != if index < 2 { 0 } else { owner }
+        || hash.len() != 64
+        || !hash.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        || hash != compiled_hash
+    {
+        return Err("Swift clock pins differ from actual compiler bytes/issuer".into());
+    }
+    Ok(())
+}
+
 // The Swift Date value remains in caller-owned opaque storage. This child is
 // only a Reference source leaf; it cannot create a Foundation receiver grant.
 #[cfg(all(not(test), rcf1_reference_sdk, target_arch = "aarch64"))]
@@ -1657,4 +1695,33 @@ pub fn import_specs() -> Vec<super::ImportSpec> {
             replacement: replacement(symbol).expect("hardcoded symbol replacement"),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod monitor_pin_identity_tests {
+    use super::{HISTORICAL_MONITOR_SOURCE_IDENTITIES, validate_monitor_source_pin};
+    use std::path::Path;
+
+    #[test]
+    fn historical_monitor_pins_keep_path_order_hash_and_sdk_owner() {
+        let rows = [
+            (
+                Path::new("/repo/bench/reference/0.8.26/Sources/RuycastApp/ResourceSampler.swift"),
+                HISTORICAL_MONITOR_SOURCE_IDENTITIES[0].1,
+            ),
+            (
+                Path::new("/repo/bench/reference/0.8.26/Sources/RuycastApp/AnalyticsStore.swift"),
+                HISTORICAL_MONITOR_SOURCE_IDENTITIES[1].1,
+            ),
+        ];
+        assert_eq!(HISTORICAL_MONITOR_SOURCE_IDENTITIES[0].0, "ResourceSampler.swift");
+        assert_eq!(HISTORICAL_MONITOR_SOURCE_IDENTITIES[1].0, "AnalyticsStore.swift");
+        for (offset, (path, hash)) in rows.iter().enumerate() {
+            let index = offset + 2;
+            assert!(validate_monitor_source_pin(index, path, hash, 501, 501, path, hash).is_ok());
+            assert!(validate_monitor_source_pin(index, path, &"0".repeat(64), 501, 501, path, hash).is_err());
+            assert!(validate_monitor_source_pin(index, path, hash, 502, 501, path, hash).is_err());
+            assert!(validate_monitor_source_pin(index, path, hash, 501, 501, rows[1 - offset].0, hash).is_err());
+        }
+    }
 }
