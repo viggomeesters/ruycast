@@ -1400,7 +1400,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/tests/dashboard_export_process.rs",
                 include_bytes!("../../../tests/dashboard_export_process.rs"),
-                "710c9f5b5010acef290e19af2a9f14d3f1cb8851cf4d596f97952dea33644a0b",
+                "dd70465e75821d667282bc207d7a64bff98fff4bc1d91675b2d5c1ca848b0ed5",
             ),
             (
                 "rust-native/tests/fixtures/dashboard_export_shim.rs",
