@@ -2,6 +2,7 @@
 use rustcast_core::Command;
 
 pub const LAUNCHER_CARD_CORNER_RADIUS: f64 = 8.;
+pub const LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS: f64 = 4.;
 pub const LAUNCHER_SEARCH_OUTLINE_ALPHA: f64 = 0.48;
 
 pub fn launcher_search_outline(width: f64, height: f64) -> [f64; 4] {
@@ -318,6 +319,7 @@ mod icon_tests {
     #[test]
     fn empty_launcher_uses_a_compact_search_bar_and_expands_for_results() {
         assert_eq!(LAUNCHER_CARD_CORNER_RADIUS, 8.);
+        assert_eq!(LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS, 4.);
         assert_eq!(LAUNCHER_SEARCH_OUTLINE_ALPHA, 0.48);
         assert_eq!(launcher_search_outline(600., 72.), [24.5, 2.5, 551., 43.]);
         assert_eq!(launcher_search_outline(760., 490.), [24.5, 420.5, 711., 43.]);

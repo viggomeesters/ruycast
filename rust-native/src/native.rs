@@ -44,7 +44,11 @@ define_class!(
             if self.ivars().search_outline.get() {
                 let [x, y, width, height] =
                     presentation::launcher_search_outline(bounds.size.width, bounds.size.height);
-                let search = NSBezierPath::bezierPathWithRect(rect(x, y, width, height));
+                let search = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                    rect(x, y, width, height),
+                    presentation::LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS,
+                    presentation::LAUNCHER_SEARCH_OUTLINE_CORNER_RADIUS,
+                );
                 NSColor::colorWithSRGBRed_green_blue_alpha(
                     palette.muted[0],
                     palette.muted[1],
