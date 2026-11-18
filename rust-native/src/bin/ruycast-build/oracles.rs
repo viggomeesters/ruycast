@@ -1337,11 +1337,11 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "0dfcbb5c3d0d5d15149af8fd128067832235819923bd813fda83e4c894a86333"),
         ],
         "--check-command-log" => &[
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a685a1539d71c086ce3f3f2b3123f1147c3e7ce1d8564b89d61dd1ac3d0884ce"),
-            ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "0cf0eb9765919ea4142fe4436df347a9ed7215663dfa699d218a970e39c1569c"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "f423bafab7e74325b54cf4f2d9f031cec5d8294685366a74d658e1818acddd64"),
+            ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "d57119313545ebb9ffe8b558b06f131c810ff662b54904188d8609ff0b74c313"),
             ("rust-native/src/runtime_utilities.rs", include_bytes!("../../runtime_utilities.rs"), "209d90ba65f4fb8fd9a1341d419fddf5ada441dcebb641914cd2ac1e6692e8bd"),
             ("rust-native/src/runtime_builtins.rs", include_bytes!("../../runtime_builtins.rs"), "43bc0ddfcfde25438465f7dc2f9c245bd7084d8906f44baf5f229be43e6f991c"),
-            ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
+            ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "c164edd568a5b93c4fc7abc09814fc56d73bc52c9c2e9af583aedec26e306a83"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "5cbf5b70442aea92ceabefa122a42b18813f7f8ff2a100caa3d1f5a82f6a694b"),
             (
                 "rust-native/src/activity.rs",
@@ -3983,8 +3983,9 @@ mod tests {
             bindings.iter().find(|(path, _)| *path == log.original_source),
             Some(&(log.original_source, "9dd2ff68552ebcae0979530623309cafeb7a145a193444dc55a717e94a953455")),
         );
-        assert_eq!(settings_mapping_state(log), "mapped-requires-source-requalification");
+        assert_eq!(settings_mapping_state(log), "source-qualified-rust-case-crosswalk");
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
+        assert!(!inventory("settings").unwrap()["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(log.id)));
         let sources = [
             ("activity::tests::", include_str!("../../activity.rs")),
             ("private_results::", include_str!("../../../tests/private_results.rs")),
@@ -4578,7 +4579,6 @@ mod tests {
             "--check-analytics",
             "--check-performance-pipeline",
             "--check-visual-assets",
-            "--check-command-log",
             "--check-polish"
         ]);
         assert_eq!(
@@ -4591,7 +4591,7 @@ mod tests {
         let gates = value["gates"].as_array().unwrap();
         assert_eq!(gates.len(), 16);
         for gate in gates {
-            if gate[0] == "--check-edit-commands" {
+            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
