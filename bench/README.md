@@ -10,9 +10,9 @@ on this directory.
 - `f1-runner/Cargo.toml`, `Cargo.lock` and its explicitly selected existing
   `src/` files retain the runner, collector, Guardian, private-cap transport and
   SDK in one package. Its native dependency remains `../../rust-native`.
-- `reference/SwiftF1Bridge.swift` and `reference/ReferencePreentry.rs` retain the
-  declared reference ABI. The latter is an admission object, not a complete
-  reference endpoint implementation.
+- `reference/ReferencePreentry.rs` retains the Rust reference admission object;
+  it is not a complete reference endpoint implementation. The historical Swift
+  bridge source has been removed and its CLI routes refuse immediately.
 - `reference/0.8.26/` retains the specifically pinned reference `Package.swift`,
   `Sources/`, Rust core sources/manifests, default configuration and required
   test-source/fixture inputs. This is the historical oracle, not an alternative
@@ -93,16 +93,11 @@ module attestations. No placeholder assembler is generated. Complete actor
 assembly, actual nine-slot/foreign compiler joins and the static25-Main/five-SDK
 code pins remain required before a runnable Reference publication.
 
-`build-reference-full-host-interface SNAPSHOT_ROOT BRIDGE EXISTING_BUILD_ROOT
-INPUTS_JSON PINNED_SHA256 OUT` requires an explicit existing reference compiler
-workspace and its path/SHA256 input-array receipt. Every frozen snapshot member
-and the complete `Sources` set must match; selected objects, modules and archive
-must also match the manifest and fresh before/after reads. It creates no sibling
-workspace or fallback target. The optimized debug capture retains actual
-compiler intermediates, dSYM/UUID, object DWARF and dependency records; missing
-before inputs or typed objects refuse. These records do not grant callback or
-Reference runtime authority. The partial `build-reference-interface ROOT BRIDGE
-OUT` recipe retains its previous arguments.
+The historical `build-reference-full-host-interface`,
+`build-reference-interface`, and `resume-reference-debug` commands are retired.
+The runner refuses them before path access or process start. Their old compiler
+and debug-capture implementation is being removed separately; no Swift bridge
+or Reference runtime authority is retained by this staging.
 
 The source-owned SDK producer resolves the locked Foundation package and selected
 SDK, requires the actual same-build NSString dep-info/rlib/extern join, and bakes
