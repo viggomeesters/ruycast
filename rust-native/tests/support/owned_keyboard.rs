@@ -152,7 +152,10 @@ fn fixture_tool(
         .stderr(error)
         .spawn()
         .unwrap();
-    let deadline = Instant::now() + Duration::from_secs(20);
+    // The isolated cold release build can take over 20 seconds on a clean
+    // validation target. Keep it bounded while allowing the pinned toolchain
+    // to finish on supported Macs.
+    let deadline = Instant::now() + Duration::from_secs(120);
     let status = loop {
         if let Some(status) = child.try_wait().unwrap() {
             break status;
