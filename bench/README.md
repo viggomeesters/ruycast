@@ -75,13 +75,12 @@ there is no guessed sibling path or environment epoch. The private Native grant
 binds both `fixture: {path, sha256}` and the identical `fixture_sha256`. The epoch
 is read from that bounded, unchanged manifest, never from a free scalar.
 
-`prepare-reference-pins` is retired; the runner rejects every argument count
-before opening paths, creating output, or starting a process. Its historical
-source-only receipts were never runnable or replayable authority. No current
-runner command compiles or launches the Reference SDK. The historical
-`prepare-reference-images`, `run-reference-assembly` and `run-reference-input`
-commands fail before path
-access, output creation or process start. The original fixed Swift declaration
+The `prepare-reference-pins` command and its source-emission producer are
+removed. Historical source-only receipts were never runnable or replayable
+authority. No current runner command compiles or launches the Reference SDK. The historical
+commands `prepare-reference-images`, `run-reference-assembly` and
+`run-reference-input` fail before path access, output creation or process start.
+The original fixed Swift declaration
 roster is unavailable; recover its exact source before any future reactivation.
 Do not reconstruct or substitute declaration bytes.
 
