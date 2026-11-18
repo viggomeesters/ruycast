@@ -238,12 +238,12 @@ mod tests {
         let prefs = preferences();
         let guard = Guard::default();
         assert!(tracker
-            .observe_guarded(&guard, Duration::ZERO, &[app.clone()], &prefs, &[])
+            .observe_guarded(&guard, Duration::ZERO, std::slice::from_ref(&app), &prefs, &[])
             .is_empty());
         let assessment = tracker.observe_guarded(
             &guard,
             Duration::from_secs(60),
-            &[app.clone()],
+            std::slice::from_ref(&app),
             &prefs,
             &[snapshot(app.clone())],
         );
@@ -259,9 +259,9 @@ mod tests {
         let app = app();
         let prefs = preferences();
         let mut tracker = Tracker::default();
-        tracker.observe(Duration::ZERO, &[app.clone()], &prefs);
+        tracker.observe(Duration::ZERO, std::slice::from_ref(&app), &prefs);
         let due = tracker
-            .observe(Duration::from_secs(60), &[app.clone()], &prefs)
+            .observe(Duration::from_secs(60), std::slice::from_ref(&app), &prefs)
             .pop()
             .unwrap();
         let guard = Guard {
@@ -354,9 +354,9 @@ mod tests {
         let app = app();
         let mut prefs = preferences();
         let mut tracker = Tracker::default();
-        tracker.observe(Duration::ZERO, &[app.clone()], &prefs);
+        tracker.observe(Duration::ZERO, std::slice::from_ref(&app), &prefs);
         let due = tracker
-            .observe(Duration::from_secs(60), &[app.clone()], &prefs)
+            .observe(Duration::from_secs(60), std::slice::from_ref(&app), &prefs)
             .pop()
             .unwrap();
         let guard = Guard {
@@ -464,13 +464,13 @@ mod tests {
         let guard = Guard {
             fixture: Some((app.application.clone(), other)),
         };
-        tracker.observe(Duration::ZERO, &[app.clone()], &prefs);
+        tracker.observe(Duration::ZERO, std::slice::from_ref(&app), &prefs);
         let mut replacement = snapshot(app.clone());
         replacement.application.process.seconds += 1;
         let outcomes = tracker.observe_guarded(
             &guard,
             Duration::from_secs(60),
-            &[app.clone()],
+            std::slice::from_ref(&app),
             &prefs,
             &[snapshot(app.clone())],
         );
@@ -481,9 +481,9 @@ mod tests {
         let outcomes = tracker.observe_guarded(
             &guard,
             Duration::from_secs(60),
-            &[app.clone()],
+            std::slice::from_ref(&app),
             &prefs,
-            &[snapshot(app), replacement],
+            &[snapshot(app.clone()), replacement],
         );
         assert_eq!(
             outcomes[0].decision,
