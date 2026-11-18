@@ -870,9 +870,8 @@ pub fn entry(args: Vec<String>) -> Result<()> {
         [cmd,..] if cmd=="prepare-reference-pins" =>Err("usage: f1-runner prepare-reference-pins ROOT MAIN FIXTURE_JSON A|B OUT; source-only, expires on return".into()),
         [cmd,root,out] if cmd=="prepare-native-owned-host" =>preparation::native_owned_host(Path::new(root),Path::new(out)),
         [cmd,root,manifest,pinned,main_sha,out] if cmd=="postprocess-native-owned-data" =>preparation::native_retained_data(Path::new(root),Path::new(manifest),pinned,main_sha,Path::new(out)),
-        [cmd,root,plan,pinned] if cmd=="collect-reference-hotkeys-ast" =>preparation::reference_hotkeys_ast(Path::new(root),Path::new(plan),pinned),
-        [cmd,root,plan,pinned] if cmd=="collect-reference-hyperkey-ast" =>preparation::reference_hyperkey_ast(Path::new(root),Path::new(plan),pinned),
-        [cmd,root,plan,pinned] if cmd=="collect-reference-snippetexpander-ast" =>preparation::reference_snippetexpander_ast(Path::new(root),Path::new(plan),pinned),
+        [cmd,..] if matches!(cmd.as_str(),"collect-reference-hotkeys-ast"|"collect-reference-hyperkey-ast"|"collect-reference-snippetexpander-ast") =>
+            Err(format!("retired historical Swift AST command: {cmd}")),
         [cmd,root,out] if cmd=="inventory" =>write_new(Path::new(out),&preparation::inventory(Path::new(root))?),
         [cmd,..] if matches!(cmd.as_str(),"build-reference-interface"|"build-reference-full-host-interface"|"resume-reference-debug") =>
             Err(format!("retired historical Swift F1 command: {cmd}")),
@@ -921,6 +920,23 @@ mod tests {
         assert!(!Path::new("/not-created/partial-output").exists());
         assert!(!Path::new("/not-created/full-output").exists());
         assert!(!Path::new("/not-created/resume-output").exists());
+    }
+    #[test]
+    fn retired_swift_ast_commands_refuse_before_plan_io_or_process_start() {
+        for command in [
+            "collect-reference-hotkeys-ast",
+            "collect-reference-hyperkey-ast",
+            "collect-reference-snippetexpander-ast",
+        ] {
+            for args in [
+                vec![command, "/not-opened/root", "/not-opened/plan.json", "deadbeef"],
+                vec![command],
+            ] {
+                let error = entry(args.into_iter().map(str::to_owned).collect()).unwrap_err();
+                assert_eq!(error, format!("retired historical Swift AST command: {command}"));
+            }
+        }
+        assert!(!Path::new("/not-opened/plan.json").exists());
     }
     #[test]
     fn idle_uses_same_owned_identity_and_interval_deltas_not_lifetime_counters() {
