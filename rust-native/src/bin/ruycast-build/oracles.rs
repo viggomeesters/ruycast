@@ -882,6 +882,7 @@ const LOG_SOURCE_SHA256: &str = "e8b4b609655d7946bbb27f287aaa739ed1530133f22a7cf
 const LOG_ORACLE_SHA256: &str = "9dd2ff68552ebcae0979530623309cafeb7a145a193444dc55a717e94a953455";
 const EDIT_COMMAND_ORACLE_SHA256: &str = "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145";
 const VISUAL_ASSET_ORACLE_SHA256: &str = "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0";
+const RENDER_UPDATES_ORACLE_SHA256: &str = "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1225,7 +1226,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "d74120c1ffbb0f2ad76238c95744fef8813ce1ae8a21eeb104a7f566ed3e2a5e"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6dff51a543b8895c04b5c5cc64cec33750ff3062a1326bbd6d49f8348637aea1"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "a0e361eccac5eb167669841d4945deacf9803a1d87e06147ae2bc5a5512a4909"),
-            ("Sources/RuycastApp/InteractionChecks.swift", include_bytes!("../../../../Sources/RuycastApp/InteractionChecks.swift"), "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
@@ -1484,6 +1484,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/VisualAssetChecks.swift",
             VISUAL_ASSET_ORACLE_SHA256,
         )),
+        "--check-render-updates" => Some((
+            "Sources/RuycastApp/InteractionChecks.swift",
+            RENDER_UPDATES_ORACLE_SHA256,
+        )),
         _ => None,
     }
 }
@@ -1509,6 +1513,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-command-log" => Some(LOG_ORACLE_SHA256),
             "--check-edit-commands" => Some(EDIT_COMMAND_ORACLE_SHA256),
             "--check-visual-assets" => Some(VISUAL_ASSET_ORACLE_SHA256),
+            "--check-render-updates" => Some(RENDER_UPDATES_ORACLE_SHA256),
             _ => None,
         };
         path == gate.original_source
@@ -2536,6 +2541,25 @@ mod tests {
         }
         let test = std::str::from_utf8(inputs.iter().find(|entry| entry.0 == "rust-native/tests/native_process.rs").unwrap().1).unwrap();
         assert!(test.contains("fn loaded_config_alias_unicode_disabled_and_native_labels("));
+    }
+    #[test]
+    fn render_updates_provenance_keeps_current_inputs_and_gate_status() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
+        assert_eq!(gate.required_native_steps, &["render-updates-process"]);
+        assert_eq!(gate.native_cases, &["ui_completion::render_updates"]);
+        let inputs = settings_sources(gate.id);
+        assert_eq!(inputs.len(), 13);
+        assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
+        let bindings = settings_source_bindings(gate.id);
+        assert_eq!(bindings.len(), 14);
+        for (path, _, hash) in inputs {
+            assert!(bindings.contains(&(*path, *hash)), "missing Rust source binding {path}");
+        }
+        assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let value = inventory("settings").unwrap();
+        assert_eq!(value["productionAccepted"], false);
+        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn visual_assets_provenance_keeps_all_current_inputs_and_gate_status() {
@@ -3894,7 +3918,7 @@ mod tests {
         for (id, steps, case_count, source_count) in [
             ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 34),
             ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 46),
-            ("--check-render-updates", &["render-updates-process"][..], 1, 14),
+            ("--check-render-updates", &["render-updates-process"][..], 1, 13),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.required_native_steps, steps);
@@ -3902,7 +3926,15 @@ mod tests {
             assert_eq!(gate.native_cases.len(), case_count);
             let inputs = settings_sources(id);
             assert_eq!(inputs.len(), source_count);
-            assert!(inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+            if id == "--check-render-updates" {
+                assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+                let bindings = settings_source_bindings(id);
+                assert_eq!(bindings.len(), 14);
+                assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
+                assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+            } else {
+                assert!(inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+            }
             assert_eq!(inputs.iter().map(|(path, _, _)| *path).collect::<std::collections::BTreeSet<_>>().len(), source_count);
             for case in gate.native_cases {
                 let (prefix, path) = case_sources.iter().find(|(prefix, _)| case.starts_with(*prefix)).unwrap();
