@@ -1,5 +1,6 @@
 //! Owned host readiness uses the shared production absolute-deadline RPC.
-pub use ruycast_native::benchmark_host::rpc::request;
+#[allow(unused_imports)] // Shared by process test targets; only some callers need `connect`.
+pub use ruycast_native::benchmark_host::rpc::{connect, request};
 use serde_json::{json, Value};
 use std::{
     io,
