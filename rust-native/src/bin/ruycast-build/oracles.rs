@@ -3698,14 +3698,14 @@ mod tests {
             .find(|gate| gate.id == "--check-interactions")
             .unwrap();
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 46);
+        assert_eq!(inputs.len(), 44);
         assert_eq!(
             inputs
                 .iter()
                 .map(|entry| entry.0)
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            46
+            44
         );
         let source = std::str::from_utf8(
             inputs
@@ -4277,10 +4277,10 @@ mod tests {
         for name in gate.required_native_steps {
             assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing actions-menu route: {name}");
         }
-        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
-        assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn menu_map_preserves_original_cases_required_routes_and_source_inputs() {
@@ -4308,7 +4308,10 @@ mod tests {
             let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
             assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
         }
-        assert!(require_complete("settings").is_ok());
+        assert_eq!(
+            settings_mapping_state(gate),
+            "mapped-requires-source-requalification"
+        );
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
@@ -4350,7 +4353,10 @@ mod tests {
             let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
             assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
         }
-        assert!(require_complete("settings").is_ok());
+        assert_eq!(
+            settings_mapping_state(gate),
+            "mapped-requires-source-requalification"
+        );
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
