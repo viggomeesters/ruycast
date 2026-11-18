@@ -1425,40 +1425,70 @@ pub fn scopes() -> BTreeSet<&'static str> {
 /// Exact source caller anchor, separate from profile/startup operations. The
 /// caller's compiled class/lifecycle/code proof remains independently required.
 pub(crate) fn source_allocation_callsites() -> BTreeSet<SourceCallsite> {
-    use sha2::{Digest, Sha256};
-    let sources:BTreeSet<SourceCallsite>=[SourceCallsite {
-        file: "rust-native/src/native.rs",
-        source_sha256: format!("{:x}", Sha256::digest(include_bytes!("../../../../rust-native/src/native.rs"))),
-        operation: "DefinedClass alloc/set_ivars/selected super-init; same source receiver",
-    }].into_iter().collect();
+    let sources = native_source_allocation_callsites();
     #[cfg(rcf1_reference_sdk)]
-    let sources=sources.into_iter().chain([SourceCallsite {
-        file:"Sources/RuycastApp/main.swift",
-        source_sha256:format!("{:x}",Sha256::digest(include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/main.swift"))),
-        operation:"AppDelegate() at main219: objc_allocWithZone/selected init; same Reference source receiver",
-    }, crate::workspace::factory::reference_edit_construction_callsite(),
-       crate::workspace::factory::reference_palette_construction_callsite(),
-       crate::workspace::factory::reference_snippet_panel_construction_callsite()]).collect();
+    let sources = with_reference_allocation_callsites(sources);
     sources
 }
+#[cfg(any(rcf1_reference_sdk, test))]
+fn with_reference_allocation_callsites(
+    sources: BTreeSet<SourceCallsite>,
+) -> BTreeSet<SourceCallsite> {
+    sources
+        .into_iter()
+        .chain(reference_source_allocation_callsites())
+        .collect()
+}
+fn native_source_allocation_callsites() -> BTreeSet<SourceCallsite> {
+    use sha2::{Digest, Sha256};
+    [SourceCallsite {
+        file: "rust-native/src/native.rs",
+        source_sha256: format!(
+            "{:x}",
+            Sha256::digest(include_bytes!("../../../../rust-native/src/native.rs"))
+        ),
+        operation: "DefinedClass alloc/set_ivars/selected super-init; same source receiver",
+    }]
+    .into_iter()
+    .collect()
+}
+#[cfg(any(rcf1_reference_sdk, test))]
+fn reference_source_allocation_callsites() -> BTreeSet<SourceCallsite> {
+    [
+        SourceCallsite {
+            file: "Sources/RuycastApp/main.swift",
+            source_sha256:
+                "9a2ed4af5088d3dfa31dc743475fdfe6677c223feaedb075cd4be2e61147b648".into(),
+            operation:
+                "AppDelegate() at main219: objc_allocWithZone/selected init; same Reference source receiver",
+        },
+        crate::workspace::factory::reference_edit_construction_callsite(),
+        crate::workspace::factory::reference_palette_construction_callsite(),
+        crate::workspace::factory::reference_snippet_panel_construction_callsite(),
+    ]
+    .into_iter()
+    .collect()
+}
 pub fn source_roster() -> BTreeSet<SourceCallsite> {
+    let sources = native_source_roster()
+        .into_iter()
+        .chain(native_source_allocation_callsites())
+        .collect();
+    #[cfg(rcf1_reference_sdk)]
+    let sources = with_reference_roster(sources);
+    sources
+}
+#[cfg(any(rcf1_reference_sdk, test))]
+fn with_reference_roster(sources: BTreeSet<SourceCallsite>) -> BTreeSet<SourceCallsite> {
+    sources
+        .into_iter()
+        .chain(reference_source_roster())
+        .chain(reference_source_allocation_callsites())
+        .collect()
+}
+fn native_source_roster() -> BTreeSet<SourceCallsite> {
     use sha2::{Digest, Sha256};
     [
-        (
-            "Sources/RuycastApp/main.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/main.swift").as_slice(),
-            "defaultProfilePath/NSString tilde",
-        ),
-        (
-            "Sources/RuycastApp/WebsiteIcons.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/WebsiteIcons.swift").as_slice(),
-            "init FileManager cache; prune enumeration",
-        ),
-        (
-            "Sources/RuycastApp/AppState.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/AppState.swift").as_slice(),
-            "discoverApps enumeration; path tilde",
-        ),
         (
             "rust-native/src/main.rs",
             include_bytes!("../../../../rust-native/src/main.rs").as_slice(),
@@ -1521,7 +1551,35 @@ pub fn source_roster() -> BTreeSet<SourceCallsite> {
         source_sha256: format!("{:x}", Sha256::digest(bytes)),
         operation,
     })
-    .chain(source_allocation_callsites())
+    .collect()
+}
+/// Exact historical Swift inputs needed only by Reference bootstrap admission.
+/// The relative keys are the identities consumed by its sealed source manifest.
+#[cfg(any(rcf1_reference_sdk, test))]
+fn reference_source_roster() -> BTreeSet<SourceCallsite> {
+    [
+        (
+            "Sources/RuycastApp/main.swift",
+            "9a2ed4af5088d3dfa31dc743475fdfe6677c223feaedb075cd4be2e61147b648",
+            "defaultProfilePath/NSString tilde",
+        ),
+        (
+            "Sources/RuycastApp/WebsiteIcons.swift",
+            "2708e4accf997b102fe831dd271fab41cf40aa6911a00454e6d0a4ad181aadc8",
+            "init FileManager cache; prune enumeration",
+        ),
+        (
+            "Sources/RuycastApp/AppState.swift",
+            "ffba512c44134bf74005bd6cc409c1c92d09b4a13ee9709ca60a7b6e895abd14",
+            "discoverApps enumeration; path tilde",
+        ),
+    ]
+    .into_iter()
+    .map(|(file, source_sha256, operation)| SourceCallsite {
+        file,
+        source_sha256: source_sha256.into(),
+        operation,
+    })
     .collect()
 }
 pub fn required_imports() -> Vec<&'static CStr> {
@@ -2025,6 +2083,117 @@ mod tests {
     use super::super::{ImportReplacement, ModuleAttestation, ObjcReplacement, Registry};
     use super::*;
     use objc2::ClassType;
+    #[test]
+    fn bootstrap_source_roster_separates_native_rust_from_pinned_reference_swift() {
+        let native = native_source_roster();
+        assert_eq!(native.len(), 11);
+        let native_files = native.iter().map(|row| row.file).collect::<BTreeSet<_>>();
+        assert_eq!(
+            native_files,
+            [
+                "rust-native/src/main.rs",
+                "rust-native/src/profile.rs",
+                "rust-native/src/profile_io_abi.rs",
+                "rust-native/src/profile_io.rs",
+                "rust-native/src/observe.rs",
+                "rust-native/src/owned_host_entry.rs",
+                "rust-native/src/native.rs",
+                "rust-native/src/runtime.rs",
+                "rust/src/bin/ruycast.rs",
+                "rust-native/src/native_rows.rs",
+                "rust-native/src/applications.rs",
+            ]
+            .into_iter()
+            .collect()
+        );
+        assert!(native
+            .iter()
+            .all(|row| row.source_sha256.len() == 64 && row.file.starts_with("rust")));
+
+        let native_allocations = native_source_allocation_callsites();
+        assert_eq!(native_allocations.len(), 1);
+        assert_eq!(
+            native_allocations.iter().next().unwrap().file,
+            "rust-native/src/native.rs"
+        );
+
+        let reference = reference_source_roster();
+        assert_eq!(reference.len(), 3);
+        for (file, hash, operation) in [
+            (
+                "Sources/RuycastApp/main.swift",
+                "9a2ed4af5088d3dfa31dc743475fdfe6677c223feaedb075cd4be2e61147b648",
+                "defaultProfilePath/NSString tilde",
+            ),
+            (
+                "Sources/RuycastApp/WebsiteIcons.swift",
+                "2708e4accf997b102fe831dd271fab41cf40aa6911a00454e6d0a4ad181aadc8",
+                "init FileManager cache; prune enumeration",
+            ),
+            (
+                "Sources/RuycastApp/AppState.swift",
+                "ffba512c44134bf74005bd6cc409c1c92d09b4a13ee9709ca60a7b6e895abd14",
+                "discoverApps enumeration; path tilde",
+            ),
+        ] {
+            let row = reference.iter().find(|row| row.file == file).unwrap();
+            assert_eq!(row.source_sha256, hash);
+            assert_eq!(row.operation, operation);
+        }
+
+        let reference_allocations = reference_source_allocation_callsites();
+        assert_eq!(reference_allocations.len(), 4);
+        assert!(reference_allocations
+            .iter()
+            .all(|row| row.file.starts_with("Sources/RuycastApp/")));
+        for (file, hash, operation) in [
+            (
+                "Sources/RuycastApp/main.swift",
+                "9a2ed4af5088d3dfa31dc743475fdfe6677c223feaedb075cd4be2e61147b648",
+                "AppDelegate() at main219: objc_allocWithZone/selected init; same Reference source receiver",
+            ),
+            (
+                "Sources/RuycastApp/NativeEditCommands.swift",
+                "c2c0683ca011e23a8fe7f99e23c9e1540f31f43d1d80d09116a005ffefbebc90",
+                "NativeEditCommands.shared exact original allocation and super-init",
+            ),
+            (
+                "Sources/RuycastApp/Palette.swift",
+                "b3033c6bd07801c067f8fc524be61e81aa313e28243d9b926e74f042d98dc8b5",
+                "PaletteController exact original PalettePanel allocation and super-init",
+            ),
+            (
+                "Sources/RuycastApp/SnippetChoice.swift",
+                "3d43c84d15dc76aaed1a38c5e7d4131232168fb0d0723c79e52deb1e447b9d69",
+                "SnippetChoicePanel original allocation and super-init",
+            ),
+        ] {
+            let row = reference_allocations
+                .iter()
+                .find(|row| row.file == file)
+                .unwrap();
+            assert_eq!(row.source_sha256, hash);
+            assert_eq!(row.operation, operation);
+        }
+        let mut all_allocations = native_allocations.clone();
+        all_allocations.extend(reference_allocations.clone());
+        assert_eq!(
+            with_reference_allocation_callsites(native_allocations.clone()),
+            all_allocations
+        );
+        assert_eq!(
+            source_allocation_callsites().len(),
+            if cfg!(rcf1_reference_sdk) { 5 } else { 1 }
+        );
+
+        let native_roster = native
+            .into_iter()
+            .chain(native_allocations)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(native_roster.len(), 12);
+        assert_eq!(with_reference_roster(native_roster.clone()).len(), 19);
+        assert_eq!(source_roster().len(), if cfg!(rcf1_reference_sdk) { 19 } else { 12 });
+    }
     #[cfg(rcf1_reference_sdk)]
     #[test]
     fn reference_setup_failure_and_unwind_retire_the_actual_context_without_callbacks() {
