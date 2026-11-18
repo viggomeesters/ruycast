@@ -179,7 +179,7 @@
     "bench/f1-runner/src/sdk/process_abi.rs": "e6c701eb96b5b064bdbad4127eb61e86ea3151c9e28c2f91d9b6cf053c897658",
     "bench/f1-runner/src/sdk/process_dispatch.rs": "4f13f9df90ea426dd006b5eaeff5bb751bed9724489873fe59a5b87d8907711d",
     "bench/f1-runner/src/sdk/process_fork.rs": "c8e513ac89f9cbc4263dc55fcc39453b57f36e843d0f9bca41cd513c23956ab4",
-    "bench/f1-runner/src/sdk/process_router.rs": "fa8d0dcabd485b7207346dbef0f3a4db054563caab776ab9b7f11e203afb4acf",
+    "bench/f1-runner/src/sdk/process_router.rs": "eb82504c336cef8a21413f27ac48fd4219f6d0e61969ced6cd40dbc3a4efc12c",
     "bench/f1-runner/src/sdk/profile_io.rs": "2b6583f0e18580bfa516ab1abca8ae03d1f1fc06ac4aadeac0e444aa3d5939ec",
     "bench/f1-runner/src/sdk/reference_runtime.rs": "2856e231ad6f86686085c7ef8c618201e1574d51b516427171b91b6bcb2e10e6",
     "bench/f1-runner/src/sdk/reference_source_actors.rs": "10410fbb294fabe0b2d684b4469985b39e2d6b21085ff4c4047730f4faa11c7e",

@@ -179,44 +179,18 @@ pub fn scopes() -> BTreeSet<&'static str> {
 }
 
 pub fn source_roster() -> BTreeSet<SourceCallsite> {
+    let sources = native_source_roster();
+    #[cfg(rcf1_reference_sdk)]
+    let sources = sources
+        .into_iter()
+        .chain(reference_source_roster())
+        .collect();
+    sources
+}
+
+fn native_source_roster() -> BTreeSet<SourceCallsite> {
     use sha2::{Digest, Sha256};
     [
-        (
-            "Sources/RuycastApp/AppleShortcuts.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/AppleShortcuts.swift")
-                .as_slice(),
-            "Process runner, bounded stdout/stderr and owned timeout termination",
-        ),
-        (
-            "Sources/RuycastApp/AppState.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/AppState.swift")
-                .as_slice(),
-            "runScriptProcess exact executable and argv",
-        ),
-        (
-            "Sources/RuycastApp/SystemServices.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/SystemServices.swift")
-                .as_slice(),
-            "files collector, process identity, terminate and sleep subprocess",
-        ),
-        (
-            "Sources/RuycastApp/SystemSearchSession.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/SystemSearchSession.swift")
-                .as_slice(),
-            "Ticket launch/detach and cross-thread owned Process cancellation",
-        ),
-        (
-            "Sources/RuycastApp/ResourceSampler.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/ResourceSampler.swift")
-                .as_slice(),
-            "owned host/process/network/battery inventory and ps collector",
-        ),
-        (
-            "Sources/RuycastApp/CommandEditor.swift",
-            include_bytes!("../../../reference/0.8.26/Sources/RuycastApp/CommandEditor.swift")
-                .as_slice(),
-            "config editor CLI child and sole wait",
-        ),
         (
             "rust-native/src/os_command.rs",
             include_bytes!("../../../../rust-native/src/os_command.rs").as_slice(),
@@ -258,6 +232,53 @@ pub fn source_roster() -> BTreeSet<SourceCallsite> {
     .map(|(file, bytes, operation)| SourceCallsite {
         file,
         source_sha256: format!("{:x}", Sha256::digest(bytes)),
+        operation,
+    })
+    .collect()
+}
+
+/// Exact historical process callers required only by Reference admission.
+/// Paths retain the Reference manifest's relative `Sources/RuycastApp` keys;
+/// the admission consumer binds them beneath the pinned historical root.
+/// Keep these pins independent of the current Native Rust source roster.
+#[cfg(any(rcf1_reference_sdk, test))]
+fn reference_source_roster() -> BTreeSet<SourceCallsite> {
+    [
+        (
+            "Sources/RuycastApp/AppleShortcuts.swift",
+            "c8c6d16833611b5c8e43af4e40b6ac828637a514756780811e0fdc95186ffd62",
+            "Process runner, bounded stdout/stderr and owned timeout termination",
+        ),
+        (
+            "Sources/RuycastApp/AppState.swift",
+            "ffba512c44134bf74005bd6cc409c1c92d09b4a13ee9709ca60a7b6e895abd14",
+            "runScriptProcess exact executable and argv",
+        ),
+        (
+            "Sources/RuycastApp/SystemServices.swift",
+            "c2ffbb73cc7723234992b1883bb582e68b175982a6a5991757cf47397e9935ad",
+            "files collector, process identity, terminate and sleep subprocess",
+        ),
+        (
+            "Sources/RuycastApp/SystemSearchSession.swift",
+            "4c1436a05e36c4f61a9d0a50cb08c49545a9d50741d38c8daaf2607608bee14b",
+            "Ticket launch/detach and cross-thread owned Process cancellation",
+        ),
+        (
+            "Sources/RuycastApp/ResourceSampler.swift",
+            "d32b5efeddbf8d2e63d3e2c7846b9584ee918627011ed8202a95d31b1cb6e752",
+            "owned host/process/network/battery inventory and ps collector",
+        ),
+        (
+            "Sources/RuycastApp/CommandEditor.swift",
+            "bedf706738b8c928bccca334e02921483120ec51958d6bb2ea97b270ebd5bf80",
+            "config editor CLI child and sole wait",
+        ),
+    ]
+    .into_iter()
+    .map(|(file, source_sha256, operation)| SourceCallsite {
+        file,
+        source_sha256: source_sha256.into(),
         operation,
     })
     .collect()
@@ -958,15 +979,67 @@ mod module_tests {
             c"AEDeterminePermissionToAutomateTarget"
         ]
         .contains(&s.symbol)));
-        let sources = source_roster();
-        assert_eq!(sources.len(), 13);
-        for file in [
-            "Sources/RuycastApp/SystemSearchSession.swift",
-            "rust-native/src/system_search/mod.rs",
-            "rust-native/src/resource_sampler.rs",
+        let native_sources = native_source_roster();
+        assert_eq!(native_sources.len(), 7);
+        assert_eq!(
+            native_sources
+                .iter()
+                .map(|row| row.file)
+                .collect::<BTreeSet<_>>(),
+            [
+                "rust-native/src/os_command.rs",
+                "rust-native/src/supervision.rs",
+                "rust-native/src/system_search/mod.rs",
+                "rust-native/src/system_search/apple_shortcuts.rs",
+                "rust-native/src/resource_sampler.rs",
+                "rust-native/src/processes.rs",
+                "rust-native/src/system_search/native.rs",
+            ]
+            .into_iter()
+            .collect()
+        );
+        assert!(native_sources
+            .iter()
+            .all(|row| row.source_sha256.len() == 64));
+        let reference_sources = reference_source_roster();
+        assert_eq!(reference_sources.len(), 6);
+        for (file, hash) in [
+            (
+                "Sources/RuycastApp/AppleShortcuts.swift",
+                "c8c6d16833611b5c8e43af4e40b6ac828637a514756780811e0fdc95186ffd62",
+            ),
+            (
+                "Sources/RuycastApp/AppState.swift",
+                "ffba512c44134bf74005bd6cc409c1c92d09b4a13ee9709ca60a7b6e895abd14",
+            ),
+            (
+                "Sources/RuycastApp/SystemServices.swift",
+                "c2ffbb73cc7723234992b1883bb582e68b175982a6a5991757cf47397e9935ad",
+            ),
+            (
+                "Sources/RuycastApp/SystemSearchSession.swift",
+                "4c1436a05e36c4f61a9d0a50cb08c49545a9d50741d38c8daaf2607608bee14b",
+            ),
+            (
+                "Sources/RuycastApp/ResourceSampler.swift",
+                "d32b5efeddbf8d2e63d3e2c7846b9584ee918627011ed8202a95d31b1cb6e752",
+            ),
+            (
+                "Sources/RuycastApp/CommandEditor.swift",
+                "bedf706738b8c928bccca334e02921483120ec51958d6bb2ea97b270ebd5bf80",
+            ),
         ] {
-            assert_eq!(sources.iter().filter(|row| row.file == file).count(), 1);
+            let row = reference_sources
+                .iter()
+                .find(|row| row.file == file)
+                .unwrap();
+            assert_eq!(row.source_sha256, hash);
         }
+        let sources = source_roster();
+        #[cfg(rcf1_reference_sdk)]
+        assert_eq!(sources.len(), 13);
+        #[cfg(not(rcf1_reference_sdk))]
+        assert_eq!(sources.len(), 7);
         assert!(scopes().is_empty());
         assert!(source_roster()
             .iter()
