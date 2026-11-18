@@ -228,13 +228,6 @@ fn compiler_tool_deadline(now:Instant,whole:Option<Instant>)->Instant {
     whole.map_or(own,|end|end.min(own))
 }
 
-fn reference_debug_arguments(args: &mut Vec<std::ffi::OsString>) {
-    // Debug information changes the evidence carrier, not the optimization
-    // level or frozen Swift bodies. Saved compiler objects remain in this
-    // invocation's private output/cwd/TMPDIR for dsymutil and later body joins.
-    args.extend(["-g".into(), "-save-temps".into(), "-v".into(), "-emit-dependencies".into()]);
-}
-
 fn reference_archive_member(name: &str) -> Result<Option<(&Path, &str)>> {
     if !name.ends_with(')') { return Ok(None); }
     let (archive, member) = name[..name.len()-1].rsplit_once('(')
@@ -282,150 +275,6 @@ fn reference_debug_verify(inputs: &BTreeMap<PathBuf, String>,deadline:Instant) -
         }
     }
     reference_capture_alive(deadline)
-}
-
-fn reference_debug_before(context: (&Path,&Path,&BTreeMap<PathBuf,String>,Instant), bridge: &Path, release: &Path, out: &Path,
-    sources: &[PathBuf], objects: &[PathBuf]) -> Result<BTreeMap<PathBuf,String>> {
-    let (reference,build_root,expected,deadline) = context;
-    reference_capture_alive(deadline)?;
-    space_for_build(reference)?;
-    if !out.is_absolute() || fs::canonicalize(out).map_err(|e|e.to_string())? != out {
-        return Err("Swift debug output must be exact absolute owned output".into());
-    }
-    let mut inputs = BTreeMap::new();
-    for path in sources.iter().chain(objects).chain([bridge.to_path_buf()].iter()) {
-        reference_debug_input(path, &mut inputs,deadline)?;
-    }
-    reference_debug_input(&bridge.with_file_name("ReferencePreentry.rs"), &mut inputs,deadline)?;
-    for directory in ["Modules", "CRuycastCore.build"] {
-        reference_debug_tree(&release.join(directory), &mut inputs,deadline)?;
-    }
-    reference_debug_input(&build_root.join(".build/rust/release/librustcast_core.a"), &mut inputs,deadline)?;
-    for (path,hash) in inputs.iter().filter(|(path,_)|path.starts_with(build_root.join(".build"))) {
-        if expected.get(path)!=Some(hash) { return Err("Reference object/module/archive lacks exact explicit compiler-input receipt".into()); }
-    }
-    native_private_bytes(&out.join("explicit-reference-build-inputs.json"), &serde_json::to_vec_pretty(&json!({
-        "build_root":build_root,"inputs":expected,"source_snapshot":reference,"authority":false
-    })).map_err(|e|e.to_string())?)?;
-    // Retain both the system selector and actual selected Swift driver/frontend.
-    // No PATH/rustup/compiler-version string is promoted to byte provenance.
-    reference_debug_input(Path::new("/usr/bin/swiftc"), &mut inputs,deadline)?;
-    reference_debug_input(Path::new("/usr/bin/xcrun"), &mut inputs,deadline)?;
-    let mut command = Command::new("/usr/bin/xcrun");
-    command.args(["--find", "swiftc"]);
-    let result = native_tool_until(&mut command, reference,deadline)?;
-    if !result.status.success() || !result.stderr.is_empty() { return Err("Swift driver resolution failed".into()); }
-    let driver = PathBuf::from(std::str::from_utf8(&result.stdout).map_err(|_|"Swift driver path UTF8 differs")?.trim());
-    if !driver.is_absolute() { return Err("Swift driver path is not absolute".into()); }
-    reference_debug_input(&driver, &mut inputs,deadline)?;
-    reference_debug_input(&driver.with_file_name("swift-frontend"), &mut inputs,deadline)?;
-    let mut selected = BTreeMap::new();
-    let compilers = expected.iter().filter(|(path,_)|path.file_name().is_some_and(|name|name=="rustc")).collect::<Vec<_>>();
-    if compilers.len()!=1 { return Err("Reference compiler-input manifest needs exactly one explicit rustc executable".into()); }
-    let (compiler,hash) = compilers[0];
-    selected.insert("rustc".to_owned(),Binding{path:compiler.clone(),sha256:hash.clone()});
-    reference_debug_input(compiler,&mut inputs,deadline)?;
-    for name in ["clang","ld","dsymutil","dwarfdump","ar","nm","otool"] {
-        let mut command = Command::new("/usr/bin/xcrun");
-        command.args(["--find",name]);
-        let bytes = reference_debug_tool(reference,out,&format!("swift-select-{name}"),&mut command,deadline)?;
-        let path = PathBuf::from(std::str::from_utf8(&bytes).map_err(|_|"selected Swift tool path UTF8 differs")?.trim());
-        if !path.is_absolute() { return Err("selected Swift tool must be absolute".into()); }
-        let path = fs::canonicalize(path).map_err(|e|e.to_string())?;
-        reference_debug_input(&path,&mut inputs,deadline)?;
-        let sha256 = inputs.get(&path).ok_or("selected Swift tool before binding absent")?.clone();
-        selected.insert(name.to_owned(),Binding{path,sha256});
-    }
-    native_private_bytes(&out.join("swift-selected-tools.json"),&serde_json::to_vec_pretty(&selected).map_err(|e|e.to_string())?)?;
-    reference_debug_input(&out.join("swift-selected-tools.json"),&mut inputs,deadline)?;
-    // Ask the actual Swift dependency scanner before compilation. It emits no
-    // linked product. Existing source/module/header paths are genuine before
-    // observations; nonexistent/generated outputs never acquire old hashes.
-    let mut command = Command::new("/usr/bin/swiftc");
-    command.args(["-scan-dependencies","-whole-module-optimization","-swift-version","6","-target","arm64-apple-macosx14.0",
-        "-module-name","RuycastF1Reference","-D","F1_COMPLETE_HOST","-module-cache-path"])
-        .arg(release.join("ModuleCache")).arg("-I").arg(release.join("Modules"))
-        .arg("-I").arg(release.join("CRuycastCore.build"))
-        .args(sources).arg(bridge).env("TMPDIR",out.join("compiler-tmp")).current_dir(out);
-    let scan_path=out.join("swift-dependency-scan.json");
-    native_private_bytes(&scan_path,&[])?;
-    command.arg("-o").arg(&scan_path);
-    // The Swift driver replaces this file atomically. Its child must create
-    // that replacement privately too; changing the parent's umask races other
-    // workers, and chmod after the scan would leave a readable interval.
-    use std::os::unix::process::CommandExt;
-    unsafe {command.pre_exec(|| {libc::umask(0o077);Ok(())});}
-    reference_debug_tool(reference,out,"swift-dependency-scan",&mut command,deadline)?;
-    let scan=reference_scan_file(&scan_path,deadline)?;
-    reference_scan_files(&scan,&mut inputs,deadline)?;
-    native_private_bytes(&out.join("swift-inputs-before.json"), &serde_json::to_vec_pretty(&inputs).map_err(|e|e.to_string())?)?;
-    Ok(inputs)
-}
-
-const REFERENCE_SCAN_FILE_BYTES:u64=128*1024*1024;
-fn reference_scan_file(path:&Path,deadline:Instant)->Result<Value> {
-    use std::{io::Read,os::{fd::AsRawFd,unix::fs::{MetadataExt,OpenOptionsExt}}};
-    reference_capture_alive(deadline)?;
-    if !path.is_absolute() || fs::canonicalize(path).map_err(|e|e.to_string())?!=path {
-        return Err("Swift scan output canonical path differs".into());
-    }
-    let file=fs::OpenOptions::new().read(true)
-        .custom_flags(libc::O_NOFOLLOW|libc::O_CLOEXEC|libc::O_NONBLOCK)
-        .open(path).map_err(|e|e.to_string())?;
-    let before=file.metadata().map_err(|e|e.to_string())?;
-    let identity=|m:&fs::Metadata|(m.dev(),m.ino(),m.uid(),m.gid(),m.mode(),m.nlink(),m.len(),m.mtime(),m.mtime_nsec(),m.ctime(),m.ctime_nsec());
-    if !before.is_file() || before.uid()!=unsafe{libc::getuid()} || before.nlink()!=1
-        || before.mode()&0o077!=0 || before.len()>REFERENCE_SCAN_FILE_BYTES
-        || unsafe{libc::fcntl(file.as_raw_fd(),libc::F_GETFL)}&libc::O_ACCMODE!=libc::O_RDONLY
-        || unsafe{libc::fcntl(file.as_raw_fd(),libc::F_GETFD)}&libc::FD_CLOEXEC==0 {
-        return Err("Swift named scan output readcap ownership/type/128MiB bound differs".into());
-    }
-    let mut bytes=Vec::new();
-    (&file).take(REFERENCE_SCAN_FILE_BYTES+1).read_to_end(&mut bytes).map_err(|e|e.to_string())?;
-    reference_capture_alive(deadline)?;
-    if bytes.len() as u64>REFERENCE_SCAN_FILE_BYTES
-        || identity(&before)!=identity(&file.metadata().map_err(|e|e.to_string())?)
-        || identity(&before)!=identity(&fs::symlink_metadata(path).map_err(|e|e.to_string())?) {
-        return Err("Swift named scan output changed or exceeds128MiB".into());
-    }
-    let graph:Value=serde_json::from_slice(&bytes).map_err(|e|e.to_string())?;
-    reference_scan_schema(&graph)?;
-    reference_capture_alive(deadline)?;
-    native_private_bytes(&path.with_file_name("swift-scan-file-receipt.json"),&serde_json::to_vec_pretty(&json!({
-        "output":{"path":path,"sha256":sha(&bytes)},"bytes":bytes.len(),
-        "file_read_limit_bytes":REFERENCE_SCAN_FILE_BYTES,"stream_limit_bytes":32*1024*1024,
-        "schema":"Swift InterModuleDependencyGraph","authority":false
-    })).map_err(|e|e.to_string())?)?;
-    Ok(graph)
-}
-fn reference_scan_schema(graph:&Value)->Result<()> {
-    if !graph.is_object() || graph["mainModuleName"].as_str()!=Some("RuycastF1Reference") {
-        return Err("Swift scan main module/schema differs".into());
-    }
-    let modules=graph["modules"].as_array().filter(|items|!items.is_empty()&&items.len()<=65536&&items.len()%2==0)
-        .ok_or("Swift scan module-map schema/bound differs")?;
-    if modules.iter().any(|value|!value.is_object())
-        || !modules.chunks_exact(2).any(|pair|pair[0]["swift"].as_str()==Some("RuycastF1Reference")) {
-        return Err("Swift scan actual main module entry absent".into());
-    }
-    Ok(())
-}
-
-fn reference_scan_files(value: &Value, inputs: &mut BTreeMap<PathBuf,String>,deadline:Instant) -> Result<()> {
-    reference_capture_alive(deadline)?;
-    match value {
-        Value::String(text) => {
-            let path = Path::new(text);
-            if path.is_absolute() && path.exists() && path.is_file() {
-                reference_debug_input(path,inputs,deadline)?;
-            }
-        },
-        Value::Array(values) => for value in values { reference_scan_files(value,inputs,deadline)?; },
-        Value::Object(values) => for value in values.values() { reference_scan_files(value,inputs,deadline)?; },
-        _ => {},
-    }
-    if inputs.len()>32768 { return Err("Swift scanner source closure exceeds bound".into()); }
-    Ok(())
 }
 
 fn reference_debug_tool(reference: &Path, out: &Path, label: &str, command: &mut Command,deadline:Instant) -> Result<Vec<u8>> {
@@ -7624,18 +7473,6 @@ mod notification_runtime_tests {
 mod reference_guard_argument_tests {
     use super::*;
     #[test]
-    fn named_dependency_scan_requires_actual_module_map_not_diagnostics() {
-        let good=json!({"mainModuleName":"RuycastF1Reference","modules":[{"swift":"RuycastF1Reference"},{"sourceFiles":[]}]});
-        assert!(reference_scan_schema(&good).is_ok());
-        for wrong in [Value::Null,json!({"mainModuleName":"Other","modules":[]}),
-            json!({"mainModuleName":"RuycastF1Reference","modules":[]}),
-            json!({"mainModuleName":"RuycastF1Reference","modules":[{"swift":"Other"},{}]}),
-            json!({"mainModuleName":"RuycastF1Reference","modules":[{"swift":"RuycastF1Reference"}]})] {
-            assert!(reference_scan_schema(&wrong).is_err());
-        }
-        assert_eq!(REFERENCE_SCAN_FILE_BYTES,128*1024*1024);
-    }
-    #[test]
     fn whole_capture_deadline_preserves_tool_ceiling_and_refuses_spawn_after_expiry() {
         let now=Instant::now();
         assert_eq!(compiler_tool_deadline(now,None),now+std::time::Duration::from_secs(900));
@@ -7674,14 +7511,6 @@ mod reference_guard_argument_tests {
             Path::new("fake/ReferencePreentry.o"),false);
         assert_eq!(args,legacy(Path::new("fake/ReferencePreentry.rs"),Path::new("fake/ReferencePreentry.o")));
         assert!(!args.iter().any(|arg|arg=="--cfg" || arg.to_string_lossy().contains("full-reference-host")));
-    }
-    #[test]
-    fn full_swift_debug_keeps_optimized_code_and_retains_actual_compiler_evidence() {
-        let mut args:Vec<std::ffi::OsString>=vec!["-Osize".into(),"-swift-version".into(),"6".into()];
-        reference_debug_arguments(&mut args);
-        assert_eq!(args,vec!["-Osize","-swift-version","6","-g","-save-temps","-v","-emit-dependencies"]
-            .into_iter().map(std::ffi::OsString::from).collect::<Vec<_>>());
-        assert!(!args.iter().any(|a|a=="-Onone" || a=="-Ounchecked"));
     }
     #[test]
     fn swift_archive_member_never_matches_by_basename_or_ambiguous_path() {
