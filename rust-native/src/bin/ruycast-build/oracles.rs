@@ -880,6 +880,7 @@ const SETTINGS: &[SettingsGate] = &[
 ];
 const LOG_SOURCE_SHA256: &str = "e8b4b609655d7946bbb27f287aaa739ed1530133f22a7cfdca2d5003655aa462";
 const LOG_ORACLE_SHA256: &str = "9dd2ff68552ebcae0979530623309cafeb7a145a193444dc55a717e94a953455";
+const EDIT_COMMAND_ORACLE_SHA256: &str = "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -1364,11 +1365,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
                 include_bytes!("../../native_edit_menu.rs"),
                 "8213290295ec55cd13adf37a5fd30f6648854fadc471272be9ed49e3385c438b",
             ),
-            (
-                "Sources/RuycastApp/EditCommandChecks.swift",
-                include_bytes!("../../../../Sources/RuycastApp/EditCommandChecks.swift"),
-                "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145",
-            ),
         ],
         "--check-analytics" => &[
             ("rust-native/tests/native_dashboard_dialog_process.rs", include_bytes!("../../../tests/native_dashboard_dialog_process.rs"), "9acf5206263ce816d73c47170d37ab1f0b21c4fb7664ec53d74b8a2e9c8b5c76"),
@@ -1484,6 +1480,10 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/CommandLogChecks.swift",
             LOG_ORACLE_SHA256,
         )),
+        "--check-edit-commands" => Some((
+            "Sources/RuycastApp/EditCommandChecks.swift",
+            EDIT_COMMAND_ORACLE_SHA256,
+        )),
         _ => None,
     }
 }
@@ -1509,7 +1509,14 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             .iter()
             .all(|(_, bytes, expected)| format!("{:x}", Sha256::digest(bytes)) == *expected)
         && settings_provenance_source(gate.id)
-            .is_none_or(|(path, sha)| path == gate.original_source && sha == LOG_ORACLE_SHA256);
+            .is_none_or(|(path, sha)| {
+                path == gate.original_source
+                    && match gate.id {
+                        "--check-command-log" => sha == LOG_ORACLE_SHA256,
+                        "--check-edit-commands" => sha == EDIT_COMMAND_ORACLE_SHA256,
+                        _ => false,
+                    }
+            });
     if current {
         "source-qualified-rust-case-crosswalk"
     } else {
@@ -4060,6 +4067,31 @@ mod tests {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
             }
         }
+        let edit = SETTINGS.iter().find(|gate| gate.id == "--check-edit-commands").unwrap();
+        assert_eq!(edit.native_cases, &["native_edit::check"]);
+        assert_eq!(edit.required_native_steps, &["native-light-600", "native-light-760", "native-dark-600", "native-dark-760"]);
+        let edit_bindings = settings_source_bindings(edit.id);
+        assert_eq!(edit_bindings.len(), 3);
+        assert!(edit_bindings.contains(&(
+            "rust-native/src/native_edit.rs",
+            "9ebb1ecff6de79f76d0f69542e250a6d041b88afe0ca1ec5beb079a08b4f042c",
+        )));
+        assert!(edit_bindings.contains(&(
+            "rust-native/src/native_edit_menu.rs",
+            "8213290295ec55cd13adf37a5fd30f6648854fadc471272be9ed49e3385c438b",
+        )));
+        assert!(edit_bindings.contains(&(
+            edit.original_source,
+            "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145",
+        )));
+        assert_eq!(
+            value["qualifiedCaseSourceBindings"][edit.id].as_object().unwrap().len(),
+            3,
+        );
+        assert_eq!(
+            value["qualifiedCaseSourceBindings"][edit.id][edit.original_source],
+            "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145",
+        );
         assert!(value["settingsCaseCrosswalk"]
             .as_array()
             .unwrap()
