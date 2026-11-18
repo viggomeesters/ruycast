@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use std::{
     fs,
     path::Path,
+    process::Command,
     thread,
     time::{Duration, Instant},
 };
@@ -144,9 +145,125 @@ fn slow_host(held: bool) -> Bridge {
         h.env.insert("RUYCAST_TEST_FSYNC_RELEASE".into(), release);
     }
     h.start();
-    settled(&h, |_| true);
-    assert!(!marker.exists());
+    wait_settings_startup(&mut h, &marker, true);
     h
+}
+fn wait_settings_startup(h: &mut Bridge, marker: &Path, with_interposer: bool) {
+    let deadline = Instant::now() + Duration::from_secs(7);
+    let mut last = Value::Null;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match actions::native_bridge::runtime_host::status_rpc::request(
+            &h.host.socket(),
+            &json!({"op":"status"}),
+            Instant::now() + remaining.min(Duration::from_millis(500)),
+        ) {
+            Ok(response) if response["ok"] == true => {
+                last = response["result"].clone();
+                let revision = last["managementUI"]["revision"].as_u64().unwrap_or(0);
+                if last["configurationUpdating"] != true
+                    && revision > 0
+                    && last["managementUI"]["appliedRevision"] == revision
+                {
+                    if marker.exists() {
+                        last["unexpectedStartupMarker"] = json!(true);
+                        break;
+                    }
+                    return;
+                }
+            }
+            Ok(response) => last = response,
+            Err(error) => last = json!({"statusError":error.to_string()}),
+        }
+        thread::sleep(Duration::from_millis(20).min(deadline.saturating_duration_since(Instant::now())));
+    }
+
+    // Preserve status and a main-thread sample before any native test probe or
+    // fixture teardown can change the state that failed to become ready.
+    static NEXT_EVIDENCE: std::sync::atomic::AtomicU64 =
+        std::sync::atomic::AtomicU64::new(0);
+    let root = actions::native_bridge::runtime_host::root();
+    let evidence_parent = root.join(".build/issue-411-startup");
+    fs::create_dir_all(&evidence_parent).unwrap();
+    let pid = h.host.process.as_ref().map(|child| child.id()).unwrap_or_default();
+    let evidence = evidence_parent.join(format!(
+        "{}-{}-{}-{}",
+        if with_interposer { "with-interposer" } else { "without-interposer" },
+        std::process::id(),
+        pid,
+        NEXT_EVIDENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    fs::create_dir(&evidence).unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(&evidence, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::write(evidence.join("status.json"), serde_json::to_vec_pretty(&last).unwrap()).unwrap();
+    fs::write(evidence.join("pid.txt"), pid.to_string()).unwrap();
+    fs::write(evidence.join("marker-present.txt"), marker.exists().to_string()).unwrap();
+    fs::write(
+        evidence.join("context.json"),
+        serde_json::to_vec_pretty(&json!({
+            "withInterposer": with_interposer,
+            "fsyncDirectoryConfigured": h.host.env.contains_key(std::ffi::OsStr::new("RUYCAST_TEST_FSYNC_DIRECTORY")),
+        })).unwrap(),
+    ).unwrap();
+    let sample_path = evidence.join("main-thread.sample.txt");
+    let sample = actions::native_bridge::runtime_host::run_result(
+        Command::new("/usr/bin/sample")
+            .arg(pid.to_string())
+            .args(["1", "10", "-file"])
+            .arg(&sample_path),
+        Duration::from_secs(3),
+    );
+    match sample {
+        Ok(sample) => {
+            fs::write(evidence.join("sample.stdout"), sample.stdout).unwrap();
+            fs::write(evidence.join("sample.stderr"), sample.stderr).unwrap();
+        }
+        Err(error) => fs::write(evidence.join("sample.error"), error.to_string()).unwrap(),
+    }
+    let output = h.host.wait_exit(Duration::from_secs(3), true);
+    fs::write(evidence.join("host.stdout"), output.stdout).unwrap();
+    fs::write(evidence.join("host.stderr"), output.stderr).unwrap();
+    panic!("Settings startup timed out; status and pre-teardown sample preserved at {}", evidence.display());
+}
+fn startup_readiness_case(with_interposer: bool) {
+    let mut h = Bridge::new(
+        actions::native_bridge::runtime_host::Config::current(),
+        false,
+    );
+    let marker = h.profile.join("inline-startup-fsync-marker");
+    if with_interposer {
+        let shim = std::env::var_os("RUYCAST_TEST_FCNTL_SHIM")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| {
+                h.settings
+                    .host
+                    .parent()
+                    .unwrap()
+                    .join("examples/libfcntl_sync_shim.dylib")
+            });
+        assert!(shim.is_absolute() && shim.is_file(), "build fcntl-sync-shim first");
+        h.host.env.insert("DYLD_INSERT_LIBRARIES".into(), shim.into_os_string());
+        // Deliberately omit RUYCAST_TEST_FSYNC_DIRECTORY: only the global
+        // interpose is active, not the targeted delay/release branch.
+        h.host.env.insert("RUYCAST_TEST_FSYNC_MARKER".into(), marker.as_os_str().to_owned());
+    }
+    h.host.start_entry_with_timeout(
+        actions::native_bridge::runtime_host::Entry::HiddenTest,
+        Duration::from_secs(8),
+    );
+    wait_settings_startup(&mut h, &marker, with_interposer);
+}
+#[test]
+fn settings_startup_readiness_without_fsync_interposer() {
+    startup_readiness_case(false);
+}
+#[test]
+fn settings_startup_readiness_with_global_interposer_before_target_fsync() {
+    startup_readiness_case(true);
 }
 fn wait_marker(path: &Path) {
     let deadline = Instant::now() + Duration::from_secs(3);
