@@ -39,6 +39,22 @@ define_class!(
             );
             crate::native_settings::color(palette.background).setFill();
             card.fill();
+            // Keep the input's existing frame fixed while giving the compact
+            // launcher a crisp inset edge, like the reference treatment.
+            if self.ivars().search_outline.get() {
+                let [x, y, width, height] =
+                    presentation::launcher_search_outline(bounds.size.width, bounds.size.height);
+                let search = NSBezierPath::bezierPathWithRect(rect(x, y, width, height));
+                NSColor::colorWithSRGBRed_green_blue_alpha(
+                    palette.muted[0],
+                    palette.muted[1],
+                    palette.muted[2],
+                    presentation::LAUNCHER_SEARCH_OUTLINE_ALPHA,
+                )
+                .setStroke();
+                search.setLineWidth(1.);
+                search.stroke();
+            }
             NSColor::colorWithSRGBRed_green_blue_alpha(
                 palette.muted[0],
                 palette.muted[1],
@@ -53,6 +69,7 @@ define_class!(
 );
 struct PaletteStyle {
     graphite: Cell<bool>,
+    search_outline: Cell<bool>,
     launcher: bool,
 }
 
@@ -681,6 +698,21 @@ define_class!(
 );
 
 impl Controller {
+    fn set_input_hidden(&self, hidden: bool) {
+        let state = self.ivars();
+        state.input.setHidden(hidden);
+        if let Some(content) = state
+            .panel
+            .contentView()
+            .and_then(|view| view.downcast::<PaletteContent>().ok())
+        {
+            let visible = !hidden && !state.session.borrow().management();
+            if content.ivars().search_outline.replace(visible) != visible {
+                content.setNeedsDisplay(true);
+            }
+        }
+    }
+
     pub(crate) fn snippet_link_changed(&self){self.guard_callback(||self.reconcile());}
     fn performance_field(&self) -> u64 {
         (&*self.ivars().input as *const NSTextField as usize) as u64
@@ -858,6 +890,7 @@ impl Controller {
         let view: Retained<PaletteContent> = unsafe {
             let view = PaletteContent::alloc(mtm).set_ivars(PaletteStyle {
                 graphite: Cell::new(false),
+                search_outline: Cell::new(!management),
                 launcher: !management,
             });
             msg_send![super(view), initWithFrame: rect(0., 0., width, height)]
@@ -1422,7 +1455,7 @@ impl Controller {
             (was_inline || !state.surface.form.isHidden() || !state.surface.menu.isHidden())
                 && data.editor.is_none()
                 && !data.actions_open;
-        state.input.setHidden(editing);
+        self.set_input_hidden(editing);
         state.heading.setHidden(editing || hide_suggestions);
         state.scroll.setHidden(editing);
         state.footer.setHidden(editing);
@@ -1526,7 +1559,7 @@ impl Controller {
             state.surface.inline_clip.setHidden(true);
             state.surface.actions_button.setHidden(true);
             state.footer.setHidden(true);
-            state.input.setHidden(true);
+            self.set_input_hidden(true);
             state.input.setEnabled(!r.busy);
             state.heading.setHidden(false);
             state.heading.setStringValue(&NSString::from_str(&r.title));
@@ -1573,7 +1606,7 @@ impl Controller {
         state.settings.apply(self,settings.clone().filter(|s|["general","advanced"].contains(&s.tab.as_str())));
         if !state.session.borrow().management(){let menu=match &*state.session.borrow(){Model::Live{view,..}=>view.menu_bar.clone(),_=>None};state.menu_bar.apply(self,menu,!state.panel.ivars().ordering_allowed);}
         if dashboard.is_some() || settings.is_some() {
-            state.input.setHidden(true);state.heading.setHidden(true);state.scroll.setHidden(true);
+            self.set_input_hidden(true);state.heading.setHidden(true);state.scroll.setHidden(true);
             state.empty.setHidden(true);state.footer.setHidden(true);state.notice.setHidden(true);
             state.surface.form.setHidden(true);state.surface.menu.setHidden(true);
             state.surface.inline_clip.setHidden(true);state.surface.actions_button.setHidden(true);
@@ -1632,7 +1665,7 @@ impl Controller {
                 })));
                 let message=status.and_then(|s|s.error()).unwrap_or(&p.message);
                 state.clipboard_preferences.layout(self.management_graphite(),message);
-                state.scroll.setHidden(true);state.input.setHidden(true);state.heading.setHidden(true);state.empty.setHidden(true);state.footer.setHidden(true);
+                state.scroll.setHidden(true);self.set_input_hidden(true);state.heading.setHidden(true);state.empty.setHidden(true);state.footer.setHidden(true);
             }
         }
         self.reconcile_snippet_hotkey();
