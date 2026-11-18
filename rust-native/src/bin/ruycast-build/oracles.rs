@@ -893,6 +893,7 @@ const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "87377916433de1fd22fea0ee92b586e741f635213d2b2472368f1a8ae62111a2";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
+const FEEDBACK_ORACLE_SHA256: &str = "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
     match id {
         "--check-polish" => &[
@@ -954,7 +955,6 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "eef887ae1eade8bf817d9035ac3ab8baa7faec84eb818b2816bb8b58eada51aa"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
-            ("Sources/RuycastApp/FeedbackChecks.swift", include_bytes!("../../../../Sources/RuycastApp/FeedbackChecks.swift"), "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"),
             ("Sources/RuycastApp/ActionMenuChecks.swift", include_bytes!("../../../../Sources/RuycastApp/ActionMenuChecks.swift"), "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"),
             ("Sources/RuycastApp/InteractionChecks.swift", include_bytes!("../../../../Sources/RuycastApp/InteractionChecks.swift"), "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858"),
             ("rust-native/src/system_actions.rs", include_bytes!("../../system_actions.rs"), "b97944f7f49e0fee4442084d7ef51dc7788e3f583cdf062283f9d141d5ed1833"),
@@ -1518,6 +1518,7 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
         )),
         "--check-polish" => Some(("Sources/RuycastApp/PolishChecks.swift", POLISH_ORACLE_SHA256)),
         "--check-settings" => Some(("Sources/RuycastApp/SettingsChecks.swift", SETTINGS_ORACLE_SHA256)),
+        "--check-feedback" => Some(("Sources/RuycastApp/FeedbackChecks.swift", FEEDBACK_ORACLE_SHA256)),
         _ => None,
     }
 }
@@ -1554,6 +1555,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-apple-shortcuts" => Some(APPLE_SHORTCUTS_ORACLE_SHA256),
             "--check-polish" => Some(POLISH_ORACLE_SHA256),
             "--check-settings" => Some(SETTINGS_ORACLE_SHA256),
+            "--check-feedback" => Some(FEEDBACK_ORACLE_SHA256),
             _ => None,
         };
         path == gate.original_source
@@ -4311,6 +4313,54 @@ mod tests {
             let source = std::str::from_utf8(inputs.iter().find(|(input, _, _)| input == path).unwrap().1).unwrap();
             let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
             assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
+        }
+        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        let inventory = inventory("settings").unwrap();
+        assert_eq!(inventory["productionAccepted"], false);
+        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn feedback_provenance_preserves_inputs_cases_routes_and_status() {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-feedback").unwrap();
+        let inputs = settings_sources(gate.id);
+        let provenance = (gate.original_source, FEEDBACK_ORACLE_SHA256);
+        let bindings = settings_source_bindings(gate.id);
+        let case_sources = [
+            ("ui_completion::", "rust-native/examples/ui_completion.rs"),
+            ("utility_process::", "rust-native/tests/utility_process.rs"),
+            ("actions::tests::", "rust-native/src/actions.rs"),
+            ("actions_process::", "rust-native/tests/actions_process.rs"),
+            ("input_process::", "rust-native/tests/input_process.rs"),
+            ("processes::tests::", "rust-native/src/processes.rs"),
+            ("system_search::providers::gate_tests::", "rust-native/src/system_search/providers.rs"),
+            ("system_search::tests::", "rust-native/src/system_search/tests.rs"),
+            ("system_actions::tests::", "rust-native/src/system_actions.rs"),
+            ("file_search::tests::", "rust-native/src/file_search.rs"),
+            ("system_search_cli_process::", "rust-native/tests/system_search_cli_process.rs"),
+            ("creation_process::", "rust-native/tests/creation_process.rs"),
+            ("remaining_macos_process::", "rust-native/tests/remaining_macos_process.rs"),
+        ];
+
+        assert_eq!(gate.required_native_steps, &["unit", "creation-process", "input-process-rust", "actions-process", "feedback-actions-process", "utility-process", "polish-original-process", "system-search-cli-process", "remaining-macos-process"]);
+        assert_eq!(gate.native_cases.len(), 21);
+        assert_eq!(inputs.len(), 37);
+        assert_eq!(bindings.len(), 38);
+        assert_eq!(provenance.1, "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04");
+        assert_eq!(settings_provenance_source(gate.id), Some(provenance));
+        assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
+        for (path, _, sha) in inputs {
+            assert!(bindings.contains(&(path, sha)), "missing current feedback binding: {path}");
+        }
+        for case in gate.native_cases {
+            let (prefix, path) = case_sources.iter().find(|(prefix, _)| case.starts_with(*prefix)).unwrap();
+            let source = std::str::from_utf8(inputs.iter().find(|(input, _, _)| input == path).unwrap().1).unwrap();
+            let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
+            assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
+        }
+        let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
+        let planned_steps = plan["steps"].as_array().unwrap();
+        for name in gate.required_native_steps {
+            assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing feedback route: {name}");
         }
         assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
         let inventory = inventory("settings").unwrap();
