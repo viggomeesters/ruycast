@@ -227,66 +227,6 @@ fn retire_input_actors(admission: &Arc<ReferenceAdmission>, model: &Arc<Workspac
     ].into_iter().collect()
 }
 
-/// Install the two existing private provider contributions from this actual
-/// bootstrap issuer. The process registry must already contain the producer's
-/// exact source/artifact-qualified own executable/argv rules. Neither returned
-/// module currently owns a complete SDK scope; no Scope/Ready bits are added.
-///
-/// # Safety
-/// Exclusive source-qualified setup must bind the genuine five Security and
-/// combined process/monitor imports, their ABI and compiled caller sources.
-/// The fixed private producer, not arbitrary fixture JSON, supplies those code
-/// proofs and the process rules. This function invokes no original provider.
-#[cfg(not(test))]
-pub unsafe fn initialize_provider_modules(
-    admission: Arc<ReferenceAdmission>,
-    history: Option<Vec<u8>>,
-    entropy: Vec<u8>,
-    processes: Arc<super::process_dispatch::Registry>,
-) -> Result<(Vec<super::ModuleAttestation>, Arc<super::private_network::Context>)> {
-    admission.before_reference_initialization()?;
-    processes.matches_issuer(&admission.life(), &admission.descriptors())?;
-    admission.verify_private_security_source_members()?;
-    let security_guard = admission.clone();
-    let (security, context) = unsafe {
-        super::bootstrap::initialize_private_security(
-            admission.life(),
-            admission.descriptors(),
-            history,
-            entropy,
-            move || security_guard.verify_private_security_source_members(),
-        )
-    }?;
-    #[cfg(target_arch = "aarch64")]
-    if let Err(error) = admission.verify_reference_utility_imports(&security.imports) {
-        processes.retire();
-        let _ = super::private_network::retire(&context);
-        return Err(error);
-    }
-    let process_guard = admission.clone();
-    let process = unsafe {
-        super::bootstrap::initialize_reference_process_monitor(
-            admission.clone(),
-            processes.clone(),
-            move || process_guard.before_reference_initialization(),
-        )
-    };
-    match process {
-        Ok(process) => {
-            if let Err(error) = admission.before_reference_initialization() {
-                processes.retire();
-                let _ = super::private_network::retire(&context);
-                return Err(error);
-            }
-            Ok((vec![security, process], context))
-        }
-        Err(error) => {
-            processes.retire();
-            let _ = super::private_network::retire(&context);
-            Err(error)
-        }
-    }
-}
 struct Runtime {
     reader: Arc<ReferenceReader>,
     workspace: Arc<Workspace>,
