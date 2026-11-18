@@ -1500,7 +1500,10 @@ mod shortcut_budget_tests {
         let (events,completed)=mpsc::sync_channel(8);state.events=events;
         let (ui_tx,_ui_rx)=mpsc::sync_channel(8);let ui=Connection::new(ui_tx,true);
         let mut window=WindowRuntime::new(crate::session::Session::new(vec![os::command("fixture.first".into(),"Owned first".into(),None),os::command("fixture.second".into(),"Owned second".into(),None)]),Default::default(),&state);
-        state.applications=window.session.rows().cloned().collect();
+        state.applications=vec![
+            os::command("fixture.first".into(),"Owned first".into(),None),
+            os::command("fixture.second".into(),"Owned second".into(),None),
+        ];
         window.session.visible=true;
         ui.query("Owned");assert!(!process_inputs(&mut state,&mut window,&ui));
         let initial_deadline=Instant::now()+Duration::from_secs(2);
