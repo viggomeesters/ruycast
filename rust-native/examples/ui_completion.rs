@@ -963,7 +963,10 @@ fn render_updates(root: &Path) {
             v
         };
         h.rpc(json!({"op":"show","mode":"commands","query":""}));
-        frame(false, "initial", &["Finder"], &[]);
+        let initial = frame(false, "initial", &[], &["Finder", "Obsidian"]);
+        assert_eq!(initial["rows"], 0);
+        assert!(initial["selectedId"].is_null());
+        assert_eq!(initial["input"], "");
         for query in ["o", "ob", "obs", "obsidian"] { h.probe(false, "query", json!({"query":query})); }
         let filtered = frame(false, "filtered", &["Obsidian"], &["Finder"]);
         assert_eq!(filtered["modelQuery"], "obsidian");
@@ -975,6 +978,17 @@ fn render_updates(root: &Path) {
         h.rpc(json!({"op":"show","mode":"snippets","query":""}));
         frame(false, "snippets", &["Greeting"], &["Finder"]);
         h.rpc(json!({"op":"show","mode":"commands","query":""}));
+        h.wait(|_| {
+            let v = h.probe(false, "read", json!({}));
+            v["rows"] == 0 && v["selectedId"].is_null() && v["input"] == ""
+        });
+        let restored_empty = h.probe(false, "read", json!({}));
+        assert_eq!(restored_empty["rows"], 0);
+        assert!(restored_empty["selectedId"].is_null());
+        assert_eq!(restored_empty["input"], "");
+        let empty_labels = restored_empty["screenText"].as_array().unwrap().iter().filter_map(Value::as_str).collect::<Vec<_>>();
+        assert!(empty_labels.iter().all(|label| !label.contains("Finder") && !label.contains("Obsidian")));
+        h.probe(false, "query", json!({"query":"r"}));
         let restored = frame(false, "restored", &["Finder"], &[]);
         let before_image = fs::read(h.out.join(format!("render-restored-{theme}.png"))).unwrap();
         h.probe(false, "key", json!({"key":"down"}));
