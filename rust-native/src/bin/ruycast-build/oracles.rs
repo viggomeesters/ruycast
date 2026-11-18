@@ -3906,12 +3906,28 @@ mod tests {
     }
     #[test]
     fn settings_crosswalk_preserves_every_original_selector_in_order() {
-        let original = include_str!("../../../../scripts/check-settings-locked.sh");
-        let ids = original
-            .lines()
-            .filter_map(|line| line.strip_prefix(".build/swift/debug/RuycastApp "))
-            .filter_map(|line| line.split_whitespace().next())
-            .collect::<Vec<_>>();
+        // Historical selector list from scripts/check-settings-locked.sh.
+        // The script began at b391db1a0ce9327b8ca35b7fd25462a2bdf0a57a;
+        // this 16-selector snapshot is from 50d66a4a171bddba157223d995e26d662e3a0232
+        // (SHA-256 21dd51c98e8b04d82e82168a4bd804cb36d2e5eff914a183451ab08329757cd8).
+        let ids = [
+            "--check-edit-commands",
+            "--check-settings",
+            "--check-interactions",
+            "--check-actions-menu",
+            "--check-browser-tabs",
+            "--check-apple-shortcuts",
+            "--check-window-search",
+            "--check-menu-actions",
+            "--check-render-updates",
+            "--check-feedback",
+            "--check-rich-resources",
+            "--check-analytics",
+            "--check-performance-pipeline",
+            "--check-visual-assets",
+            "--check-command-log",
+            "--check-polish",
+        ];
         assert_eq!(ids.len(), 16);
         assert_eq!(SETTINGS.iter().map(|gate| gate.id).collect::<Vec<_>>(), ids);
         assert_eq!(
