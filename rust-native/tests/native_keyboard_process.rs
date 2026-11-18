@@ -1018,8 +1018,8 @@ fn native_keyword_pending_store_keeps_observation_without_old_effects() {
 fn native_keyword_two_recorders_suppress_until_both_cancel() {
     let h = keyword_host(false);
     keyword_type(&h, "ab");
-    h.rpc(&json!({"op":"show","query":""}));
-    h.settled(|_| true);
+    h.rpc(&json!({"op":"show","query":"Own snippet"}));
+    h.settled(|s| s["nativeUI"]["selectedId"] == "own.snippet");
     actions::hotkey(&h);
     assert_eq!(
         h.rpc(&json!({"op":"status"}))["result"]["snippetExpansion"],
