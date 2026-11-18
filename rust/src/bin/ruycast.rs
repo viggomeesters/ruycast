@@ -994,68 +994,6 @@ fn main() {
 }
 #[cfg(test)]mod startup_discovery_tests{
     use super::*;
-    fn is_owned_short_fixture_alias(parent: &Path) -> bool {
-        use std::os::unix::fs::{MetadataExt, PermissionsExt};
-        let Ok(link) = fs::symlink_metadata(parent) else {
-            return false;
-        };
-        if !link.file_type().is_symlink() || !parent.is_absolute() {
-            return false;
-        }
-        let Some(name) = parent.file_name().and_then(|name| name.to_str()) else {
-            return false;
-        };
-        if !name.starts_with(".rvf-") {
-            return false;
-        }
-        let Ok(temp) = fs::canonicalize("/tmp") else {
-            return false;
-        };
-        if parent.parent().and_then(|path| fs::canonicalize(path).ok()).as_deref()
-            != Some(temp.as_path())
-        {
-            return false;
-        }
-        let Ok(target) = fs::canonicalize(parent) else {
-            return false;
-        };
-        let Ok(metadata) = fs::metadata(&target) else {
-            return false;
-        };
-        metadata.is_dir()
-            && metadata.uid() == unsafe { libc::getuid() }
-            && metadata.permissions().mode() & 0o777 == 0o700
-            && fs::read(target.join(".ruycast-ui-fixture-parent"))
-                .is_ok_and(|bytes| bytes == b"owned-ui-fixture-parent-v1")
-    }
-    #[test]
-    fn only_marked_private_tmp_fixture_alias_is_accepted() {
-        use std::os::unix::fs::{symlink, PermissionsExt};
-        struct Cleanup(PathBuf, PathBuf);
-        impl Drop for Cleanup {
-            fn drop(&mut self) {
-                let _ = fs::remove_file(&self.0);
-                let _ = fs::remove_dir_all(&self.1);
-            }
-        }
-        let temp = fs::canonicalize("/tmp").unwrap();
-        let alias = temp.join(format!(".rvf-test-{}", std::process::id()));
-        let target = temp.join(format!(".fixture-test-{}", std::process::id()));
-        assert!(!alias.exists() && !target.exists());
-        fs::create_dir(&target).unwrap();
-        fs::set_permissions(&target, fs::Permissions::from_mode(0o700)).unwrap();
-        symlink(&target, &alias).unwrap();
-        let _cleanup = Cleanup(alias.clone(), target.clone());
-        assert!(!is_owned_short_fixture_alias(&alias));
-        fs::write(
-            target.join(".ruycast-ui-fixture-parent"),
-            b"owned-ui-fixture-parent-v1",
-        )
-        .unwrap();
-        assert!(is_owned_short_fixture_alias(&alias));
-        fs::remove_file(target.join(".ruycast-ui-fixture-parent")).unwrap();
-        assert!(!is_owned_short_fixture_alias(&alias));
-    }
     fn wait_socket(fd: libc::c_int, events: libc::c_short, deadline: std::time::Instant) -> io::Result<()> {
         loop {
             let remaining = deadline.saturating_duration_since(std::time::Instant::now());
@@ -1237,8 +1175,7 @@ fn main() {
         struct OwnedChild(std::process::Child);
         impl Drop for OwnedChild { fn drop(&mut self) { if self.0.try_wait().ok().flatten().is_none() { let _ = self.0.kill(); } let _ = self.0.wait(); } }
         let parent=PathBuf::from(env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").expect("Explicit owned fixture parent required"));
-        let parent_metadata = fs::symlink_metadata(&parent).unwrap();
-        assert!(parent.is_absolute() && (parent_metadata.is_dir() || is_owned_short_fixture_alias(&parent)));
+        assert!(parent.is_absolute() && fs::symlink_metadata(&parent).unwrap().is_dir());
         let path=parent.join(format!("cli-fifo-{}",std::process::id()));
         fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
         let owned=Cleanup(path);
