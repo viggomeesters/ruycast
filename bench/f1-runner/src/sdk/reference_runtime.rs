@@ -227,16 +227,6 @@ fn retire_input_actors(admission: &Arc<ReferenceAdmission>, model: &Arc<Workspac
     ].into_iter().collect()
 }
 
-/// Actual installed source actors supplied by their existing SDK owners.
-/// Module attestations are reverified by the SAME early Registry; the callback
-/// authority must independently qualify the original Swift/generated lifecycle.
-pub struct ReferenceSourceActors {
-    #[cfg(all(not(test), target_arch = "aarch64"))]
-    pub(super) rollback: super::reference_source_actors::SetupFailure,
-    pub callback_catalog: Arc<crate::workspace::objc::application::SourceCallbackCatalog>,
-    pub modules: Vec<super::ModuleAttestation>,
-}
-
 /// Install the two existing private provider contributions from this actual
 /// bootstrap issuer. The process registry must already contain the producer's
 /// exact source/artifact-qualified own executable/argv rules. Neither returned
