@@ -969,11 +969,11 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "d57119313545ebb9ffe8b558b06f131c810ff662b54904188d8609ff0b74c313"),
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "6815598e702c0b6aa34fad8828f395fac2898fc0b78ba6c9408742d23afc1122"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
-            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "d476d9a8d349d2ed0e26d6e3303d559f2d3c20541e15bdf98247aeec231d4793"),
         ],
 
         "--check-actions-menu" => &[
-            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "d476d9a8d349d2ed0e26d6e3303d559f2d3c20541e15bdf98247aeec231d4793"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "5cbf5b70442aea92ceabefa122a42b18813f7f8ff2a100caa3d1f5a82f6a694b"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
@@ -1049,7 +1049,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
-            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "d476d9a8d349d2ed0e26d6e3303d559f2d3c20541e15bdf98247aeec231d4793"),
         ],
         "--check-rich-resources" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
@@ -1292,7 +1292,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
         ],
         "--check-settings" => &[
-            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "651a992fc77ba45e15b55623e0d0e8eaeff964fcfccbf070fdc241e218cce6a2"),
+            ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "d476d9a8d349d2ed0e26d6e3303d559f2d3c20541e15bdf98247aeec231d4793"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "5cbf5b70442aea92ceabefa122a42b18813f7f8ff2a100caa3d1f5a82f6a694b"),
             ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "3ed819ce552c2e63ac4dc2e5f0001cd69a40f465e40bc003a13c6151c4b4d481"),
