@@ -86,11 +86,11 @@ Do not reconstruct or substitute declaration bytes.
 
 No current command builds that actor or publishes a runnable Reference image.
 The retained-Main capture reader and its ignored capture test were also removed;
-current code no longer reads that historical image. The old acceptance plan
-required the fixed
-`sdk::reference_runtime::assemble_reference` actor builder, complete module
-attestations, same-build compiler joins and static Main/SDK code pins; none of
-those requirements is satisfied by the retained source-only pins receipt.
+current code no longer reads that historical image. The uncalled fixed
+`sdk::reference_runtime::assemble_reference` actor assembler has also been
+removed. The historical acceptance still required complete module
+attestations, same-build compiler joins and static Main/SDK code pins; the
+source-only pins receipt did not satisfy them.
 
 The historical `build-reference-full-host-interface`,
 `build-reference-interface`, `resume-reference-debug`,
