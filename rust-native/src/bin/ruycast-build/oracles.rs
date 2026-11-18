@@ -1210,7 +1210,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/script_result_basic_process.rs", include_bytes!("../../../tests/script_result_basic_process.rs"), "70e1a2de21b80f8702438acb49b03fac13576c84cc90e3857af8fc3aa48eb498"),
             ("rust-native/tests/script_result_native_process.rs", include_bytes!("../../../tests/script_result_native_process.rs"), "6791270af079e8a05e679dc86de1528dd4dfb7f881b7a291dc8b9878a8786410"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "5cbf5b70442aea92ceabefa122a42b18813f7f8ff2a100caa3d1f5a82f6a694b"),
-            ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "9c734610fe76959e5b497ac0092b9c1d19ffbcd393e5ca8bd41aa055c2484db1"),
+            ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "be0a6101e83ea2557f4ed70eb17f396943e3a9178f060391a89722aa81aba7e8"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
         "--check-render-updates" => &[
@@ -1345,7 +1345,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "d57119313545ebb9ffe8b558b06f131c810ff662b54904188d8609ff0b74c313"),
             ("rust-native/src/runtime_utilities.rs", include_bytes!("../../runtime_utilities.rs"), "209d90ba65f4fb8fd9a1341d419fddf5ada441dcebb641914cd2ac1e6692e8bd"),
             ("rust-native/src/runtime_builtins.rs", include_bytes!("../../runtime_builtins.rs"), "43bc0ddfcfde25438465f7dc2f9c245bd7084d8906f44baf5f229be43e6f991c"),
-            ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "c164edd568a5b93c4fc7abc09814fc56d73bc52c9c2e9af583aedec26e306a83"),
+            ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "be0a6101e83ea2557f4ed70eb17f396943e3a9178f060391a89722aa81aba7e8"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "5cbf5b70442aea92ceabefa122a42b18813f7f8ff2a100caa3d1f5a82f6a694b"),
             (
                 "rust-native/src/activity.rs",

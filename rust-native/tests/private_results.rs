@@ -624,7 +624,7 @@ fn script_result_atomic_replace_reports_the_complete_owned_reload_response() {
     fs::write(&candidate, python_config_bytes(&config)).unwrap();
     fs::rename(&candidate, &file).unwrap();
     let binary = Path::new(env!("CARGO_BIN_EXE_ruycast-native"));
-    let mut launch = Command::new(&binary);
+    let mut launch = Command::new(binary);
     launch.arg("--headless-test");
     // Same finite sanitization as the unchanged Python Host, without replacing
     // its inherited ordinary environment by env_clear.
@@ -654,7 +654,7 @@ fn script_result_atomic_replace_reports_the_complete_owned_reload_response() {
     let child = launch
         .env("HOME", &home)
         .env("RUYCAST_HOME", home.join("p"))
-        .env("RUYCAST_APP_BINARY", &binary)
+        .env("RUYCAST_APP_BINARY", binary)
         .env(
             "RUYCAST_NATIVE_TEST_APP_ROOTS",
             json!([home.join("Applications")]).to_string(),
