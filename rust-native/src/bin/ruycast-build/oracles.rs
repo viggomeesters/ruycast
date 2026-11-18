@@ -1364,9 +1364,10 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-analytics" => &[
             ("rust-native/tests/native_dashboard_dialog_process.rs", include_bytes!("../../../tests/native_dashboard_dialog_process.rs"), "9acf5206263ce816d73c47170d37ab1f0b21c4fb7664ec53d74b8a2e9c8b5c76"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "6cda15594c28aade5b415de9f1f22992febcc1973183053e5e045cfdfcd38e92"),
-            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "f003aad7e18fced24ad358e138042bface5d5212a53dee32cb9adacfc3db80f9"),
-            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "d31e794e77f6a3c9a0e1747cf9d256426cb70009f74dadceb612dbc733829582"),
-            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "66d6a8792a00d8fb802014bae60a7c6fa227f029883eb2b0882f2a0e374dcd18"),
+            ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "be9b0bb1578133f914dc91ae9bbad8db83b53faeb536be610fd6bde3ece14330"),
+            ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "59b4083c20646803fe9fda36ac0dace920b487cfe126de582a80cc33814d2728"),
+            ("rust-native/src/benchmark_host/rpc.rs", include_bytes!("../../benchmark_host/rpc.rs"), "1faf3f1955d922d30dc409fddb6ab499931c3ae3918b651f32cec21c97d206f9"),
+            ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             (
                 "rust-native/src/analytics.rs",
                 include_bytes!("../../analytics.rs"),
@@ -1390,7 +1391,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/tests/startup_process.rs",
                 include_bytes!("../../../tests/startup_process.rs"),
-                "922179b5495bd479c70eccece85735bfafaaec0cbd1accc4590ca28a75f98a07",
+                "cb1441b9c63056ed828df688e8af5a4f6cbfd3208352d37f493c51a8ef0a06cd",
             ),
             (
                 "rust-native/tests/dashboard_export_process.rs",
@@ -2756,10 +2757,10 @@ mod tests {
         assert_eq!(gate.required_native_steps, &["unit", "analytics-runtime-process", "analytics-cast-reference", "dashboard-presentation-process", "native-dashboard-dialog-process", "dashboard-export-process", "startup-process"]);
         assert_eq!(gate.native_cases.len(), 25);
         let entries=super::settings_sources(gate.id);
-        assert_eq!(entries.len(), 25);
+        assert_eq!(entries.len(), 26);
         assert!(entries.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
         let bindings = super::settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 26);
+        assert_eq!(bindings.len(), 27);
         for (path, _, hash) in entries {
             assert!(bindings.contains(&(*path, *hash)), "missing current analytics binding {path}");
         }
@@ -2767,10 +2768,17 @@ mod tests {
             gate.original_source,
             "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876",
         )));
-        assert_eq!(super::settings_mapping_state(gate), "mapped-requires-source-requalification");
+        assert_eq!(super::settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let inventory = super::inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
-        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        let status_rpc = entries.iter().find(|entry| entry.0 == "rust-native/tests/support/status_rpc.rs").unwrap();
+        assert_eq!(format!("{:x}", sha2::Sha256::digest(status_rpc.1)), status_rpc.2);
+        assert!(std::str::from_utf8(status_rpc.1).unwrap().contains("benchmark_host::rpc::{connect, request}"));
+        let rpc = entries.iter().find(|entry| entry.0 == "rust-native/src/benchmark_host/rpc.rs").unwrap();
+        assert_eq!(rpc.2, "1faf3f1955d922d30dc409fddb6ab499931c3ae3918b651f32cec21c97d206f9");
+        assert!(std::str::from_utf8(rpc.1).unwrap().contains("pub fn connect("));
+        assert!(std::str::from_utf8(rpc.1).unwrap().contains("pub fn request("));
         let dialog = entries.iter().find(|entry| entry.0=="rust-native/tests/native_dashboard_dialog_process.rs").unwrap();
         assert_eq!(format!("{:x}",sha2::Sha256::digest(dialog.1)),dialog.2);
         let dialog_source = std::str::from_utf8(dialog.1).unwrap();
@@ -4576,7 +4584,6 @@ mod tests {
             "--check-render-updates",
             "--check-feedback",
             "--check-rich-resources",
-            "--check-analytics",
             "--check-performance-pipeline",
             "--check-polish"
         ]);
@@ -4590,7 +4597,7 @@ mod tests {
         let gates = value["gates"].as_array().unwrap();
         assert_eq!(gates.len(), 16);
         for gate in gates {
-            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" || gate[0] == "--check-visual-assets" {
+            if gate[0] == "--check-edit-commands" || gate[0] == "--check-command-log" || gate[0] == "--check-visual-assets" || gate[0] == "--check-analytics" {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
