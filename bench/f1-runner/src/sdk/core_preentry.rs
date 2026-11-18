@@ -8050,37 +8050,6 @@ impl ReferenceAdmission {
         }
         Ok(size)
     }
-    /// Match the original process and monitor callers against the sealed
-    /// compiler manifest. The caller first verifies the full source set.
-    #[cfg(all(not(test), rcf1_reference_sdk))]
-    pub(crate) fn verify_process_source_members(&self) -> Result<()> {
-        let bytes = self.root.read_optional(Path::new(&self.grant.source_manifest.path), 2 * 1024 * 1024)?
-            .ok_or("Reference process compiler manifest absent")?;
-        if digest(&bytes) != self.grant.source_manifest.sha256 {
-            return Err("Reference process compiler manifest changed".into());
-        }
-        let manifest: HostSourceManifest = serde_json::from_slice(&bytes)
-            .map_err(|_| "Reference process compiler manifest schema")?;
-        let mut count = 0;
-        for source in super::process_router::source_roster() {
-            if !source.file.starts_with("Sources/RuycastApp/") {
-                continue;
-            }
-            let path = self.root.path().join("bench/reference/0.8.26").join(source.file);
-            let path = path.to_str().ok_or("Reference process source path encoding")?;
-            let mut rows = manifest.sources.iter().filter(|row| row.path == path);
-            if !rows.next().is_some_and(|row| row.sha256 == source.source_sha256)
-                || rows.next().is_some()
-            {
-                return Err(format!("Reference process compiler member differs: {}", source.file));
-            }
-            count += 1;
-        }
-        if count != 6 {
-            return Err("Reference process compiler roster differs".into());
-        }
-        self.registry_current()
-    }
     #[cfg(rcf1_reference_sdk)]
     fn input_context_identity(&self,context:&super::owned::ModuleContext)->Result<()> {
         if self.owner!=std::thread::current().id() || !Arc::ptr_eq(&context.life,&self.admitted.life)
