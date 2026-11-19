@@ -495,8 +495,14 @@ fn verify_under_lease(root: &Path, configuration: &str, lock: &BuildLock) -> Res
     lock.validate()?;
     Ok(receipt)
 }
+const RETIRED_PARITY_INVENTORY: &str = "parity-inventory is retired; it cannot inspect legacy Swift sources";
 fn run() -> Result<()> {
-    let mut args: Vec<_> = std::env::args().skip(1).collect();
+    run_with_args(std::env::args().skip(1).collect())
+}
+fn run_with_args(mut args: Vec<String>) -> Result<()> {
+    if args.first().is_some_and(|value| value == "parity-inventory") {
+        return Err(RETIRED_PARITY_INVENTORY.into());
+    }
     if args.first().is_some_and(|value|value=="benchmark-host") {
         args.remove(0);
         if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts N] [--samples N] [--active-seconds S] [--idle-seconds S] [--operation-timeout S]");return Ok(());}
@@ -522,18 +528,6 @@ fn run() -> Result<()> {
         args.remove(0);if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build sample-performance --pid PID [--seconds 600] --probe PATH --out PATH --label LABEL");return Ok(());}
         let options=match sample_performance::parse(args){Ok(value)=>value,Err(message)=>{eprintln!("{message}");std::process::exit(2)}};
         match sample_performance::run(options)?{Some(summary)=>{println!("{summary}");return Ok(());},None=>std::process::exit(1)}
-    }
-    if args.first().is_some_and(|value|value=="parity-inventory") {
-        args.remove(0);
-        if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build parity-inventory --repo ROOT --reference CHECKOUT --out MATRIX [--deadline-nanos MONOTONIC_NS]");return Ok(());}
-        let parsed=(||->Result<(PathBuf,PathBuf,PathBuf,u64)>{
-            let root=PathBuf::from(compat::option(&mut args,&["--repo"])?.ok_or("--repo is required")?);let reference=PathBuf::from(compat::option(&mut args,&["--reference"])?.ok_or("--reference is required")?);let out=PathBuf::from(compat::option(&mut args,&["--out"])?.ok_or("--out is required")?);
-            let deadline=compat::option(&mut args,&["--deadline-nanos"])?.map(|value|value.parse::<u64>().map_err(error)).transpose()?.unwrap_or(parity_bootstrap::monotonic_nanos()?.checked_add(600_000_000_000).ok_or("Inventory deadline overflow")?);
-            if !args.is_empty()||!root.is_absolute(){return Err("Unknown arguments or nonabsolute --repo".into());}Ok((root,reference,out,deadline))
-        })();
-        let (root,reference,out,deadline)=match parsed{Ok(value)=>value,Err(message)=>{eprintln!("{message}");std::process::exit(2)}};
-        let root=root.canonicalize().map_err(error)?;let reference=reference.canonicalize().map_err(error)?;let out=if out.is_absolute(){out}else{std::env::current_dir().map_err(error)?.join(out)};let lease=BuildLock::acquire(&root)?;
-        let value=parity_inventory::run(&root,&lease,&reference,&out,deadline)?;println!("{value}");return Ok(());
     }
     if args.len()==3&&args[0]=="parity-report"&&args[1]=="--repo" {
         if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
@@ -740,6 +734,20 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
+    #[test]
+    fn retired_parity_inventory_refuses_before_parsing_or_help() {
+        let cases = [
+            vec!["parity-inventory"],
+            vec!["parity-inventory", "--help"],
+            vec!["parity-inventory", "-h"],
+            vec!["parity-inventory", "--repo", "relative", "--reference", "/missing", "--out", "/tmp/matrix.json"],
+            vec!["parity-inventory", "--repo", "/missing", "--reference", "/missing-reference", "--out", "/tmp/matrix.json", "--unexpected"],
+        ];
+        for args in cases {
+            let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
+            assert_eq!(error, RETIRED_PARITY_INVENTORY);
+        }
+    }
     #[test]
     #[ignore = "Explicit owned production-tool CLI entry; caller pins the just-built Rust artifact"]
     fn owned_producer_cli_entry() {
