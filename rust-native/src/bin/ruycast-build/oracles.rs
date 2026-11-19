@@ -1214,7 +1214,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
         "--check-render-updates" => &[
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "f423bafab7e74325b54cf4f2d9f031cec5d8294685366a74d658e1818acddd64"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "091eaaeeca37fb20067a9768243fc176df9cf9d9dce14dadfcd5eb9406a58cb3"),
             ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "deb7aa9809a5c2ab9d9a37f41c308788f9fe5e7c6c2c857f0d11d93a3c847716"),
@@ -1222,11 +1222,11 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "c1650b38647d7d538b226fba3279ef71fe844755b9895bf72757cdf230adfaee"),
-            ("rust-native/src/configuration_jobs.rs", include_bytes!("../../configuration_jobs.rs"), "71c907bdada9ad3df26a515a3ba5950f379bc06b6fac3f676a0c9db50a116919"),
+            ("rust-native/src/configuration_jobs.rs", include_bytes!("../../configuration_jobs.rs"), "c3831c3a1d8b3898cef2cf72d7136e6d378da110d36af7c47e5ac2052250734f"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "30736f059369989df591c87bef9b9d1c1e3e284a03667e7c0297ee387fd75d55"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "c9f43c7bfa10aaf3400dbb24bc4dd1c3383343e0569776950abc8b0a20a209f5"),
@@ -2645,10 +2645,10 @@ mod tests {
             assert!(bindings.contains(&(*path, *hash)), "missing Rust source binding {path}");
         }
         assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
-        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
-        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn window_search_provenance_keeps_current_inputs_and_gate_status() {
@@ -4164,7 +4164,7 @@ mod tests {
                 let bindings = settings_source_bindings(id);
                 assert_eq!(bindings.len(), 14);
                 assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
-                assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+                assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
             } else if id == "--check-apple-shortcuts" {
                 assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
@@ -4615,7 +4615,6 @@ mod tests {
             "--check-apple-shortcuts",
             "--check-window-search",
             "--check-menu-actions",
-            "--check-render-updates",
             "--check-feedback",
             "--check-rich-resources",
             "--check-performance-pipeline",
@@ -4635,6 +4634,7 @@ mod tests {
                 || gate[0] == "--check-analytics"
                 || gate[0] == "--check-command-log"
                 || gate[0] == "--check-visual-assets"
+                || gate[0] == "--check-render-updates"
             {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
