@@ -509,6 +509,9 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
     if args.first().is_some_and(|value| value == "parity-compile") {
         return Err("parity-compile is retired; it cannot compile legacy Swift sources".into());
     }
+    if args.first().is_some_and(|value| value == "parity-sources") {
+        return Err("parity-sources is retired; it cannot inspect legacy Swift trees".into());
+    }
     if args.first().is_some_and(|value|value=="benchmark-host") {
         args.remove(0);
         if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts N] [--samples N] [--active-seconds S] [--idle-seconds S] [--operation-timeout S]");return Ok(());}
@@ -546,11 +549,6 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
         let root=Path::new(&args[2]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
         let mut input=String::new();std::io::stdin().read_to_string(&mut input).map_err(error)?;
         let value=parity_bootstrap::run(&root,&lease,&input)?;lease.validate()?;println!("{value}");return Ok(());
-    }
-    if args.len()==5&&args[0]=="parity-sources"&&args[1]=="--repo"&&args[3]=="--reference" {
-        if !Path::new(&args[2]).is_absolute()||!Path::new(&args[4]).is_absolute(){return Err("Choose absolute repository/reference paths.".into());}
-        let root=Path::new(&args[2]).canonicalize().map_err(error)?;let reference=Path::new(&args[4]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
-        let value=parity_sources::run(&root,&reference)?;lease.validate()?;println!("{value}");return Ok(());
     }
     if args.len()==3&&args[0]=="parity-families"&&args[1]=="--repo" {
         if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
@@ -766,6 +764,19 @@ mod tests {
         ] {
             let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
             assert_eq!(error, "parity-compile is retired; it cannot compile legacy Swift sources");
+        }
+    }
+    #[test]
+    fn retired_parity_sources_refuses_before_repo_or_reference_reads() {
+        for args in [
+            vec!["parity-sources"],
+            vec!["parity-sources", "--help"],
+            vec!["parity-sources", "-h"],
+            vec!["parity-sources", "--repo", "relative", "--reference", "/missing"],
+            vec!["parity-sources", "--repo", "/missing-repository", "--reference", "/missing-reference"],
+        ] {
+            let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
+            assert_eq!(error, "parity-sources is retired; it cannot inspect legacy Swift trees");
         }
     }
     #[test]
