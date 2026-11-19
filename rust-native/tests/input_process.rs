@@ -1058,6 +1058,56 @@ fn input_action(host: &Bridge, title: &str) {
         .unwrap();
     host.probe("action-button", json!({"index":index}));
 }
+fn external_removal_view(host: &Bridge, phase: &str, predicate: impl Fn(&Value) -> bool) -> Value {
+    use std::time::{Duration, Instant};
+    let until = Instant::now() + Duration::from_secs(4);
+    let mut last_state = Value::Null;
+    loop {
+        let remaining = until.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            external_removal_timeout(phase, &last_state);
+        }
+        let reply = host.rpc_timeout(
+            &json!({"op":"native.test","action":"read"}),
+            remaining.min(Duration::from_secs(3)),
+        );
+        assert_eq!(reply["ok"], true, "external removal phase {phase} read failed");
+        let state = reply["result"].clone();
+        if predicate(&state) {
+            return state;
+        }
+        last_state = state.clone();
+        if Instant::now() >= until {
+            external_removal_timeout(phase, &state);
+        }
+        std::thread::sleep(Duration::from_millis(10).min(until.saturating_duration_since(Instant::now())));
+    }
+}
+fn external_removal_timeout(phase: &str, state: &Value) -> ! {
+    let changed_notice = state["screenText"].as_array().is_some_and(|items| {
+        items.iter().any(|item| {
+            item.as_str()
+                .is_some_and(|text| text.to_lowercase().contains("changed"))
+        })
+    });
+    panic!(
+        "external removal phase {phase} timed out (actionsVisible={}, formVisible={}, runInputInline={}, changedNotice={changed_notice})",
+        state["actionsVisible"], state["formVisible"], state["runInputInline"]
+    );
+}
+fn external_removal_action(host: &Bridge, title: &str) {
+    key(host, 40, "k", actions::CMD);
+    let menu = external_removal_view(host, "open-actions-menu", |state| {
+        state["actionsVisible"] == true
+    });
+    let index = menu["actionLabels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|label| label == title)
+        .unwrap();
+    host.probe("action-button", json!({"index":index}));
+}
 #[test]
 fn menu_cancel_while_busy_preserves_new_typing() {
     use std::io::{BufRead, Write};
@@ -1095,8 +1145,8 @@ fn external_removal_before_edit_keeps_input() {
         .unwrap()
         .retain(|c| c["id"] != "script.fixture");
     host.replace(&config, None);
-    input_action(&host, "Set Alias…");
-    view(&host, |v| {
+    external_removal_action(&host, "Set Alias…");
+    external_removal_view(&host, "external-removal-warning", |v| {
         v["screenText"]
             .as_array()
             .unwrap()
