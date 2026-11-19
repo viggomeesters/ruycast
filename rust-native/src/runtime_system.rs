@@ -1763,6 +1763,11 @@ mod shortcut_budget_tests {
         let mut case=BrowserCase::new();let (entered,release)=case.hold();case.query("Owned");
         entered.recv_timeout(Duration::from_secs(1)).unwrap();
         assert_eq!(case.window.session.rows().map(|c|c.id.as_str()).collect::<Vec<_>>(),["fixture.local","fixture.second"],"local rows must not wait for held Safari");
+        case.window.session.select_row(Some(1));
+        let palette_query=case.window.session.query.clone();
+        let palette_rows=serde_json::to_value(case.window.session.rows().collect::<Vec<_>>()).unwrap();
+        let palette_selection=case.window.session.selection;
+        let palette_revision=case.window.session.results_revision();
         let (events,requests)=mpsc::sync_channel(8);
         let server=crate::control::ControlServer::start(&case.state.configuration.paths.root,events,crate::control::Limits::default()).unwrap();
         let socket=case.state.configuration.paths.root.join("control.sock");
@@ -1776,6 +1781,10 @@ mod shortcut_budget_tests {
         let request=match requests.recv_timeout(Duration::from_secs(1)).unwrap(){HostEvent::Request(request)=>request,_=>panic!("expected owned CLI request")};
         assert!(cli_search(&mut case.state,request));
         poll_cli(&mut case.state);
+        assert_eq!(case.window.session.query,palette_query,"CLI search changed the active palette query");
+        assert_eq!(serde_json::to_value(case.window.session.rows().collect::<Vec<_>>()).unwrap(),palette_rows,"CLI search changed the full active palette rows");
+        assert_eq!(case.window.session.selection,palette_selection,"CLI search changed palette selection");
+        assert_eq!(case.window.session.results_revision(),palette_revision,"CLI search invalidated the active palette");
         let (response,extra)=client.join().unwrap();let elapsed=started.elapsed();
         release.send(()).unwrap();case.settle();poll_cli(&mut case.state);drop(server);
         assert_eq!(response["ok"],true,"busy optional provider must preserve CLI locals: {response}");
