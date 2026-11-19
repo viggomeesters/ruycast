@@ -31,9 +31,6 @@ if args.first=="--render-brand" {
 if args.first=="--render-public" {
     do {guard args.count==2 else {throw LauncherError("Expected assets directory")};output(try renderPublicPreview(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if args.first=="--check-command-log" {
-    do {output(try checkCommandLog());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
 if ["--check-keyboard","--check-system","--check-clipboard","--check-utilities"].contains(args.first ?? "") {
     do {let result = try args.first=="--check-keyboard" ? checkKeyboard():args.first=="--check-system" ? checkSystemServices():args.first=="--check-utilities" ? checkUtilities():checkClipboardStore();output(result);exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
