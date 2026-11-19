@@ -515,6 +515,9 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
     if args.first().is_some_and(|value| value == "parity-toolchain") {
         return Err("parity-toolchain is retired; it cannot inspect the legacy Swift toolchain".into());
     }
+    if args.first().is_some_and(|value| value == "parity-wire") {
+        return Err("parity-wire is retired; it cannot inspect legacy Swift sources".into());
+    }
     if args.first().is_some_and(|value|value=="benchmark-host") {
         args.remove(0);
         if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts N] [--samples N] [--active-seconds S] [--idle-seconds S] [--operation-timeout S]");return Ok(());}
@@ -552,11 +555,6 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
         let root=Path::new(&args[2]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
         let mut input=String::new();std::io::stdin().read_to_string(&mut input).map_err(error)?;
         let value=parity_families::run(&root,&input)?;lease.validate()?;println!("{value}");return Ok(());
-    }
-    if args.len()==5&&args[0]=="parity-wire"&&args[1]=="--repo"&&args[3]=="--marker" {
-        if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
-        let root=Path::new(&args[2]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
-        let value=parity_wire::run(&root,&args[4])?;lease.validate()?;println!("{value}");return Ok(());
     }
     if args.len()==5&&args[0]=="parity-tests"&&args[1]=="--repo"&&args[3]=="--selectors" {
         if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
@@ -789,6 +787,21 @@ mod tests {
         ] {
             let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
             assert_eq!(error, "parity-toolchain is retired; it cannot inspect the legacy Swift toolchain");
+        }
+    }
+    #[test]
+    fn retired_parity_wire_refuses_before_repo_or_source_reads() {
+        for args in [
+            vec!["parity-wire"],
+            vec!["parity-wire", "--help"],
+            vec!["parity-wire", "-h"],
+            vec!["parity-wire", "--configuration", "invalid"],
+            vec!["parity-wire", "--repo", "relative", "--marker", "marker"],
+            vec!["parity-wire", "--repo", "/missing-repository", "--marker", "marker"],
+            vec!["parity-wire", "--repo", "/missing-repository", "--marker", "marker", "extra"],
+        ] {
+            let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
+            assert_eq!(error, "parity-wire is retired; it cannot inspect legacy Swift sources");
         }
     }
     #[test]

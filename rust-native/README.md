@@ -405,7 +405,7 @@ Hidden runtime keyboard tests require explicit `RUYCAST_NATIVE_TEST_KEYBOARD=1`,
 
 This model is not yet a connected HID/Quartz service. The remaining native owner must handle Caps ownership/restoration after every partial failure, stable callback userdata, failed retirement, permissions as health rather than stricter config rejection, recorder suspension that retains Hyper but clears action bindings, and same-generation routing/recovery. Physical/unlocked acceptance and full-product F1 remain separate. Preserve the installed app until the original complete rewrite scope is accepted.
 
-The migration-only `ruycast-build parity-inventory`, `parity-report`, `parity-compile`, `parity-sources` and `parity-toolchain` commands are retired. They must not inspect the frozen Swift source tree or start their analysis toolchain; internal helpers remain only while the remaining parity consumers are retired in #256.
+The migration-only `ruycast-build parity-inventory`, `parity-report`, `parity-compile`, `parity-sources`, `parity-toolchain` and `parity-wire` commands are retired. They must not inspect the frozen Swift source tree or start their analysis toolchain; internal helpers remain only while the remaining parity consumers are retired in #256.
 
 ## Recoverable Caps latch ownership
 
