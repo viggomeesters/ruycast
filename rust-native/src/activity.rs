@@ -652,6 +652,13 @@ mod tests {
                 "cli",
                 Some((index % 2 == 0, 1., None)),
             );
+            if index == 0 {
+                assert!(activity.storage_error.is_none());
+                assert_eq!(
+                    fs::metadata(activity.path()).unwrap().mode() & 0o777,
+                    0o600
+                );
+            }
         }
         let path = activity.path();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
@@ -698,6 +705,18 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), original);
         assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o644);
         assert_eq!(fs::metadata(&dir.0).unwrap().mode() & 0o777, 0o755);
+
+        let empty = temp();
+        let absent_log = empty.0.join("command-log.json");
+        fs::set_permissions(&empty.0, fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(!absent_log.exists());
+        let mut refused = Activity::open(&empty.0).unwrap();
+        assert!(refused.storage_error.is_some());
+        refused.record("own", "fixture", "cli", None);
+        assert!(refused.storage_error.is_some());
+        assert!(!absent_log.exists());
+        assert_eq!(fs::metadata(&empty.0).unwrap().mode() & 0o777, 0o755);
+
         fs::set_permissions(&dir.0, fs::Permissions::from_mode(0o700)).unwrap();
         let link_owner = temp();
         let alias = link_owner.0.join("profile-alias");
