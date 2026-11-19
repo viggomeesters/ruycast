@@ -943,14 +943,14 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             // Full Feedback plus its nested SystemChecks have scoped case
             // evidence; these source pins are not a host or matrix grant.
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "f423bafab7e74325b54cf4f2d9f031cec5d8294685366a74d658e1818acddd64"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "091eaaeeca37fb20067a9768243fc176df9cf9d9dce14dadfcd5eb9406a58cb3"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "30736f059369989df591c87bef9b9d1c1e3e284a03667e7c0297ee387fd75d55"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
-            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "243795022623e692d88e7eec66bbe9a4c471d14fe4fa22ecb7dad93cbeae45a2"),
+            ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "b6dc36453b990378133f6b02af3210029ef6fe2685bfbdf019d66b13fcc9de8e"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
             ("rust-native/tests/library_drafts_process.rs", include_bytes!("../../../tests/library_drafts_process.rs"), "27676806949e31bb4679db9f2acfcf068fe7229d6deb51d2d6b6f3af2b4ec7b2"),
             ("rust-native/tests/library_navigation_process.rs", include_bytes!("../../../tests/library_navigation_process.rs"), "5c9ae7c66d226e7cb0178c047d36cfabee111b6f4dfd0097f9d39e06b1635186"),
@@ -966,8 +966,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "47b7823c045903339702225fdf009eb7f0913d4ccde98e5f208263fceea8bec7"),
             ("rust-native/src/system_search/main_bridge.rs", include_bytes!("../../system_search/main_bridge.rs"), "d0267d4a14fbefc08a7c17a50c4e1f9872abb11fe414fe32f7507274552c908e"),
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
-            ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "d57119313545ebb9ffe8b558b06f131c810ff662b54904188d8609ff0b74c313"),
-            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "6815598e702c0b6aa34fad8828f395fac2898fc0b78ba6c9408742d23afc1122"),
+            ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "fd42c7b6b80b8a27173de93f1ac64c6fe07156438345d3ca8eecf749ada89184"),
+            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "e870bc1f9ea23e6e36b2157531b6086baa1b2a85f8c033469581810376de19de"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "d476d9a8d349d2ed0e26d6e3303d559f2d3c20541e15bdf98247aeec231d4793"),
         ],
@@ -4484,10 +4484,10 @@ mod tests {
         for name in gate.required_native_steps {
             assert!(planned_steps.iter().any(|step| step["name"] == *name), "missing feedback route: {name}");
         }
-        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
-        assert!(inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn interactions_provenance_preserves_inputs_cases_routes_and_status() {
@@ -4620,7 +4620,6 @@ mod tests {
             "--check-apple-shortcuts",
             "--check-window-search",
             "--check-menu-actions",
-            "--check-feedback",
             "--check-rich-resources",
             "--check-polish"
         ]);
@@ -4642,6 +4641,7 @@ mod tests {
                 || gate[0] == "--check-browser-tabs"
                 || gate[0] == "--check-actions-menu"
                 || gate[0] == "--check-performance-pipeline"
+                || gate[0] == "--check-feedback"
             {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
