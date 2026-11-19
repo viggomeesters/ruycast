@@ -512,6 +512,9 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
     if args.first().is_some_and(|value| value == "parity-sources") {
         return Err("parity-sources is retired; it cannot inspect legacy Swift trees".into());
     }
+    if args.first().is_some_and(|value| value == "parity-toolchain") {
+        return Err("parity-toolchain is retired; it cannot inspect the legacy Swift toolchain".into());
+    }
     if args.first().is_some_and(|value|value=="benchmark-host") {
         args.remove(0);
         if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts N] [--samples N] [--active-seconds S] [--idle-seconds S] [--operation-timeout S]");return Ok(());}
@@ -537,12 +540,6 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
         args.remove(0);if args.iter().any(|value|matches!(value.as_str(),"--help"|"-h")){println!("ruycast-build sample-performance --pid PID [--seconds 600] --probe PATH --out PATH --label LABEL");return Ok(());}
         let options=match sample_performance::parse(args){Ok(value)=>value,Err(message)=>{eprintln!("{message}");std::process::exit(2)}};
         match sample_performance::run(options)?{Some(summary)=>{println!("{summary}");return Ok(());},None=>std::process::exit(1)}
-    }
-    if args.len()==5&&args[0]=="parity-toolchain"&&args[1]=="--repo"&&args[3]=="--stage" {
-        if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
-        let root=Path::new(&args[2]).canonicalize().map_err(error)?;let lease=BuildLock::acquire(&root)?;
-        let mut input=String::new();std::io::stdin().read_to_string(&mut input).map_err(error)?;
-        let value=parity_toolchain::run(&root,&lease,&args[4],&input)?;lease.validate()?;println!("{value}");return Ok(());
     }
     if args.len()==3&&args[0]=="parity-parser"&&args[1]=="--repo" {
         if !Path::new(&args[2]).is_absolute(){return Err("Choose an absolute repository path.".into());}
@@ -777,6 +774,21 @@ mod tests {
         ] {
             let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
             assert_eq!(error, "parity-sources is retired; it cannot inspect legacy Swift trees");
+        }
+    }
+    #[test]
+    fn retired_parity_toolchain_refuses_before_repo_or_stdin_access() {
+        for args in [
+            vec!["parity-toolchain"],
+            vec!["parity-toolchain", "--help"],
+            vec!["parity-toolchain", "-h"],
+            vec!["parity-toolchain", "--configuration", "invalid"],
+            vec!["parity-toolchain", "--repo", "relative", "--stage", "discover"],
+            vec!["parity-toolchain", "--repo", "/missing-repository", "--stage", "version"],
+            vec!["parity-toolchain", "--repo", "/missing-repository", "--stage", "unknown"],
+        ] {
+            let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
+            assert_eq!(error, "parity-toolchain is retired; it cannot inspect the legacy Swift toolchain");
         }
     }
     #[test]
