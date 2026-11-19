@@ -1236,6 +1236,25 @@ mod tests {
         assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["ok"], false);
     }
     #[test]
+    fn large_wire_reply_roundtrips_without_truncation() {
+        let temp = Temp::new();
+        let (tx, rx) = mpsc::sync_channel(32);
+        let mut options = limits();
+        options.reply_bytes = 2 * 1024 * 1024;
+        let mut server = ControlServer::start(&temp.0, tx, options).unwrap();
+        let mut stream = client(&temp.0);
+        stream.write_all(b"{\"op\":\"owned-large-reply\"}\n").unwrap();
+        let pending = request(&rx);
+        let payload = vec!["x".repeat(8 * 1024); 200];
+        let delivered = pending.respond(json!({"ok": true, "result": payload.clone()}));
+
+        let response = read(stream);
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["result"], json!(payload));
+        assert!(delivered.recv_timeout(Duration::from_secs(2)).unwrap());
+        server.stop();
+    }
+    #[test]
     fn wire_write_deadline_is_absolute_with_nonreading_and_dribbling_clients() {
         for dribble in [false, true] {
             let temp = Temp::new();
