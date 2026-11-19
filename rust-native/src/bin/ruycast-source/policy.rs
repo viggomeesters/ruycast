@@ -111,7 +111,6 @@ Tests/LauncherCoreTests/CoreTests.swift
 Tests/LauncherCoreTests/PrivateFileChecks.swift
 Tests/LauncherCoreTests/ScriptChoiceChecks.swift
 Tests/LauncherCoreTests/SnippetOutputChecks.swift
-Tests/LauncherCoreTests/TaskDateInputChecks.swift
 Tests/fixtures/architecture_boundary_positive.rs
 Tests/fixtures/architecture_boundary_main_state_on_worker.rs
 Tests/fixtures/architecture_boundary_worker_captures_main_state.rs
