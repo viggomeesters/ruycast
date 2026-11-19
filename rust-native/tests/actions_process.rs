@@ -4,7 +4,7 @@
 #[path = "support/native_actions.rs"]
 mod native_actions;
 use native_actions::*;
-use native_bridge::{runtime_host::default_config, Bridge};
+use native_bridge::{runtime_host::{default_config, Config}, Bridge};
 use serde_json::{json, Value};
 use std::{fs, os::fd::AsRawFd};
 fn p(h: &Bridge, action: &str, fields: Value) -> Value {
@@ -312,16 +312,38 @@ fn remove_confirmation_cancel_then_commit_and_disable() {
 }
 #[test]
 fn visible_selection_is_bound_and_unseen_selection_is_refused() {
-    let h = host();
-    show(&h, "");
+    let mut h = Bridge::new(Config::current(), false);
+    let mut fixture = default_config();
+    fixture["commands"].as_array_mut().unwrap().retain(|command| {
+        command["id"] == "app.finder" || command["id"] == "app.safari"
+    });
+    fixture["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|command| command["id"] == "app.finder")
+        .unwrap()["title"] = json!("Sable");
+    h.replace(&fixture, None);
+    h.start();
+    h.settled(|_| true);
+
+    show(&h, "sa");
+    assert_eq!(probe(&h, "read")["selectedId"], "app.finder");
     p(&h, "select-and-alias", json!({"row":1}));
     view(&h, |v| v["formVisible"] == true);
-    assert!(probe(&h, "read")["screenText"]
+    let visible = probe(&h, "read");
+    assert_eq!(visible["editorId"], "app.safari", "{visible}");
+    assert!(visible["screenText"]
+        .as_array()
+        .unwrap()
+        .contains(&json!("Safari")));
+    assert!(visible["accessibilityText"]
         .as_array()
         .unwrap()
         .contains(&json!("Safari")));
     cancel(&h);
-    show(&h, "");
+    show(&h, "sa");
+    assert_eq!(probe(&h, "read")["selectedId"], "app.finder");
     p(&h, "unseen-selection-and-alias", json!({"row":1}));
     view(&h, |v| text_contains(v, "Selection changed"));
     assert_eq!(probe(&h, "read")["formVisible"], false);
