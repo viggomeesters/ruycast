@@ -1015,6 +1015,31 @@ mod tests {
         }
     }
     #[test]
+    fn direct_title_typo_outranks_weak_subsequence_with_higher_recency() {
+        let commands: Vec<Command> = [
+            ("typo.finder", "Finder"),
+            ("typo.distractor", "Find Reminders"),
+        ]
+        .into_iter()
+        .map(|(id, title)| {
+            serde_json::from_value(json!({
+                "id": id,
+                "title": title,
+                "kind": "url",
+                "target": "https://example.com"
+            }))
+            .unwrap()
+        })
+        .collect();
+        let index = SearchIndex::new(&commands);
+        let results = index.search_with_recency("fnider", &[0.0, 10_000.0]).unwrap();
+        let ids: Vec<&str> = results
+            .iter()
+            .map(|&entry| commands[entry].id.as_str())
+            .collect();
+        assert_eq!(ids, ["typo.finder", "typo.distractor"]);
+    }
+    #[test]
     fn single_typo_matches_independent_edit_neighborhood() {
         fn strings(n: usize) -> Vec<String> {
             let mut all = vec![String::new()];
