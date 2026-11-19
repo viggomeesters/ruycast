@@ -951,6 +951,70 @@ mod tests {
         }
     }
     #[test]
+    fn original_256_command_ten_query_index_dispatch_and_abi_parity() {
+        let titles = [
+            "Microsoft Teams",
+            "Open Documentation",
+            "Left Half",
+            "Project Dashboard",
+        ];
+        let commands: Vec<Command> = (0..256)
+            .map(|i| {
+                serde_json::from_value(json!({
+                    "id": format!("item.{i}"),
+                    "title": format!("{} {i}", titles[i % titles.len()]),
+                    "kind": "url",
+                    "target": format!("https://example.com/{i}"),
+                    "aliases": [format!("a{i}")]
+                }))
+                .unwrap()
+            })
+            .collect();
+        let index = SearchIndex::new(&commands);
+        let queries = [
+            "",
+            " ",
+            "MICROSOFT",
+            "a42",
+            "item.11",
+            "project dashboard",
+            "example.com/42",
+            "missing",
+            "Ångström",
+            "a\0b",
+        ];
+
+        for query in queries {
+            let indices = index.search(query);
+            let indexed: Vec<Command> = indices
+                .iter()
+                .map(|&index| commands[index].clone())
+                .collect();
+            let indexed = serde_json::to_value(indexed).unwrap();
+            let dispatched = dispatch(
+                "search",
+                json!({"commands": commands, "query": query}),
+            )
+            .unwrap();
+            assert_eq!(dispatched, indexed, "index/dispatch parity for {query:?}");
+
+            let mut abi = vec![usize::MAX; commands.len()];
+            let count = unsafe {
+                rustcast_index_search_ranked_into(
+                    &index,
+                    query.as_ptr(),
+                    query.len(),
+                    std::ptr::null(),
+                    0,
+                    abi.as_mut_ptr(),
+                    abi.len(),
+                )
+            };
+            assert_eq!(count, indices.len() as isize, "ABI result count for {query:?}");
+            assert_eq!(&abi[..count as usize], indices, "ABI order for {query:?}");
+        }
+    }
+    #[test]
     fn single_typo_matches_independent_edit_neighborhood() {
         fn strings(n: usize) -> Vec<String> {
             let mut all = vec![String::new()];
