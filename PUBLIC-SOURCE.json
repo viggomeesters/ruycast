@@ -278,7 +278,7 @@
     "rust-native/src/bin/ruycast-build/compat.rs": "fd423262f50dbf2c137cfd4b9f175a8547fbfc4e40073195100bd6fbe12f5b77",
     "rust-native/src/bin/ruycast-build/disk_budget.rs": "cd1c2ada21ab55c2fe0cebbff253b355061ff54649e4ff38c76d7a1691ce7e0b",
     "rust-native/src/bin/ruycast-build/macho.rs": "a30b9e17d2d86720573de34c0c9a8a4c51b1ee5d457fc0a4cf321c999029328c",
-    "rust-native/src/bin/ruycast-build/oracles.rs": "948c5fc8a3f3674a6d1e558ecebea4f47470eff40d0875c5d52117bb8f85d084",
+    "rust-native/src/bin/ruycast-build/oracles.rs": "dcce8ba6205f0857a8ffc42e94a2bd774b513d6c4ee37db47dadefde819bbefd",
     "rust-native/src/bin/ruycast-build/parity_bootstrap.rs": "9f2620b3efb6560c4d62816cb14151d95572946605dbf08db7eddbc7963c9399",
     "rust-native/src/bin/ruycast-build/parity_compile.rs": "3ac765bb33348d04dfafec6f7f53ea8de15e503dfd80b8205c99e71a8b9d6bd9",
     "rust-native/src/bin/ruycast-build/parity_families.rs": "ddc70e69644a37326a0654e96db03a690883bb19fb7047959d57ddd78d1b1432",
