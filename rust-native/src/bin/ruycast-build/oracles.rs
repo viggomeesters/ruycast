@@ -3987,7 +3987,12 @@ mod tests {
         );
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         for gate in SETTINGS {
-            regular_file(&root.join(gate.original_source)).unwrap();
+            if gate.id == "--check-command-log" {
+                // The retired helper's original path/hash remains historical provenance.
+                assert!(!root.join(gate.original_source).exists());
+            } else {
+                regular_file(&root.join(gate.original_source)).unwrap();
+            }
         }
     }
     #[test]
