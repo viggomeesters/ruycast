@@ -640,6 +640,16 @@ mod tests {
                     "https://example.test/two.png"
                 ]
             );
+            assert_eq!(
+                candidates(
+                    "<link href='/brand.png' sizes='128x128' rel='apple-touch-icon'><LINK REL=icon HREF=\"https://cdn.example.com/icon.png?v=1&amp;x=2\"><link rel=icon href='data:bad'>",
+                    "https://example.com/"
+                ),
+                vec![
+                    "https://example.com/brand.png",
+                    "https://cdn.example.com/icon.png?v=1&x=2"
+                ]
+            );
         });
     }
     #[test]
@@ -724,7 +734,11 @@ mod tests {
                 let _ = stream.write_all(&response("200 OK", &png()));
             }));
         }
-        let mut service = Service::new(cache.clone(), Arc::new(|| {})).unwrap();
+        let (wake_tx, wake_rx) = std::sync::mpsc::channel::<()>();
+        let wake = Arc::new(move || {
+            let _ = wake_tx.send(());
+        });
+        let mut service = Service::new(cache.clone(), wake.clone()).unwrap();
         let start = Instant::now();
         assert!(service.image(&origins[0]).is_none());
         assert!(service.image(&origins[0]).is_none());
@@ -746,6 +760,15 @@ mod tests {
         for server in servers {
             server.join().unwrap();
         }
+        assert!(
+            wake_rx.recv_timeout(Duration::from_secs(5)).is_ok(),
+            "Completed icon worker did not notify its owner"
+        );
+        assert!(service.poll(), "Worker notification did not reach poll");
+        assert!(
+            origins.iter().any(|origin| service.image(origin).is_some()),
+            "Worker notification arrived without publishing an image"
+        );
         let end = Instant::now() + Duration::from_secs(5);
         loop {
             service.poll();
@@ -765,7 +788,7 @@ mod tests {
             );
         }
         drop(service);
-        let mut service = Service::new(cache.clone(), Arc::new(|| {})).unwrap();
+        let mut service = Service::new(cache.clone(), wake).unwrap();
         for origin in &origins {
             service.image(origin);
         }

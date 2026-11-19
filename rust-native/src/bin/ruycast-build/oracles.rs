@@ -1438,12 +1438,12 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/presentation.rs",
                 include_bytes!("../../presentation.rs"),
-                "dd9ecffe9e18537e56b5f26d66ba34ac6d68961c2b6bc267453248be2278bc00",
+                "c6e7983dfa614386470786624f7e2664f1b61ae9024d3a41268120e436a3242b",
             ),
             (
                 "rust-native/src/website_icons.rs",
                 include_bytes!("../../website_icons.rs"),
-                "7748d58700ea937351bbd2c31d76ef3f8e14a346f3cda873a87a55608efe217e",
+                "af4f29f6940a8bcb698c24af783a234caa80326f48dbe4705ea39d2de2be8fb9",
             ),
             (
                 "rust-native/src/clipboard_image.rs",
@@ -2686,10 +2686,10 @@ mod tests {
             gate.original_source,
             "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
         )));
-        assert_eq!(settings_mapping_state(gate), "mapped-requires-source-requalification");
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
-        assert!(value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn script_result_basic_binds_current_sources_and_route() {
@@ -4619,7 +4619,6 @@ mod tests {
             "--check-feedback",
             "--check-rich-resources",
             "--check-performance-pipeline",
-            "--check-visual-assets",
             "--check-polish"
         ]);
         assert_eq!(
@@ -4635,6 +4634,7 @@ mod tests {
             if gate[0] == "--check-edit-commands"
                 || gate[0] == "--check-analytics"
                 || gate[0] == "--check-command-log"
+                || gate[0] == "--check-visual-assets"
             {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
             } else {
