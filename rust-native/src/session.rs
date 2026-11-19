@@ -402,6 +402,26 @@ mod tests {
         assert_eq!(session.selection, Some(0));
     }
     #[test]
+    fn repeated_result_reads_preserve_prepared_rows_and_session_state() {
+        let mut session = Session::new(fixture(256));
+        session.set_query("notes");
+        session.select_row(Some(0));
+        let rows: Vec<String> = session.rows().map(|command| command.id.clone()).collect();
+        assert!(!rows.is_empty());
+        let query = session.query.clone();
+        let selection = session.selection;
+        let revision = session.results_revision();
+
+        for _ in 0..1_000 {
+            let current: Vec<String> = session.rows().map(|command| command.id.clone()).collect();
+            assert_eq!(current, rows);
+        }
+
+        assert_eq!(session.query, query);
+        assert_eq!(session.selection, selection);
+        assert_eq!(session.results_revision(), revision);
+    }
+    #[test]
     fn disabled_commands_never_resolve_or_activate() {
         let mut commands = fixture(8);
         commands[2].enabled = Some(false);
