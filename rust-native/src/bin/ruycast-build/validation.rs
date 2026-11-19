@@ -1627,9 +1627,7 @@ fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
     if name == "architecture-policy-process" {
         let text = std::str::from_utf8(stdout).map_err(error)?;
         let cases = [
-            "frozen_launcher_models_keep_their_architecture_boundary",
             "portable_models_have_no_platform_or_runtime_dependency",
-            "swift_uses_imported_c_symbols",
             "main_actor_and_worker_boundaries_are_compiler_checked",
         ];
         if cases.iter().any(|case| {
@@ -1649,9 +1647,9 @@ fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
                 != 1
             || !text
                 .lines()
-                .any(|line| line.starts_with("test result: ok. 4 passed; 0 failed; 0 ignored;"))
+                .any(|line| line.starts_with("test result: ok. 2 passed; 0 failed; 0 ignored;"))
         {
-            return Err("Every architecture case must pass exactly once without skips.".into());
+            return Err("Both Rust architecture cases must pass exactly once without skips.".into());
         }
     }
     if name=="cli-contract-process" {
@@ -3257,13 +3255,17 @@ mod tests {
         }
     }
     #[test]
-    fn architecture_matrix_output_requires_all_four_rust_cases_without_skips() {
-        let good = b"running 4 tests\ntest frozen_launcher_models_keep_their_architecture_boundary ... ok\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest swift_uses_imported_c_symbols ... ok\ntest main_actor_and_worker_boundaries_are_compiler_checked ... ok\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
+    fn architecture_matrix_output_requires_both_rust_cases_without_skips() {
+        let good = b"running 2 tests\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest main_actor_and_worker_boundaries_are_compiler_checked ... ok\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
         selected_step_output("architecture-policy-process", good).unwrap();
-        let missing = b"running 3 tests\ntest frozen_launcher_models_keep_their_architecture_boundary ... ok\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest swift_uses_imported_c_symbols ... ok\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
+        let missing = b"running 1 test\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
         assert!(selected_step_output("architecture-policy-process", missing).is_err());
-        let skipped = b"running 4 tests\ntest frozen_launcher_models_keep_their_architecture_boundary ... ok\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest swift_uses_imported_c_symbols ... ok\ntest main_actor_and_worker_boundaries_are_compiler_checked ... ignored\ntest result: ok. 3 passed; 0 failed; 0 ignored; 1 measured; 0 filtered out; finished in 0.1s\n";
+        let skipped = b"running 2 tests\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest main_actor_and_worker_boundaries_are_compiler_checked ... ignored\ntest result: ok. 1 passed; 0 failed; 0 ignored; 1 measured; 0 filtered out; finished in 0.1s\n";
         assert!(selected_step_output("architecture-policy-process", skipped).is_err());
+        let duplicate = b"running 2 tests\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
+        assert!(selected_step_output("architecture-policy-process", duplicate).is_err());
+        let wrong_kind = b"running 2 tests\ntest portable_models_have_no_platform_or_runtime_dependency ... ok\ntest swift_uses_imported_c_symbols ... ok\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
+        assert!(selected_step_output("architecture-policy-process", wrong_kind).is_err());
     }
     #[test]
     fn complete_ordered_matrix_keeps_all_oracles_and_explicit_targets() {

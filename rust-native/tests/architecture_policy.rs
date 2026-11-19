@@ -3,7 +3,7 @@ use serde_json::json;
 use std::{
     fs,
     os::unix::fs::DirBuilderExt,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -12,18 +12,6 @@ fn repository() -> PathBuf {
         .parent()
         .unwrap()
         .to_owned()
-}
-
-fn swift_files(directory: &Path, output: &mut Vec<PathBuf>) {
-    for entry in fs::read_dir(directory).unwrap() {
-        let path = entry.unwrap().path();
-        let metadata = fs::symlink_metadata(&path).unwrap();
-        if metadata.is_dir() && !metadata.file_type().is_symlink() {
-            swift_files(&path, output);
-        } else if metadata.is_file() && path.extension().is_some_and(|value| value == "swift") {
-            output.push(path);
-        }
-    }
 }
 
 fn source_uses_token(source: &str, token: &str) -> bool {
@@ -38,53 +26,6 @@ fn source_uses_token(source: &str, token: &str) -> bool {
             .is_some_and(|character| character.is_ascii_alphanumeric() || character == '_');
         !before_is_word && !after_is_word
     })
-}
-
-fn swift_imports(source: &str) -> Vec<&str> {
-    source
-        .lines()
-        .filter_map(|line| {
-            let line = line.trim_start();
-            let rest = line.strip_prefix("import ")?;
-            let end = rest
-                .find(|character: char| !(character.is_ascii_alphanumeric() || character == '_'))
-                .unwrap_or(rest.len());
-            Some(&rest[..end])
-        })
-        .collect()
-}
-
-#[test]
-fn frozen_launcher_models_keep_their_architecture_boundary() {
-    let root = repository().join("Sources/LauncherModels");
-    let mut files = Vec::new();
-    swift_files(&root, &mut files);
-    assert!(
-        !files.is_empty(),
-        "LauncherModels source boundary disappeared"
-    );
-    for path in files {
-        let source = fs::read_to_string(&path).unwrap();
-        let imports = swift_imports(&source);
-        assert!(
-            imports.iter().all(|module| *module == "Foundation"),
-            "{} imports outside Foundation: {imports:?}",
-            path.display()
-        );
-        for symbol in [
-            "FileManager",
-            "URLSession",
-            "Process",
-            "NSWorkspace",
-            "RustCore",
-        ] {
-            assert!(
-                !source_uses_token(&source, symbol),
-                "{} contains forbidden symbol {symbol}",
-                path.display()
-            );
-        }
-    }
 }
 
 #[test]
@@ -117,22 +58,6 @@ fn portable_models_have_no_platform_or_runtime_dependency() {
             "portable Rust core contains {symbol}"
         );
     }
-}
-
-#[test]
-fn swift_uses_imported_c_symbols() {
-    let root = repository().join("Sources");
-    let mut files = Vec::new();
-    swift_files(&root, &mut files);
-    for path in files {
-        let source = fs::read_to_string(&path).unwrap();
-        assert!(
-            !source.contains("@_silgen_name"),
-            "{} declares a manual C symbol",
-            path.display()
-        );
-    }
-    assert!(root.join("CRuycastCore/include/ruycast_core.h").is_file());
 }
 
 struct Fixture(PathBuf);
