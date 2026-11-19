@@ -368,8 +368,17 @@ impl Drop for Lease {
 struct Shared {
     running: Arc<AtomicBool>,
     clients: Mutex<HashMap<i32, Arc<UnixStream>>>,
+    #[cfg(test)]
+    reply_encoding_thread: Mutex<Option<thread::ThreadId>>,
 }
 impl Shared {
+    #[cfg(test)]
+    fn record_reply_encoding_thread(&self) {
+        *self
+            .reply_encoding_thread
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(thread::current().id());
+    }
     fn shutdown_clients(&self) {
         for stream in self
             .clients
@@ -499,6 +508,8 @@ impl ControlServer {
         let shared = Arc::new(Shared {
             running: Arc::new(AtomicBool::new(true)),
             clients: Mutex::new(HashMap::new()),
+            #[cfg(test)]
+            reply_encoding_thread: Mutex::new(None),
         });
         let task_shared = shared.clone();
         let worker = thread::Builder::new()
@@ -812,6 +823,8 @@ fn send_wire(
     limits: Limits,
 ) -> io::Result<()> {
     let deadline = Instant::now() + limits.write;
+    #[cfg(test)]
+    let _ = shared.record_reply_encoding_thread();
     let mut buffer = Buffer {
         bytes: vec![],
         max: limits.reply_bytes - 1,
@@ -1245,6 +1258,7 @@ mod tests {
         let mut stream = client(&temp.0);
         stream.write_all(b"{\"op\":\"owned-large-reply\"}\n").unwrap();
         let pending = request(&rx);
+        let response_thread = thread::current().id();
         let payload = vec!["x".repeat(8 * 1024); 200];
         let delivered = pending.respond(json!({"ok": true, "result": payload.clone()}));
 
@@ -1252,6 +1266,14 @@ mod tests {
         assert_eq!(response["ok"], true);
         assert_eq!(response["result"], json!(payload));
         assert!(delivered.recv_timeout(Duration::from_secs(2)).unwrap());
+        let encoding_thread = server
+            .shared
+            .reply_encoding_thread
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+            .expect("test observer records the reply encoding thread");
+        assert_ne!(encoding_thread, response_thread);
         server.stop();
     }
     #[test]
