@@ -1811,17 +1811,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonModule"] = serde_json::json!(false);
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["remainingPythonCases"] = serde_json::json!(0);
         inventory["rustRootTestCrosswalk"]["Tests/test_architecture.py"] = serde_json::json!({
-            "scope": "The three architecture checks now run in a Rust test target; frozen Swift references are only read as compatibility inputs and Rust worker ownership is compiler-checked.",
+            "scope": "The two behavior-relevant architecture checks run in Rust; the old Swift import guard is retired with its frozen-source consumer under #256.",
             "originalMethods": [
                 "test_portable_models_have_no_platform_or_runtime_dependency",
                 "test_swift_uses_imported_c_symbols",
                 "test_main_actor_and_worker_boundaries_are_compiler_checked"
             ],
+            "retiredOriginalMethods": ["test_swift_uses_imported_c_symbols"],
             "nativeTarget": "architecture_policy",
             "nativeCases": [
-                "frozen_launcher_models_keep_their_architecture_boundary",
                 "portable_models_have_no_platform_or_runtime_dependency",
-                "swift_uses_imported_c_symbols",
                 "main_actor_and_worker_boundaries_are_compiler_checked"
             ],
             "remainingPythonCases": 0
@@ -3500,7 +3499,8 @@ mod tests {
             .any(|path| path == "Tests/test_architecture.py"));
         let mapping = &value["rustRootTestCrosswalk"]["Tests/test_architecture.py"];
         assert_eq!(mapping["originalMethods"].as_array().unwrap().len(), 3);
-        assert_eq!(mapping["nativeCases"].as_array().unwrap().len(), 4);
+        assert_eq!(mapping["nativeCases"].as_array().unwrap().len(), 2);
+        assert_eq!(mapping["retiredOriginalMethods"], serde_json::json!(["test_swift_uses_imported_c_symbols"]));
         assert_eq!(mapping["remainingPythonCases"], 0);
         let tests = include_str!("../../../tests/architecture_policy.rs");
         for case in mapping["nativeCases"].as_array().unwrap() {
