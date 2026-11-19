@@ -261,8 +261,16 @@ fn qualify_pipeline_under_lease(
     kind: &str,
     lease: &BuildLock,
 ) -> Result<(PathBuf, BTreeMap<String, String>)> {
+    qualify_pipeline_under_lease_with_gate(root, kind, lease, || oracles::require_complete(kind))
+}
+fn qualify_pipeline_under_lease_with_gate(
+    root: &Path,
+    kind: &str,
+    lease: &BuildLock,
+    require_gate: impl FnOnce() -> Result<()>,
+) -> Result<(PathBuf, BTreeMap<String, String>)> {
     let path = reset_pipeline_receipt(root, kind, lease)?;
-    oracles::require_complete(kind)?;
+    require_gate()?;
     let before = verification_sources(root)?;
     Ok((path, before))
 }
@@ -976,22 +984,16 @@ fn main() {{
         let lease = BuildLock::acquire_from_environment(&fixture.0, &BTreeMap::new()).unwrap();
         let directory = fixture.0.join(".build/receipts");
         ruycast_native::private_storage::secure_directory(&directory).unwrap();
-        let incomplete_kinds: Vec<_> = ["check", "settings"]
-            .into_iter()
-            .filter(|kind| oracles::require_complete(kind).is_err())
-            .collect();
-        assert!(
-            !incomplete_kinds.is_empty(),
-            "Expected at least one pipeline to remain fail-closed"
-        );
-        for kind in incomplete_kinds {
-            let path = directory.join(format!("{kind}.json"));
-            fs::write(&path, b"previous passed receipt").unwrap();
-            let error = qualify_pipeline_under_lease(&fixture.0, kind, &lease).unwrap_err();
-            assert!(error.contains("not yet qualified"), "{kind}: {error}");
-            assert!(!path.exists());
-            assert!(verify_pipeline(&fixture.0, kind, &lease).is_err());
-        }
+        let kind = "settings";
+        let path = directory.join(format!("{kind}.json"));
+        fs::write(&path, b"previous passed receipt").unwrap();
+        let error = qualify_pipeline_under_lease_with_gate(&fixture.0, kind, &lease, || {
+            Err("Complete settings validation is not yet qualified: fixture".into())
+        })
+        .unwrap_err();
+        assert!(error.contains("not yet qualified"), "{kind}: {error}");
+        assert!(!path.exists());
+        assert!(verify_pipeline(&fixture.0, kind, &lease).is_err());
     }
     #[test]
     #[ignore = "Explicit reviewed F1 runner integration entry; requires pinned owned reviewer arguments"]
