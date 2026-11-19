@@ -41,10 +41,13 @@ fn build_fixtures() -> &'static (PathBuf, PathBuf) {
             String::from_utf8_lossy(&result.stderr)
         );
         let effects = out.join("utility-effects.dylib");
-        let target = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from)
-            .unwrap_or_else(|| root().parent().unwrap().join(".build/full-rust-release/native"));
         let source = std::env::var_os("RUYCAST_TEST_HISTORY_SDK").map(PathBuf::from)
-            .unwrap_or_else(|| target.join("release/examples/libclipboard_history_fixture.dylib"));
+            .unwrap_or_else(|| {
+                PathBuf::from(env!("CARGO_BIN_EXE_ruycast-native"))
+                    .parent()
+                    .expect("test binary must have a parent directory")
+                    .join("examples/libclipboard_history_fixture.dylib")
+            });
         assert!(source.is_absolute() && source.is_file(), "Build the clipboard-history-fixture Rust example first");
         fs::copy(&source, &effects).unwrap();
         let sha = |path: &Path| format!("{:x}", Sha256::digest(fs::read(path).unwrap()));
