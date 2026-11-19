@@ -998,6 +998,28 @@ mod tests {
         assert!(!path.exists());
     }
     #[test]
+    fn failed_directory_bind_preserves_path_and_releases_profile_lock() {
+        let temp = Temp::new();
+        let path = temp.0.join("control.sock");
+        fs::DirBuilder::new().mode(0o700).create(&path).unwrap();
+        let before = fs::symlink_metadata(&path).unwrap();
+        let (tx, _rx) = mpsc::sync_channel(32);
+
+        let error = match ControlServer::start(&temp.0, tx.clone(), limits()) {
+            Ok(_) => panic!("directory at the control-socket path must refuse startup"),
+            Err(error) => error,
+        };
+        assert!(error.contains("Address already in use"), "{error}");
+        let after = fs::symlink_metadata(&path).unwrap();
+        assert!(after.is_dir());
+        assert_eq!((before.dev(), before.ino()), (after.dev(), after.ino()));
+
+        fs::remove_dir(&path).unwrap();
+        let mut retry = ControlServer::start(&temp.0, tx, limits()).unwrap();
+        retry.stop();
+        assert!(!path.exists());
+    }
+    #[test]
     fn active_owner_and_replacement_paths_are_preserved() {
         let temp = Temp::new();
         let (tx, _rx) = mpsc::sync_channel(32);
