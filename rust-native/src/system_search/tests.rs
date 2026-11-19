@@ -15,6 +15,16 @@ fn setup() -> (Arc<fixture::Fixture>, providers::Provider) {
     (f, p)
 }
 #[test]
+fn empty_files_query_returns_successful_empty_results_without_effects() {
+    let (fixture, provider) = setup();
+    let rows = provider
+        .search(Scope::Files, "", None, &ticket())
+        .unwrap();
+    assert!(rows.commands.is_empty());
+    assert!(rows.metadata.is_empty());
+    assert!(fixture.effects.lock().unwrap().is_empty());
+}
+#[test]
 fn window_identity_duplicate_titles_and_minimized_restore_are_exact() {
     let (f, p) = setup();
     f.edit(Element(3), |n| {
