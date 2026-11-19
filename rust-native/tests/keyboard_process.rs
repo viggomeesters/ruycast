@@ -96,21 +96,26 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
         let folder = PathBuf::from(evidence);
         fs::create_dir_all(&folder).unwrap();
         let root = runtime_host::root();
-        let sources = [
+        let mut sources = [
             "rust-native/tests/fixtures/keyboard_sdk.rs",
             "rust-native/tests/fixtures/keyboard_fixture.rs",
             "rust-native/tests/fixtures/keyboard_missing_parameter.rs",
-            "Sources/LauncherCore/RustBridge.swift",
-            "Sources/RuycastApp/Hotkeys.swift",
         ]
         .into_iter()
-        .map(|p| {
+        .map(|path| {
             (
-                p.to_owned(),
-                format!("{:x}", Sha256::digest(fs::read(root.join(p)).unwrap())),
+                path.to_owned(),
+                format!("{:x}", Sha256::digest(fs::read(root.join(path)).unwrap())),
             )
         })
         .collect::<std::collections::BTreeMap<_, _>>();
+        let lock: Value = serde_json::from_str(include_str!("../swift-reference-lock.json")).unwrap();
+        for path in ["Sources/LauncherCore/RustBridge.swift", "Sources/RuycastApp/Hotkeys.swift"] {
+            let sha256 = lock["files"][path]
+                .as_str()
+                .expect("historical keyboard source must remain pinned in the reference lock");
+            sources.insert(path.to_owned(), sha256.to_owned());
+        }
         let mut copies = std::collections::BTreeMap::new();
         for (label, source) in &originals {
             let (path, digest) = runtime_host::bind_artifact(source, &format!("keyboard-{label}"));
