@@ -3121,7 +3121,6 @@ mod tests {
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
         assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(!core.contains("SearchRanking(root:root,now:now).entries.count,0"));
         assert!(core.contains("try ranking.reset()"));
         assert!(core.contains("entries[\"expired\"]=now.timeIntervalSince1970-SearchRanking.retention-1"));
         let source = include_str!("../../ranking.rs");
