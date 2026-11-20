@@ -5,15 +5,6 @@ import Foundation
 import LauncherCore
 import LauncherModels
 struct CoreTests {
-    func testEmptyQueryProjection() {
-        let commands=["first","second","third","fourth"].map {Command(id:$0,title:$0,kind:"url",target:"https://example.com")}
-        let usage=["second":4,"third":4,"unknown":100]
-        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:usage,limit:0).map(\.id),["second","third","first","fourth"])
-        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:usage,limit:2).map(\.id),["second","third"])
-        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:usage,limit:-1).count,4)
-        XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:[:],limit:100),commands)
-        XCTAssertEqual(CommandProjection.emptyQuery([],usage:usage,limit:100),[])
-    }
     func testExactAliasBeatsTitleAndSupportsMultipleTerms() throws {
         var c=Configuration.initial;c.commands.append(Command(id:"link",title:"Finder documentation",kind:"url",target:"https://example.com",aliases:["docs"]))
         XCTAssertEqual(c.search("finder").first?.id,"app.finder");XCTAssertEqual(c.search("finder documentation").first?.id,"link")
@@ -268,7 +259,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)

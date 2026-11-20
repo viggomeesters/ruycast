@@ -184,6 +184,22 @@ mod tests {
         assert_eq!(empty, vec![4, 8]);
         assert_eq!(catalog.search("microsoft", 0), before);
         assert_eq!(catalog.search(" ", 0), (0..12).collect::<Vec<_>>());
+
+        let mut projection = Catalog::new(fixture(4));
+        projection.set_usage(HashMap::from([
+            ("fixture.1".into(), 4),
+            ("fixture.2".into(), 4),
+            ("unknown".into(), 100),
+        ]));
+        assert_eq!(projection.search("", 0), vec![1, 2, 0, 3]);
+        assert_eq!(projection.search("", 2), vec![1, 2]);
+        projection.set_usage(HashMap::new());
+        assert_eq!(projection.search("", 100), (0..4).collect::<Vec<_>>());
+        assert_eq!(projection.search("", 0), (0..4).collect::<Vec<_>>());
+        assert_eq!(projection.search("", usize::MAX), (0..4).collect::<Vec<_>>());
+        let mut empty = Catalog::new(vec![]);
+        empty.set_usage(HashMap::from([("unknown".into(), 100)]));
+        assert!(empty.search("", 100).is_empty());
     }
     #[test]
     fn recency_bounds_and_ties_match_previous_policy() {

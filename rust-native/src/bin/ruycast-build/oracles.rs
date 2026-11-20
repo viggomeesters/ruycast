@@ -921,7 +921,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
-            ("rust-native/src/catalog.rs", include_bytes!("../../catalog.rs"), "82809473cb9684609cb60fbee8aa944c3dfadc561a9fcb6461b74234fdbf5ab2"),
+            ("rust-native/src/catalog.rs", include_bytes!("../../catalog.rs"), "a9848cc7ab9e9432d4ae87c5a3ffb75b3f5a709bbe2cc83a803e19cc916fa72b"),
             ("rust-native/src/performance_trace.rs", include_bytes!("../../performance_trace.rs"), "f00bf9774d869674d3680ac57c58d7e429b436640f2a5fad61acae5b5e441781"),
             ("rust-native/src/performance_signposts.rs", include_bytes!("../../performance_signposts.rs"), "c0dcaaaf7b427d9363f536d2bc81ff097efc8042e1778e09fc6eac3302df1dcd"),
             ("rust-native/src/control.rs", include_bytes!("../../control.rs"), "4b8785fae375e8539939598eb1e9b510cd62f67d27e50aacf91555ac63d78ec3"),
@@ -4563,6 +4563,16 @@ mod tests {
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
         assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn polish_catalog_source_pin_matches_current_catalog_bytes() {
+        let (path, bytes, expected) = settings_sources("--check-polish")
+            .iter()
+            .find(|(path, _, _)| *path == "rust-native/src/catalog.rs")
+            .unwrap();
+        assert_eq!(format!("{:x}", Sha256::digest(bytes)), *expected);
+        assert_eq!(*expected, "a9848cc7ab9e9432d4ae87c5a3ffb75b3f5a709bbe2cc83a803e19cc916fa72b");
+        assert!(settings_source_bindings("--check-polish").contains(&(*path, *expected)));
     }
     #[test]
     fn feedback_provenance_preserves_inputs_cases_routes_and_status() {
