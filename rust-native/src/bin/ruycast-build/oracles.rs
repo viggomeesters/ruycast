@@ -2854,15 +2854,6 @@ mod tests {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert_template_helper_retired(core);
-        for assertion in [
-            "matcher.type(\";h\",commands:[snippet])",
-            "matcher.type(\"i\",commands:[snippet])",
-            "matcher.backspace()",
-            "matcher.type(\"xabc\",commands:[word])",
-            "matcher.type(\"abc\",commands:[word])",
-        ] {
-            assert!(!core.contains(assertion), "moved assertion remains: {assertion}");
-        }
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
