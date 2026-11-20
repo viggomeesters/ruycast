@@ -109,6 +109,7 @@ fn real_owned_export_is_deterministic_private_free_and_bsdtar_extracts() {
         "rust-native/tests/startup_config_repair.rs",
         ".github/pull_request_template.md",
         "rust-native/src/bin/ruycast-install/tests.rs",
+        "rust-native/tests/library_verification.rs",
         "assets/hero.png",
     ] {
         assert!(exported_names.contains(name), "missing {name}");

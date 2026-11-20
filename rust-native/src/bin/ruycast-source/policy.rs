@@ -528,6 +528,7 @@ rust-native/src/bin/ruycast-install/tests.rs
 rust-native/src/bin/ruycast-install/tools.rs
 rust-native/src/bin/ruycast-install/transaction.rs
 rust-native/tests/installer_cli.rs
+rust-native/tests/library_verification.rs
 bench/README.md
 bench/f1-runner/Cargo.lock
 bench/f1-runner/Cargo.toml

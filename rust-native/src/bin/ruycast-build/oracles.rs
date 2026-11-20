@@ -2263,6 +2263,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["after record_success, reopening RankingStore preserves chosen at the exact original timestamp"],
             "nativeCases": ["ranking::tests::original_successful_choice_timestamp_survives_reopen"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::CheckRunner.library"] = serde_json::json!({
+            "originalSourceSHA256": "5f09411bdd0943a44188f2b1f6e851aa9ca14cee681fdaba092ce374e694ff36",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The uncalled private-library route is retired; its config, default/option/fallback template values, clipboard/date rendering and keyword-to-own-command aggregation are covered using synthetic Rust configuration.",
+            "nativeSource": "rust-native/tests/library_verification.rs",
+            "originalScenarios": ["valid URL and snippet commands load from configuration", "template fields choose default, first option or Fixture", "clipboard and fixed date render without printing private text", "every command keyword returns its own command", "commands with no fields and no keyword complete"],
+            "nativeCases": ["original_private_library_aggregation_renders_templates_and_checks_keywords"]
+        });
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.rankingSmoke"] = serde_json::json!({
             "originalSourceSHA256": "36067c3a65ad03c93f76c6664118bedc1caed1fc6c89d046f292b132acb3e1f2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3047,6 +3055,20 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust/src/lib.rs");
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_seven_query_index_dispatch_and_abi_parity"]));
         assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_seven_query_index_dispatch_and_abi_parity()"));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn private_library_aggregation_is_crosswalked_to_rust() {
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::CheckRunner.library"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "5f09411bdd0943a44188f2b1f6e851aa9ca14cee681fdaba092ce374e694ff36");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 5);
+        assert_eq!(mapping["nativeSource"], "rust-native/tests/library_verification.rs");
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["original_private_library_aggregation_renders_templates_and_checks_keywords"]));
+        assert!(include_str!("../../../../rust-native/tests/library_verification.rs").contains("fn original_private_library_aggregation_renders_templates_and_checks_keywords()"));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
