@@ -544,7 +544,7 @@
     "rust-native/tests/installer_cli.rs": "d2e546f2c099882d712c91abb9b4b181bf2fd19a4d117d997ca2b7f8e0ea59a3",
     "rust-native/tests/keyboard_host_provider.rs": "bbfcf3095a217c917ef5b2cee6bfa91346695f9fb8b02980903c224e3fcd9ac5",
     "rust-native/tests/keyboard_keycodes_reference.json": "4cac352ef3da30cb8d25236cec5eb46789e623ee3c763fdbfcbb96f7c60cd4e8",
-    "rust-native/tests/keyboard_process.rs": "76cc94a61d244c6f7b5b503d63e9ed2fce59c16bf2efe487f5edd18e4ece398f",
+    "rust-native/tests/keyboard_process.rs": "7fea7dedcba239cb533dabce461c283b49440937f8cf55b1abfc80ec31787d0c",
     "rust-native/tests/keyword_board.rs": "7bd2689cceb650ebbd8e6a1c90084de5759bf73a817af57180a35ff67969e46b",
     "rust-native/tests/keyword_capture_process.rs": "413338cca207c7d95740a3472c1ab98385d6c009464e8c46e1568a27bb090a3d",
     "rust-native/tests/keyword_core.rs": "70528766753e567297cb6e4ce1b7a50eb0323fb81f83616c3dafcb89dd3db79b",
