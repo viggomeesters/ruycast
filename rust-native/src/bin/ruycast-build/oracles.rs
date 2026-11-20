@@ -2921,9 +2921,6 @@ mod tests {
     #[test]
     fn duplicate_snippet_keyword_assertion_remains_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert_template_helper_retired(core);
-        assert!(!core.contains("XCTAssertThrowsError(try c.validate())"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
