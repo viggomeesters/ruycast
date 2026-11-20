@@ -1160,6 +1160,31 @@ mod tests {
     }
 
     #[test]
+    fn original_blank_queries_preserve_nonempty_catalog_order() {
+        let commands: Vec<Command> = serde_json::from_value(json!([
+            {"id":"z","title":"Beta","kind":"url","target":"https://example.com/one","aliases":["go"]},
+            {"id":"a","title":"Go Alpha","kind":"url","target":"https://example.com/two"},
+            {"id":"b","title":"Ångström Notes","kind":"url","target":"https://example.com/three","aliases":["nul\0alias"]},
+            {"id":"c","title":"Beta","kind":"url","target":"https://example.com/four"}
+        ]))
+        .unwrap();
+        let index = SearchIndex::new(&commands);
+        let expected = ["z", "a", "b", "c"];
+        let ids = |positions: Vec<usize>| {
+            positions
+                .into_iter()
+                .map(|position| commands[position].id.as_str())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(ids(index.search("   ")), expected);
+        assert_eq!(
+            ids(index.search_with_recency("", &[999.0, 0.0, 0.0, 0.0]).unwrap()),
+            expected
+        );
+    }
+
+    #[test]
     fn original_quality_ranking_alias_recency_and_multi_term_search() {
         let commands: Vec<Command> = serde_json::from_value(json!([
             {"id":"exact","title":"Zulu","kind":"url","target":"https://example.com","aliases":["mt"]},
