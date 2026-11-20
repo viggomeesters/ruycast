@@ -76,7 +76,7 @@ func searchFixture()->[Command] {
     try state.searchRanking.recordSuccess("typo.distractor")
     state.query="fnider"
     state.handle(["op":"search","query":"fnider"]) {value in typoReply.update {$0=(value["result"] as? [[String:Any]])?.compactMap {$0["id"] as? String} ?? []}}
-    guard state.results.map(\.id)==["typo.finder","typo.distractor"],typoReply.read({$0})==["typo.finder","typo.distractor"]
+    guard typoReply.read({$0})==["typo.finder","typo.distractor"]
     else {throw LauncherError("Weak subsequence hid a direct title typo")}
     let resultChanges=LockedValue(0)
     withObservationTracking {_=state.query;_=state.visibleCommands;_=state.selection} onChange:{resultChanges.update {$0+=1}}

@@ -2325,6 +2325,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["with Calendar enabled and Finder disabled, searching fnider returns no disabled Finder result"],
             "nativeCases": ["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoPaletteOrder"] = serde_json::json!({
+            "originalSourceSHA256": "69997e74e26bc8029be2630175124c7a7dcb2276767024d61534c1e34f17a6ef",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the Swift palette-result ordering for a direct title typo over a higher-recency weak subsequence moves to the Rust core test. The CLI reply assertion and complete --check-search route stay active.",
+            "nativeSource": "rust/src/lib.rs",
+            "originalScenarios": ["with Find Reminders ranked higher, query fnider orders the direct Finder title before the weak subsequence distractor"],
+            "nativeCases": ["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3531,6 +3539,24 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_direct_title_typo_palette_order_is_crosswalked_to_rust() {
+        let rust = include_str!("../../../../rust/src/lib.rs");
+        assert!(rust.contains("fn direct_title_typo_outranks_weak_subsequence_with_higher_recency()"));
+        assert!(rust.contains(r#"index.search_with_recency("fnider", &[0.0, 10_000.0])"#));
+        assert!(rust.contains(r#"assert_eq!(ids, ["typo.finder", "typo.distractor"]);"#));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoPaletteOrder"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "69997e74e26bc8029be2630175124c7a7dcb2276767024d61534c1e34f17a6ef");
+        assert_eq!(mapping["nativeSource"], "rust/src/lib.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
