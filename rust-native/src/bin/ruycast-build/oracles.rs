@@ -2086,6 +2086,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["finder resolves to the existing app.finder command", "finder documentation resolves to the added link command", "uppercase DOCS resolves the saved link alias"],
             "nativeCases": ["runtime::inline_tests::original_exact_alias_title_multiterm_and_uppercase_resolution"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
+            "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The Utilities acceptance helper and its CLI route are retired. Its original missing-text, history, password and username, malformed-Keychain, import and privacy assertions remain in the focused Rust scenario; real profile reopening and 0600 permissions stay in the existing storage test, with frozen Swift results retained separately.",
+            "nativeSources": ["rust-native/src/utilities.rs", "rust-native/src/utility_storage.rs", "rust-native/tests/utility_oracle.rs"],
+            "originalScenarios": ["missing active text reports Set Text", "text history deduplicates and selecting an entry pastes the active text", "reopened profile retains active text and is private on disk", "password generation is deterministic and secret-marked while existing Keychain history is preserved with exactly one write", "password values are absent from command payloads and profile storage", "old password history copies as concealed text", "username generation is deterministic and searchable", "malformed Keychain data remains intact without another write", "utility import merges once, replay adds zero, and active native text is retained"],
+            "nativeCases": ["utilities::tests::original_utility_acceptance_scenarios_remain_in_rust", "utility_storage::tests::real_profile_reopen_private_mode_external_edit_and_no_password_on_disk", "utility_oracle::frozen_swift_utilities_and_codable_match_rust_on_owned_cases"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
             "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
             "originalMethods": [
@@ -2501,6 +2509,48 @@ mod tests {
         assert!(include_str!("../../runtime_private_tests.rs").contains(&format!("fn {case}()")));
         assert_eq!(inventory["productionAccepted"], false);
     }
+
+    #[test]
+    fn retired_utilities_helper_is_removed_and_its_scenarios_are_crosswalked() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/UtilityChecks.swift";
+        assert!(!root.join(retired).exists());
+        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
+        assert!(!main.contains("--check-utilities"));
+        assert!(!main.contains("checkUtilities"));
+        assert!(!include_str!("../ruycast-source/policy.rs")
+            .lines()
+            .any(|line| line == retired));
+
+        let lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(lock["files"].get(retired).is_none());
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(
+            mapping["originalSourceSHA256"],
+            "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2"
+        );
+        assert_eq!(
+            mapping["nativeCases"],
+            serde_json::json!([
+                "utilities::tests::original_utility_acceptance_scenarios_remain_in_rust",
+                "utility_storage::tests::real_profile_reopen_private_mode_external_edit_and_no_password_on_disk",
+                "utility_oracle::frozen_swift_utilities_and_codable_match_rust_on_owned_cases"
+            ])
+        );
+        assert!(include_str!("../../utilities.rs")
+            .contains("fn original_utility_acceptance_scenarios_remain_in_rust()"));
+        assert!(include_str!("../../utility_storage.rs")
+            .contains("fn real_profile_reopen_private_mode_external_edit_and_no_password_on_disk()"));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
     #[test]
     fn python_unittest_discovery_qualifies_only_real_package_discovered_sources() {
         let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
