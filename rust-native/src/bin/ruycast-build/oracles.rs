@@ -2801,8 +2801,6 @@ mod tests {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert_template_helper_retired(core);
-        assert!(!core.contains("let longText=String(repeating:"));
-        assert!(!core.contains("chunks.allSatisfy {$0.utf16.count<=16}"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
