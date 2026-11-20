@@ -33,13 +33,6 @@ struct CoreTests {
         XCTAssertEqual(quality.search("mic tea").first?.id,"teams")
         XCTAssertEqual(quality.search("mft").first?.id,"teams")
         XCTAssertEqual(quality.search("Microsoft Teams",recency:["history":100]).first?.id,"teams")
-        // Equal titles and weights retain catalog order, including large ties;
-        // recency may reorder ties but may never outrank an exact alias.
-        let ties=(0..<128).map {Command(id:"tie.\($0)",title:"Same Title",kind:"url",target:"https://example.com",aliases:$0==127 ? ["same"]:[])}
-        let tied=try CommandSearchIndex(commands:ties)
-        XCTAssertEqual(tied.search("title").map(\.id),ties.map(\.id))
-        XCTAssertEqual(tied.search("same",recency:["tie.64":100]).prefix(3).map(\.id),["tie.127","tie.64","tie.0"])
-        XCTAssertEqual(tied.search("s t").map(\.id),ties.map(\.id))
         let root=FileManager.default.temporaryDirectory.appendingPathComponent("ranking-"+UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)

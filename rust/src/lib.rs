@@ -1121,6 +1121,45 @@ mod tests {
         }
     }
     #[test]
+    fn original_large_equal_title_ties_preserve_order_and_alias_precedence() {
+        let commands: Vec<Command> = (0..128)
+            .map(|i| {
+                let mut command = json!({
+                    "id": format!("tie.{i}"),
+                    "title": "Same Title",
+                    "kind": "url",
+                    "target": "https://example.com"
+                });
+                if i == 127 {
+                    command["aliases"] = json!(["same"]);
+                }
+                serde_json::from_value(command).unwrap()
+            })
+            .collect();
+        let index = SearchIndex::new(&commands);
+        let expected = (0..128).map(|i| format!("tie.{i}")).collect::<Vec<_>>();
+        let ids = |positions: Vec<usize>| {
+            positions
+                .into_iter()
+                .map(|position| commands[position].id.as_str())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            ids(index.search("title")),
+            expected.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+        let mut recency = vec![0.0; 128];
+        recency[64] = 100.0;
+        let same = ids(index.search_with_recency("same", &recency).unwrap());
+        assert_eq!(&same[..3], ["tie.127", "tie.64", "tie.0"]);
+        assert_eq!(
+            ids(index.search("s t")),
+            expected.iter().map(String::as_str).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn duplicate_aliases_and_modifiers_fail() {
         let mut v = default_config();
         v["commands"][1]["aliases"] = json!(["FiNdEr"]);
