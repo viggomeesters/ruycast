@@ -4,11 +4,11 @@ use super::*;
 use std::time::{Duration, Instant};
 const DIRECTORY: &str = "rust-native/target/verification";
 fn check_host_sdk_paths<'a>(paths: impl Iterator<Item = &'a String>) -> Result<()> {
-    let expected = ["GeneralKeyboard", "NativeChoice", "NativeHid", "NativeKeyboard", "NativeKeyword"]
+    let expected = ["GeneralKeyboard", "NativeKeyboard"]
         .map(|name| format!("{DIRECTORY}/native-profile/host-sdks/{name}.dylib"))
         .into_iter().collect::<std::collections::BTreeSet<_>>();
     if paths.cloned().collect::<std::collections::BTreeSet<_>>() != expected {
-        return Err("Exactly the five required native host SDK roles and paths must be present.".into());
+        return Err("Exactly the active native host SDK roles and paths must be present.".into());
     }
     Ok(())
 }
@@ -1982,7 +1982,7 @@ fn check_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
 }
 pub(super) fn plan(target: &str) -> Result<serde_json::Value> {
     Ok(
-        serde_json::json!({"schema":"ruycast.native-validation-plan.v1","steps":matrix(target)?,"renders":[["light","600"],["light","760"],["dark","600"],["dark","760"]],"references":REFERENCES,"requiredNativeSDKs":5,"productionAccepted":false}),
+        serde_json::json!({"schema":"ruycast.native-validation-plan.v1","steps":matrix(target)?,"renders":[["light","600"],["light","760"],["dark","600"],["dark","760"]],"references":REFERENCES,"requiredNativeSDKs":2,"productionAccepted":false}),
     )
 }
 fn owned_path<'a>(root: &Path, path: &'a Path) -> Result<&'a Path> {
@@ -2652,8 +2652,8 @@ mod tests {
     }
     #[test]
     fn host_sdk_roster_requires_the_general_recorder_and_refuses_substitutes_or_extras() {
-        assert_eq!(plan("aarch64-apple-darwin").unwrap()["requiredNativeSDKs"], 5);
-        let paths = ["GeneralKeyboard", "NativeChoice", "NativeHid", "NativeKeyboard", "NativeKeyword"]
+        assert_eq!(plan("aarch64-apple-darwin").unwrap()["requiredNativeSDKs"], 2);
+        let paths = ["GeneralKeyboard", "NativeKeyboard"]
             .map(|name| format!("rust-native/target/verification/native-profile/host-sdks/{name}.dylib"));
         assert!(check_host_sdk_paths(paths.iter()).is_ok());
         assert!(check_host_sdk_paths(paths[1..].iter()).is_err());
