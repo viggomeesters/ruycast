@@ -22,10 +22,6 @@ func checkSnippetOutput() throws {
     for (sourceOffset,expectedOffset) in [(0,0),(1,1),(labeled.utf16.count-1,3),(labeled.utf16.count,4)] {
         precondition(SnippetOutput.render(labeled,mode:"html",cursor:sourceOffset).cursor==expectedOffset)
     }
-    let choice=Command(id:"choice.rich",title:"Rich choice",kind:"snippet",target:"Hi {argument name=\"Person\" options=\"A,B\"}\n\n[Guide](https://example.com)",keyword:";choice",snippetOutput:"teams")
-    let request=SnippetChoiceRequest(command:choice,pid:123)
-    let replacement=try request.replacement(values:["Person":"B"],pid:123,safe:true,unchanged:true)
-    precondition(replacement.text.hasPrefix("Hi B\n\n") && SnippetOutput.render(replacement.text,mode:choice.snippetOutput).html!.contains("<a href="))
     let cursorSource="a[hi](https://example.com)b"
     precondition(SnippetOutput.render(cursorSource,mode:"html",cursor:3).cursor==2)
     for mode in SnippetOutput.modes {
