@@ -1,8 +1,11 @@
 //! Explicit historical gate inventory. Only source-qualified, data-only
 //! oracles execute here; unqualified old-host branches must never run raw.
 use super::*;
+use std::collections::BTreeSet;
 #[path = "../../../tests/support/hid_state_goldens.rs"]
 mod hid_state_goldens;
+
+const CORE_SMOKE_SCOPE: &str = "Rust static library and SwiftPM LauncherCoreChecks compile/link smoke only; no behavior, ABI-call, startup, AppKit, RuycastApp or desktop acceptance";
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -279,14 +282,6 @@ fn data_copy(root: &Path, source: &Path, destination: &Path) -> Result<()> {
     }
     Ok(())
 }
-fn core_stdout_matches_current_contract(stdout: &[u8]) -> Result<bool> {
-    Ok(String::from_utf8(stdout.to_vec())
-        .map_err(error)?
-        .lines()
-        .collect::<Vec<_>>()
-        == ["Core behavior checks passed"])
-}
-
 pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     let before = core_sources(root)?;
     let policy_inputs=core_policy_footprint(root)?;
@@ -294,61 +289,19 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
     tool(root,lease,&core_policy_build_command(&target)?)?;
     let policy_artifact=bind_core_policy_artifact(root,&target)?;
     let policy_before=execute_core_policy(root,lease,&policy_artifact,"before")?;
-    let mut commands = vec![
-        vec![
-            "cargo",
-            "build",
-            "--manifest-path",
-            "rust/Cargo.toml",
-            "--target-dir",
-            ".build/oracle-core",
-            "--target",
-            &target,
-            "--lib",
-            "--locked",
-            "--offline",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect::<Vec<_>>(),
-        vec![
-            "swift",
-            "build",
-            "--scratch-path",
-            ".build/oracle-swift",
-            "--configuration",
-            "debug",
-            "--product",
-            "LauncherCoreChecks",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect::<Vec<_>>(),
-    ];
-    tool(root, lease, &commands[0])?;
-    let archive = root.join(format!(
-        ".build/oracle-core/{target}/debug/librustcast_core.a"
-    ));
+    let rust_build = vec![
+        "cargo", "build", "--manifest-path", "rust/Cargo.toml", "--target-dir",
+        ".build/oracle-core", "--target", target.as_str(), "--lib", "--locked", "--offline",
+    ].into_iter().map(str::to_owned).collect::<Vec<_>>();
+    tool(root, lease, &rust_build)?;
+    let archive = root.join(format!(".build/oracle-core/{target}/debug/librustcast_core.a"));
     let compatibility_archive = root.join(".build/rust/release/librustcast_core.a");
     data_copy(root, &archive, &compatibility_archive)?;
-    // SwiftPM does not track the externally linked Rust archive. A distinct
-    // content-addressed scratch tree makes stale linkage impossible without
-    // deleting or adopting another cache.
-    commands[1][3] = format!(".build/oracle-swift/{}", digest(&archive)?);
+    let archive_sha256 = digest(&archive)?;
+    let commands = core_build_commands(&target, &archive_sha256)?;
+    let scratch = format!(".build/oracle-swift/{archive_sha256}");
     tool(root, lease, &commands[1])?;
-    let bin_path = tool(
-        root,
-        lease,
-        &[
-            "swift".into(),
-            "build".into(),
-            "--scratch-path".into(),
-            commands[1][3].clone(),
-            "--configuration".into(),
-            "debug".into(),
-            "--show-bin-path".into(),
-        ],
-    )?;
+    let bin_path = tool(root, lease, &commands[2])?;
     let bin_path = PathBuf::from(bin_path.trim());
     if !bin_path.is_absolute()
         || !bin_path.starts_with(root.join(".build/oracle-swift"))
@@ -362,7 +315,7 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
         return Err("Swift oracle build reported an unexpected artifact path.".into());
     }
     let modulemap = bin_path.join("CRuycastCore.build/module.modulemap");
-    let swift_compatibility = swift_compatibility(root, &root.join(&commands[1][3]), &bin_path, &target)?;
+    let swift_compatibility = swift_compatibility(root, &root.join(&scratch), &bin_path, &target)?;
     let compatibility_modulemap = root.join(&swift_compatibility.modulemap);
     data_copy(root, &modulemap, &compatibility_modulemap)?;
     let binary = bin_path.join("LauncherCoreChecks");
@@ -370,34 +323,6 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
     let policy_after=execute_core_policy(root,lease,&policy_artifact,"after")?;
     let policy=CorePolicyEvidence{artifact:policy_artifact,before:policy_before,after:policy_after,inputs:policy_inputs};
     check_core_policy_evidence(root,&policy)?;
-    let parent = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| root.join(".build/oracle-fixtures"));
-    if !parent.is_absolute() {
-        return Err("Oracle fixture parent must be absolute.".into());
-    }
-    let fixture = preparation::Stage::in_parent(&parent, "core-oracle")?;
-    let mut command = Command::new(&binary);
-    command
-        .current_dir(root)
-        .env_clear()
-        .env("HOME", fixture.path())
-        .env("TMPDIR", fixture.path());
-    lease.apply_to_child(&mut command)?;
-    let value = process::capture(command, std::time::Duration::from_secs(60), 1024 * 1024)?;
-    ruycast_native::private_storage::write(
-        &root.join(".build/receipts/pure-core.stdout"),
-        &value.stdout,
-        true,
-    )?;
-    ruycast_native::private_storage::write(
-        &root.join(".build/receipts/pure-core.stderr"),
-        &value.stderr,
-        true,
-    )?;
-    if !value.status.success() || !core_stdout_matches_current_contract(&value.stdout)? {
-        return Err("Historical data-only CoreChecks failed.".into());
-    }
     if core_sources(root)? != before {
         return Err("Pure oracle source changed; no receipt published.".into());
     }
@@ -420,7 +345,7 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
     }
     artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
     verify_swift_compatibility(root, &swift_compatibility, &artifacts)?;
-    let receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v6".into(),scope:"Frozen LauncherCoreChecks: Foundation data/owned filesystem and actual linked Rust ABI; no RuycastApp/AppKit/startup/desktop claim".into(),sources:before,artifacts,commands,outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility,policy};
+    let receipt=CoreReceipt{schema:"ruycast.core-build-link-smoke.v1".into(),scope:CORE_SMOKE_SCOPE.into(),sources:before,artifacts,commands,outcome:"Core build/link smoke passed".into(),production_accepted:false,swift_compatibility,policy};
     lease.validate()?;
     let path = root.join(".build/receipts/pure-core-oracle.json");
     ruycast_native::private_storage::write(
@@ -492,22 +417,63 @@ pub(super) fn qualify_hid_reference(
     });
     Ok(value)
 }
+fn core_build_commands(target: &str, archive_sha256: &str) -> Result<Vec<Vec<String>>> {
+    if !matches!(target, "aarch64-apple-darwin" | "x86_64-apple-darwin")
+        || archive_sha256.len() != 64
+        || !archive_sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
+        return Err("Invalid core build/link smoke binding.".into());
+    }
+    let scratch = format!(".build/oracle-swift/{archive_sha256}");
+    Ok(vec![
+        vec![
+            "cargo", "build", "--manifest-path", "rust/Cargo.toml", "--target-dir",
+            ".build/oracle-core", "--target", target, "--lib", "--locked", "--offline",
+        ].into_iter().map(str::to_owned).collect(),
+        vec![
+            "swift", "build", "--scratch-path", &scratch, "--configuration", "debug",
+            "--product", "LauncherCoreChecks",
+        ].into_iter().map(str::to_owned).collect(),
+        vec![
+            "swift", "build", "--scratch-path", &scratch, "--configuration", "debug",
+            "--show-bin-path",
+        ].into_iter().map(str::to_owned).collect(),
+    ])
+}
+
 pub(super) fn verify_core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     lease.validate()?;
     let receipt: CoreReceipt = serde_json::from_slice(&regular_bytes(
         &root.join(".build/receipts/pure-core-oracle.json"),
     )?)
     .map_err(error)?;
-    if receipt.schema != "ruycast.pure-core-oracle.v6"
+    let target = receipt.policy.artifact.target.as_str();
+    let architecture=match target{"aarch64-apple-darwin"=>"arm64-apple-macosx","x86_64-apple-darwin"=>"x86_64-apple-macosx",_=>return Err("Unexpected policy target.".into())};
+    let archive_path = format!(".build/oracle-core/{target}/debug/librustcast_core.a");
+    let archive_sha256 = receipt.artifacts.get(&archive_path).ok_or("Core smoke archive binding is missing.")?;
+    let expected_commands = core_build_commands(target, archive_sha256)?;
+    let scratch=format!(".build/oracle-swift/{archive_sha256}/{architecture}/debug");
+    let modulemap=format!("{scratch}/CRuycastCore.build/module.modulemap");
+    let binary=format!("{scratch}/LauncherCoreChecks");
+    let compatibility_archive=".build/rust/release/librustcast_core.a";
+    let expected_artifacts=BTreeSet::from([
+        archive_path.clone(),modulemap.clone(),binary.clone(),compatibility_archive.into(),
+        receipt.swift_compatibility.modulemap.clone(),receipt.policy.artifact.path.clone(),
+    ]);
+    let actual_artifacts=receipt.artifacts.keys().cloned().collect::<BTreeSet<_>>();
+    if receipt.schema != "ruycast.core-build-link-smoke.v1"
         || receipt.production_accepted
         || receipt.sources != core_sources(root)?
-        || receipt.artifacts.len() != 6
-        || receipt.outcome != "Core behavior checks passed"
+        || actual_artifacts != expected_artifacts
+        || receipt.outcome != "Core build/link smoke passed"
+        || receipt.commands != expected_commands
+        || receipt.scope != CORE_SMOKE_SCOPE
+        || receipt.artifacts.get(&archive_path) != receipt.artifacts.get(compatibility_archive)
+        || receipt.artifacts.get(&modulemap) != receipt.artifacts.get(&receipt.swift_compatibility.modulemap)
     {
-        return Err("Pure CoreChecks oracle receipt is invalid or stale.".into());
+        return Err("Core build/link smoke receipt is invalid or stale.".into());
     }
     check_core_policy_evidence(root,&receipt.policy)?;
-    let architecture=match receipt.policy.artifact.target.as_str(){"aarch64-apple-darwin"=>"arm64-apple-macosx","x86_64-apple-darwin"=>"x86_64-apple-macosx",_=>return Err("Unexpected policy target.".into())};
     if receipt.artifacts.get(&receipt.policy.artifact.path)!=Some(&receipt.policy.artifact.sha256)
         || receipt.swift_compatibility.architecture!=architecture {return Err("Core policy lost its actual artifact/architecture role.".into());}
     verify_swift_compatibility(root, &receipt.swift_compatibility, &receipt.artifacts)?;
@@ -2468,7 +2434,7 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
     let before = headless_sources(root)?;
     let policy_inputs=core_policy_footprint(root)?;
     let target=host_target(root)?;
-    if core["policy"]["artifact"]["target"]!=target {return Err("Headless policy requires its current host core-v6 receipt.".into());}
+    if core["policy"]["artifact"]["target"]!=target {return Err("Headless policy requires its current host core build/link-smoke receipt.".into());}
     tool(root,lease,&core_policy_build_command(&target)?)?;
     let policy_artifact=bind_core_policy_artifact(root,&target)?;
     let policy_before=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"before")?;
@@ -2689,11 +2655,6 @@ mod tests {
         assert!(cases.len() >= 8);
         assert_eq!(inventory["productionAccepted"], false);
 
-        assert!(super::core_stdout_matches_current_contract(b"Core behavior checks passed\n").unwrap());
-        assert!(!super::core_stdout_matches_current_contract(
-            b"Snippet output checks passed\nCore behavior checks passed\n"
-        )
-        .unwrap());
     }
 
     #[test]
@@ -3959,17 +3920,39 @@ mod tests {
         let destination=root.join(".build/oracle-policy/aarch64-apple-darwin/debug/rust-only-policy");
         fs::create_dir_all(destination.parent().unwrap()).unwrap();fs::copy(binary,destination).unwrap();fixture
     }
+    fn core_smoke_receipt(root:&Path,policy:CorePolicyEvidence)->CoreReceipt {
+        let target=policy.artifact.target.as_str();
+        let architecture=match target {"aarch64-apple-darwin"=>"arm64-apple-macosx","x86_64-apple-darwin"=>"x86_64-apple-macosx",_=>panic!("unexpected target")};
+        let archive=format!(".build/oracle-core/{target}/debug/librustcast_core.a");
+        fs::create_dir_all(root.join(&archive).parent().unwrap()).unwrap();
+        fs::write(root.join(&archive),b"owned Rust archive fixture").unwrap();
+        let archive_sha256=digest(&root.join(&archive)).unwrap();
+        let scratch=format!(".build/oracle-swift/{archive_sha256}");
+        let bin=format!("{scratch}/{architecture}/debug");
+        let modulemap=format!("{bin}/CRuycastCore.build/module.modulemap");
+        let compatibility_modulemap=".build/swift/debug/CRuycastCore.build/module.modulemap";
+        let compatibility_archive=".build/rust/release/librustcast_core.a";
+        let binary=format!("{bin}/LauncherCoreChecks");
+        let mut artifacts=BTreeMap::new();
+        for name in [&modulemap,compatibility_modulemap,compatibility_archive,&binary] {
+            fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();
+            fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();
+        }
+        fs::copy(root.join(&archive),root.join(compatibility_archive)).unwrap();
+        fs::copy(root.join(&modulemap),root.join(compatibility_modulemap)).unwrap();
+        for name in [&modulemap,compatibility_modulemap,compatibility_archive,&binary] {
+            artifacts.insert((*name).into(),digest(&root.join(name)).unwrap());
+        }
+        artifacts.insert(archive.clone(),archive_sha256.clone());
+        artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
+        CoreReceipt{schema:"ruycast.core-build-link-smoke.v1".into(),scope:CORE_SMOKE_SCOPE.into(),sources:core_sources(root).unwrap(),artifacts,commands:core_build_commands(target,&archive_sha256).unwrap(),outcome:"Core build/link smoke passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:compatibility_modulemap.into(),architecture:architecture.into(),alias_target:None},policy}
+    }
     fn owned_headless_policy_receipt(root:&Path,lease:&BuildLock)->HeadlessReceipt {
         let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
         let before=execute_core_policy(root,lease,&artifact,"before").unwrap();let after=execute_core_policy(root,lease,&artifact,"after").unwrap();
         let core_policy=CorePolicyEvidence{artifact:artifact.clone(),before,after,inputs:core_policy_footprint(root).unwrap()};
         let core_logs=["before","after"].map(|phase|fs::read(root.join(format!(".build/receipts/pure-core-policy-{phase}.stdout"))).unwrap());
-        let mut artifacts=BTreeMap::new();
-        for name in [".build/rust/release/librustcast_core.a",".build/metadata-archive.a",".build/metadata-module.modulemap",".build/swift/debug/CRuycastCore.build/module.modulemap",".build/metadata-CoreChecks"] {
-            fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();artifacts.insert(name.into(),digest(&root.join(name)).unwrap());
-        }
-        artifacts.insert(artifact.path.clone(),artifact.sha256.clone());
-        let core=CoreReceipt{schema:"ruycast.pure-core-oracle.v6".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy:core_policy};
+        let core=core_smoke_receipt(root,core_policy);
         fs::write(root.join(".build/receipts/pure-core-oracle.json"),serde_json::to_vec(&core).unwrap()).unwrap();verify_core(root,lease).unwrap();
         let before=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"before").unwrap();
         let after=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"after").unwrap();
@@ -3983,7 +3966,7 @@ mod tests {
         HeadlessReceipt{schema:"ruycast.pre-main-headless-oracles.v3".into(),core_receipt_sha256:digest(&root.join(".build/receipts/pure-core-oracle.json")).unwrap(),policy,sources:headless_sources(root).unwrap(),artifacts,outcomes:BTreeMap::from([("--check-search".into(),serde_json::json!({"ok":true}))]),commands:vec![],scope:"owned metadata fixture only; no genuine Swift branch execution".into(),production_accepted:false}
     }
     #[test]
-    fn headless_rust_policy_logs_and_exact_core_v6_dependency_remain_separate() {
+    fn headless_rust_policy_logs_and_exact_core_smoke_dependency_remain_separate() {
         let fixture=core_policy_fixture();let root=&fixture.0;let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
         let receipt=owned_headless_policy_receipt(root,&lease);let path=root.join(".build/receipts/pre-main-headless-oracles.json");
         fs::write(&path,serde_json::to_vec(&receipt).unwrap()).unwrap();verify_headless(root,&lease).unwrap();
@@ -3991,7 +3974,7 @@ mod tests {
         verify_core(root,&lease).unwrap();assert_eq!(verify_headless(root,&lease).unwrap_err(), "Frozen pre-main branch receipt is invalid or stale.");
         fs::write(&core,&original).unwrap();verify_headless(root,&lease).unwrap();
         fs::remove_file(&core).unwrap();assert!(verify_headless(root,&lease).is_err());assert!(headless(root,&lease).is_err());
-        assert!(!root.join(".build/oracle-swift").exists());
+        assert!(root.join(".build/oracle-swift").is_dir());
     }
     #[test]
     fn headless_rust_policy_v3_rejects_old_receipts_missing_gates_and_stale_footprints() {
@@ -4034,20 +4017,35 @@ mod tests {
         assert!(check_core_policy_evidence(root,&policy).is_err());
     }
     #[test]
-    fn core_rust_policy_v6_receipt_requires_current_policy_source_artifact_and_both_gates() {
+    fn core_build_link_smoke_receipt_requires_current_policy_source_artifact_and_both_gates() {
         let fixture=core_policy_fixture();let root=&fixture.0;
         let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
         let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
         let before=execute_core_policy(root,&lease,&artifact,"before").unwrap();let after=execute_core_policy(root,&lease,&artifact,"after").unwrap();
-        let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};let mut artifacts=BTreeMap::new();
-        for name in [".build/archive.a",".build/alias.a",".build/module.modulemap",".build/swift/debug/CRuycastCore.build/module.modulemap",".build/LauncherCoreChecks"] {
-            fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();artifacts.insert(name.into(),digest(&root.join(name)).unwrap());
-        }
-        artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-        let mut receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v6".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy};
+        let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};
+        let mut receipt=core_smoke_receipt(root,policy);
         let path=root.join(".build/receipts/pure-core-oracle.json");
         let save=|value:&CoreReceipt|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
         save(&receipt);verify_core(root,&lease).unwrap();
+        let good=serde_json::to_value(&receipt).unwrap();
+        for mutation in ["command-scratch", "outcome", "scope", "missing-modulemap", "wrong-binary"] {
+            let mut changed=good.clone();
+            match mutation {
+                "command-scratch"=>changed["commands"][1][3]=serde_json::json!(".build/oracle-swift/unbound"),
+                "outcome"=>changed["outcome"]=serde_json::json!("Core behavior checks passed"),
+                "scope"=>changed["scope"]=serde_json::json!("behavior and ABI call acceptance"),
+                "missing-modulemap"=>{changed["artifacts"].as_object_mut().unwrap().remove(".build/swift/debug/CRuycastCore.build/module.modulemap");},
+                _=>{let artifacts=changed["artifacts"].as_object_mut().unwrap();let binary=artifacts.keys().find(|name|name.ends_with("/LauncherCoreChecks")).unwrap().clone();artifacts.remove(&binary);},
+            }
+            fs::write(&path,serde_json::to_vec(&changed).unwrap()).unwrap();
+            assert!(verify_core(root,&lease).is_err(),"{mutation}");
+        }
+        save(&receipt);
+        let policy=receipt.policy.clone();
+        let compat_archive=root.join(".build/rust/release/librustcast_core.a");
+        fs::write(&compat_archive,b"changed compatibility archive").unwrap();
+        assert!(verify_core(root,&lease).is_err());
+        receipt=core_smoke_receipt(root,policy);save(&receipt);verify_core(root,&lease).unwrap();
         for (name,allowed) in [("rust-native/NewHost.swift",false),("rust-native/web/runtime.js",false),("rust-native/build.rs",true),("rust-native/__pycache__/hidden.py",false),("rust/src/__pycache__/host.py",false),("Sources/__pycache__/hidden.swift",false)] {
             let path=root.join(name);fs::create_dir_all(path.parent().unwrap()).unwrap();fs::write(&path,b"// own footprint regression fixture").unwrap();
             assert!(verify_core(root,&lease).is_err(),"{name}");
@@ -4058,10 +4056,10 @@ mod tests {
             while parent!=root {if fs::remove_dir(parent).is_err(){break;}parent=parent.parent().unwrap();}
             verify_core(root,&lease).unwrap();
         }
-        for old in ["ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4", "ruycast.pure-core-oracle.v5"] {
-            receipt.schema=old.into();save(&receipt);assert_eq!(verify_core(root,&lease).unwrap_err(), "Pure CoreChecks oracle receipt is invalid or stale.");
+        for old in ["ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4", "ruycast.pure-core-oracle.v5", "ruycast.pure-core-oracle.v6"] {
+            receipt.schema=old.into();save(&receipt);assert_eq!(verify_core(root,&lease).unwrap_err(), "Core build/link smoke receipt is invalid or stale.");
         }
-        receipt.schema="ruycast.pure-core-oracle.v6".into();save(&receipt);
+        receipt.schema="ruycast.core-build-link-smoke.v1".into();save(&receipt);
         let mut missing=serde_json::to_value(&receipt).unwrap();missing.as_object_mut().unwrap().remove("policy");
         fs::write(&path,serde_json::to_vec(&missing).unwrap()).unwrap();assert!(verify_core(root,&lease).is_err());
         save(&receipt);fs::write(root.join("rust-native/src/main.rs"),b"changed bound runtime fixture").unwrap();assert!(verify_core(root,&lease).is_err());
