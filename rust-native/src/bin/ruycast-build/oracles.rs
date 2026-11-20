@@ -1280,7 +1280,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "cefa77c11c4cd3543dc547f0696854d4e4601550fc701440803b74f4a8287092"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "46baf0073ed8263931b6957269827eda1304f083c2a518d23aaf5fa9d2fe15a3"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "f98ed77b2df3ae0c2e2cd27d21219dedb9f19e6a8adacde70f31921e07e2aaa7"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1340,7 +1340,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_process.rs", include_bytes!("../../../tests/snippet_process.rs"), "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0"),
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "cb1441b9c63056ed828df688e8af5a4f6cbfd3208352d37f493c51a8ef0a06cd"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "46baf0073ed8263931b6957269827eda1304f083c2a518d23aaf5fa9d2fe15a3"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "f98ed77b2df3ae0c2e2cd27d21219dedb9f19e6a8adacde70f31921e07e2aaa7"),
         ],
         "--check-command-log" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
@@ -2073,10 +2073,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/ABIChecks.swift::checkPreparedRanking"] = serde_json::json!({
             "originalSourceSHA256": "ef4c6e126a2c2183a86aa8fc97c7accf9924d5eaaa379d518c9cf7fce97a8334",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the prepared ranking snapshot assertions moved to Rust; checkImportedABI and the ABI runner remain active.",
+            "scope": "The prepared ranking snapshot assertions moved to Rust. The remaining ABI behavior assertions are crosswalked separately; Swift C-importer and PreparedCommandSearch owner-retention behavior are retired with the Swift helper and are not claimed as Rust coverage.",
             "nativeSource": "rust-native/src/ranking.rs",
             "originalScenarios": ["an already prepared catalog keeps its original ranking", "recording a successful choice increments revision and a new catalog ranks that choice first", "reset increments revision and restores catalog order", "stale recency for a different command does not affect a replacement catalog"],
             "nativeCases": ["ranking::tests::original_prepared_ranking_snapshots_track_success_reset_and_replacement"]
+        });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/ABIChecks.swift::checkImportedABI"] = serde_json::json!({
+            "originalSourceSHA256": "19811571df19e5dd8c5cb066f5a5a15ad13f5c37d482219aa17d96a4dbc48eb3",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The ABI version and exact weighted/empty-query index results are checked through the Rust C ABI. Swift C-importer dispatch and PreparedCommandSearch ARC owner-retention are Swift-wrapper behavior retired with the helper, not Rust coverage.",
+            "nativeSource": "rust/src/lib.rs",
+            "originalScenarios": ["the Rust ABI reports version 1", "same with recency second=5 returns command indices second then first", "an empty query returns the original command indices first then second"],
+            "retiredAssertions": ["Swift C-imported declarations invoke the linked archive through the Swift wrapper", "PreparedCommandSearch retains the Swift CommandSearchIndex owner after its local creator exits"],
+            "nativeCases": ["tests::original_imported_abi_version_ranked_and_empty_query_order"]
         });
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testExactAliasBeatsTitleAndSupportsMultipleTerms"] = serde_json::json!({
             "originalSourceSHA256": "bb86e8804323ae68cfd126f75d9c5d4af70e354fadc1356a53c89eea3452ee34",
@@ -2478,11 +2487,11 @@ mod tests {
     }
     #[test]
     fn prepared_ranking_core_test_is_crosswalked_to_rust_snapshot_test() {
-        let original = include_str!("../../../../Tests/LauncherCoreTests/ABIChecks.swift");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        assert!(!root.join("Tests/LauncherCoreTests/ABIChecks.swift").exists());
         let runner = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(!original.contains("func checkPreparedRanking()"));
-        assert!(original.contains("func checkImportedABI()"));
         assert!(!runner.contains("checkPreparedRanking"));
+        assert!(!runner.contains("checkImportedABI"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
@@ -2492,6 +2501,41 @@ mod tests {
         let case = "original_prepared_ranking_snapshots_track_success_reset_and_replacement";
         assert_eq!(mapping["nativeCases"], serde_json::json!([format!("ranking::tests::{case}")]));
         assert!(include_str!("../../ranking.rs").contains(&format!("fn {case}()")));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn retired_abi_helper_assertions_are_crosswalked_and_wrapper_claims_are_retired() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Tests/LauncherCoreTests/ABIChecks.swift";
+        assert!(!root.join(retired).exists());
+        let runner = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(!runner.contains("checkImportedABI"));
+        assert!(!include_str!("../ruycast-source/policy.rs")
+            .lines()
+            .any(|line| line == retired));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/ABIChecks.swift::checkImportedABI"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(
+            mapping["originalSourceSHA256"],
+            "19811571df19e5dd8c5cb066f5a5a15ad13f5c37d482219aa17d96a4dbc48eb3"
+        );
+        assert_eq!(
+            mapping["nativeCases"],
+            serde_json::json!(["tests::original_imported_abi_version_ranked_and_empty_query_order"])
+        );
+        assert_eq!(
+            mapping["retiredAssertions"],
+            serde_json::json!([
+                "Swift C-imported declarations invoke the linked archive through the Swift wrapper",
+                "PreparedCommandSearch retains the Swift CommandSearchIndex owner after its local creator exits"
+            ])
+        );
+        assert!(include_str!("../../../../rust/src/lib.rs")
+            .contains("fn original_imported_abi_version_ranked_and_empty_query_order()"));
         assert_eq!(inventory["productionAccepted"], false);
     }
     #[test]
@@ -4675,7 +4719,7 @@ mod tests {
     }
     #[test]
     fn history_source_pins_match_current_rust_bytes() {
-        let expected = "46baf0073ed8263931b6957269827eda1304f083c2a518d23aaf5fa9d2fe15a3";
+        let expected = "f98ed77b2df3ae0c2e2cd27d21219dedb9f19e6a8adacde70f31921e07e2aaa7";
         for gate in ["--check-performance-pipeline", "--check-settings"] {
             let (path, bytes, pin) = settings_sources(gate)
                 .iter()

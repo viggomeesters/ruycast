@@ -912,6 +912,50 @@ mod tests {
     }
 
     #[test]
+    fn original_imported_abi_version_ranked_and_empty_query_order() {
+        assert_eq!(rustcast_abi_version(), 1);
+        let catalog = CString::new(
+            r#"[{"id":"first","title":"Same","kind":"url","target":"https://example.com"},{"id":"second","title":"Same","kind":"url","target":"https://example.com"}]"#,
+        )
+        .unwrap();
+        let index = IndexGuard(unsafe { rustcast_index_new(catalog.as_ptr()) });
+        assert!(!index.0.is_null());
+        drop(catalog);
+
+        let recency = [0.0, 5.0];
+        let mut output = [usize::MAX; 2];
+        let query = b"same";
+        let count = unsafe {
+            rustcast_index_search_ranked_into(
+                index.0,
+                query.as_ptr(),
+                query.len(),
+                recency.as_ptr(),
+                recency.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        };
+        assert_eq!(count, 2);
+        assert_eq!(output, [1, 0]);
+
+        output = [usize::MAX; 2];
+        let count = unsafe {
+            rustcast_index_search_ranked_into(
+                index.0,
+                b"".as_ptr(),
+                0,
+                recency.as_ptr(),
+                recency.len(),
+                output.as_mut_ptr(),
+                output.len(),
+            )
+        };
+        assert_eq!(count, 2);
+        assert_eq!(output, [0, 1]);
+    }
+
+    #[test]
     fn snippet_output_modes_roundtrip_validate_and_reject_unknown() {
         let source = "Hi 👋\n\nSee [Guide & tips](https://example.com/a_(b)?x=1&y=2)\nGoodbye\n";
         for mode in ["plain", "teams", "html"] {
