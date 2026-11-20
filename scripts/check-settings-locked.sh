@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-exec bash scripts/check-settings.sh "$@"
+root="$(pwd -P)"
+export CARGO_INCREMENTAL=0
+exec cargo run --quiet --locked --offline --target-dir "$root/.build/delivery-tools" --manifest-path "$root/rust-native/Cargo.toml" --bin ruycast-build -- compat build-receipt --repo "$root" -- settings "$@"
 
 # Historical selector oracle; execution uses the maintained Rust pipeline above.
 directory="${RUYCAST_CHECK_OUTPUT:-.build/native-checks}"
