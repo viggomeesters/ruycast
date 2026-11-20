@@ -5578,12 +5578,13 @@ mod tests {
         assert_eq!(gate.native_cases.len(), 22);
         assert!(gate.unproven_invariants.is_empty());
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 37);
+        assert_eq!(inputs.len(), 38);
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         let bindings = settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 38);
+        assert_eq!(bindings.len(), 39);
         assert!(bindings.contains(&(gate.original_source, MENU_ACTIONS_ORACLE_SHA256)));
-        assert_eq!(inputs.iter().map(|(path, _, _)| *path).collect::<std::collections::BTreeSet<_>>().len(), 37);
+        assert!(inputs.iter().any(|(path, _, _)| *path == "rust-native/tests/fixtures/shortcut_child.rs"));
+        assert_eq!(inputs.iter().map(|(path, _, _)| *path).collect::<std::collections::BTreeSet<_>>().len(), 38);
         let sources = [
             ("system_search::tests::", "rust-native/src/system_search/tests.rs"),
             ("system_search::native::tests::", "rust-native/src/system_search/native.rs"),
@@ -5599,7 +5600,7 @@ mod tests {
         }
         assert_eq!(
             settings_mapping_state(gate),
-            "mapped-requires-source-requalification"
+            "source-qualified-rust-case-crosswalk"
         );
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
@@ -5614,14 +5615,7 @@ mod tests {
             let (_, bytes, expected) = settings_sources(id).iter().find(|(path, _, _)| *path == "rust-native/tests/clipboard_history_host_process.rs").unwrap();
             assert_eq!(format!("{:x}", Sha256::digest(bytes)), *expected);
             assert!(!settings_sources(id).iter().any(|(path, _, _)| *path == "rust-native/tests/clipboard_history_process.py"));
-            assert_eq!(
-                settings_mapping_state(gate),
-                if id == "--check-performance-pipeline" {
-                    "source-qualified-rust-case-crosswalk"
-                } else {
-                    "mapped-requires-source-requalification"
-                }
-            );
+            assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         }
     }
     #[test]
@@ -5649,10 +5643,7 @@ mod tests {
             let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
             assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
         }
-        assert_eq!(
-            settings_mapping_state(gate),
-            "mapped-requires-source-requalification"
-        );
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
