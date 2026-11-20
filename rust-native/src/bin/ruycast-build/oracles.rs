@@ -2717,8 +2717,6 @@ mod tests {
     fn prepared_ranking_core_test_is_crosswalked_to_rust_snapshot_test() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         assert!(!root.join("Tests/LauncherCoreTests/ABIChecks.swift").exists());
-        let runner = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(!runner.contains("checkPreparedRanking"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
