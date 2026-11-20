@@ -2920,10 +2920,27 @@ fn run_graph(
                             // Only the one proved, explicitly stale Alias fixture
                             // keeps the old dispatch as the paired negative.
                             let captured_stale = gap.as_ref().is_some_and(|g| matches!(g.dispatch, AliasGapDispatch::CapturedStale));
-                            let deferred_input = gap.is_none() && deferred_input_probe(current, connected, hidden, &request.value);
+                            let deferred_probe = if gap.is_none() {
+                                deferred_input_probe(current, connected, hidden, &request.value)
+                            } else {
+                                DeferredInputProbe::NotApplicable
+                            };
+                            let (deferred_input, deferred_witness) = match deferred_probe {
+                                DeferredInputProbe::NotApplicable => (false, None),
+                                DeferredInputProbe::Allowed => (true, None),
+                                DeferredInputProbe::Refused(witness) => (false, Some(witness)),
+                            };
                             if !captured_stale && !deferred_input {
                                 if let Err(error) = acknowledge_probe_view(current, connected, hidden, &application) {
-                                    let _ = request.respond(serde_json::json!({"ok":false,"error":error}));
+                                    let mut response = serde_json::json!({"ok":false,"error":error});
+                                    let diagnostic_action = matches!(request.value["action"].as_str(), Some("run-inline-read" | "run-inline-type" | "run-inline-mark"))
+                                        || (request.value["action"] == "key-event" && request.value["code"] == 53 && request.value["flags"] == 0 && request.value["chars"] == "");
+                                    if error == "Native view could not be adopted." && diagnostic_action {
+                                        if let Some(witness) = deferred_witness {
+                                            response["deferredInputRefusal"] = witness;
+                                        }
+                                    }
+                                    let _ = request.respond(response);
                                     continue;
                                 }
                             }
@@ -3634,10 +3651,26 @@ fn apply_connected_view(current: &Controller, connected: &ruycast_native::connec
     true
 }
 #[cfg(feature = "test-tools")]
-fn deferred_input_probe(current: &Controller, connected: &std::sync::Arc<ruycast_native::connected::Connection>, hidden: bool, request: &serde_json::Value) -> bool {
+enum DeferredInputProbe {
+    NotApplicable,
+    Allowed,
+    Refused(serde_json::Value),
+}
+#[cfg(feature = "test-tools")]
+fn deferred_input_refusal(gate: &str, observed: serde_json::Value) -> DeferredInputProbe {
+    DeferredInputProbe::Refused(serde_json::json!({"firstRejectedGate":gate,"observed":observed}))
+}
+#[cfg(feature = "test-tools")]
+fn deferred_input_probe(current: &Controller, connected: &std::sync::Arc<ruycast_native::connected::Connection>, hidden: bool, request: &serde_json::Value) -> DeferredInputProbe {
     let state = current.ivars();
-    if !hidden || !state.defer_input_child.get() || connected.stop_requested() || connected.stopped() {
-        return false;
+    if !hidden || !state.defer_input_child.get() {
+        return DeferredInputProbe::NotApplicable;
+    }
+    if connected.stop_requested() {
+        return deferred_input_refusal("owner-stop-requested", serde_json::json!({"hidden":hidden,"deferInputChild":true,"stopRequested":true}));
+    }
+    if connected.stopped() {
+        return deferred_input_refusal("owner-stopped", serde_json::json!({"hidden":hidden,"deferInputChild":true,"stopped":true}));
     }
     let allowed = match request["action"].as_str() {
         Some("defer-input-child") => request["defer"].as_bool().is_some(),
@@ -3645,14 +3678,28 @@ fn deferred_input_probe(current: &Controller, connected: &std::sync::Arc<ruycast
         Some("key-event") => request["code"] == 53 && request["flags"] == 0 && request["chars"] == "",
         _ => false,
     };
-    if !allowed { return false; }
+    if !allowed { return DeferredInputProbe::NotApplicable; }
     let model = state.session.borrow();
-    let Model::Live { view, connection } = &*model else { return false; };
-    let Some(parent) = view.editor.as_ref().filter(|e|
-        e.run_inline && e.mode == ruycast_native::actions::Mode::Input
-            && state.run_inline_token.get() == e.token) else { return false; };
+    let Model::Live { view, connection } = &*model else {
+        return deferred_input_refusal("session-not-live", serde_json::json!({"action":request["action"],"hidden":hidden,"deferInputChild":true}));
+    };
+    let Some(parent) = view.editor.as_ref() else {
+        return deferred_input_refusal("local-editor-missing", serde_json::json!({"action":request["action"],"localRevision":view.revision,"localEpoch":view.epoch,"localDismissal":view.dismissal,"localEditorPresent":false}));
+    };
+    if !parent.run_inline {
+        return deferred_input_refusal("local-editor-not-inline", serde_json::json!({"action":request["action"],"localRevision":view.revision,"localEpoch":view.epoch,"localDismissal":view.dismissal,"localEditorRunInline":false,"localEditorToken":parent.token}));
+    }
+    if parent.mode != ruycast_native::actions::Mode::Input {
+        return deferred_input_refusal("local-editor-not-input", serde_json::json!({"action":request["action"],"localRevision":view.revision,"localEpoch":view.epoch,"localDismissal":view.dismissal,"localEditorRunInline":parent.run_inline,"localEditorToken":parent.token}));
+    }
+    let physical_input_token = state.run_inline_token.get();
+    if physical_input_token != parent.token {
+        return deferred_input_refusal("physical-input-token-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"localEpoch":view.epoch,"localDismissal":view.dismissal,"localEditorRunInline":parent.run_inline,"localEditorToken":parent.token,"physicalInputToken":physical_input_token}));
+    }
     let next = connected.view();
-    let Some(published) = next.editor.as_ref() else { return false; };
+    let Some(published) = next.editor.as_ref() else {
+        return deferred_input_refusal("published-editor-missing", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"physicalInputToken":physical_input_token,"publishedEditorPresent":false}));
+    };
     // This fixture deliberately holds publication before presentation. Only
     // observe/cancel/edit its actual still-presented parent; never dispatch an
     // Alias action, Return or another input through an unacknowledged view.
@@ -3660,19 +3707,57 @@ fn deferred_input_probe(current: &Controller, connected: &std::sync::Arc<ruycast
     // while this same local field editor remains deliberately unpresented.
     // Bind that published lineage to the held physical parent instead of
     // requiring two independently read publication revisions to stay equal.
-    let same_parent = published.id == parent.id
-        && ((published.mode == ruycast_native::actions::Mode::Alias
-            && !published.run_inline && published.suspended_input_token == Some(parent.token))
-            || (published.mode == ruycast_native::actions::Mode::Input
-                && published.run_inline && published.token > parent.token
-                && published.suspended_input_token.is_none()
-                && published.resumed_input_from == Some(parent.token)));
-    std::sync::Arc::ptr_eq(connection, connected)
-        && view.revision == connected.applied_revision()
-        && next.revision > view.revision
-        && view.epoch == next.epoch && view.epoch == connected.latest_epoch()
-        && view.dismissal == next.dismissal && view.dismissal == connected.latest_dismissal()
-        && same_parent
+    if published.id != parent.id {
+        return deferred_input_refusal("published-editor-id-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":false}));
+    }
+    if published.mode == ruycast_native::actions::Mode::Alias {
+        if published.run_inline {
+            return deferred_input_refusal("published-alias-is-inline", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"publishedMode":"alias","publishedRunInline":true}));
+        }
+        if published.suspended_input_token != Some(parent.token) {
+            return deferred_input_refusal("published-alias-parent-token-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"publishedMode":"alias","publishedRunInline":published.run_inline,"publishedSuspendedInputToken":published.suspended_input_token}));
+        }
+    } else if published.mode == ruycast_native::actions::Mode::Input {
+        if !published.run_inline {
+            return deferred_input_refusal("published-resume-not-inline", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"publishedMode":"input","publishedRunInline":false}));
+        }
+        if published.token <= parent.token {
+            return deferred_input_refusal("published-resume-token-not-newer", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"publishedMode":"input","publishedRunInline":published.run_inline}));
+        }
+        if published.suspended_input_token.is_some() {
+            return deferred_input_refusal("published-resume-still-suspended", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"publishedMode":"input","publishedRunInline":published.run_inline,"publishedSuspendedInputToken":published.suspended_input_token}));
+        }
+        if published.resumed_input_from != Some(parent.token) {
+            return deferred_input_refusal("published-resume-parent-token-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"publishedMode":"input","publishedRunInline":published.run_inline,"publishedResumedInputFrom":published.resumed_input_from}));
+        }
+    } else {
+        return deferred_input_refusal("published-editor-mode-not-lineage", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true}));
+    }
+    if !std::sync::Arc::ptr_eq(connection, connected) {
+        return deferred_input_refusal("connection-identity-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"connectionIdentityMatches":false}));
+    }
+    let applied_revision = connected.applied_revision();
+    if view.revision != applied_revision {
+        return deferred_input_refusal("local-revision-not-applied", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"appliedRevision":applied_revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"connectionIdentityMatches":true}));
+    }
+    if next.revision <= view.revision {
+        return deferred_input_refusal("published-revision-not-newer", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"appliedRevision":applied_revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"connectionIdentityMatches":true}));
+    }
+    if view.epoch != next.epoch {
+        return deferred_input_refusal("local-published-epoch-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"appliedRevision":applied_revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"connectionIdentityMatches":true}));
+    }
+    let latest_epoch = connected.latest_epoch();
+    if view.epoch != latest_epoch {
+        return deferred_input_refusal("local-latest-epoch-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"appliedRevision":applied_revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"latestEpoch":latest_epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"connectionIdentityMatches":true}));
+    }
+    if view.dismissal != next.dismissal {
+        return deferred_input_refusal("local-published-dismissal-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"appliedRevision":applied_revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"latestEpoch":latest_epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"connectionIdentityMatches":true}));
+    }
+    let latest_dismissal = connected.latest_dismissal();
+    if view.dismissal != latest_dismissal {
+        return deferred_input_refusal("local-latest-dismissal-mismatch", serde_json::json!({"action":request["action"],"localRevision":view.revision,"publishedRevision":next.revision,"appliedRevision":applied_revision,"localEpoch":view.epoch,"publishedEpoch":next.epoch,"latestEpoch":latest_epoch,"localDismissal":view.dismissal,"publishedDismissal":next.dismissal,"latestDismissal":latest_dismissal,"localEditorToken":parent.token,"publishedEditorToken":published.token,"physicalInputToken":physical_input_token,"publishedEditorIdMatches":true,"connectionIdentityMatches":true}));
+    }
+    DeferredInputProbe::Allowed
 }
 #[cfg(feature = "test-tools")]
 fn acknowledge_probe_view(current: &Controller, connected: &std::sync::Arc<ruycast_native::connected::Connection>, hidden: bool, application: &NSApplication) -> Result<(), String> {
@@ -6598,6 +6683,11 @@ impl Controller {
     pub(crate) fn cancel_editor(&self) {
         self.guard_callback(|| {
             if self.ivars().surface.command.finish_link(false){return;}
+            let state = self.ivars();
+            if state.session.borrow_mut().cancel_deferred_alias_child(state.run_inline_token.get()) {
+                self.reconcile();
+                return;
+            }
             self.ivars().surface.stop();
             self.ivars().session.borrow_mut().cancel_editor();
             self.reconcile();
