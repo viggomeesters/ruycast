@@ -244,11 +244,9 @@ impl<T: Send + 'static> Writer<T> {
                 });
                 #[cfg(feature = "test-tools")]
                 let outcome = if let Some(root) = adoption_barrier {
-                    if outcome.is_ok() {
-                        wait_fixture_adoption(&root, &barrier_stop).and(outcome)
-                    } else {
-                        outcome
-                    }
+                    // Error receipts also require serialized owner adoption
+                    // before the last-good keyword catalog is confirmed.
+                    wait_fixture_adoption(&root, &barrier_stop).and(outcome)
                 } else {
                     outcome
                 };

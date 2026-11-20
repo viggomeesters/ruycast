@@ -169,6 +169,7 @@ pub(crate) struct Service {
     events: SyncSender<HostEvent>,
     ui: Arc<Connection>,
     generation: u64,
+    keyword_gate: (u64, u64),
     hyper: bool,
     modifiers: bool,
     sided: bool,
@@ -314,6 +315,7 @@ impl Service {
             events,
             ui,
             generation: 0,
+            keyword_gate: (0, 0),
             hyper: false,
             modifiers: false,
             sided: false,
@@ -414,6 +416,14 @@ impl Service {
             );
             self.generation = generation;
         }
+        // A failed stage can confirm the old catalog generation again. Track
+        // its gate episode as well, so observation-only capture resumes on
+        // owner confirmation without waiting for an environment timer.
+        let keyword_stage_epoch = self.client.keyword_stage_epoch();
+        let keyword_generation = self.client.keyword_generation();
+        let keyword_gate = (keyword_generation, keyword_stage_epoch);
+        let keyword_gate_changed = keyword_gate != self.keyword_gate;
+        self.keyword_gate = keyword_gate;
         let mut keyword_changed = false;
         if let Some((generation, prepared)) = self.client.keyword_prepared() {
             if generation != self.keywords.generation() {
@@ -431,6 +441,8 @@ impl Service {
             self.publish(); // Publish the new generation before a possibly held SDK setup.
             self.hid.sleeping(self.client.paused());
             self.hid.refresh();
+        }
+        if changed || refresh || keyword_changed || keyword_gate_changed {
             self.keywords.refresh();
             self.client
                 .publish_keyword_status(self.keywords.generation(), self.keywords.status());

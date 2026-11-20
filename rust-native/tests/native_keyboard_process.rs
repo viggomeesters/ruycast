@@ -790,14 +790,32 @@ fn rich_keyword_host() -> Bridge {
 }
 #[test]
 fn native_keyword_failed_registration_retains_last_good_catalog() {
-    let h = keyword_host(false);
-    let mut config = actions::config(&h);
+    let mut h = host(&[], false, true, true, None);
+    let mut config = default_config();
+    config["commands"] = json!([{ "id":"own.snippet", "title":"Own snippet", "kind":"snippet", "target":"HELLO", "keyword":"abc" }]);
+    config["snippetExpansionEnabled"] = json!(true);
+    h.replace(&config, None);
+    let barrier_home = h.base.as_os_str().to_owned();
+    h.env.insert("RUYCAST_NATIVE_TEST_CONFIG_ADOPTION_BARRIER".into(), barrier_home);
+    h.start();
+    h.wait(|s| s["keywordGeneration"] == s["keyboardGeneration"] && s["snippetExpansion"] == "On");
     let before = h.rpc(&json!({"op":"status"}))["result"]["keyboardGeneration"].clone();
     let fault = h.base.join("fail-code");
     fs::write(&fault, "11").unwrap();
+    fs::write(h.base.join("hold-config-adoption"), b"").unwrap();
+    let release = Release(h.base.join("config-adoption-release"));
     config["launcherHotkey"] = json!("cmd+b");
     h.replace(&config, None);
-    h.rpc(&json!({"op":"reload"}));
+    // The file observer starts the reload. Hold its failed receipt before
+    // serialized adoption, with the native catalog deliberately pending.
+    wait_file(&h.base.join("config-adoption-entered"));
+    let pending = h.rpc(&json!({"op":"status"}))["result"].clone();
+    assert_eq!(pending["configurationUpdating"], true);
+    assert_eq!(pending["keywordGeneration"], 0);
+    assert_eq!(keyword(&h, "refresh", json!({}))["status"], "Configuration pending");
+    assert!(keyword_type(&h, "abc").iter().all(|v| *v == false));
+    assert_eq!(keyword(&h, "state", json!({}))["posts"], 0);
+    drop(release);
     h.wait(|s| s["configurationUpdating"] == false && s["keyboardGeneration"] == before);
     assert_eq!(
         h.rpc(&json!({"op":"status"}))["result"]["keywordGeneration"],
