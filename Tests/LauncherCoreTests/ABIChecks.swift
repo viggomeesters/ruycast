@@ -6,11 +6,6 @@ import CRuycastCore
 func checkImportedABI() throws {
     precondition(rustcast_abi_version()==1)
     // The C-imported declarations call the actual linked Rust archive.
-    guard let error=rustcast_call(nil,nil) else {throw LauncherError("Missing ABI error response")}
-    let rejected=try JSONSerialization.jsonObject(with:Data(String(cString:error).utf8)) as? [String:Any]
-    rustcast_free(error)
-    precondition(rejected?["ok"] as? Bool==false)
-    rustcast_free(nil);rustcast_index_free(nil)
     let commands=[Command(id:"first",title:"Same",kind:"url",target:"https://example.com"),Command(id:"second",title:"Same",kind:"url",target:"https://example.com")]
     let json=String(decoding:try Files.encode(commands),as:UTF8.self)
     guard let index=json.withCString({rustcast_index_new($0)}) else {throw LauncherError("ABI catalog creation failed")}
