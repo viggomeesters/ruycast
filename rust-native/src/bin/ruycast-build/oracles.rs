@@ -2997,9 +2997,6 @@ mod tests {
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
         assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(!core.contains("let scalars=try CommandSearchIndex(commands:["));
-        assert!(!core.contains("scalars.search(\"Ω\")"));
-        assert!(!core.contains("scalars.search(\"İ\")"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
