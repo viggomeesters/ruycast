@@ -3462,12 +3462,6 @@ mod tests {
 
     #[test]
     fn embedded_nul_alias_assertion_is_crosswalked_to_rust() {
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("let commands=["));
-        assert!(core.contains("for query in ["));
-        assert!(core.contains("legacy.search(query)"));
         assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_embedded_nul_alias_search_returns_matching_command()"));
 
         let inventory = super::inventory("check").unwrap();
@@ -3478,6 +3472,24 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_embedded_nul_alias_search_returns_matching_command"]));
         assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn embedded_nul_alias_crosswalk_does_not_embed_live_swift_source() {
+        let source = include_str!("oracles.rs");
+        let assertion = source
+            .split_once("\n    fn embedded_nul_alias_assertion_is_crosswalked_to_rust() {\n")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        let swift_include = [
+            "include_str!(\"../../../../Tests/LauncherCoreTests/",
+            "CoreTests.swift\")",
+        ]
+        .concat();
+        assert!(!assertion.contains(&swift_include));
     }
 
     #[test]
