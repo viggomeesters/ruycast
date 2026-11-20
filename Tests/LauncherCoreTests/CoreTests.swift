@@ -24,15 +24,6 @@ struct CoreTests {
             XCTAssertEqual(index.search(query),legacy.search(query))
         }
         for _ in 0..<100 {let temporary=try CommandSearchIndex(commands:commands);XCTAssertEqual(temporary.search("go").first?.id,"z")}
-        let quality=try CommandSearchIndex(commands:[
-            Command(id:"exact",title:"Zulu",kind:"url",target:"https://example.com",aliases:["mt"]),
-            Command(id:"teams",title:"Microsoft Teams",kind:"url",target:"https://example.com"),
-            Command(id:"recent",title:"Many Tabs",kind:"url",target:"https://example.com"),
-            Command(id:"history",title:"Microsoft Teams History",kind:"url",target:"https://example.com")])
-        XCTAssertEqual(quality.search("mt",recency:["recent":100]).prefix(3).map(\.id),["exact","recent","teams"])
-        XCTAssertEqual(quality.search("mic tea").first?.id,"teams")
-        XCTAssertEqual(quality.search("mft").first?.id,"teams")
-        XCTAssertEqual(quality.search("Microsoft Teams",recency:["history":100]).first?.id,"teams")
         let root=FileManager.default.temporaryDirectory.appendingPathComponent("ranking-"+UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)

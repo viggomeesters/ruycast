@@ -1160,6 +1160,35 @@ mod tests {
     }
 
     #[test]
+    fn original_quality_ranking_alias_recency_and_multi_term_search() {
+        let commands: Vec<Command> = serde_json::from_value(json!([
+            {"id":"exact","title":"Zulu","kind":"url","target":"https://example.com","aliases":["mt"]},
+            {"id":"teams","title":"Microsoft Teams","kind":"url","target":"https://example.com"},
+            {"id":"recent","title":"Many Tabs","kind":"url","target":"https://example.com"},
+            {"id":"history","title":"Microsoft Teams History","kind":"url","target":"https://example.com"}
+        ]))
+        .unwrap();
+        let index = SearchIndex::new(&commands);
+        let ids = |positions: Vec<usize>| {
+            positions
+                .into_iter()
+                .map(|position| commands[position].id.as_str())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            &ids(index.search_with_recency("mt", &[0.0, 0.0, 100.0, 0.0]).unwrap())[..3],
+            ["exact", "recent", "teams"]
+        );
+        assert_eq!(ids(index.search("mic tea"))[0], "teams");
+        assert_eq!(ids(index.search("mft"))[0], "teams");
+        assert_eq!(
+            ids(index.search_with_recency("Microsoft Teams", &[0.0, 0.0, 0.0, 100.0]).unwrap())[0],
+            "teams"
+        );
+    }
+
+    #[test]
     fn duplicate_aliases_and_modifiers_fail() {
         let mut v = default_config();
         v["commands"][1]["aliases"] = json!(["FiNdEr"]);
