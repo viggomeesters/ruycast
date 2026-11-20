@@ -606,6 +606,42 @@ mod guarded_publication_tests {
         assert_eq!(std::fs::metadata(&own.0).unwrap().mode() & 0o777, 0o755);
     }
     #[test]
+    fn original_private_file_replacement_and_create_only_sequence() {
+        let own = Own::new();
+        let target = own.0.join("private.json");
+        let other = own.0.join("other.json");
+        write(&other, br#"{"old":"preserved"}"#, true).unwrap();
+        let original = std::fs::read(&other).unwrap();
+        symlink(&other, &target).unwrap();
+        write(&target, br#"{"new":"replacement"}"#, true).unwrap();
+        assert_eq!(std::fs::read(&other).unwrap(), original);
+        let published = std::fs::symlink_metadata(&target).unwrap();
+        assert!(published.file_type().is_file());
+        assert_eq!(published.mode() & 0o777, 0o600);
+
+        let blocked = own.0.join("directory.json");
+        std::fs::create_dir(&blocked).unwrap();
+        let child = blocked.join("keep");
+        std::fs::write(&child, b"existing").unwrap();
+        assert!(write(&blocked, br#"{"unexpected":"replacement"}"#, true).is_err());
+        assert_eq!(std::fs::read(&child).unwrap(), b"existing");
+
+        let exclusive = own.0.join("exclusive.json");
+        let first = b"first synthetic payload";
+        write(&exclusive, first, false).unwrap();
+        assert!(write(&exclusive, b"must not replace", false).is_err());
+        assert_eq!(std::fs::read(&exclusive).unwrap(), first);
+        let exclusive_link = own.0.join("exclusive-link.json");
+        symlink(&exclusive, &exclusive_link).unwrap();
+        assert!(write(&exclusive_link, b"must not follow", false).is_err());
+        assert!(std::fs::symlink_metadata(&exclusive_link).unwrap().file_type().is_symlink());
+        assert_eq!(std::fs::read(&exclusive).unwrap(), first);
+        let names: std::collections::BTreeSet<_> = std::fs::read_dir(&own.0)
+            .unwrap().map(|entry| entry.unwrap().file_name()).collect();
+        assert_eq!(names, ["private.json", "other.json", "directory.json", "exclusive.json", "exclusive-link.json"]
+            .into_iter().map(std::ffi::OsString::from).collect(), "writes must remove their own temporary stages");
+    }
+    #[test]
     fn create_only_preserves_destination_symlink_and_directory_contents() {
         let own = Own::new();
         let target = own.0.join("existing.json");

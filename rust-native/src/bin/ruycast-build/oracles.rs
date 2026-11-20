@@ -1076,7 +1076,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "15c93afc3731db2ca870db6d824dcc90bc6f0f367fe9d3ca12497b90f26df97a"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
-            ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "f0425c7e6818c071d996ff1c19c9d7905667674edd2294f4d29a744e850fa525"),
+            ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "73a454950e76859e211af9ceb863be6abc7218630bf952db7d54896d47702297"),
             ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "e870bc1f9ea23e6e36b2157531b6086baa1b2a85f8c033469581810376de19de"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
@@ -1280,7 +1280,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_clipboard.rs", include_bytes!("../../native_clipboard.rs"), "6a3db88c4184426dae72431087af17177caa1f7bb3f2cff1bc2c4d7ed621c62f"),
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
-            ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "f0425c7e6818c071d996ff1c19c9d7905667674edd2294f4d29a744e850fa525"),
+            ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "73a454950e76859e211af9ceb863be6abc7218630bf952db7d54896d47702297"),
             ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "3c04e5089ff5fbb804a1a3708c0db8b185212b1d4a2994c679a725549cd8488b"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
@@ -2055,6 +2055,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeCases": ["candidate::tests::real_owned_prepared_pair_stages_exclusively_and_rejects_mixed_source", "candidate::tests::public_candidate_refuses_private_checkout_or_missing_manifest_before_staging", "candidate::tests::payload_verification_rejects_tampering_extra_helpers_modes_and_links", "candidate::tests::safari_automation_purpose_survives_rust_packaging_with_or_without_icon", "public_source::tests::owned_postbuild_binding_allows_outputs_and_rejects_tamper_new_sources_and_private_authority", "compat::tests::legacy_argument_contract_rejects_duplicates_unknowns_and_unreviewed_performance"],
             "remainingPythonCases": 0
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/PrivateFileChecks.swift"] = serde_json::json!({
+            "originalSourceSHA256": "ce4aa302f38466fc22cd557234644e9291337f18b0cfe7287a4a7318d7decf9f",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The data-only Swift helper is retired; its original ordered sequence runs through the shared public write(path, bytes, replace) entrypoint. The remaining LauncherCoreChecks oracle stays active.",
+            "nativeSource": "rust/src/private_storage.rs",
+            "originalScenarios": ["replace a symlink without changing target bytes; publish a regular 0600 file", "refuse directory replacement and preserve child bytes", "create-only first write succeeds; second refuses and preserves first payload", "create-only refuses a symlink and preserves target bytes", "exact five directory-entry names prove temporary stages are removed"],
+            "nativeCases": ["private_storage::guarded_publication_tests::original_private_file_replacement_and_create_only_sequence"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
             "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
             "originalMethods": [
@@ -2351,6 +2359,21 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn retired_private_file_helper_preserves_original_ordered_public_write_sequence() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Tests/LauncherCoreTests/PrivateFileChecks.swift";
+        assert!(!root.join(retired).exists());
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
+        assert!(!include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift").contains("checkPrivateFiles"));
+        let value = inventory("check").unwrap();
+        let mapping = &value["retiredSwiftChecks"][retired];
+        assert_eq!(mapping["nativeSource"], "rust/src/private_storage.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 5);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["private_storage::guarded_publication_tests::original_private_file_replacement_and_create_only_sequence"]));
+        assert!(include_str!("../../../../rust/src/private_storage.rs").contains("fn original_private_file_replacement_and_create_only_sequence("));
+        assert_eq!(value["productionAccepted"], false);
+    }
     #[test]
     fn retired_script_choice_helper_preserves_all_original_scenarios_in_rust() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
