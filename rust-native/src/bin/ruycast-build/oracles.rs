@@ -1029,7 +1029,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
 
             ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "9ebb1ecff6de79f76d0f69542e250a6d041b88afe0ca1ec5beb079a08b4f042c"),
-            ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "2666410bb4fe8fcde7eac7fd7a57a74e571c5af8c9d66b8d608b862ea067c5cb"),
+            ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "4b452e3fd7eeddd4b9bc57bb7385dce95fc3fe5628545bd7e7986396213ecde3"),
             ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "0c2c9f768bd6a911414ffea94335610eedebf8feea55eb6210fce6f5d72a7bdd"),
             ("rust-native/src/snippet_output.rs", include_bytes!("../../snippet_output.rs"), "40f779d97941aec293f6a53c89970051189e82a0fa2a98a86027c196724138be"),
             ("rust-native/src/native_snippet_choice.rs", include_bytes!("../../native_snippet_choice.rs"), "caa9be3b6d84594d8fabc13f797a99a5042515ba94760cae86506773139a09a9"),
@@ -2111,6 +2111,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["100 repetitions of Hello Ω family emoji and newline concatenate to the original text", "every inserted chunk contains at most 16 UTF-16 code units"],
             "nativeCases": ["keyword_matcher::cancellation_checks::original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.requiredArgument"] = serde_json::json!({
+            "originalSourceSHA256": "56df09b0b0669f0a326ebcde08f54c2f9db3b539bc6a77b65d6b33dd497b37d3",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the required-argument snippet eligibility assertion moved to Rust. The surrounding Swift method and runner call remain active.",
+            "nativeSource": "rust-native/src/keyword_matcher.rs",
+            "originalScenarios": ["a snippet with required Name input and no options or default does not expand its ;name keyword"],
+            "nativeCases": ["keyword_matcher::cancellation_checks::original_required_snippet_argument_prevents_keyword_expansion"]
+        });
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.duplicateKeyword"] = serde_json::json!({
             "originalSourceSHA256": "a4ed4e769adecebd65fcc7a2cc2e95c85574ac34b7468cb84988b8af03f22686",
             "status": "source-qualified-rust-case-crosswalk",
@@ -2641,6 +2649,39 @@ mod tests {
             .unwrap();
         assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
         assert!(super::settings_source_bindings("--check-interactions").contains(&(input.0, input.2)));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn required_snippet_argument_assertion_is_crosswalked_without_retiring_swift_method() {
+        use sha2::Digest;
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
+        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
+        assert!(!core.contains("let interactive=Command(id:\"i\",title:\"Input\""));
+        assert!(!core.contains("matcher.type(\";name\",commands:[interactive])"));
+        assert!(core.contains("matcher.type(\"abc\",commands:[word])"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.requiredArgument"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(
+            mapping["originalSourceSHA256"],
+            "56df09b0b0669f0a326ebcde08f54c2f9db3b539bc6a77b65d6b33dd497b37d3"
+        );
+        let case = "keyword_matcher::cancellation_checks::original_required_snippet_argument_prevents_keyword_expansion";
+        assert_eq!(mapping["nativeCases"], serde_json::json!([case]));
+        assert!(include_str!("../../keyword_matcher.rs")
+            .contains("fn original_required_snippet_argument_prevents_keyword_expansion()"));
+
+        let input = super::settings_sources("--check-interactions")
+            .iter()
+            .find(|(path, _, _)| *path == "rust-native/src/keyword_matcher.rs")
+            .unwrap();
+        assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
+        assert!(super::settings_source_bindings("--check-interactions")
+            .contains(&(input.0, input.2)));
         assert_eq!(inventory["productionAccepted"], false);
     }
 

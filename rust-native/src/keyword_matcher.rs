@@ -291,6 +291,22 @@ mod cancellation_checks {
     use std::cell::Cell;
 
     #[test]
+    fn original_required_snippet_argument_prevents_keyword_expansion() {
+        let command: Command = serde_json::from_value(serde_json::json!({
+            "id": "i",
+            "title": "Input",
+            "kind": "snippet",
+            "target": r#"{argument name="Name"}"#,
+            "keyword": ";name"
+        }))
+        .unwrap();
+        let catalog = Catalog::new(std::slice::from_ref(&command)).unwrap();
+        let mut matcher = Matcher::default();
+        matcher.reset();
+        assert!(matcher.type_text(";name", &catalog).is_none());
+    }
+
+    #[test]
     fn original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit() {
         let text = "Hello Ω 👨‍👩‍👧‍👦\n".repeat(100);
         let mut chunks = Vec::new();
