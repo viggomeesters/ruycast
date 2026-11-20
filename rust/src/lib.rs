@@ -810,6 +810,13 @@ pub unsafe extern "C" fn rustcast_free(ptr: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    struct IndexGuard(*mut SearchIndex);
+    impl Drop for IndexGuard {
+        fn drop(&mut self) {
+            unsafe { rustcast_index_free(self.0) }
+        }
+    }
+
     #[test]
     fn abi_null_call_returns_owned_error_and_null_free_is_safe() {
         let response = unsafe { rustcast_call(std::ptr::null(), std::ptr::null()) };
@@ -821,6 +828,86 @@ mod tests {
             rustcast_free(response);
             rustcast_free(std::ptr::null_mut());
             rustcast_index_free(std::ptr::null_mut());
+        }
+    }
+
+    #[test]
+    fn abi_index_search_preserves_capacity_canary_and_error_contract() {
+        let commands: Vec<Command> = serde_json::from_value(serde_json::json!([
+            { "id":"first", "title":"Same", "kind":"url", "target":"https://example.com" },
+            { "id":"second", "title":"Same", "kind":"url", "target":"https://example.com" }
+        ])).unwrap();
+        let catalog = CString::new(serde_json::to_vec(&commands).unwrap()).unwrap();
+        let index = IndexGuard(unsafe { rustcast_index_new(catalog.as_ptr()) });
+        assert!(!index.0.is_null());
+
+        let query = b"same";
+        let mut output = [777usize; 4];
+        let count = unsafe {
+            rustcast_index_search_ranked_into(
+                index.0,
+                query.as_ptr(),
+                query.len(),
+                std::ptr::null(),
+                0,
+                output.as_mut_ptr().add(1),
+                1,
+            )
+        };
+        assert_eq!(count, 1);
+        assert_eq!(output, [777, 0, 777, 777]);
+
+        let invalid = [0xff];
+        unsafe {
+            assert_eq!(
+                rustcast_index_search_ranked_into(
+                    index.0,
+                    invalid.as_ptr(),
+                    1,
+                    std::ptr::null(),
+                    0,
+                    std::ptr::null_mut(),
+                    0
+                ),
+                -1
+            );
+            assert_eq!(
+                rustcast_index_search_ranked_into(
+                    std::ptr::null(),
+                    query.as_ptr(),
+                    query.len(),
+                    std::ptr::null(),
+                    0,
+                    std::ptr::null_mut(),
+                    0
+                ),
+                -1
+            );
+            assert_eq!(
+                rustcast_index_search_ranked_into(
+                    index.0,
+                    std::ptr::null(),
+                    1,
+                    std::ptr::null(),
+                    0,
+                    std::ptr::null_mut(),
+                    0
+                ),
+                -1
+            );
+            let weights = [-1.0, 0.0];
+            assert_eq!(
+                rustcast_index_search_ranked_into(
+                    index.0,
+                    query.as_ptr(),
+                    query.len(),
+                    weights.as_ptr(),
+                    weights.len(),
+                    std::ptr::null_mut(),
+                    0
+                ),
+                -1
+            );
         }
     }
 

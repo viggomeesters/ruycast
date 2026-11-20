@@ -7,19 +7,6 @@ func checkImportedABI() throws {
     precondition(rustcast_abi_version()==1)
     // The C-imported declarations call the actual linked Rust archive.
     let commands=[Command(id:"first",title:"Same",kind:"url",target:"https://example.com"),Command(id:"second",title:"Same",kind:"url",target:"https://example.com")]
-    let json=String(decoding:try Files.encode(commands),as:UTF8.self)
-    guard let index=json.withCString({rustcast_index_new($0)}) else {throw LauncherError("ABI catalog creation failed")}
-    defer {rustcast_index_free(index)}
-    var output=[Int](repeating:777,count:4)
-    let query=Array("same".utf8)
-    let count=output.withUnsafeMutableBufferPointer {out in query.withUnsafeBufferPointer {q in rustcast_index_search_ranked_into(index,q.baseAddress,query.count,nil,0,out.baseAddress!.advanced(by:1),1)}}
-    precondition(count==1 && output==[777,0,777,777],"ABI output length/canary")
-    let invalid:[UInt8]=[0xff]
-    precondition(invalid.withUnsafeBufferPointer {rustcast_index_search_ranked_into(index,$0.baseAddress,1,nil,0,nil,0)} == -1)
-    precondition(query.withUnsafeBufferPointer {rustcast_index_search_ranked_into(nil,$0.baseAddress,query.count,nil,0,nil,0)} == -1)
-    precondition(rustcast_index_search_ranked_into(index,nil,1,nil,0,nil,0) == -1)
-    let badWeights=[-1.0,0.0]
-    precondition(query.withUnsafeBufferPointer {q in badWeights.withUnsafeBufferPointer {w in rustcast_index_search_ranked_into(index,q.baseAddress,query.count,w.baseAddress,w.count,nil,0)}} == -1)
     let prepared=try CommandSearchIndex(commands:commands).prepared(recency:["second":5])
     // The snapshot retains its catalog owner even after the local creator dies.
     precondition(prepared.search("same").map(\.id)==["second","first"])
