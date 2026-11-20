@@ -2799,8 +2799,6 @@ mod tests {
     #[test]
     fn long_snippet_chunk_assertions_remain_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert_template_helper_retired(core);
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
