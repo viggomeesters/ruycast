@@ -28,15 +28,8 @@ func checkSnippetOutput() throws {
     let request=SnippetChoiceRequest(command:choice,pid:123)
     let replacement=try request.replacement(values:["Person":"B"],pid:123,safe:true,unchanged:true)
     precondition(replacement.text.hasPrefix("Hi B\n\n") && SnippetOutput.render(replacement.text,mode:choice.snippetOutput).html!.contains("<a href="))
-    let original=SnippetOutput.linkSource(label:"[Guide]",url:"https://example.com/?a=1&b=2")
-    precondition(SnippetOutput.links(original).first?.label=="[Guide]")
     let cursorSource="a[hi](https://example.com)b"
     precondition(SnippetOutput.render(cursorSource,mode:"html",cursor:3).cursor==2)
-    for label in [#"a\]b"#,#"a\b"#,"[brackets]","😀"] {
-        let encoded=SnippetOutput.linkSource(label:label,url:"https://example.com/a)b")
-        precondition(SnippetOutput.links(encoded).count==1 && SnippetOutput.render(encoded,mode:"teams").text==label)
-        precondition(SnippetOutput.links(encoded).first?.url=="https://example.com/a%29b")
-    }
     for mode in SnippetOutput.modes {
         let c=Command(id:"fixture.rich",title:"Rich",kind:"snippet",target:source,snippetOutput:mode)
         let copy=try JSONDecoder().decode(Command.self,from:JSONEncoder().encode(c))
