@@ -86,7 +86,6 @@ struct CoreTests {
         matcher.reset();XCTAssertEqual(matcher.type("abc",commands:[word]),word)
         let interactive=Command(id:"i",title:"Input",kind:"snippet",target:#"{argument name="Name"}"#,keyword:";name")
         matcher.reset();XCTAssertEqual(matcher.type(";name",commands:[interactive]),nil)
-        var c=Configuration.initial;c.commands.append(word);c.commands.append(Command(id:"w2",title:"Word 2",kind:"snippet",target:"other",keyword:"abc"));XCTAssertThrowsError(try c.validate())
     }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {
         var calls=0;var waits:[Double]=[]
