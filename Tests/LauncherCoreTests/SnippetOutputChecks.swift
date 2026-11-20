@@ -24,13 +24,5 @@ func checkSnippetOutput() throws {
     }
     let cursorSource="a[hi](https://example.com)b"
     precondition(SnippetOutput.render(cursorSource,mode:"html",cursor:3).cursor==2)
-    for mode in SnippetOutput.modes {
-        let c=Command(id:"fixture.rich",title:"Rich",kind:"snippet",target:source,snippetOutput:mode)
-        let copy=try JSONDecoder().decode(Command.self,from:JSONEncoder().encode(c))
-        precondition(copy==c)
-        var config=Configuration.initial;config.commands=[c];try config.validate()
-    }
-    var bad=Configuration.initial;bad.commands=[Command(id:"bad",title:"Bad",kind:"snippet",target:"x",snippetOutput:"other")]
-    do {try bad.validate();preconditionFailure("Unknown output accepted")} catch {}
     print("Snippet output checks passed")
 }

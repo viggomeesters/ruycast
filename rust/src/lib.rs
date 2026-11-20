@@ -811,6 +811,41 @@ pub unsafe extern "C" fn rustcast_free(ptr: *mut c_char) {
 mod tests {
     use super::*;
     #[test]
+    fn snippet_output_modes_roundtrip_validate_and_reject_unknown() {
+        let source = "Hi 👋\n\nSee [Guide & tips](https://example.com/a_(b)?x=1&y=2)\nGoodbye\n";
+        for mode in ["plain", "teams", "html"] {
+            let command: Command = serde_json::from_value(serde_json::json!({
+                "id": "fixture.rich",
+                "title": "Rich",
+                "kind": "snippet",
+                "target": source,
+                "snippetOutput": mode
+            }))
+            .unwrap();
+            let encoded = serde_json::to_vec(&command).unwrap();
+            let copy: Command = serde_json::from_slice(&encoded).unwrap();
+            assert_eq!(
+                serde_json::to_value(&copy).unwrap(),
+                serde_json::to_value(&command).unwrap()
+            );
+
+            let mut config = default_config();
+            config["commands"] = serde_json::json!([command]);
+            assert!(validate(&config).is_ok(), "{mode}");
+        }
+
+        let mut invalid = default_config();
+        invalid["commands"] = serde_json::json!([{
+            "id": "bad",
+            "title": "Bad",
+            "kind": "snippet",
+            "target": "x",
+            "snippetOutput": "other"
+        }]);
+        assert!(validate(&invalid).is_err());
+    }
+
+    #[test]
     fn typed_search_respects_capacity_and_rejects_invalid_input() {
         let commands = validate(&default_config()).unwrap().commands;
         let index = SearchIndex::new(&commands);
