@@ -808,6 +808,63 @@ mod tests {
             ],
         }
     }
+    #[test]
+    fn original_script_choice_search_and_validation_scenarios() {
+        let items = vec![
+            Choice {
+                id: "project".into(),
+                title: "Café project".into(),
+                subtitle: "EX · Projectbreed".into(),
+                value: "pinned-project".into(),
+            },
+            Choice {
+                id: "part".into(),
+                title: "Planning".into(),
+                subtitle: "EX / PLAN · Café project".into(),
+                value: "pinned-component".into(),
+            },
+        ];
+        let choices = Choices {
+            title: "Choose".into(),
+            placeholder: "Search".into(),
+            items: items.clone(),
+        };
+        choices.validate().unwrap();
+        let command: Command = serde_json::from_value(
+            json!({"id":"fixture","title":"Fixture","kind":"script","target":"/usr/bin/true"}),
+        )
+        .unwrap();
+        let mut session = ChoiceSession::new(
+            1,
+            &command,
+            PathBuf::from("/own/config.json"),
+            choices.clone(),
+        )
+        .unwrap();
+        session.set_query("cafe PLAN").unwrap();
+        assert_eq!(
+            session
+                .rows()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["part"]
+        );
+        session.set_query("unmatched").unwrap();
+        assert!(session.rows().next().is_none());
+        session.set_query("").unwrap();
+        assert_eq!(session.rows().cloned().collect::<Vec<_>>(), items);
+        let duplicate = Choices {
+            items: vec![items[0].clone(), items[0].clone()],
+            ..choices.clone()
+        };
+        assert!(duplicate.validate().is_err());
+        Choices {
+            items: vec![],
+            ..choices
+        }
+        .validate()
+        .unwrap();
+    }
     fn process(native: Value, ok: bool) -> Value {
         if ok {
             json!({"ok":true,"result":{"exitCode":0,"stdout":native.to_string(),"stderr":""}})
