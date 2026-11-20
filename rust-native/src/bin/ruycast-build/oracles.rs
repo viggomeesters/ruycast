@@ -1266,7 +1266,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-performance-pipeline" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
-            ("rust-native/src/runtime_private_tests.rs", include_bytes!("../../runtime_private_tests.rs"), "787f932fea1e7bc9fed3817b7ce8cbf74b280515a19f510c97317da8946a6e79"),
+            ("rust-native/src/runtime_private_tests.rs", include_bytes!("../../runtime_private_tests.rs"), "8c34ffdb53844df02dad13a49f40dba84016ae837937cc476a5cd02214fe1836"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "091eaaeeca37fb20067a9768243fc176df9cf9d9dce14dadfcd5eb9406a58cb3"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "c1650b38647d7d538b226fba3279ef71fe844755b9895bf72757cdf230adfaee"),
@@ -1280,7 +1280,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "cefa77c11c4cd3543dc547f0696854d4e4601550fc701440803b74f4a8287092"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "f98ed77b2df3ae0c2e2cd27d21219dedb9f19e6a8adacde70f31921e07e2aaa7"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "946011a9c5d9b152760a72e6fccecb3aa7407db598a23aa6f72b997b4cf6cd71"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1340,7 +1340,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_process.rs", include_bytes!("../../../tests/snippet_process.rs"), "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0"),
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "cb1441b9c63056ed828df688e8af5a4f6cbfd3208352d37f493c51a8ef0a06cd"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "f98ed77b2df3ae0c2e2cd27d21219dedb9f19e6a8adacde70f31921e07e2aaa7"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "946011a9c5d9b152760a72e6fccecb3aa7407db598a23aa6f72b997b4cf6cd71"),
         ],
         "--check-command-log" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
@@ -2095,6 +2095,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["finder resolves to the existing app.finder command", "finder documentation resolves to the added link command", "uppercase DOCS resolves the saved link alias"],
             "nativeCases": ["runtime::inline_tests::original_exact_alias_title_multiterm_and_uppercase_resolution"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testBoundedTypoFallback"] = serde_json::json!({
+            "originalSourceSHA256": "82ba1d4e045a1c35f59834ed005e764240f4d8fbd211fd7d130b113fbeb57c8e",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "All eighteen original bounded typo-fallback search outcomes and both literal-resolution outcomes move to the existing Rust search index and runtime resolver. Search order, recency, alias precedence, direct literal matching, Unicode and the 64/65-character boundary remain explicit; the product implementation is unchanged.",
+            "nativeSources": ["rust/src/lib.rs", "rust-native/src/runtime_private_tests.rs"],
+            "originalScenarios": ["exact alias outranks Finder recency", "Calendar typo resolves", "equal Finder results preserve order", "Finder recency orders equal-title results", "Mail and Main typo preserve order", "recency moves Main before Mail", "literal resolver refuses fnider", "literal resolver accepts finder", "Finder typo outranks weak Find Reminders subsequence", "high distractor recency does not displace direct title typo", "Reminders transposition returns direct title and weak distractor", "distractor recency does not alter that ordering", "Notes typo keeps original ranking despite decorated recency", "punctuated noets! returns no result", "literal calender URL substring keeps priority", "Cat typo cta returns no result", "Åbcd typo Åbdc matches", "decomposed-accent query does not match", "64-character transposition matches", "65-character transposition is rejected"],
+            "nativeCases": ["tests::original_bounded_typo_fallback_search_cases", "runtime::inline_tests::original_bounded_typo_fallback_keeps_resolution_literal"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -2560,6 +2568,32 @@ mod tests {
         let case = "original_exact_alias_title_multiterm_and_uppercase_resolution";
         assert_eq!(mapping["nativeCases"], serde_json::json!([format!("runtime::inline_tests::{case}")]));
         assert!(include_str!("../../runtime_private_tests.rs").contains(&format!("fn {case}()")));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn bounded_typo_fallback_core_test_is_retired_to_two_rust_cases() {
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(!core.contains("testBoundedTypoFallback"));
+        assert!(!core.contains("try t.testBoundedTypoFallback()"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testBoundedTypoFallback"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(
+            mapping["originalSourceSHA256"],
+            "82ba1d4e045a1c35f59834ed005e764240f4d8fbd211fd7d130b113fbeb57c8e"
+        );
+        let expected = [
+            "tests::original_bounded_typo_fallback_search_cases",
+            "runtime::inline_tests::original_bounded_typo_fallback_keeps_resolution_literal",
+        ];
+        assert_eq!(mapping["nativeCases"], serde_json::json!(expected));
+        assert!(include_str!("../../../../rust/src/lib.rs")
+            .contains("fn original_bounded_typo_fallback_search_cases()"));
+        assert!(include_str!("../../runtime_private_tests.rs")
+            .contains("fn original_bounded_typo_fallback_keeps_resolution_literal()"));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
@@ -4770,7 +4804,7 @@ mod tests {
     }
     #[test]
     fn history_source_pins_match_current_rust_bytes() {
-        let expected = "f98ed77b2df3ae0c2e2cd27d21219dedb9f19e6a8adacde70f31921e07e2aaa7";
+        let expected = "946011a9c5d9b152760a72e6fccecb3aa7407db598a23aa6f72b997b4cf6cd71";
         for gate in ["--check-performance-pipeline", "--check-settings"] {
             let (path, bytes, pin) = settings_sources(gate)
                 .iter()
