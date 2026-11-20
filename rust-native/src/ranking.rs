@@ -142,6 +142,46 @@ mod tests {
         assert_eq!(ids(&replacement), ["new"]);
     }
     #[test]
+    fn original_successful_choice_ranking_file_has_private_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        struct TemporaryRoot(PathBuf);
+        impl Drop for TemporaryRoot {
+            fn drop(&mut self) {
+                let _ = fs::remove_file(&self.0.join("search-ranking.json"));
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+
+        let root = TemporaryRoot(std::env::temp_dir().join(format!(
+            "ruycast-ranking-private-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+        private_storage::secure_directory(&root.0).unwrap();
+        let now = 1_800_000_000.0;
+        let mut entries = (0..600)
+            .map(|i| (format!("id.{i}"), now - f64::from(i)))
+            .collect::<HashMap<_, _>>();
+        entries.insert("expired".into(), now - 90.0 * 86400.0 - 1.0);
+        entries.insert("future".into(), now + 61.0);
+        let bytes = serde_json::to_vec(&serde_json::json!({"schema": 1, "entries": entries})).unwrap();
+        fs::write(root.0.join("search-ranking.json"), bytes).unwrap();
+
+        let mut ranking = RankingStore::open(&root.0, now);
+        assert_eq!(ranking.entries().len(), 512);
+        ranking.record_success("chosen", now).unwrap();
+        let mode = fs::metadata(root.0.join("search-ranking.json"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o7777;
+        assert_eq!(mode, 0o600);
+    }
+
+    #[test]
     fn failed_durable_write_preserves_revision_and_entries() {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
