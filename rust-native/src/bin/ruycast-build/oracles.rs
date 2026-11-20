@@ -2357,6 +2357,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["after preparing a non-empty result set, 1,000 result reads retain identical rows without reevaluating the search or changing query, selection or results revision"],
             "nativeCases": ["session::tests::repeated_result_reads_preserve_prepared_rows_and_session_state"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.indexDispatchABIParity"] = serde_json::json!({
+            "originalSourceSHA256": "ce5f4ed8c8cac22da5cfca994c948725930cd3a63946b29a9d266c4643f2baa7",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the duplicate 256-command, ten-query SearchIndex versus AppState dispatch parity loop is retired. The query list and fixture remain for the active --check-search route.",
+            "nativeSource": "rust/src/lib.rs",
+            "originalScenarios": ["for the 256-command fixture and all ten queries including Unicode and embedded NUL, compare full SearchIndex and dispatch outputs and verify ranked C ABI count and order"],
+            "nativeCases": ["tests::original_256_command_ten_query_index_dispatch_and_abi_parity"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3643,6 +3651,44 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/session.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["session::tests::repeated_result_reads_preserve_prepared_rows_and_session_state"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_index_dispatch_abi_parity_is_crosswalked_to_rust() {
+        let rust = include_str!("../../../../rust/src/lib.rs");
+        assert!(rust.contains("fn original_256_command_ten_query_index_dispatch_and_abi_parity()"));
+        assert!(rust.contains("let commands: Vec<Command> = (0..256)"));
+        assert!(rust.contains(r#"let queries = [
+            "",
+            " ",
+            "MICROSOFT",
+            "a42",
+            "item.11",
+            "project dashboard",
+            "example.com/42",
+            "missing",
+            "Ångström",
+            "a\0b",
+        ];"#));
+        assert!(rust.contains("assert_eq!(dispatched, indexed, \"index/dispatch parity"));
+        assert!(rust.contains(r#"let dispatched = dispatch(
+                "search",
+                json!({"commands": commands, "query": query}),
+            )
+            .unwrap();"#));
+        assert!(rust.contains("rustcast_index_search_ranked_into("));
+        assert!(rust.contains("ABI result count for {query:?}"));
+        assert!(rust.contains("ABI order for {query:?}"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.indexDispatchABIParity"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "ce5f4ed8c8cac22da5cfca994c948725930cd3a63946b29a9d266c4643f2baa7");
+        assert_eq!(mapping["nativeSource"], "rust/src/lib.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_256_command_ten_query_index_dispatch_and_abi_parity"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
