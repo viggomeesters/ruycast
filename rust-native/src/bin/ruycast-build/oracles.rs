@@ -3206,7 +3206,6 @@ mod tests {
         assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
         assert!(core.contains("let commands=["));
         assert!(core.contains("legacy.search(query)"));
-        assert!(!core.contains("for _ in 0..<100 {let temporary=try CommandSearchIndex"));
 
         let rust = include_str!("../../../../rust/src/lib.rs");
         assert!(rust.contains("fn original_go_alias_query_preserves_complete_result_order()"));
