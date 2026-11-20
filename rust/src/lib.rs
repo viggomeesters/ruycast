@@ -1283,20 +1283,50 @@ mod tests {
             max_asset_bytes: None,
             max_total_asset_bytes: None,
         };
-        let c = Clip {
-            id: "1".into(),
-            text: "hello".into(),
-            date: "2026-10-24T10:00:00Z".into(),
-            source: "secret".into(),
+        let now = "2026-10-24T10:00:00Z";
+        let clip = |id: &str, text: &str, date: &str, source: &str| Clip {
+            id: id.into(),
+            text: text.into(),
+            date: date.into(),
+            source: source.into(),
             content_type: None,
             data_file: None,
             file_urls: None,
         };
-        assert!(history(&[], Some(c.clone()), &s, "2026-10-24T11:00:00Z")
+        let b = clip("b", "b", now, "app");
+        let a = clip("a", "a", now, "app");
+        let expired = clip("expired", "expired", "2026-10-23T09:00:00Z", "app");
+        let ordered = history(&[b, a.clone(), expired], Some(a.clone()), &s, now).unwrap();
+        assert_eq!(
+            ordered.iter().map(|item| item.text.as_str()).collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert_eq!(
+            serde_json::to_value(&ordered).unwrap(),
+            serde_json::to_value([a.clone(), clip("b", "b", now, "app")]).unwrap()
+        );
+        assert!(history(&[], Some(clip("blocked", "password", now, "secret")), &s, now)
             .unwrap()
             .is_empty());
-        assert!(history(&[c], None, &s, "2026-10-26T11:00:00Z")
-            .unwrap()
-            .is_empty());
+        assert!(history(
+            &[clip("expired-secret", "hello", now, "secret")],
+            None,
+            &s,
+            "2026-10-26T11:00:00Z"
+        )
+        .unwrap()
+        .is_empty());
+
+        for rejected in [
+            clip("password", "password", now, "secret"),
+            clip("oversized", &"x".repeat(21), now, "app"),
+            clip("blank", "  ", now, "app"),
+        ] {
+            let unchanged = history(&ordered, Some(rejected), &s, now).unwrap();
+            assert_eq!(
+                serde_json::to_value(&unchanged).unwrap(),
+                serde_json::to_value(&ordered).unwrap()
+            );
+        }
     }
 }

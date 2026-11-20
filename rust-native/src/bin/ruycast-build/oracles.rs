@@ -1280,7 +1280,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "73a454950e76859e211af9ceb863be6abc7218630bf952db7d54896d47702297"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "db80fbb5bdf455e367adca423e546a21c7d16b35cfd57b4a9a278084ca964dc8"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "46baf0073ed8263931b6957269827eda1304f083c2a518d23aaf5fa9d2fe15a3"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1340,7 +1340,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_process.rs", include_bytes!("../../../tests/snippet_process.rs"), "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0"),
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "cb1441b9c63056ed828df688e8af5a4f6cbfd3208352d37f493c51a8ef0a06cd"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "db80fbb5bdf455e367adca423e546a21c7d16b35cfd57b4a9a278084ca964dc8"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "46baf0073ed8263931b6957269827eda1304f083c2a518d23aaf5fa9d2fe15a3"),
         ],
         "--check-command-log" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
@@ -4573,6 +4573,18 @@ mod tests {
         assert_eq!(format!("{:x}", Sha256::digest(bytes)), *expected);
         assert_eq!(*expected, "a9848cc7ab9e9432d4ae87c5a3ffb75b3f5a709bbe2cc83a803e19cc916fa72b");
         assert!(settings_source_bindings("--check-polish").contains(&(*path, *expected)));
+    }
+    #[test]
+    fn history_source_pins_match_current_rust_bytes() {
+        let expected = "46baf0073ed8263931b6957269827eda1304f083c2a518d23aaf5fa9d2fe15a3";
+        for gate in ["--check-performance-pipeline", "--check-settings"] {
+            let (path, bytes, pin) = settings_sources(gate)
+                .iter()
+                .find(|(path, _, _)| *path == "rust/src/lib.rs")
+                .unwrap();
+            assert_eq!(*pin, expected, "{gate} pin for {path}");
+            assert_eq!(format!("{:x}", Sha256::digest(bytes)), *pin, "{gate} pin");
+        }
     }
     #[test]
     fn feedback_provenance_preserves_inputs_cases_routes_and_status() {
