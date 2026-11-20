@@ -3152,11 +3152,6 @@ mod tests {
 
     #[test]
     fn reset_reopen_ranking_assertion_is_crosswalked_to_rust() {
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try ranking.reset()"));
-        assert!(core.contains("entries[\"expired\"]=now.timeIntervalSince1970-SearchRanking.retention-1"));
         let source = include_str!("../../ranking.rs");
         assert!(source.contains("fn original_reset_ranking_is_empty_after_reopen()"));
 
@@ -3169,6 +3164,24 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["ranking::tests::original_reset_ranking_is_empty_after_reopen"]));
         assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn reset_reopen_ranking_crosswalk_does_not_embed_live_swift_source() {
+        let source = include_str!("oracles.rs");
+        let assertion = source
+            .split_once("fn reset_reopen_ranking_assertion_is_crosswalked_to_rust()")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        let swift_include = [
+            "include_str!(\"../../../../Tests/LauncherCoreTests/",
+            "CoreTests.swift\")",
+        ]
+        .concat();
+        assert!(!assertion.contains(&swift_include));
     }
 
     #[test]
