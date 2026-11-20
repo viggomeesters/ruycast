@@ -5760,7 +5760,7 @@ fn dispatch(
                         "Search mode is not yet implemented in this Rust development host.".into(),
                     );
                 }
-                let commands = system::cli_local_search(state, &request);
+                let commands = system::cli_local_search(state, request);
                 Ok(json!({"ok":true,"result":commands}))
             }
             Some("execute") => {

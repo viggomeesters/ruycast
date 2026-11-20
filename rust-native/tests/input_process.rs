@@ -1139,12 +1139,20 @@ fn menu_cancel_while_busy_preserves_new_typing() {
 #[test]
 fn external_removal_before_edit_keeps_input() {
     let host = input_actions_fixture();
+    let revision = host.rpc(&json!({"op":"status"}))["result"]["configurationRevision"]
+        .as_u64()
+        .unwrap();
     let mut config: Value = serde_json::from_slice(&fs::read(&host.config).unwrap()).unwrap();
     config["commands"]
         .as_array_mut()
         .unwrap()
         .retain(|c| c["id"] != "script.fixture");
     host.replace(&config, None);
+    host.settled(|s| {
+        s["configurationRevision"]
+            .as_u64()
+            .is_some_and(|current| current > revision)
+    });
     external_removal_action(&host, "Set Alias…");
     external_removal_view(&host, "external-removal-warning", |v| {
         v["screenText"]
