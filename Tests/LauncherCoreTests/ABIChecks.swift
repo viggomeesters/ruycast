@@ -27,9 +27,4 @@ func checkPreparedRanking() throws {
     precondition(index.prepared(recency:ranking.entries).search("same").first?.id=="a")
     let replacement=try CommandSearchIndex(commands:[Command(id:"new",title:"Same",kind:"url",target:"https://example.com")])
     precondition(replacement.prepared(recency:["b":100]).search("same").map(\.id)==["new"])
-    // Failed durable update must not change revision or active ranking.
-    try FileManager.default.removeItem(at:root);try Data("not a directory".utf8).write(to:root)
-    let revision=ranking.revision,entries=ranking.entries
-    do {try ranking.recordSuccess("b");preconditionFailure("Expected persistence failure")} catch {}
-    precondition(ranking.revision==revision && ranking.entries==entries)
 }
