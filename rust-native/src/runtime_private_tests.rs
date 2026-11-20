@@ -36,6 +36,23 @@ fn original_bounded_typo_fallback_keeps_resolution_literal() {
 }
 
 #[test]
+fn disabled_catalog_item_is_filtered_from_typo_fallback() {
+    let (_temp, mut state, _window, _, mut enabled) = private_fixture("typo.enabled", false);
+    enabled.title = "Calendar".into();
+    enabled.kind = "url".into();
+    enabled.target = "https://example.com".into();
+    let mut disabled = enabled.clone();
+    disabled.id = "typo.disabled".into();
+    disabled.title = "Finder".into();
+    disabled.enabled = Some(false);
+    let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+    config["commands"] = json!([enabled, disabled]);
+    state.configuration.save(&config).unwrap();
+
+    assert!(system::local(&state, "fnider", 0).is_empty());
+}
+
+#[test]
 fn watched_reload_preserves_one_fresh_cli_reply_cancellation_and_shutdown() {
     use std::io::{BufRead,BufReader,Write}; use std::os::unix::net::UnixStream;
     fn client(socket: std::path::PathBuf) -> std::thread::JoinHandle<Value> {
