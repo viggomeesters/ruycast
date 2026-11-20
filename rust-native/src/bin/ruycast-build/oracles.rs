@@ -279,6 +279,14 @@ fn data_copy(root: &Path, source: &Path, destination: &Path) -> Result<()> {
     }
     Ok(())
 }
+fn core_stdout_matches_current_contract(stdout: &[u8]) -> Result<bool> {
+    Ok(String::from_utf8(stdout.to_vec())
+        .map_err(error)?
+        .lines()
+        .collect::<Vec<_>>()
+        == ["Core behavior checks passed"])
+}
+
 pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     let before = core_sources(root)?;
     let policy_inputs=core_policy_footprint(root)?;
@@ -387,16 +395,7 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
         &value.stderr,
         true,
     )?;
-    if !value.status.success()
-        || String::from_utf8(value.stdout)
-            .map_err(error)?
-            .lines()
-            .collect::<Vec<_>>()
-            != [
-                "Snippet output checks passed",
-                "Core behavior checks passed",
-            ]
-    {
+    if !value.status.success() || !core_stdout_matches_current_contract(&value.stdout)? {
         return Err("Historical data-only CoreChecks failed.".into());
     }
     if core_sources(root)? != before {
@@ -421,7 +420,7 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
     }
     artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
     verify_swift_compatibility(root, &swift_compatibility, &artifacts)?;
-    let receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v5".into(),scope:"Frozen LauncherCoreChecks: Foundation data/owned filesystem and actual linked Rust ABI; no RuycastApp/AppKit/startup/desktop claim".into(),sources:before,artifacts,commands,outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility,policy};
+    let receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v6".into(),scope:"Frozen LauncherCoreChecks: Foundation data/owned filesystem and actual linked Rust ABI; no RuycastApp/AppKit/startup/desktop claim".into(),sources:before,artifacts,commands,outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility,policy};
     lease.validate()?;
     let path = root.join(".build/receipts/pure-core-oracle.json");
     ruycast_native::private_storage::write(
@@ -499,7 +498,7 @@ pub(super) fn verify_core(root: &Path, lease: &BuildLock) -> Result<serde_json::
         &root.join(".build/receipts/pure-core-oracle.json"),
     )?)
     .map_err(error)?;
-    if receipt.schema != "ruycast.pure-core-oracle.v5"
+    if receipt.schema != "ruycast.pure-core-oracle.v6"
         || receipt.production_accepted
         || receipt.sources != core_sources(root)?
         || receipt.artifacts.len() != 6
@@ -2063,6 +2062,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["replace a symlink without changing target bytes; publish a regular 0600 file", "refuse directory replacement and preserve child bytes", "create-only first write succeeds; second refuses and preserves first payload", "create-only refuses a symlink and preserves target bytes", "exact five directory-entry names prove temporary stages are removed"],
             "nativeCases": ["private_storage::guarded_publication_tests::original_private_file_replacement_and_create_only_sequence"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/SnippetOutputChecks.swift"] = serde_json::json!({
+            "originalSourceSHA256": "abaa04463b8b7fcfa1edecfd712d4911d01735991f3ecfd3c2e32455a8746965",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The data-only helper is retired; its original rich rendering, literal/unsafe input, cursor, three-link, link-source, choice replacement and mode-codec cases remain covered by Rust tests. The remaining LauncherCoreChecks oracle stays active.",
+            "nativeSources": ["rust-native/src/snippet_output.rs", "rust-native/tests/snippet_process.rs", "rust/src/lib.rs"],
+            "originalScenarios": ["Teams/html rich payload text, escaping, paragraph layout and cursor", "nil mode preserves the exact original text without HTML", "newline link labels are rejected", "unsafe image and javascript/file links produce no raw image or anchor", "four UTF16 emoji-link cursor offsets and one in-link cursor mapping", "three Teams links retain labels and order", "rich argument choice replacement preserves text and hyperlink", "link source round-trips bracketed, escaped, emoji and parenthesized labels/URLs", "plain, teams and html command JSON codec and configuration validation", "unknown snippet output mode is rejected"],
+            "nativeCases": ["snippet_process::teams_paragraphs_html_breaks_and_safe_escaping", "snippet_process::plain_unknown_modes_and_complete_literal_text", "snippet_process::links_balanced_parentheses_escape_labels_and_invalid_syntax", "snippet_process::utf16_cursor_mapping_at_every_position_and_grapheme_boundary", "snippet_output::link_editor_tests::teams_rendering_preserves_all_original_three_links", "snippet_output::link_editor_tests::rich_choice_replacement_preserves_original_text_and_hyperlink", "snippet_output::link_editor_tests::link_source_round_trips_original_escaped_labels_and_parentheses", "snippet_output::link_editor_tests::original_literal_and_unsafe_snippet_sources_stay_safe", "rustcast_core::tests::snippet_output_modes_roundtrip_validate_and_reject_unknown"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
             "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
             "originalMethods": [
@@ -2171,7 +2178,7 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
     let before = headless_sources(root)?;
     let policy_inputs=core_policy_footprint(root)?;
     let target=host_target(root)?;
-    if core["policy"]["artifact"]["target"]!=target {return Err("Headless policy requires its current host core-v5 receipt.".into());}
+    if core["policy"]["artifact"]["target"]!=target {return Err("Headless policy requires its current host core-v6 receipt.".into());}
     tool(root,lease,&core_policy_build_command(&target)?)?;
     let policy_artifact=bind_core_policy_artifact(root,&target)?;
     let policy_before=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"before")?;
@@ -2359,6 +2366,38 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 }
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn retired_snippet_output_helper_is_removed_and_all_cases_are_crosswalked() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Tests/LauncherCoreTests/SnippetOutputChecks.swift";
+        assert!(!root.join(retired).exists());
+        assert!(!include_str!("../ruycast-source/policy.rs")
+            .lines()
+            .any(|line| line == retired));
+        let core_checks = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(!core_checks.contains("checkSnippetOutput"));
+        assert!(!core_checks.contains("Snippet output checks passed"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"][retired];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(
+            mapping["originalSourceSHA256"],
+            "abaa04463b8b7fcfa1edecfd712d4911d01735991f3ecfd3c2e32455a8746965"
+        );
+        let cases = mapping["nativeCases"].as_array().unwrap();
+        assert!(cases.len() >= 8);
+        assert_eq!(inventory["productionAccepted"], false);
+
+        assert!(super::core_stdout_matches_current_contract(b"Core behavior checks passed\n").unwrap());
+        assert!(!super::core_stdout_matches_current_contract(
+            b"Snippet output checks passed\nCore behavior checks passed\n"
+        )
+        .unwrap());
+    }
+
     #[test]
     fn retired_private_file_helper_preserves_original_ordered_public_write_sequence() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
@@ -2575,7 +2614,7 @@ mod tests {
             fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();artifacts.insert(name.into(),digest(&root.join(name)).unwrap());
         }
         artifacts.insert(artifact.path.clone(),artifact.sha256.clone());
-        let core=CoreReceipt{schema:"ruycast.pure-core-oracle.v5".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy:core_policy};
+        let core=CoreReceipt{schema:"ruycast.pure-core-oracle.v6".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy:core_policy};
         fs::write(root.join(".build/receipts/pure-core-oracle.json"),serde_json::to_vec(&core).unwrap()).unwrap();verify_core(root,lease).unwrap();
         let before=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"before").unwrap();
         let after=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"after").unwrap();
@@ -2589,7 +2628,7 @@ mod tests {
         HeadlessReceipt{schema:"ruycast.pre-main-headless-oracles.v3".into(),core_receipt_sha256:digest(&root.join(".build/receipts/pure-core-oracle.json")).unwrap(),policy,sources:headless_sources(root).unwrap(),artifacts,outcomes:BTreeMap::from([("--check-search".into(),serde_json::json!({"ok":true}))]),commands:vec![],scope:"owned metadata fixture only; no genuine Swift branch execution".into(),production_accepted:false}
     }
     #[test]
-    fn headless_rust_policy_logs_and_exact_core_v5_dependency_remain_separate() {
+    fn headless_rust_policy_logs_and_exact_core_v6_dependency_remain_separate() {
         let fixture=core_policy_fixture();let root=&fixture.0;let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
         let receipt=owned_headless_policy_receipt(root,&lease);let path=root.join(".build/receipts/pre-main-headless-oracles.json");
         fs::write(&path,serde_json::to_vec(&receipt).unwrap()).unwrap();verify_headless(root,&lease).unwrap();
@@ -2640,7 +2679,7 @@ mod tests {
         assert!(check_core_policy_evidence(root,&policy).is_err());
     }
     #[test]
-    fn core_rust_policy_v5_receipt_requires_current_policy_source_artifact_and_both_gates() {
+    fn core_rust_policy_v6_receipt_requires_current_policy_source_artifact_and_both_gates() {
         let fixture=core_policy_fixture();let root=&fixture.0;
         let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
         let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
@@ -2650,7 +2689,7 @@ mod tests {
             fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();artifacts.insert(name.into(),digest(&root.join(name)).unwrap());
         }
         artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-        let mut receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v5".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy};
+        let mut receipt=CoreReceipt{schema:"ruycast.pure-core-oracle.v6".into(),scope:"owned metadata fixture only".into(),sources:core_sources(root).unwrap(),artifacts,commands:vec![],outcome:"Core behavior checks passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:".build/swift/debug/CRuycastCore.build/module.modulemap".into(),architecture:"arm64-apple-macosx".into(),alias_target:None},policy};
         let path=root.join(".build/receipts/pure-core-oracle.json");
         let save=|value:&CoreReceipt|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
         save(&receipt);verify_core(root,&lease).unwrap();
@@ -2664,10 +2703,10 @@ mod tests {
             while parent!=root {if fs::remove_dir(parent).is_err(){break;}parent=parent.parent().unwrap();}
             verify_core(root,&lease).unwrap();
         }
-        for old in ["ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4"] {
+        for old in ["ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4", "ruycast.pure-core-oracle.v5"] {
             receipt.schema=old.into();save(&receipt);assert_eq!(verify_core(root,&lease).unwrap_err(), "Pure CoreChecks oracle receipt is invalid or stale.");
         }
-        receipt.schema="ruycast.pure-core-oracle.v5".into();save(&receipt);
+        receipt.schema="ruycast.pure-core-oracle.v6".into();save(&receipt);
         let mut missing=serde_json::to_value(&receipt).unwrap();missing.as_object_mut().unwrap().remove("policy");
         fs::write(&path,serde_json::to_vec(&missing).unwrap()).unwrap();assert!(verify_core(root,&lease).is_err());
         save(&receipt);fs::write(root.join("rust-native/src/main.rs"),b"changed bound runtime fixture").unwrap();assert!(verify_core(root,&lease).is_err());
