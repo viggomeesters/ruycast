@@ -349,6 +349,40 @@ mod link_editor_tests {
     }
 
     #[test]
+    fn rich_choice_replacement_preserves_original_text_and_hyperlink() {
+        let command: rustcast_core::Command = serde_json::from_value(serde_json::json!({
+            "id": "choice.rich",
+            "title": "Rich choice",
+            "kind": "snippet",
+            "target": "Hi {argument name=\"Person\" options=\"A,B\"}\n\n[Guide](https://example.com)",
+            "keyword": ";choice",
+            "snippetOutput": "teams"
+        }))
+        .unwrap();
+        let prepared = std::sync::Arc::new(crate::snippet_choice::Prepared::new(command).unwrap());
+        let mut model = crate::snippet_choice::Model::new(prepared.clone());
+        assert!(model.set(0, "B".into()));
+        let context = crate::templates::Context {
+            clipboard: None,
+            now: 0.0,
+            locale: Some("en_GB"),
+            time_zone: Some("UTC"),
+        };
+        let values = model
+            .submit(&context)
+            .unwrap()
+            .expect("valid choice submits");
+        let (text, _) = prepared.render(&values, &context).unwrap();
+        let payload = render(&text, Some("teams"), None);
+
+        assert!(text.starts_with("Hi B\n\n"));
+        assert!(payload
+            .html
+            .unwrap()
+            .contains("<a href=\"https://example.com\">Guide</a>"));
+    }
+
+    #[test]
     fn link_source_round_trips_original_escaped_labels_and_parentheses() {
         let original = link_source("[Guide]", "https://example.com/?a=1&b=2");
         let parsed = links(&original);
