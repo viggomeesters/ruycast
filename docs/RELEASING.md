@@ -74,9 +74,9 @@ current issue or release gate. Developer ID notarization remains deferred.
 
 The complete native rewrite remains a development candidate. V4 Rust build receipts and unsigned candidate receipts keep `productionAccepted: false`, `installedOrPublished: false` and no signing/notarization claim. Historical candidate 67 and v2/v3 receipts are preserved evidence, not new installation authority. No new release, public push, installation or publication follows implicitly from these tools.
 
-Production build, version, diagnostic preparation and packaging policy are Rust. Compatibility Python/shell entrypoints forward arguments to an explicitly host-targeted, locked offline Cargo tool. `rust/src/product_version.rs` is the sole product-version literal. The Swift tree is a historical oracle and not a production fallback.
+Production build, version, diagnostic preparation and packaging policy are Rust. The remaining Settings shell entrypoints forward arguments to the locked offline Rust build tool. `rust/src/product_version.rs` is the sole product-version literal. The Swift tree is a historical oracle and not a production fallback.
 
-Export an explicit reviewed public source snapshot first and verify its clean archive before compilation. The accepted source-export policy excludes `.go`, profiles, signing material, private adapters and Actions. After building, packaging permits `.build` outputs but rebinds every PUBLIC-SOURCE.v2 file/mode and the entire production inventory. Unreviewed new production files, source changes, private checkouts, stale/pre-v4/debug receipts and existing outputs are refused. The direct Rust build and verification commands below do not require the Python compatibility wrapper.
+Export an explicit reviewed public source snapshot first and verify its clean archive before compilation. The accepted source-export policy excludes `.go`, profiles, signing material, private adapters and Actions. After building, packaging permits `.build` outputs but rebinds every PUBLIC-SOURCE.v2 file/mode and the entire production inventory. Unreviewed new production files, source changes, private checkouts, stale/pre-v4/debug receipts and existing outputs are refused. Use the direct Rust build and verification commands below.
 
 ```sh
 RUYCAST_SOURCE="$PWD/.dist/public-source"
@@ -230,7 +230,3 @@ Test upgrades with preexisting configuration/history and permissions. Preserve `
 Only after all gates pass: finish the linked PR review, merge, publish versioned ZIP/checksum and matching source assets from that public commit, download them again, verify hashes/signature/stapling, and update the original issue/note. Until then keep issue #1 open and describe the current release as source-only. No GitHub Actions or updater is introduced.
 
 Local source builds can stage an explicitly supplied personal adapter with `RUYCAST_PERSONAL_BRIDGE=/absolute/path/to/adapter.py CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD" --build`. The adapter is copied directly into the staged app before signing; it is never copied into public source or source release assets. Without this override, the existing installed adapter is retained.
-
-## Historical Swift product-version procedure
-
-Change the literal in `Sources/LauncherCore/ProductVersion.swift`; status, analytics, Settings, installer metadata and public-source manifest derive from it. Keep the enum/literal source form: the Python reader rejects expressions, duplicate declarations and malformed versions. Update the current README/release examples and changelog, then regenerate the source manifest/archive and run the local gates. Historical release notes and the Rust library package version are independent.
