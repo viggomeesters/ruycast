@@ -201,18 +201,12 @@ xcrun stapler validate "$RUYCAST_APP"
 spctl --assess --type execute --verbose=2 "$RUYCAST_APP"
 ditto -c -k --keepParent "$RUYCAST_APP" "$RUYCAST_CANDIDATE/Ruycast-macOS.zip"
 (cd "$RUYCAST_CANDIDATE" && shasum -a 256 Ruycast-macOS.zip > Ruycast-macOS.zip.sha256)
-python3 - "$RUYCAST_CANDIDATE" <<'PY'
-import hashlib, json, pathlib, subprocess, sys
-root = pathlib.Path(sys.argv[1])
-record = {'unsignedCandidate': json.loads((root/'candidate.json').read_text()),
-          'notarization': json.loads((root/'notary-result.json').read_text()),
-          'zipSHA256': hashlib.sha256((root/'Ruycast-macOS.zip').read_bytes()).hexdigest(),
-          'publicCommit': subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip(),
-          'signature': subprocess.check_output(['codesign','--display','--verbose=4',str(root/'Ruycast.app')], stderr=subprocess.STDOUT, text=True)}
-target = root/'release-receipt.json'
-with target.open('x') as output:
-    json.dump(record, output, indent=2)
-PY
+RUYCAST_PUBLIC_COMMIT="$(git rev-parse HEAD)"
+RUYCAST_SIGNATURE="$(codesign --display --verbose=4 "$RUYCAST_APP" 2>&1)"
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml \
+  --target-dir .build/delivery-tools --bin ruycast-build -- release-receipt \
+  --candidate "$RUYCAST_CANDIDATE" --public-commit "$RUYCAST_PUBLIC_COMMIT" \
+  --signature "$RUYCAST_SIGNATURE"
 ```
 
 The final ZIP must be created **after** stapling. Keep the separate final receipt with the source/build binding, signature, notarization ID and ZIP hash. The original upload ZIP and unsigned `candidate.json` are not release assets. Before retrying, use a fresh candidate instead of silently overwriting any ZIP or receipt. No signing/notarization command above has been validated with distribution credentials yet.
