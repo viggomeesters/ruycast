@@ -6,16 +6,6 @@ import LauncherCore
 import LauncherModels
 struct CoreTests {
     func testPersistentIndexRankingAndUnicode() throws {
-        let commands=[
-            Command(id:"z",title:"Beta",kind:"url",target:"https://example.com/one",aliases:["go"]),
-            Command(id:"a",title:"Go Alpha",kind:"url",target:"https://example.com/two"),
-            Command(id:"b",title:"Ångström Notes",kind:"url",target:"https://example.com/three",aliases:["nul\0alias"]),
-            Command(id:"c",title:"Beta",kind:"url",target:"https://example.com/four")]
-        let index=try CommandSearchIndex(commands:commands)
-        var legacy=Configuration.initial;legacy.commands=commands
-        for query in ["go"," BETA ","ÅNGSTRÖM notes","nul\0alias","   ","does not exist","example"] {
-            XCTAssertEqual(index.search(query),legacy.search(query))
-        }
         let root=FileManager.default.temporaryDirectory.appendingPathComponent("ranking-"+UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)

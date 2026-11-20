@@ -1456,6 +1456,59 @@ mod tests {
         }
     }
     #[test]
+    fn original_seven_query_index_dispatch_and_abi_parity() {
+        let commands: Vec<Command> = serde_json::from_value(json!([
+            {"id":"z","title":"Beta","kind":"url","target":"https://example.com/one","aliases":["go"]},
+            {"id":"a","title":"Go Alpha","kind":"url","target":"https://example.com/two"},
+            {"id":"b","title":"Ångström Notes","kind":"url","target":"https://example.com/three","aliases":["nul\0alias"]},
+            {"id":"c","title":"Beta","kind":"url","target":"https://example.com/four"}
+        ]))
+        .unwrap();
+        let index = SearchIndex::new(&commands);
+        let queries = [
+            "go",
+            " BETA ",
+            "ÅNGSTRÖM notes",
+            "nul\0alias",
+            "   ",
+            "does not exist",
+            "example",
+        ];
+
+        for query in queries {
+            let indices = index.search(query);
+            let indexed: Vec<Command> = indices
+                .iter()
+                .map(|&index| commands[index].clone())
+                .collect();
+            let dispatched = dispatch(
+                "search",
+                json!({"commands": commands, "query": query}),
+            )
+            .unwrap();
+            assert_eq!(
+                dispatched,
+                serde_json::to_value(indexed).unwrap(),
+                "index/dispatch parity for {query:?}"
+            );
+
+            let mut abi = vec![usize::MAX; commands.len()];
+            let count = unsafe {
+                rustcast_index_search_ranked_into(
+                    &index,
+                    query.as_ptr(),
+                    query.len(),
+                    std::ptr::null(),
+                    0,
+                    abi.as_mut_ptr(),
+                    abi.len(),
+                )
+            };
+            assert_eq!(count, indices.len() as isize, "ABI result count for {query:?}");
+            assert_eq!(&abi[..count as usize], indices, "ABI order for {query:?}");
+        }
+    }
+    #[test]
     fn direct_title_typo_outranks_weak_subsequence_with_higher_recency() {
         let commands: Vec<Command> = [
             ("typo.finder", "Finder"),
