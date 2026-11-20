@@ -137,29 +137,6 @@ struct CoreTests {
         XCTAssertEqual(chunks.allSatisfy {$0.utf16.count<=16},true)
         var c=Configuration.initial;c.commands.append(word);c.commands.append(Command(id:"w2",title:"Word 2",kind:"snippet",target:"other",keyword:"abc"));XCTAssertThrowsError(try c.validate())
     }
-    func testSnippetChoices() throws {
-        let command=Command(id:"choice",title:"Contact",kind:"snippet",target:#"{argument name="Contact" options=" Alpha, Beta , , Alpha"}"#,keyword:";contact")
-        XCTAssertEqual(Templates.fields(command).first?.options,["Alpha","Beta"])
-        var matcher=SnippetMatcher()
-        XCTAssertEqual(matcher.type(";contact",commands:[command]),command)
-        XCTAssertEqual(Templates.needsInteraction(command),true)
-        let defaulted=Command(id:"defaulted",title:"Contact",kind:"snippet",target:#"{argument name="Contact" options="Alpha,Beta" default="Beta"}"#,keyword:";default")
-        XCTAssertEqual(Templates.needsInteraction(defaulted),true)
-        XCTAssertEqual(try Templates.render(command,values:["Contact":"Beta"]).0,"Beta")
-        let plain=Command(id:"plain",title:"Plain",kind:"snippet",target:"Hello",keyword:";plain")
-        XCTAssertEqual(Templates.needsInteraction(plain),false)
-        var keys:[UInt16]=[],inserted=""
-        let confirmed=SnippetChoiceRequest(command:command,pid:42)
-        try confirmed.replacement(values:["Contact":"Beta Ω"],pid:42,safe:true,unchanged:true).apply(key:{keys.append($0)},insert:{inserted+=$0})
-        XCTAssertEqual(keys,Array(repeating:51,count:8));XCTAssertEqual(inserted,"Beta Ω")
-        XCTAssertThrowsError(try confirmed.replacement(values:["Contact":"Alpha"],pid:42,safe:true,unchanged:true))
-        let cancelled=SnippetChoiceRequest(command:command,pid:42);cancelled.cancel()
-        XCTAssertThrowsError(try cancelled.replacement(values:["Contact":"Alpha"],pid:42,safe:true,unchanged:true))
-        for (pid,safe,unchanged):(Int32,Bool,Bool) in [(43,true,true),(42,false,true),(42,true,false)] {
-            let request=SnippetChoiceRequest(command:command,pid:42)
-            XCTAssertThrowsError(try request.replacement(values:["Contact":"Alpha"],pid:pid,safe:safe,unchanged:unchanged))
-        }
-    }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {
         var calls=0;var waits:[Double]=[]
         let window:String=try WindowRead.perform("AXFocusedWindow",retryingStatus:-25204,read:{
@@ -227,7 +204,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)

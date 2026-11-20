@@ -345,6 +345,77 @@ fn focus_secure_precedence() {
 #[test]
 fn choice_single_use_retries_cancel_and_target_guards() {
     compare("choice_single_use_retries_cancel_and_target_guards");
+    let mut command = ruycast_native::session::fixture(1).remove(0);
+    command.id = "choice".into();
+    command.title = "Contact".into();
+    command.kind = "snippet".into();
+    command.target = r#"{argument name="Contact" options=" Alpha, Beta , , Alpha"}"#.into();
+    command.keyword = Some(";contact".into());
+    let plan = templates::Plan::parse(&command, templates::Limits::application()).unwrap();
+    assert_eq!(plan.fields().first().unwrap().options, ["Alpha", "Beta"]);
+
+    let catalog = keyword_matcher::Catalog::new(&[command.clone()]).unwrap();
+    let mut matcher = keyword_matcher::Matcher::default();
+    let matched = matcher.type_text(";contact", &catalog).unwrap();
+    assert_eq!(
+        serde_json::to_value(matched).unwrap(),
+        serde_json::to_value(&command).unwrap()
+    );
+    assert!(plan.needs_interaction());
+
+    let mut defaulted = command.clone();
+    defaulted.id = "defaulted".into();
+    defaulted.target = r#"{argument name="Contact" options="Alpha,Beta" default="Beta"}"#.into();
+    assert!(
+        templates::Plan::parse(&defaulted, templates::Limits::application())
+            .unwrap()
+            .needs_interaction()
+    );
+    let mut plain = command.clone();
+    plain.id = "plain".into();
+    plain.target = "Hello".into();
+    assert!(
+        !templates::Plan::parse(&plain, templates::Limits::application())
+            .unwrap()
+            .needs_interaction()
+    );
+
+    let context = templates::Context {
+        clipboard: None,
+        now: 1_761_420_900.,
+        locale: Some("en_GB"),
+        time_zone: Some("GMT"),
+    };
+    let beta = [("Contact".to_owned(), "Beta".to_owned())];
+    let rendered = plan.render(&beta, &context).unwrap().0;
+    assert_eq!(rendered, "Beta");
+
+    let selected = [("Contact".to_owned(), "Beta Ω".to_owned())];
+    let mut confirmed = keyword_matcher::ChoiceRequest::new(command.clone(), 42);
+    let replacement = confirmed
+        .replacement(&selected, 42, true, true, &context)
+        .unwrap();
+    let mut keys = Vec::new();
+    let mut inserted = String::new();
+    replacement.apply(|key| keys.push(key), |text| inserted.push_str(text));
+    assert_eq!(keys, vec![51; 8]);
+    assert_eq!(inserted, "Beta Ω");
+    let alpha = [("Contact".to_owned(), "Alpha".to_owned())];
+    assert!(confirmed
+        .replacement(&alpha, 42, true, true, &context)
+        .is_err());
+
+    let mut cancelled = keyword_matcher::ChoiceRequest::new(command.clone(), 42);
+    cancelled.cancel();
+    assert!(cancelled
+        .replacement(&alpha, 42, true, true, &context)
+        .is_err());
+    for (pid, safe, unchanged) in [(43, true, true), (42, false, true), (42, true, false)] {
+        let mut request = keyword_matcher::ChoiceRequest::new(command.clone(), 42);
+        assert!(request
+            .replacement(&alpha, pid, safe, unchanged, &context)
+            .is_err());
+    }
 }
 #[test]
 fn seeded_mixed_transitions_and_catalog_scale() {
