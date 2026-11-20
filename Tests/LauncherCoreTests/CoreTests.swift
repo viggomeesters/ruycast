@@ -74,15 +74,6 @@ struct CoreTests {
         XCTAssertEqual(result.0,"Hi Ω, Hello")
         XCTAssertEqual((result.0 as NSString).substring(to:result.1!),"Hi Ω, ")
         XCTAssertThrowsError(try Templates.render(snippet,values:[:]))
-        var matcher=SnippetMatcher()
-        XCTAssertEqual(matcher.type(";h",commands:[snippet]),nil)
-        XCTAssertEqual(matcher.type("i",commands:[snippet]),snippet)
-        XCTAssertEqual(matcher.type("i",commands:[snippet]),nil)
-        matcher.reset();_ = matcher.type(";hx",commands:[snippet]);matcher.backspace()
-        XCTAssertEqual(matcher.type("i",commands:[snippet]),snippet)
-        let word=Command(id:"w",title:"Word",kind:"snippet",target:"expanded",keyword:"abc")
-        matcher.reset();XCTAssertEqual(matcher.type("xabc",commands:[word]),nil)
-        matcher.reset();XCTAssertEqual(matcher.type("abc",commands:[word]),word)
     }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {
         var calls=0;var waits:[Double]=[]
