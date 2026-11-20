@@ -2504,7 +2504,8 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
     let mut commands = vec![compile];
     // This closed selector list is the exact audited pre-AppDelegate scope.
     // It is deliberately not an arbitrary host/check flag dispatcher.
-    for flag in ["--check-search"] {
+    {
+        let flag = "--check-search";
         let mut command = Command::new(&binary);
         command
             .arg(flag)
@@ -4213,7 +4214,6 @@ mod tests {
         assert_eq!(direct, ["invalid_long_url_does_not_repeat_legacy_exponential_match"]);
         assert!(compact.contains(&format!("#[test]fn{}()", direct[0])));
     }
-    use super::*;
     #[test]
     fn product_version_root_crosswalk_preserves_five_intents_and_real_rust_cases() {
         let value=inventory("check").unwrap();assert!(!value["pythonModuleInventory"].as_array().unwrap().iter().any(|path|path=="Tests/test_product_version.py"));
