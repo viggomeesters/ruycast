@@ -1326,8 +1326,14 @@ fn window_internal_two_second_budget_returns_partial_while_request_is_live() {
 
 #[test]
 fn menu_internal_two_second_budget_stops_while_request_is_live() {
-    let (f, p) = setup();
-    f.delay_ms.store(80, Ordering::Release);
+    let (f, p) = large_owned_menu_fixture();
+    for index in 1..1400_u64 {
+        f.edit(Element(1000 + index), |node| {
+            node.bools.insert("AXEnabled".into(), false);
+            node.strings.insert("AXTitle".into(), String::new());
+        });
+    }
+    f.delay_ms.store(40, Ordering::Release);
     let request = Ticket {
         deadline: Instant::now() + Duration::from_secs(10),
         live: Arc::new(|| true),

@@ -1656,8 +1656,11 @@ mod shortcut_budget_tests {
         }
     }
 
-    fn ordinary_ax_search(scope: Scope, read_delay_ms: usize, identity_delay: bool) -> Result<Results,String> {
+    fn ordinary_ax_search(scope: Scope, read_delay_ms: usize, identity_delay: bool, menu_tail: usize) -> Result<Results,String> {
         let fixture=Arc::new(os::fixture::Fixture::default());
+        if menu_tail > 0 {
+            install_disabled_menu_tail(&fixture, menu_tail);
+        }
         fixture.delay_ms.store(read_delay_ms,Ordering::Release);
         if identity_delay {
             *fixture.before_identity.lock().unwrap()=Some(Box::new(|_|std::thread::sleep(Duration::from_millis(2100))));
@@ -1678,19 +1681,37 @@ mod shortcut_budget_tests {
         assert!(fixture.effects.lock().unwrap().is_empty());
         result
     }
+    fn install_disabled_menu_tail(fixture: &os::fixture::Fixture, count: usize) {
+        let pid = fixture.previous().unwrap().identity.pid;
+        let tail = (9..9 + count as u64).map(os::Element).collect::<Vec<_>>();
+        fixture.edit(os::Element(6), |menu| {
+            menu.lists.insert(
+                "AXChildren".into(),
+                std::iter::once(os::Element(7)).chain(tail.iter().copied()).collect(),
+            );
+        });
+        let mut nodes = fixture.nodes.lock().unwrap();
+        for element in tail {
+            let mut node = os::fixture::Node { pid, ..Default::default() };
+            node.strings.insert("AXRole".into(), "AXMenuItem".into());
+            node.strings.insert("AXTitle".into(), String::new());
+            node.bools.insert("AXEnabled".into(), false);
+            nodes.insert(element, node);
+        }
+    }
     #[test]
     fn ax_request_budget_windows_delivers_original_internal_partial_results() {
-        let rows=ordinary_ax_search(Scope::Windows,250,false).expect("ordinary Window request must permit its private two-second partial result");
+        let rows=ordinary_ax_search(Scope::Windows,250,false,0).expect("ordinary Window request must permit its private two-second partial result");
         assert_eq!(rows.commands.len(),1);
     }
     #[test]
     fn ax_request_budget_menus_delivers_original_internal_partial_results() {
-        let rows=ordinary_ax_search(Scope::Menus,80,false).expect("ordinary Menu request must permit its private two-second partial result");
+        let rows=ordinary_ax_search(Scope::Menus,40,false,1400).expect("ordinary Menu request must permit its private two-second partial result");
         assert_eq!(rows.commands.len(),1);
     }
     #[test]
     fn ax_request_budget_menu_identity_does_not_spend_private_traversal_clock() {
-        let rows=ordinary_ax_search(Scope::Menus,0,true).expect("original Menu identity validation precedes its private two-second traversal clock");
+        let rows=ordinary_ax_search(Scope::Menus,0,true,0).expect("original Menu identity validation precedes its private two-second traversal clock");
         assert_eq!(rows.commands.len(),2);
     }
     struct BrowserCase {
