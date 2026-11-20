@@ -1160,6 +1160,24 @@ mod tests {
     }
 
     #[test]
+    fn original_embedded_nul_alias_search_returns_matching_command() {
+        let commands: Vec<Command> = serde_json::from_value(json!([
+            {"id":"z","title":"Beta","kind":"url","target":"https://example.com/one","aliases":["go"]},
+            {"id":"a","title":"Go Alpha","kind":"url","target":"https://example.com/two"},
+            {"id":"b","title":"Ångström Notes","kind":"url","target":"https://example.com/three","aliases":["nul\0alias"]},
+            {"id":"c","title":"Beta","kind":"url","target":"https://example.com/four"}
+        ]))
+        .unwrap();
+        let index = SearchIndex::new(&commands);
+        let ids = index
+            .search("nul\0alias")
+            .iter()
+            .map(|position| commands[*position].id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["b"]);
+    }
+
+    #[test]
     fn original_nonempty_catalog_missing_query_returns_no_commands() {
         let commands: Vec<Command> = serde_json::from_value(json!([
             {"id":"z","title":"Beta","kind":"url","target":"https://example.com/one","aliases":["go"]},
