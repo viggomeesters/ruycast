@@ -5754,27 +5754,13 @@ fn dispatch(
                 Ok(json!({"ok":true,"result":state.configuration.current().commands}))
             }
             Some("search") => {
-                let query = request["query"].as_str().unwrap_or("");
                 let mode = request["mode"].as_str().unwrap_or("commands");
                 if !["commands", "snippets", "quicklinks"].contains(&mode) {
                     return Err(
                         "Search mode is not yet implemented in this Rust development host.".into(),
                     );
                 }
-                let limit = request["limit"].as_i64().unwrap_or(100);
-                let commands = system::local(state, query, 0)
-                    .into_iter()
-                    .filter(|c| match mode {
-                        "snippets" => c.kind == "snippet",
-                        "quicklinks" => c.kind == "url" || c.kind == "path",
-                        _ => true,
-                    })
-                    .take(if limit <= 0 {
-                        usize::MAX
-                    } else {
-                        limit as usize
-                    })
-                    .collect::<Vec<_>>();
+                let commands = system::cli_local_search(state, &request);
                 Ok(json!({"ok":true,"result":commands}))
             }
             Some("execute") => {

@@ -151,6 +151,9 @@ fn rpc(payload: Value) -> Result<Value> {
     }
     parse(line.as_bytes())
 }
+fn snippet_list_request(query: Option<&str>) -> Value {
+    json!({"op":"search","query":query.unwrap_or(""),"mode":"snippets","limit":0})
+}
 fn argument<'a>(args: &'a [String], i: usize, name: &str) -> Result<&'a str> {
     args.get(i)
         .map(String::as_str)
@@ -835,16 +838,15 @@ fn execute(args: &[String]) -> Result<Value> {
             let action = argument(args, 1, "list|add|remove")?;
             match action {
                 "list" => {
+                    if name == "snippets" {
+                        return rpc(snippet_list_request(args.get(2).map(String::as_str)));
+                    }
                     let mut result = rpc(
                         json!({"op":"search","query":args.get(2).map(String::as_str).unwrap_or("")}),
                     )?;
                     if let Some(items) = result["result"].as_array_mut() {
                         items.retain(|c| {
-                            if name == "snippets" {
-                                c["kind"] == "snippet"
-                            } else {
-                                c["kind"] == "url" || c["kind"] == "path"
-                            }
+                            c["kind"] == "url" || c["kind"] == "path"
                         });
                     }
                     Ok(result)
@@ -994,6 +996,17 @@ fn main() {
 }
 #[cfg(test)]mod startup_discovery_tests{
     use super::*;
+    #[test]
+    fn snippet_list_uses_uncapped_snippet_search_and_forwards_query() {
+        assert_eq!(
+            snippet_list_request(None),
+            json!({"op":"search","query":"","mode":"snippets","limit":0})
+        );
+        assert_eq!(
+            snippet_list_request(Some("needle")),
+            json!({"op":"search","query":"needle","mode":"snippets","limit":0})
+        );
+    }
     fn wait_owned_cli_output(mut child:std::process::Child,timeout:Duration,max_output_bytes:usize)->io::Result<std::process::Output>{
         use std::{io::{Error,ErrorKind},os::fd::AsRawFd,time::Instant};
         let deadline=Instant::now()+timeout;
