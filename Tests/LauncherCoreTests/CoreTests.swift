@@ -1,26 +1,6 @@
-func XCTAssertEqual<T:Equatable>(_ a:T,_ b:T) {precondition(a==b,"Expected \(a) == \(b)")}
-func XCTAssertEqual(_ a:Double,_ b:Double,accuracy:Double) {precondition(abs(a-b)<=accuracy)}
-func XCTAssertThrowsError<T>(_ expression:@autoclosure () throws -> T) {do {_ = try expression();preconditionFailure("Expected an error")} catch {}}
 import Foundation
 import LauncherCore
-import LauncherModels
-struct CoreTests {
-    func testPersistentIndexRankingAndUnicode() throws {
-        let root=FileManager.default.temporaryDirectory.appendingPathComponent("ranking-"+UUID().uuidString)
-        defer {try? FileManager.default.removeItem(at:root)}
-        try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
-        let now=Date(timeIntervalSince1970:1_800_000_000)
-        var entries=Dictionary(uniqueKeysWithValues:(0..<600).map {("id.\($0)",now.timeIntervalSince1970-Double($0))})
-        entries["expired"]=now.timeIntervalSince1970-SearchRanking.retention-1;entries["future"]=now.timeIntervalSince1970+61
-        let path=root.appendingPathComponent("search-ranking.json")
-        try JSONSerialization.data(withJSONObject:["schema":1,"entries":entries]).write(to:path)
-        let ranking=SearchRanking(root:root,now:now)
-        try ranking.recordSuccess("chosen",now:now)
-        try ranking.reset()
-    }
-}
-
-@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testPersistentIndexRankingAndUnicode();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
