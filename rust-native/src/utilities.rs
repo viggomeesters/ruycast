@@ -363,6 +363,7 @@ mod tests {
     struct Memory {
         profile: Option<Vec<u8>>,
         passwords: Option<Vec<u8>>,
+        password_writes: usize,
         fail_write: bool,
         fail_random: bool,
     }
@@ -385,6 +386,7 @@ mod tests {
                 return Err("owned Keychain write failed".into());
             }
             self.passwords = Some(bytes.into());
+            self.password_writes += 1;
             Ok(())
         }
         fn random(&mut self, count: usize) -> Result<Vec<u8>> {
@@ -493,5 +495,127 @@ mod tests {
         assert_eq!(preview(" \n\t "), "(empty)");
         assert_eq!(preview(" a\n b\t c "), "a b c");
         assert_eq!(preview("a \u{301}b"), "a b");
+    }
+
+    #[test]
+    fn original_utility_acceptance_scenarios_remain_in_rust() {
+        fn assert_paste(effect: Effect, expected: &str) {
+            match effect {
+                Effect::Paste(value) => assert!(value == expected, "paste output mismatch"),
+                _ => panic!("expected paste effect"),
+            }
+        }
+        fn assert_copy(effect: Effect, expected: &str, secret: bool) {
+            match effect {
+                Effect::Copy {
+                    text,
+                    secret: actual,
+                } => {
+                    assert!(text == expected, "copy output mismatch");
+                    assert_eq!(actual, secret);
+                }
+                _ => panic!("expected copy effect"),
+            }
+        }
+        let old = Entry {
+            value: "fixture-old-password".into(),
+            created: "2000-01-01T00:00:00Z".into(),
+        };
+        let memory = Memory {
+            passwords: Some(serde_json::to_vec(&[old.clone()]).unwrap()),
+            ..Memory::default()
+        };
+        let mut utilities = Utilities::new(memory);
+
+        let missing = utilities.execute("utility-paste-text", None).err().unwrap();
+        assert!(missing.contains("Set Text"));
+        utilities
+            .execute("utility-set-text", Some("first\nline"))
+            .unwrap();
+        utilities
+            .execute("utility-set-text", Some("second"))
+            .unwrap();
+        utilities
+            .execute("utility-set-text", Some("first\nline"))
+            .unwrap();
+        let text = utilities.commands("text-history", "").unwrap();
+        assert_eq!(text.len(), 2);
+        assert_eq!(text[0].title, "first line");
+        utilities.execute(&text[1].target, None).unwrap();
+        assert_paste(
+            utilities.execute("utility-paste-text", None).unwrap(),
+            "second",
+        );
+
+        let persisted_profile = utilities.storage.profile.clone();
+        let mut reopened = Utilities::new(Memory {
+            profile: persisted_profile,
+            passwords: utilities.storage.passwords.clone(),
+            password_writes: utilities.storage.password_writes,
+            ..Memory::default()
+        });
+        assert_paste(
+            reopened.execute("utility-paste-text", None).unwrap(),
+            "second",
+        );
+
+        assert_copy(
+            utilities.execute("utility-password", None).unwrap(),
+            "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX",
+            true,
+        );
+        let passwords: Vec<Entry> =
+            serde_json::from_slice(utilities.storage.passwords.as_ref().unwrap()).unwrap();
+        assert_eq!(passwords.len(), 2);
+        assert!(passwords[1] == old);
+        assert_eq!(utilities.storage.password_writes, 1);
+        let password_commands = utilities.commands("password-history", "").unwrap();
+        let payload = serde_json::to_string(&password_commands).unwrap();
+        assert!(!payload.contains("fixture-old-password"));
+        assert!(!payload.contains("AAECAwQFBgcICQoLDA0ODxAREhMUFRYX"));
+        assert_copy(
+            utilities
+                .execute(&password_commands[1].target, None)
+                .unwrap(),
+            "fixture-old-password",
+            true,
+        );
+
+        assert_copy(
+            utilities.execute("utility-username", None).unwrap(),
+            "amber-atlas-0203",
+            false,
+        );
+        assert_eq!(
+            utilities
+                .commands("username-history", "amber")
+                .unwrap()
+                .len(),
+            1
+        );
+
+        utilities.storage.passwords = Some(b"malformed".to_vec());
+        let writes = utilities.storage.password_writes;
+        let malformed = utilities.execute("utility-password", None).err().unwrap();
+        assert!(malformed.contains("preserved"));
+        assert_eq!(
+            utilities.storage.passwords.as_deref(),
+            Some(b"malformed".as_slice())
+        );
+        assert_eq!(utilities.storage.password_writes, writes);
+
+        let stamp = "2026-10-25T00:00:00Z";
+        let imported = utilities.import_profile(json!({"savedText":"older imported text","textHistory":[{"value":"imported history","created":stamp}],"usernameHistory":[]})).unwrap();
+        assert_eq!(imported["added"], 1);
+        let replay = utilities.import_profile(json!({"textHistory":[{"value":"imported history","created":stamp}],"usernameHistory":[]})).unwrap();
+        assert_eq!(replay["added"], 0);
+        assert_paste(
+            utilities.execute("utility-paste-text", None).unwrap(),
+            "second",
+        );
+
+        let profile = utilities.storage.profile.as_ref().unwrap();
+        assert!(!String::from_utf8_lossy(profile).contains("password"));
+        assert!(!String::from_utf8_lossy(profile).contains("AAECAwQFBgcICQoLDA0ODxAREhMUFRYX"));
     }
 }

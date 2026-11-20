@@ -98,7 +98,6 @@ Sources/RuycastApp/SystemMonitor.swift
 Sources/RuycastApp/SystemSearchSession.swift
 Sources/RuycastApp/SystemServices.swift
 Sources/RuycastApp/Utilities.swift
-Sources/RuycastApp/UtilityChecks.swift
 Sources/RuycastApp/VisualAssetChecks.swift
 Sources/RuycastApp/WebsiteIcons.swift
 Sources/RuycastApp/WindowManager.swift
