@@ -2947,11 +2947,8 @@ mod tests {
     }
 
     #[test]
-    fn empty_catalog_search_assertion_is_crosswalked_without_retiring_swift_method() {
+    fn empty_catalog_search_crosswalk_preserves_rust_behavior_mapping() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
