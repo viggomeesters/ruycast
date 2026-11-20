@@ -522,7 +522,7 @@ mod tests {
             created: "2000-01-01T00:00:00Z".into(),
         };
         let memory = Memory {
-            passwords: Some(serde_json::to_vec(&[old.clone()]).unwrap()),
+            passwords: Some(serde_json::to_vec(std::slice::from_ref(&old)).unwrap()),
             ..Memory::default()
         };
         let mut utilities = Utilities::new(memory);
