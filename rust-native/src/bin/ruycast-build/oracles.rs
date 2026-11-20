@@ -2325,6 +2325,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["with Calendar enabled and Finder disabled, searching fnider returns no disabled Finder result"],
             "nativeCases": ["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.enabledTypoCliParity"] = serde_json::json!({
+            "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the Calendar typo-fallback assertion that compares active palette results with the real local CLI search response moves to the Rust runtime test; disabled-item exclusion remains asserted in the same case.",
+            "nativeSource": "rust-native/src/runtime_system.rs",
+            "originalScenarios": ["with Calendar enabled and Finder disabled, the calender typo returns exactly typo.enabled in both active palette and CLI search"],
+            "nativeCases": ["runtime::system::shortcut_budget_tests::typo_fallback_matches_palette_and_local_cli_without_disabled_items"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoPaletteOrder"] = serde_json::json!({
             "originalSourceSHA256": "69997e74e26bc8029be2630175124c7a7dcb2276767024d61534c1e34f17a6ef",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3803,6 +3811,34 @@ mod tests {
         assert_eq!(mapping["originalSourceSHA256"], "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add");
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::configuration_reload_deduplicates_discovered_app_in_active_palette"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_enabled_typo_cli_parity_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_system.rs");
+        let scenario = rust
+            .split_once("fn typo_fallback_matches_palette_and_local_cli_without_disabled_items()")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        assert!(scenario.contains("case.state.system.main_tabs_enabled = false;"));
+        assert!(scenario.contains("case.window.session.set_query(\"calender\");"));
+        assert!(scenario.contains("assert_eq!(palette_ids, [\"typo.enabled\"]);"));
+        assert!(scenario.contains("\"op\":\"search\",\"mode\":\"commands\",\"query\":\"calender\""));
+        assert!(scenario.contains("let request = match requests.recv_timeout"));
+        assert!(scenario.contains("assert_eq!(extra, 0, \"local typo search must send one response\");"));
+        assert!(scenario.contains("\"typo.disabled\""));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.enabledTypoCliParity"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_system.rs");
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::system::shortcut_budget_tests::typo_fallback_matches_palette_and_local_cli_without_disabled_items"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 

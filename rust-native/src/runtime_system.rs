@@ -1431,6 +1431,63 @@ pub(super) fn fixture(state: &SharedState, request: &Value) -> Value {
 mod shortcut_budget_tests {
     use super::*;
     #[test]
+    fn typo_fallback_matches_palette_and_local_cli_without_disabled_items() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::os::unix::net::UnixStream;
+
+        let mut case = BrowserCase::new();
+        case.state.system.main_tabs_enabled = false;
+        let mut config = serde_json::to_value(case.state.configuration.current()).unwrap();
+        config["commands"] = json!([
+            {"id":"typo.enabled","title":"Calendar","kind":"url","target":"https://example.com"},
+            {"id":"typo.disabled","title":"Finder","kind":"url","target":"https://example.com","enabled":false}
+        ]);
+        case.state.configuration.save(&config).unwrap();
+        case.window.sync(&case.state);
+        case.window.session.set_query("calender");
+        let palette_ids = case.window.session.rows().map(|row| row.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(palette_ids, ["typo.enabled"]);
+
+        let (events, requests) = mpsc::sync_channel(8);
+        let server = crate::control::ControlServer::start(
+            &case.state.configuration.paths.root,
+            events,
+            crate::control::Limits::default(),
+        )
+        .unwrap();
+        let socket = case.state.configuration.paths.root.join("control.sock");
+        let client = std::thread::spawn(move || {
+            let mut stream = UnixStream::connect(socket).unwrap();
+            stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            serde_json::to_writer(&mut stream, &json!({"op":"search","mode":"commands","query":"calender"})).unwrap();
+            stream.write_all(b"\n").unwrap();
+            let mut reader = BufReader::new(stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            let response: Value = serde_json::from_str(&line).unwrap();
+            line.clear();
+            let extra = reader.read_line(&mut line).unwrap();
+            (response, extra)
+        });
+        let request = match requests.recv_timeout(Duration::from_secs(1)).unwrap() {
+            HostEvent::Request(request) => request,
+            _ => panic!("expected owned CLI search request"),
+        };
+        assert!(cli_search(&mut case.state, request));
+        let (response, extra) = client.join().unwrap();
+        drop(server);
+
+        assert_eq!(response["ok"], true);
+        assert_eq!(
+            response["result"].as_array().unwrap().iter().map(|row| row["id"].as_str().unwrap()).collect::<Vec<_>>(),
+            palette_ids
+        );
+        assert_eq!(extra, 0, "local typo search must send one response");
+        assert_eq!(case.window.session.query, "calender");
+        assert_eq!(case.window.session.rows().map(|row| row.id.as_str()).collect::<Vec<_>>(), ["typo.enabled"]);
+    }
+
+    #[test]
     fn cli_snippet_mode_returns_all_matching_rows_from_mixed_catalog() {
         let mut case = BrowserCase::new();
         let mut config = serde_json::to_value(case.state.configuration.current()).unwrap();
