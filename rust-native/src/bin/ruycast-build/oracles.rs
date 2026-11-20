@@ -2349,6 +2349,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["after usage count increases for one catalog item, the empty query returns that item first while non-empty catalog order remains unchanged"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.cachedReads"] = serde_json::json!({
+            "originalSourceSHA256": "5e1d2ddaffc976900b0c72b60fee701b3484dbbfb7b61a013acb23c522d441f5",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The complete 1,000-read prepared-results scenario moves to the existing Rust Session test, including an explicit catalog-search work counter. The query setup used by the following CLI observation check and the rest of --check-search stay active.",
+            "nativeSource": "rust-native/src/session.rs",
+            "originalScenarios": ["after preparing a non-empty result set, 1,000 result reads retain identical rows without reevaluating the search or changing query, selection or results revision"],
+            "nativeCases": ["session::tests::repeated_result_reads_preserve_prepared_rows_and_session_state"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3614,6 +3622,27 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_cached_result_reads_are_crosswalked_to_rust() {
+        let rust = include_str!("../../session.rs");
+        assert!(rust.contains("fn repeated_result_reads_preserve_prepared_rows_and_session_state()"));
+        assert!(rust.contains("let search_work = crate::catalog::preparation_work();"));
+        assert!(rust.contains("for _ in 0..1_000 {"));
+        assert!(rust.contains("let current: Vec<String> = session.rows().map(|command| command.id.clone()).collect();"));
+        assert!(rust.contains("assert_eq!(crate::catalog::preparation_work(), search_work);"));
+        assert!(rust.contains("assert_eq!(session.results_revision(), revision);"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.cachedReads"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "5e1d2ddaffc976900b0c72b60fee701b3484dbbfb7b61a013acb23c522d441f5");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/session.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["session::tests::repeated_result_reads_preserve_prepared_rows_and_session_state"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 

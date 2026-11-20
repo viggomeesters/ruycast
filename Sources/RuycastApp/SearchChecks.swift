@@ -40,9 +40,7 @@ func searchFixture()->[Command] {
         guard catalog.search(q)==state.config.search(q) else {throw LauncherError("Indexed search parity failed.")}
     }
     state.query="left"
-    let before=state.searchEvaluations,results=state.results
-    for _ in 0..<1000 {_=state.results}
-    guard before==state.searchEvaluations,!results.isEmpty else {throw LauncherError("Results reads repeated search.")}
+    let results=state.results
     let changes=LockedValue(0)
     withObservationTracking {_=state.query;_=state.results;_=state.selection} onChange:{changes.update {$0+=1}}
     var reply:[String:Any]=[:]

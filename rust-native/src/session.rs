@@ -411,12 +411,14 @@ mod tests {
         let query = session.query.clone();
         let selection = session.selection;
         let revision = session.results_revision();
+        let search_work = crate::catalog::preparation_work();
 
         for _ in 0..1_000 {
             let current: Vec<String> = session.rows().map(|command| command.id.clone()).collect();
             assert_eq!(current, rows);
         }
 
+        assert_eq!(crate::catalog::preparation_work(), search_work);
         assert_eq!(session.query, query);
         assert_eq!(session.selection, selection);
         assert_eq!(session.results_revision(), revision);
