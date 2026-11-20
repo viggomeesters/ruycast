@@ -343,6 +343,8 @@ pub(crate) struct State {
     #[cfg(feature = "test-tools")]
     source_failure: Cell<bool>,
     #[cfg(feature = "test-tools")]
+    stop_before_keyboard_pump: Cell<bool>,
+    #[cfg(feature = "test-tools")]
     shutdown_witness: RefCell<Option<std::rc::Rc<ShutdownWitness>>>,
     probe_output: RefCell<Option<std::path::PathBuf>>,
     scroll: Retained<NSScrollView>,
@@ -1061,6 +1063,8 @@ impl Controller {
             clipboard_fixture:RefCell::new(None),
             #[cfg(feature = "test-tools")]
             source_failure: Cell::new(false),
+            #[cfg(feature = "test-tools")]
+            stop_before_keyboard_pump: Cell::new(false),
             #[cfg(feature = "test-tools")]
             shutdown_witness: RefCell::new(None),
             probe_output: RefCell::new(None),
@@ -2721,6 +2725,16 @@ fn run_graph(
             (controller.clone(), connection.clone()),
             (management.clone(), management_connection.clone()),
         ];
+        if let Some(keyboard) = &keyboard {
+            let owners = [Weak::new(&*controller), Weak::new(&*management)];
+            keyboard.set_shutdown_preparation(std::rc::Rc::new(move || {
+                // Controller keyboard cells hold Client handles, not the
+                // native Service RefCell currently borrowed by pump/stop.
+                let owners: Vec<_> = owners.iter().filter_map(Weak::load).collect();
+                let owners: Vec<_> = owners.iter().map(|owner| &**owner).collect();
+                revoke_and_hide(&owners);
+            }));
+        }
         let application = app.clone();
         let fail_connection = connection.clone();
         let fail_app = app.clone();
@@ -2772,6 +2786,10 @@ fn run_graph(
                     }
                     return;
                 }
+                #[cfg(feature = "test-tools")]
+                if windows[0].0.ivars().stop_before_keyboard_pump.replace(false) {
+                    keyboard.borrow().as_ref().expect("Owned keyboard").client().stop();
+                }
                 let mut keyboard_owner = keyboard.borrow_mut();
                 if let Some(keyboard) = keyboard_owner.as_mut() {
                     keyboard.pump();
@@ -2780,6 +2798,15 @@ fn run_graph(
                         windows[0].1.request_stop();
                         return;
                     }
+                }
+                if keyboard_owner.as_ref().is_some_and(|keyboard| !keyboard.running()) {
+                    drop(keyboard_owner);
+                    revoke_and_hide(&[&windows[0].0, &windows[1].0]);
+                    let retired = keyboard.borrow_mut().as_mut().is_none_or(|keyboard| keyboard.stop());
+                    if windows[0].1.stopped() && retired {
+                        stop_application(&application);
+                    }
+                    return;
                 }
                 if let Err(error)=source_clipboard_monitor.borrow_mut().pump(){windows[0].1.request_stop();panic!("{error}");}
                 if let Some(monitor)=source_auto_quit.borrow_mut().as_mut(){if let Err(error)=monitor.pump(){windows[0].1.request_stop();panic!("{error}");}}
@@ -4300,6 +4327,19 @@ fn native_probe(
                     .cloned()
                     .ok_or("Owned keyboard required.")?;
                 state.source_failure.set(true);
+                client.wake_main();
+                return Ok(serde_json::json!({"ok":true,"result":{}}));
+            }
+            Some("keyboard-stop-before-pump" | "keyboard-stop-before-refresh") => {
+                if state.shutdown_witness.borrow().is_none() {
+                    return Err("Owned shutdown witness required.".into());
+                }
+                let client = state.keyboard.borrow().as_ref().cloned().ok_or("Owned keyboard required.")?;
+                if request["action"] == "keyboard-stop-before-pump" {
+                    state.stop_before_keyboard_pump.set(true);
+                } else {
+                    crate::native_keyboard::fixture_stop_before_refresh();
+                }
                 client.wake_main();
                 return Ok(serde_json::json!({"ok":true,"result":{}}));
             }

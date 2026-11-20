@@ -1602,7 +1602,7 @@ fn native_hid_source_callback_failure_keeps_cleanup_and_profile_until_recovered(
 
 #[test]
 fn native_hid_quit_hides_panels_and_recorders_before_held_sdk() {
-    for force in [true, false] {
+    for (force, stop_at) in [(true, "quit"), (false, "quit"), (false, "before-pump"), (false, "before-refresh"), (true, "before-refresh")] {
         let (mut h, _) = hid_host("right-cmd+a", true);
         h.rpc(&json!({"op":"show","query":"finder"}));
         h.settled(|_| true);
@@ -1637,7 +1637,11 @@ fn native_hid_quit_hides_panels_and_recorders_before_held_sdk() {
         let hold = h.base.join("hid-hold-manager_close");
         fs::write(&hold, b"").unwrap();
         let cleanup = RemoveFault(hold);
-        assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+        if stop_at != "quit" {
+            h.probe(&format!("keyboard-stop-{stop_at}"), json!({}));
+        } else {
+            assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+        }
         wait_file(&h.base.join("hid-entered-manager_close"));
         assert!(h.process.as_mut().unwrap().try_wait().unwrap().is_none());
         let proof: Value =
@@ -1646,7 +1650,13 @@ fn native_hid_quit_hides_panels_and_recorders_before_held_sdk() {
         if let Some(evidence) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
             let dir = std::path::PathBuf::from(evidence);
             fs::create_dir_all(&dir).unwrap();
-            let suffix = if force { "True" } else { "False" };
+            let suffix = match stop_at {
+                "before-pump" => "BeforePump",
+                "before-refresh" if force => "BeforeRefreshVisible",
+                "before-refresh" => "BeforeRefresh",
+                _ if force => "True",
+                _ => "False",
+            };
             fs::write(
                 dir.join(format!("quit-order-{suffix}.json")),
                 serde_json::to_vec_pretty(&json!({"armed":armed,"atSdk":proof})).unwrap(),

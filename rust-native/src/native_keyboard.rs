@@ -142,6 +142,15 @@ fn forward(events: &SyncSender<HostEvent>, mut head: Queued) -> Forward {
         Err(_) => Forward::Disconnected,
     }
 }
+#[cfg(feature = "test-tools")]
+thread_local! {
+    static STOP_BEFORE_REFRESH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+#[cfg(feature = "test-tools")]
+pub fn fixture_stop_before_refresh() {
+    STOP_BEFORE_REFRESH.with(|stop| stop.set(true));
+}
+
 pub(crate) struct Service {
     feedback: Rc<FeedbackQueue>,
     #[cfg(feature = "test-tools")]
@@ -311,6 +320,12 @@ impl Service {
             main,
         })
     }
+    pub fn set_shutdown_preparation(&self, prepare: Rc<dyn Fn()>) {
+        let client = self.client.clone();
+        self.hid.set_before_manager_close(Rc::new(move || {
+            if !client.running() { prepare(); }
+        }));
+    }
     pub fn client(&self) -> Client {
         self.client.clone()
     }
@@ -374,7 +389,9 @@ impl Service {
             self.client.stop();
         }
         if !self.client.running() {
-            self.stop();
+            // The native owner must hide panels and release recorder leases
+            // before synchronous SDK retirement. Client stop can race its
+            // pre-pump check, so return without touching native resources.
             return;
         }
         self.server.pump(&mut self.registry);
@@ -403,6 +420,11 @@ impl Service {
                 self.keywords.update(generation, prepared);
                 keyword_changed = true;
             }
+        }
+        #[cfg(feature = "test-tools")]
+        if self.fixture && STOP_BEFORE_REFRESH.with(|stop| stop.replace(false)) {
+            self.client.stop();
+            self.environment.state().request_refresh();
         }
         let refresh = self.environment.state().take_refresh();
         if changed || refresh || keyword_changed {
