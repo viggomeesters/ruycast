@@ -289,6 +289,23 @@ impl ChoiceRequest {
 mod cancellation_checks {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit() {
+        let text = "Hello Ω 👨‍👩‍👧‍👦\n".repeat(100);
+        let mut chunks = Vec::new();
+        let replacement = Replacement::new(";long", "g", text.clone(), None);
+        assert!(replacement.try_apply(
+            |_| true,
+            |chunk| {
+                chunks.push(chunk.to_owned());
+                true
+            }
+        ));
+        assert_eq!(chunks.concat(), text);
+        assert!(chunks.iter().all(|chunk| chunk.encode_utf16().count() <= 16));
+    }
+
     #[test]
     fn first_refused_erase_skips_large_output_and_cursor() {
         let replacement = Replacement::new("abc", "c", "x".repeat(1_000_000), Some(0));
