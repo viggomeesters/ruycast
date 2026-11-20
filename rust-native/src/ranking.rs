@@ -146,7 +146,7 @@ mod tests {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
             fn drop(&mut self) {
-                let _ = fs::remove_file(&self.0.join("search-ranking.json"));
+                let _ = fs::remove_file(self.0.join("search-ranking.json"));
                 let _ = fs::remove_dir_all(&self.0);
             }
         }
@@ -231,7 +231,7 @@ mod tests {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
             fn drop(&mut self) {
-                let _ = fs::remove_file(&self.0.join("search-ranking.json"));
+                let _ = fs::remove_file(self.0.join("search-ranking.json"));
                 let _ = fs::remove_dir_all(&self.0);
             }
         }
@@ -264,7 +264,7 @@ mod tests {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
             fn drop(&mut self) {
-                let _ = fs::remove_file(&self.0.join("search-ranking.json"));
+                let _ = fs::remove_file(self.0.join("search-ranking.json"));
                 let _ = fs::remove_dir_all(&self.0);
             }
         }
@@ -301,7 +301,7 @@ mod tests {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
             fn drop(&mut self) {
-                let _ = fs::remove_file(&self.0.join("search-ranking.json"));
+                let _ = fs::remove_file(self.0.join("search-ranking.json"));
                 let _ = fs::remove_dir_all(&self.0);
             }
         }
@@ -338,7 +338,7 @@ mod tests {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
             fn drop(&mut self) {
-                let _ = fs::remove_file(&self.0.join("search-ranking.json"));
+                let _ = fs::remove_file(self.0.join("search-ranking.json"));
                 let _ = fs::remove_dir_all(&self.0);
             }
         }

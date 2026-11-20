@@ -824,7 +824,7 @@ fn send_wire(
 ) -> io::Result<()> {
     let deadline = Instant::now() + limits.write;
     #[cfg(test)]
-    let _ = shared.record_reply_encoding_thread();
+    shared.record_reply_encoding_thread();
     let mut buffer = Buffer {
         bytes: vec![],
         max: limits.reply_bytes - 1,
@@ -1266,12 +1266,11 @@ mod tests {
         assert_eq!(response["ok"], true);
         assert_eq!(response["result"], json!(payload));
         assert!(delivered.recv_timeout(Duration::from_secs(2)).unwrap());
-        let encoding_thread = server
+        let encoding_thread = (*server
             .shared
             .reply_encoding_thread
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clone()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()))
             .expect("test observer records the reply encoding thread");
         assert_ne!(encoding_thread, response_thread);
         server.stop();
