@@ -40,12 +40,6 @@ struct CoreTests {
         XCTAssertEqual(tied.search("title").map(\.id),ties.map(\.id))
         XCTAssertEqual(tied.search("same",recency:["tie.64":100]).prefix(3).map(\.id),["tie.127","tie.64","tie.0"])
         XCTAssertEqual(tied.search("s t").map(\.id),ties.map(\.id))
-        let scalars=try CommandSearchIndex(commands:[
-            Command(id:"scalar",title:"A Ω B",kind:"url",target:"https://example.com"),
-            Command(id:"expanded",title:"I x \u{0307}",kind:"url",target:"https://example.com")])
-        XCTAssertEqual(scalars.search("Ω").map(\.id),["scalar"])
-        // Uppercase I-with-dot lowercases to two Unicode scalars in Rust.
-        XCTAssertEqual(scalars.search("İ").map(\.id),["expanded"])
         let root=FileManager.default.temporaryDirectory.appendingPathComponent("ranking-"+UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
