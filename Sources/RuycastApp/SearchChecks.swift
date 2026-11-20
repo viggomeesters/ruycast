@@ -69,9 +69,9 @@ func searchFixture()->[Command] {
     state.query="calender"
     let typoReply=LockedValue<[String]>([])
     state.handle(["op":"search","query":"calender"]) {value in typoReply.update {$0=(value["result"] as? [[String:Any]])?.compactMap {$0["id"] as? String} ?? []}}
-    guard state.results.map(\.id)==["typo.enabled"],state.searchCommands("fnider").isEmpty,
+    guard state.results.map(\.id)==["typo.enabled"],
           typoReply.read({$0})==["typo.enabled"]
-    else {throw LauncherError("Typo fallback CLI/native or disabled filtering failed")}
+    else {throw LauncherError("Typo fallback CLI/native search failed")}
     state.config.commands=[Command(id:"typo.finder",title:"Finder",kind:"url",target:"https://example.com"),Command(id:"typo.distractor",title:"Find Reminders",kind:"url",target:"https://example.com")]
     try state.searchRanking.recordSuccess("typo.distractor")
     state.query="fnider"

@@ -2317,6 +2317,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["replace the previous catalog with only cached.replacement and return exactly that ID for identical"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.disabledTypoItem"] = serde_json::json!({
+            "originalSourceSHA256": "f1e627323033abfcea7068439bae41a22246f8045ddc6f47788f5132d350618d",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the assertion that disabled Finder is absent from the fnider typo search moves to Rust. Calendar palette/CLI and other headless guards stay active.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["with Calendar enabled and Finder disabled, searching fnider returns no disabled Finder result"],
+            "nativeCases": ["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3504,6 +3512,25 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn disabled_typo_item_assertion_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_private_tests.rs");
+        assert!(rust.contains("fn disabled_catalog_item_is_filtered_from_typo_fallback()"));
+        assert!(rust.contains("disabled.title = \"Finder\".into();"));
+        assert!(rust.contains("disabled.enabled = Some(false);"));
+        assert!(rust.contains("system::local(&state, \"fnider\", 0).is_empty()"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.disabledTypoItem"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "f1e627323033abfcea7068439bae41a22246f8045ddc6f47788f5132d350618d");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 

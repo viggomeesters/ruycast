@@ -83,7 +83,7 @@
     "Sources/RuycastApp/RichResourceChecks.swift": "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda",
     "Sources/RuycastApp/ScriptChoiceChecks.swift": "7d98578478074c4c8c25d39ffc0dda8048debadd62f643ef1265700d449336cc",
     "Sources/RuycastApp/ScriptChoiceView.swift": "1f73550c79609ffb9e4f0039a78b15ea321d01c739642c5a993910c16a449012",
-    "Sources/RuycastApp/SearchChecks.swift": "f1e627323033abfcea7068439bae41a22246f8045ddc6f47788f5132d350618d",
+    "Sources/RuycastApp/SearchChecks.swift": "69997e74e26bc8029be2630175124c7a7dcb2276767024d61534c1e34f17a6ef",
     "Sources/RuycastApp/SettingsChecks.swift": "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d",
     "Sources/RuycastApp/ShortcutBadge.swift": "36eada7cc27ac0089a684cd1d7766c4d3ce430a5915b96ef85a227e985b18c3e",
     "Sources/RuycastApp/ShortcutRecorder.swift": "b1fb0454242c077d64318edb2bb690e69b444c69b105aa645f15483070dbfe0b",
