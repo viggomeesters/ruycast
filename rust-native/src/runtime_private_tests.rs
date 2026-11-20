@@ -159,6 +159,16 @@ fn prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projectio
     scenario["commands"][1]["enabled"]=json!(false);
     state.configuration.save(&scenario).unwrap();
     assert_eq!(ids(system::local(&state,"identical",0)),["cached.a"]);
+
+    let mut replacement=scenario["commands"][0].clone();
+    replacement["id"]=json!("cached.replacement");
+    replacement["title"]=json!("Identical");
+    replacement["kind"]=json!("url");
+    replacement["target"]=json!("https://example.com/new");
+    replacement["enabled"]=json!(true);
+    scenario["commands"]=json!([replacement]);
+    state.configuration.save(&scenario).unwrap();
+    assert_eq!(ids(system::local(&state,"identical",0)),["cached.replacement"]);
 }
 
 #[test]
