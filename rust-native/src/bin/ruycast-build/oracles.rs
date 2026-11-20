@@ -1202,7 +1202,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/apple_shortcuts.rs", include_bytes!("../../system_search/apple_shortcuts.rs"), "f2642015ad57c2d7b08af1f23c1e5125fbe841f9658714f7cc0e5adc56d21581"),
             ("rust-native/src/runtime_private.rs", include_bytes!("../../runtime_private.rs"), "88c10d0c32c7fa0e163ee6c3a320bde9ee81828852c0d204effaf1d6a151219b"),
             ("rust-native/src/script_result.rs", include_bytes!("../../script_result.rs"), "86cb6b6479e795e577f8dbd2b3e67884c4ab2ac03db1f2e615d0af08bdeb50a1"),
-            ("rust-native/src/script_session.rs", include_bytes!("../../script_session.rs"), "d669d09ed8056ae0182bb4b3aa0b22ae2e4abe584592192839f69677fd5fa9a6"),
+            ("rust-native/src/script_session.rs", include_bytes!("../../script_session.rs"), "0323530ebe9eacfea569ce5da1b123a2c47d43c140a24340e1d97b3c4cc3774a"),
             ("rust-native/src/execution.rs", include_bytes!("../../execution.rs"), "a211e57ffabbb0cb0cbb8ce19ad894939ca310c36a34a9fea055a0df3e023c8f"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "15c93afc3731db2ca870db6d824dcc90bc6f0f367fe9d3ca12497b90f26df97a"),
             ("rust/src/script.rs", include_bytes!("../../../../rust/src/script.rs"), "16974362c399c6c5a92596d7563d501eb0492df9f5e2463d8147eeb70108bfb0"),

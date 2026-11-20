@@ -819,23 +819,60 @@ mod tests {
         let file = home.join("config.json");
         let marker = home.join("selection.json");
         let phase = home.join("phase");
-        let code = r#"import json,sys,pathlib
-value=sys.argv[1]; marker=pathlib.Path(sys.argv[2]); phase=pathlib.Path(sys.argv[3])
-if not value:
-    n=int(phase.read_text())+1 if phase.exists() else 1
-    phase.write_text(str(n))
-    print(json.dumps(dict(ok=True,choices=dict(title='Projects',placeholder='Find project',items=[dict(id='reused',title='Project',subtitle='Load '+str(n),value='PRIVATE $(literal) Ω '+str(n))]),detail='Load detail '+str(n))))
-elif value.endswith(' 1'):
-    print(json.dumps(dict(ok=False,error='Not ready',detail='Failure report')))
-    sys.exit(7)
-else:
-    marker.write_text(json.dumps(value));print(json.dumps(dict(ok=True)))
-"#;
+        let source = home.join("provider.rs");
+        let provider = home.join("provider");
+        std::fs::write(
+            &source,
+            r#"//! Owned standalone provider for the script-session lifecycle test.
+use std::{env, fs, path::Path};
+
+fn main() {
+    let args: Vec<_> = env::args().skip(1).collect();
+    assert_eq!(args.len(), 3);
+    let value = &args[0];
+    let marker = Path::new(&args[1]);
+    let phase = Path::new(&args[2]);
+    if value.is_empty() {
+        let n = if phase.exists() {
+            fs::read_to_string(phase).unwrap().parse::<u32>().unwrap() + 1
+        } else {
+            1
+        };
+        fs::write(phase, n.to_string()).unwrap();
+        println!(
+            "{{\"ok\":true,\"choices\":{{\"title\":\"Projects\",\"placeholder\":\"Find project\",\"items\":[{{\"id\":\"reused\",\"title\":\"Project\",\"subtitle\":\"Load {n}\",\"value\":\"PRIVATE $(literal) Ω {n}\"}}]}},\"detail\":\"Load detail {n}\"}}"
+        );
+    } else if value.ends_with(" 1") {
+        println!("{{\"ok\":false,\"error\":\"Not ready\",\"detail\":\"Failure report\"}}");
+        std::process::exit(7);
+    } else {
+        // The parent checks this complete literal before accepting successful close.
+        assert_eq!(value, "PRIVATE $(literal) Ω 2");
+        fs::write(marker, format!("\"{value}\"")).unwrap();
+        println!("{{\"ok\":true}}");
+    }
+}
+"#,
+        )
+        .unwrap();
+        let rustc = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+            .map(|directory| directory.join("rustc"))
+            .find(|path| path.is_absolute() && path.is_file())
+            .expect("Rust compiler on PATH for the owned provider fixture");
+        let compiler: Command = serde_json::from_value(json!({
+            "id":"owned.session.compiler", "title":"Owned Rust provider", "kind":"script",
+            "target":rustc, "arguments":["--edition=2021", "-Dwarnings", source, "-o", provider],
+            "timeout":30
+        }))
+        .unwrap();
+        let built = rustcast_core::script::run(&compiler, &home, None, || false).unwrap();
+        assert!(
+            matches!(built.end, rustcast_core::script::End::Exited(status) if status.success()),
+            "Rust provider build failed: {built:?}"
+        );
         let mut c = command();
-        c.target = "/usr/bin/python3".into();
+        c.target = provider.to_string_lossy().into();
         c.arguments = vec![
-            "-c".into(),
-            code.into(),
             "{input}".into(),
             marker.to_string_lossy().into(),
             phase.to_string_lossy().into(),
