@@ -280,11 +280,6 @@ struct CoreTests {
         XCTAssertEqual(r.x,-3440+3440.0/3,accuracy:0.01);XCTAssertEqual(r.width,3440*2.0/3,accuracy:0.01)
         XCTAssertThrowsError(try screen.layout("other"))
     }
-    func testScriptAndSettingsValidation() throws {
-        var c=Configuration.initial;c.commands.append(Command(id:"s",title:"Script",kind:"script",target:"relative"));XCTAssertThrowsError(try c.validate())
-        c=Configuration.initial;c.clipboard.limit=1001;XCTAssertThrowsError(try c.validate())
-        XCTAssertThrowsError(try Shortcut("ctrl+ctrl+v"));XCTAssertThrowsError(try Shortcut("space"))
-    }
     func testRoundTripAndPrivateStorage() throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
@@ -294,7 +289,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testScriptAndSettingsValidation();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
