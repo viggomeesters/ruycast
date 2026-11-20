@@ -84,9 +84,7 @@ func searchFixture()->[Command] {
     guard resultChanges.read({$0})==0 else {throw LauncherError("Unrelated clipboard/settings state invalidated results")}
     state.selection=1
     guard resultChanges.read({$0})==1 else {throw LauncherError("Command selection did not invalidate results")}
-    let beforePreference=state.searchPreparationCount,searchesBeforePreference=state.searchEvaluations
     state.config.theme="graphite"
-    guard state.searchPreparationCount==beforePreference,state.searchEvaluations==searchesBeforePreference else {throw LauncherError("Appearance preference rebuilt the command catalog")}
     let settingsChanges=LockedValue(0)
     withObservationTracking {_=state.configError;_=state.configDirectory} onChange:{settingsChanges.update {$0+=1}}
     state.query="changed query";state.clipboardSelection=2

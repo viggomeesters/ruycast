@@ -2333,6 +2333,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["with Find Reminders ranked higher, query fnider orders the direct Finder title before the weak subsequence distractor"],
             "nativeCases": ["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.appearancePreservesCatalog"] = serde_json::json!({
+            "originalSourceSHA256": "a3c7038a6a68b8ccbc5cebc38ef5dbfae358eb3079e2424c79337906c8704d22",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the assertion that changing the appearance theme does not rebuild or reevaluate the command catalog moves to the existing Rust runtime test. The theme mutation, remaining search checks and complete --check-search route stay active.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["changing theme to graphite and syncing leaves catalog preparation work, results revision and selection unchanged; a following title change does rebuild the catalog"],
+            "nativeCases": ["runtime::inline_tests::prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3557,6 +3565,28 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust/src/lib.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_appearance_catalog_stability_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_private_tests.rs");
+        assert!(rust.contains("fn prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate()"));
+        assert!(rust.contains(r#"config["theme"]=json!("graphite"); state.configuration.save(&config).unwrap();"#));
+        assert!(rust.contains("window.sync(&state);"));
+        assert!(rust.contains("assert_eq!(crate::catalog::preparation_work(),work);"));
+        assert!(rust.contains("assert_eq!(window.session.results_revision(),results);"));
+        assert!(rust.contains(r#"config["commands"][0]["title"]=json!("Different command");"#));
+        assert!(rust.contains("assert_eq!(crate::catalog::preparation_work().0,work.0+1);"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.appearancePreservesCatalog"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "a3c7038a6a68b8ccbc5cebc38ef5dbfae358eb3079e2424c79337906c8704d22");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
