@@ -1930,6 +1930,35 @@ fn check_clipboard_history_binding(root: &Path, value: &serde_json::Value) -> Re
     }
     Ok(())
 }
+const KEYBOARD_REFERENCE_SOURCES: &[&str] = &[
+    "rust-native/tests/fixtures/keyboard_sdk.rs",
+    "rust-native/tests/fixtures/keyboard_fixture.rs",
+    "rust-native/tests/fixtures/keyboard_missing_parameter.rs",
+];
+fn check_keyboard_reference_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
+    if value["schema"] != "ruycast.keyboard-reference-bindings.v1" {
+        return Err("Keyboard reference binding schema is missing or unsupported.".into());
+    }
+    let sources = value["sources"].as_object().ok_or("Missing keyboard Rust sources.")?;
+    let expected = KEYBOARD_REFERENCE_SOURCES.iter().copied().collect::<std::collections::BTreeSet<_>>();
+    if sources.keys().map(String::as_str).collect::<std::collections::BTreeSet<_>>() != expected {
+        return Err("Keyboard reference requires exactly its current Rust fixture sources.".into());
+    }
+    let historical = serde_json::json!({
+        "Sources/LauncherCore/RustBridge.swift": "ddcc0cdf77db35ca157cda6d36e78925dfd47a5f17fcaeba2529aeab73e5bd6e",
+        "Sources/RuycastApp/Hotkeys.swift": "c78041f9d41ba4c97cd2958b3f575b24079d86ce401c3065705835e1d17b8ac0",
+    });
+    if value["retiredSwiftSources"] != historical {
+        return Err("Keyboard reference lost its fixed historical Swift provenance.".into());
+    }
+    let artifacts = value["artifacts"].as_object().ok_or("Missing keyboard artifacts.")?;
+    let complete = artifacts.keys().filter(|path| path.starts_with("rust-native/target/runtime-proof-artifacts/keyboard-complete-")).count();
+    let partial = artifacts.keys().filter(|path| path.starts_with("rust-native/target/runtime-proof-artifacts/keyboard-partial-")).count();
+    if artifacts.len() != 2 || complete != 1 || partial != 1 {
+        return Err("Keyboard reference requires both complete and partial fixture artifacts.".into());
+    }
+    check_binding(root, value)
+}
 fn check_binding(root: &Path, value: &serde_json::Value) -> Result<()> {
     for group in ["sources", "artifacts"] {
         for (name, expected) in value[group]
@@ -2081,7 +2110,8 @@ pub(super) fn verify(root: &Path, lease: &BuildLock) -> Result<serde_json::Value
             }
         }
         if *field == "snippetEffects" { check_snippet_effects_binding(root, &value[*field])?; }
-        if *field == "clipboardHistory" { check_clipboard_history_binding(root, &value[*field])?; }
+        else if *field == "clipboardHistory" { check_clipboard_history_binding(root, &value[*field])?; }
+        else if *field == "keyboardReference" { check_keyboard_reference_binding(root, &value[*field])?; }
         else { check_binding(root, &value[*field])?; }
     }
     let sdk = value["nativeHostSDKs"]
@@ -2222,7 +2252,8 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
             serde_json::from_slice(&raw).map_err(error)?
         };
         if *field == "snippetEffects" { check_snippet_effects_binding(root, &binding)?; }
-        if *field == "clipboardHistory" { check_clipboard_history_binding(root, &binding)?; }
+        else if *field == "clipboardHistory" { check_clipboard_history_binding(root, &binding)?; }
+        else if *field == "keyboardReference" { check_keyboard_reference_binding(root, &binding)?; }
         else { check_binding(root, &binding)?; }
         value[*field] = binding;
     }
@@ -2516,6 +2547,72 @@ mod tests {
         fs::write(root.join("artifacts/sdk"), b"changed real SDK artifact").unwrap();
         assert!(check_clipboard_history_binding(root, &binding).is_err());
         assert!(REFERENCES.contains(&("clipboardHistory", "clipboard-history-bindings.json")));
+    }
+    #[test]
+    fn keyboard_reference_binding_keeps_historical_swift_hashes_as_metadata() {
+        let fixture = super::super::tests::Fixture::new();
+        let root = &fixture.0;
+        let mut sources = BTreeMap::new();
+        for name in KEYBOARD_REFERENCE_SOURCES {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"owned Rust fixture source").unwrap();
+            sources.insert(*name, digest(&path).unwrap());
+        }
+        let mut artifacts = BTreeMap::new();
+        for name in [
+            "rust-native/target/runtime-proof-artifacts/keyboard-complete-fixture",
+            "rust-native/target/runtime-proof-artifacts/keyboard-partial-fixture",
+        ] {
+            let path = root.join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, b"owned keyboard artifact").unwrap();
+            artifacts.insert(name, digest(&path).unwrap());
+        }
+        let retired = serde_json::json!({
+            "Sources/LauncherCore/RustBridge.swift": "ddcc0cdf77db35ca157cda6d36e78925dfd47a5f17fcaeba2529aeab73e5bd6e",
+            "Sources/RuycastApp/Hotkeys.swift": "c78041f9d41ba4c97cd2958b3f575b24079d86ce401c3065705835e1d17b8ac0",
+        });
+        let binding = serde_json::json!({
+            "schema":"ruycast.keyboard-reference-bindings.v1",
+            "sources":sources,
+            "artifacts":artifacts,
+            "retiredSwiftSources":retired,
+        });
+        check_keyboard_reference_binding(root, &binding).unwrap();
+
+        let mut legacy = binding.clone();
+        legacy.as_object_mut().unwrap().remove("schema");
+        assert!(check_keyboard_reference_binding(root, &legacy).is_err());
+        let mut missing_source = binding.clone();
+        missing_source["sources"].as_object_mut().unwrap().remove(KEYBOARD_REFERENCE_SOURCES[0]);
+        assert!(check_keyboard_reference_binding(root, &missing_source).is_err());
+        let mut extra_source = binding.clone();
+        extra_source["sources"]["historical.swift"] = serde_json::json!("0".repeat(64));
+        assert!(check_keyboard_reference_binding(root, &extra_source).is_err());
+        let mut forgotten_history = binding.clone();
+        forgotten_history.as_object_mut().unwrap().remove("retiredSwiftSources");
+        assert!(check_keyboard_reference_binding(root, &forgotten_history).is_err());
+        let mut changed_history = binding.clone();
+        changed_history["retiredSwiftSources"]["Sources/RuycastApp/Hotkeys.swift"] = serde_json::json!("0".repeat(64));
+        assert!(check_keyboard_reference_binding(root, &changed_history).is_err());
+        let mut missing_artifact = binding.clone();
+        missing_artifact["artifacts"].as_object_mut().unwrap().remove(
+            "rust-native/target/runtime-proof-artifacts/keyboard-partial-fixture",
+        );
+        assert!(check_keyboard_reference_binding(root, &missing_artifact).is_err());
+        let source = root.join(KEYBOARD_REFERENCE_SOURCES[0]);
+        fs::write(&source, b"changed Rust source").unwrap();
+        assert!(check_keyboard_reference_binding(root, &binding).is_err());
+        fs::write(&source, b"owned Rust fixture source").unwrap();
+        fs::write(
+            root.join("rust-native/target/runtime-proof-artifacts/keyboard-complete-fixture"),
+            b"changed artifact",
+        )
+        .unwrap();
+        assert!(check_keyboard_reference_binding(root, &binding).is_err());
+        assert!(!root.join("Sources").exists());
+        assert!(REFERENCES.contains(&("keyboardReference", "keyboard-reference-bindings.json")));
     }
     #[test]
     fn keyboard_receipt_sources_match_both_consumers_and_reject_drift() {
