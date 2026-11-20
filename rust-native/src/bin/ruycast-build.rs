@@ -38,6 +38,7 @@ mod raycast_cli;
 #[path = "ruycast-build/clipboard_cli.rs"]
 mod clipboard_cli;
 #[path = "ruycast-build/parity_inventory.rs"]
+#[cfg(test)]
 mod parity_inventory;
 #[path = "ruycast-build/parity_report.rs"]
 mod parity_report;

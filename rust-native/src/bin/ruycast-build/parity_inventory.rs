@@ -136,46 +136,6 @@ fn wire(root: &Path, app: &Value) -> Result<Value> {
         .ok_or("Wire declaration line missing.")?;
     parity_wire::run(root, marker)
 }
-pub(super) fn run(
-    root: &Path,
-    lease: &BuildLock,
-    reference: &Path,
-    out: &Path,
-    deadline: u64,
-) -> Result<Value> {
-    process::with_deadline(deadline, || {
-        let (selectors, definitions) = parity_families::metadata(root)?;
-        flow(selectors, &definitions, |step| {
-            lease.validate()?;
-            let value = match step {
-                Step::Sources => parity_sources::run(root, reference)?,
-                Step::Parser(binding) => parity_bootstrap::run(
-                    root,
-                    lease,
-                    &json!({"binding":binding,"deadlineNanos":deadline}).to_string(),
-                )?,
-                Step::Discover => parity_toolchain::run(
-                    root,
-                    lease,
-                    "discover",
-                    &json!({"deadlineNanos":deadline}).to_string(),
-                )?,
-                Step::Compile(payload) => parity_compile::run(root, lease, &payload.to_string())?,
-                Step::Tests(selectors) => test_catalog::run(root, lease, selectors)?,
-                Step::Families(payload) => parity_families::run(root, &payload.to_string())?,
-                Step::Wire(app) => wire(root, &app)?,
-                Step::Report(mut payload) => {
-                    payload["reference"] = json!(reference);
-                    payload["out"] = json!(out);
-                    payload["deadlineNanos"] = json!(deadline);
-                    parity_report::run(root, lease, &payload.to_string())?
-                }
-            };
-            lease.validate()?;
-            Ok(value)
-        })
-    })
-}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,7 +152,7 @@ mod tests {
             Step::Compile(payload)=>{order.push("compile");assert_eq!(payload["module"],"RuycastApp");json!({"declarations":{"Sources/RuycastApp/AppState.swift":[]},"context":{"exitCode":0}})},
             Step::Tests(selectors)=>{order.push("tests");assert!(selectors.contains("candidate"));json!({"unresolvedSelectors":["gap"]})},
             Step::Families(payload)=>{order.push("families");assert_eq!(payload["testInventory"]["unresolvedSelectors"],json!(["gap"]));json!({"definitionsSHA256":"definitions","contractFamilies":[{"remaining":"gap"}]})},
-            Step::Wire(_)=>{order.push("wire");json!({"sources":{"Sources/RuycastApp/AppState.swift":"hash"},"wireOperations":[]})},
+            Step::Wire(app)=>{order.push("wire");assert_eq!(app["sha256"],"hash");json!({"sources":{"Sources/RuycastApp/AppState.swift":"hash"},"wireOperations":[]})},
             Step::Report(payload)=>{order.push("report");assert_eq!(payload["contractFamilies"][0]["remaining"],"gap");json!({"overallComplete":false})}
         })).unwrap();
         assert_eq!(result["overallComplete"], false);
