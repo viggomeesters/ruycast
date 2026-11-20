@@ -1513,6 +1513,20 @@ fn native_hid_quit_retains_profile_and_recovers_after_worker_stop() {
 }
 
 #[test]
+fn native_hid_quit_recovers_when_manager_already_closed_after_error() {
+    let (mut h, _) = hid_host("right-cmd+a", true);
+    let path = h.base.join("hid-fail-manager_close_closed");
+    fs::write(&path, b"").unwrap();
+    let _cleanup = RemoveFault(path);
+    assert_eq!(h.rpc(&json!({"op":"quit"}))["ok"], true);
+    let output = h.wait_exit(Duration::from_secs(5), false);
+    assert!(output.status.success(), "{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    let proof: Value = serde_json::from_slice(&fs::read(h.base.join("keyboard-retired.json")).unwrap()).unwrap();
+    assert_eq!(proof["state"]["allocated"], 0);
+    assert_eq!(proof["state"]["caps"], 0);
+}
+
+#[test]
 fn native_hid_status_not_on_while_sdk_teardown_is_held() {
     let (h, _) = hid_host("right-cmd+a", true);
     let mut config = actions::config(&h);

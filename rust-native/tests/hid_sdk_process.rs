@@ -408,6 +408,21 @@ fn partial_setup_failure_always_restores_original_and_can_retry() {
 }
 
 #[test]
+fn manager_close_error_then_not_open_allows_recovery() {
+    let rows = run_case(
+        "manager-close-already-closed",
+        json!([
+            {"op":"plan","hyper":true}, {"op":"refresh"},
+            {"op":"failure","name":"manager_close_closed"}, {"op":"stop"},
+            {"op":"refresh"}
+        ]),
+        false,
+    );
+    assert_eq!(rows[3]["result"], false);
+    assert_eq!(rows[4]["status"], "On");
+}
+
+#[test]
 fn failed_manager_or_tap_retirement_survives_drop_and_blocks_new_setup() {
     for stage in ["manager_close", "invalidate"] {
         let rows = run_case(
