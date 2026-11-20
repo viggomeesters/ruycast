@@ -3206,15 +3206,6 @@ mod tests {
 
     #[test]
     fn unchanged_search_ranking_reuse_assertion_is_crosswalked_to_rust() {
-        let swift = include_str!("../../../../Sources/RuycastApp/SearchChecks.swift");
-        assert!(swift.contains("for _ in 0..<1000 {_=state.searchCommands(\"identical\")}"));
-        assert!(swift.contains("try state.searchRanking.recordSuccess(\"cached.b\")"));
-        assert!(swift.contains("try state.searchRanking.reset()"));
-        assert!(swift.contains("func checkSearch(root unusedRoot:URL)"));
-
-        let runner = include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(runner.contains("if args.first==\"--check-search\""));
-        assert!(runner.contains("checkSearch(root:root)"));
         let rust = include_str!("../../runtime_private_tests.rs");
         assert!(rust.contains("fn prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection()"));
         assert!(rust.contains("(0,0,1000)"));
@@ -3232,13 +3223,6 @@ mod tests {
 
     #[test]
     fn search_ranking_change_repreparation_assertion_is_crosswalked_to_rust() {
-        let swift = include_str!("../../../../Sources/RuycastApp/SearchChecks.swift");
-        assert!(swift.contains("for _ in 0..<1000 {_=state.searchCommands(\"identical\")}"));
-        assert!(swift.contains("try state.searchRanking.recordSuccess(\"cached.b\")"));
-        assert!(swift.contains("try state.searchRanking.recordSuccess(\"cached.b\")\n    _ = state.searchCommands(\"identical\")\n    try state.searchRanking.reset()"));
-        assert!(swift.contains("try state.searchRanking.reset()\n    _ = state.searchCommands(\"identical\")\n    try state.searchRanking.recordSuccess(\"cached.b\")"));
-        assert!(swift.contains("func checkSearch(root unusedRoot:URL)"));
-
         let rust = include_str!("../../runtime_private_tests.rs");
         assert!(rust.contains("state.ranking.record_success(\"cache.b\", 1_700_000_000.)"));
         assert!(rust.contains("[\"cache.b\", \"cache.a\"]"));
@@ -3257,11 +3241,6 @@ mod tests {
 
     #[test]
     fn search_ranking_reset_repreparation_assertion_is_crosswalked_to_rust() {
-        let swift = include_str!("../../../../Sources/RuycastApp/SearchChecks.swift");
-        assert!(swift.contains("try state.searchRanking.reset()"));
-        assert!(swift.contains("try state.searchRanking.reset()\n    _ = state.searchCommands(\"identical\")\n    try state.searchRanking.recordSuccess(\"cached.b\")"));
-        assert!(swift.contains("func checkSearch(root unusedRoot:URL)"));
-
         let rust = include_str!("../../runtime_private_tests.rs");
         assert!(rust.contains("fn prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection()"));
         assert!(rust.contains("state.ranking.reset().unwrap();"));
@@ -3277,6 +3256,28 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]));
         assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_ranking_crosswalks_do_not_embed_live_swift_sources() {
+        let source = include_str!("oracles.rs");
+        let ranking_guards = source
+            .split_once("fn unchanged_search_ranking_reuse_assertion_is_crosswalked_to_rust()")
+            .unwrap()
+            .1
+            .split_once("fn accented_uppercase_query_assertion_is_crosswalked_to_rust()")
+            .unwrap()
+            .0;
+        let search_checks = ["SearchChecks", ".swift"].concat();
+        let search_include = format!(
+            "include_str!(\"../../../../Sources/RuycastApp/{search_checks}\")"
+        );
+        let main_swift = ["main", ".swift"].concat();
+        let runner_include = format!(
+            "include_str!(\"../../../../Sources/RuycastApp/{main_swift}\")"
+        );
+        assert!(!ranking_guards.contains(&search_include));
+        assert!(!ranking_guards.contains(&runner_include));
     }
 
     #[test]
