@@ -1309,7 +1309,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/configuration_jobs.rs", include_bytes!("../../configuration_jobs.rs"), "c3831c3a1d8b3898cef2cf72d7136e6d378da110d36af7c47e5ac2052250734f"),
             ("rust-native/src/hotkeys.rs", include_bytes!("../../hotkeys.rs"), "2b9448c0540a378d5f338c554c74ad4614fb550ebccc084d29a3be9bf72b3258"),
-            ("rust-native/src/keyboard_state.rs", include_bytes!("../../keyboard_state.rs"), "12c1fa4547ca1370d85ec55d1503ba92d01a50ce550c5865972a9ae74f1e31bb"),
+            ("rust-native/src/keyboard_state.rs", include_bytes!("../../keyboard_state.rs"), "e030ec9022301b2ccd89e924bd1885fe72a09c9aed2e17f63e63e93503e71cac"),
             ("rust-native/src/library.rs", include_bytes!("../../library.rs"), "4788c64fe77873c6f71ceff312f248421c8255c0e0a64387713b280964815525"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
             ("rust-native/src/native_library.rs", include_bytes!("../../native_library.rs"), "2da5d1b8b410bd90ae4f63855a0ff06be6b0677038b33acd0a2a69cde1542ecb"),
@@ -2103,6 +2103,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["missing active text reports Set Text", "text history deduplicates and selecting an entry pastes the active text", "reopened profile retains active text and is private on disk", "password generation is deterministic and secret-marked while existing Keychain history is preserved with exactly one write", "password values are absent from command payloads and profile storage", "old password history copies as concealed text", "username generation is deterministic and searchable", "malformed Keychain data remains intact without another write", "utility import merges once, replay adds zero, and active native text is retained"],
             "nativeCases": ["utilities::tests::original_utility_acceptance_scenarios_remain_in_rust", "utility_storage::tests::real_profile_reopen_private_mode_external_edit_and_no_password_on_disk", "utility_oracle::frozen_swift_utilities_and_codable_match_rust_on_owned_cases"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/KeyboardChecks.swift::checkKeyboard"] = serde_json::json!({
+            "originalSourceSHA256": "5cbaf9f3e805ccc44df691fafc0fdf9f2681d6854d6381e2e818115a2e4dac53",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The deterministic physical-state and flag assertions moved to Rust. The helper records model outputs rather than OS events; its hardware-acceptance status, Swift CLI/JSON wrapper and generic callback diagnostic text retire with it and are not presented as hardware evidence.",
+            "nativeSource": "rust-native/src/keyboard_state.rs",
+            "originalScenarios": ["duplicate Caps reports plus a letter produce balanced Hyper down/up edges and no held usages", "isolated left Control and Option produce their tap usages", "Control/letter, Option/Shift, a one-second modifier and right-Command/Control do not produce solo taps", "cancelTap prevents the pending Option tap", "releasing one keyboard leaves another keyboard's Caps held", "removing the second keyboard releases Hyper", "reset clears Caps and held usages", "a stray modifier release after reset stays unheld", "ordinary right-Command flags remain unchanged", "Hyper rewriting preserves the unowned device bit and removes Caps", "both generated tags preserve Command/Control and empty flags"],
+            "retiredAssertions": ["returned hardwareAcceptance status is a static requirement, not a hardware test", "test-recorder strings are not posted OS events; event tap, HID manager, Carbon registration, permissions and desktop input are not exercised"],
+            "nativeCases": ["keyboard_state::tests::original_keyboard_acceptance_scenarios_remain_in_rust"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
             "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
             "originalMethods": [
@@ -2592,6 +2601,48 @@ mod tests {
             .contains("fn original_utility_acceptance_scenarios_remain_in_rust()"));
         assert!(include_str!("../../utility_storage.rs")
             .contains("fn real_profile_reopen_private_mode_external_edit_and_no_password_on_disk()"));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn retired_keyboard_helper_is_removed_and_its_assertions_are_crosswalked() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/KeyboardChecks.swift";
+        assert!(!root.join(retired).exists());
+        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
+        assert!(!main.contains("--check-keyboard"));
+        assert!(!main.contains("checkKeyboard"));
+        assert!(!include_str!("../ruycast-source/policy.rs")
+            .lines()
+            .any(|line| line == retired));
+
+        let lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(lock["files"].get(retired).is_none());
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/KeyboardChecks.swift::checkKeyboard"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(
+            mapping["originalSourceSHA256"],
+            "5cbaf9f3e805ccc44df691fafc0fdf9f2681d6854d6381e2e818115a2e4dac53"
+        );
+        assert_eq!(
+            mapping["nativeCases"],
+            serde_json::json!(["keyboard_state::tests::original_keyboard_acceptance_scenarios_remain_in_rust"])
+        );
+        assert_eq!(
+            mapping["retiredAssertions"],
+            serde_json::json!([
+                "returned hardwareAcceptance status is a static requirement, not a hardware test",
+                "test-recorder strings are not posted OS events; event tap, HID manager, Carbon registration, permissions and desktop input are not exercised"
+            ])
+        );
+        assert!(include_str!("../../keyboard_state.rs")
+            .contains("fn original_keyboard_acceptance_scenarios_remain_in_rust()"));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
