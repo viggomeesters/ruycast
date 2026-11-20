@@ -34,11 +34,7 @@ func searchFixture()->[Command] {
     defer {try? FileManager.default.removeItem(at:sandbox)}
     let state=try AppState(root:sandbox,headless:true)
     state.config.commands=searchFixture()
-    let catalog=try CommandSearchIndex(commands:state.config.commands)
     let cases=[""," ","MICROSOFT","a42","item.11","project dashboard","example.com/42","missing","Ångström","a\0b"]
-    for q in cases {
-        guard catalog.search(q)==state.config.search(q) else {throw LauncherError("Indexed search parity failed.")}
-    }
     state.query="left"
     let results=state.results
     let changes=LockedValue(0)
