@@ -2070,6 +2070,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["Teams/html rich payload text, escaping, paragraph layout and cursor", "nil mode preserves the exact original text without HTML", "newline link labels are rejected", "unsafe image and javascript/file links produce no raw image or anchor", "four UTF16 emoji-link cursor offsets and one in-link cursor mapping", "three Teams links retain labels and order", "rich argument choice replacement preserves text and hyperlink", "link source round-trips bracketed, escaped, emoji and parenthesized labels/URLs", "plain, teams and html command JSON codec and configuration validation", "unknown snippet output mode is rejected"],
             "nativeCases": ["snippet_process::teams_paragraphs_html_breaks_and_safe_escaping", "snippet_process::plain_unknown_modes_and_complete_literal_text", "snippet_process::links_balanced_parentheses_escape_labels_and_invalid_syntax", "snippet_process::utf16_cursor_mapping_at_every_position_and_grapheme_boundary", "snippet_output::link_editor_tests::teams_rendering_preserves_all_original_three_links", "snippet_output::link_editor_tests::rich_choice_replacement_preserves_original_text_and_hyperlink", "snippet_output::link_editor_tests::link_source_round_trips_original_escaped_labels_and_parentheses", "snippet_output::link_editor_tests::original_literal_and_unsafe_snippet_sources_stay_safe", "rustcast_core::tests::snippet_output_modes_roundtrip_validate_and_reject_unknown"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/ABIChecks.swift::checkPreparedRanking"] = serde_json::json!({
+            "originalSourceSHA256": "ef4c6e126a2c2183a86aa8fc97c7accf9924d5eaaa379d518c9cf7fce97a8334",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the prepared ranking snapshot assertions moved to Rust; checkImportedABI and the ABI runner remain active.",
+            "nativeSource": "rust-native/src/ranking.rs",
+            "originalScenarios": ["an already prepared catalog keeps its original ranking", "recording a successful choice increments revision and a new catalog ranks that choice first", "reset increments revision and restores catalog order", "stale recency for a different command does not affect a replacement catalog"],
+            "nativeCases": ["ranking::tests::original_prepared_ranking_snapshots_track_success_reset_and_replacement"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
             "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
             "originalMethods": [
@@ -2451,6 +2459,24 @@ mod tests {
             assert!(source.contains(&format!("fn {}(", case.rsplit("::").next().unwrap())));
         }
         assert_eq!(value["productionAccepted"], false);
+    }
+    #[test]
+    fn prepared_ranking_core_test_is_crosswalked_to_rust_snapshot_test() {
+        let original = include_str!("../../../../Tests/LauncherCoreTests/ABIChecks.swift");
+        let runner = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(!original.contains("func checkPreparedRanking()"));
+        assert!(original.contains("func checkImportedABI()"));
+        assert!(!runner.contains("checkPreparedRanking"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/ABIChecks.swift::checkPreparedRanking"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/ranking.rs");
+        let case = "original_prepared_ranking_snapshots_track_success_reset_and_replacement";
+        assert_eq!(mapping["nativeCases"], serde_json::json!([format!("ranking::tests::{case}")]));
+        assert!(include_str!("../../ranking.rs").contains(&format!("fn {case}()")));
+        assert_eq!(inventory["productionAccepted"], false);
     }
     #[test]
     fn python_unittest_discovery_qualifies_only_real_package_discovered_sources() {
