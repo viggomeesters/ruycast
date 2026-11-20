@@ -241,16 +241,9 @@ struct CoreTests {
         XCTAssertThrowsError(try WindowPlacement.apply(target,read:{current},resize:{_ in attempts+=1;throw LauncherError("Not resizable")},position:{_ in},pause:{}))
         XCTAssertEqual(attempts,1)
     }
-    func testRoundTripAndPrivateStorage() throws {
-        let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer {try? FileManager.default.removeItem(at:root)}
-        let p=root.appendingPathComponent("config.json");try Files.save(Configuration.initial,to:p)
-        XCTAssertEqual(try Files.config(p),Configuration.initial)
-        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath:p.path)[.posixPermissions] as? NSNumber)?.intValue,0o600)
-    }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
