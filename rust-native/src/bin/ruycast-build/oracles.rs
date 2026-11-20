@@ -3286,12 +3286,6 @@ mod tests {
 
     #[test]
     fn repeated_go_alias_index_assertion_is_crosswalked_to_rust() {
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("let commands=["));
-        assert!(core.contains("legacy.search(query)"));
-
         let rust = include_str!("../../../../rust/src/lib.rs");
         assert!(rust.contains("fn original_go_alias_query_preserves_complete_result_order()"));
         assert!(rust.contains("for _ in 0..100 {"));
@@ -3306,6 +3300,24 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_go_alias_query_preserves_complete_result_order"]));
         assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn repeated_go_alias_index_crosswalk_does_not_embed_live_swift_source() {
+        let source = include_str!("oracles.rs");
+        let assertion = source
+            .split_once("fn repeated_go_alias_index_assertion_is_crosswalked_to_rust()")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        let swift_include = [
+            "include_str!(\"../../../../Tests/LauncherCoreTests/",
+            "CoreTests.swift\")",
+        ]
+        .concat();
+        assert!(!assertion.contains(&swift_include));
     }
 
     #[test]
