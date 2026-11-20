@@ -65,8 +65,6 @@ func searchFixture()->[Command] {
     _ = state.searchCommands("identical")
     try state.searchRanking.reset()
     _ = state.searchCommands("identical")
-    state.config.commands=[Command(id:"cached.replacement",title:"Identical",kind:"url",target:"https://example.com/new")]
-    guard state.searchCommands("identical").map(\.id)==["cached.replacement"] else {throw LauncherError("Prepared search reused an old catalog")}
     state.config.commands=[Command(id:"typo.enabled",title:"Calendar",kind:"url",target:"https://example.com"),Command(id:"typo.disabled",title:"Finder",kind:"url",target:"https://example.com",enabled:false)]
     state.query="calender"
     let typoReply=LockedValue<[String]>([])
