@@ -86,11 +86,6 @@ struct CoreTests {
         matcher.reset();XCTAssertEqual(matcher.type("abc",commands:[word]),word)
         let interactive=Command(id:"i",title:"Input",kind:"snippet",target:#"{argument name="Name"}"#,keyword:";name")
         matcher.reset();XCTAssertEqual(matcher.type(";name",commands:[interactive]),nil)
-        let longText=String(repeating:"Hello Ω 👨‍👩‍👧‍👦\n",count:100)
-        var chunks:[String]=[]
-        SnippetReplacement(keyword:";long",finalInput:"g",text:longText,cursor:nil).apply(key:{_ in},insert:{chunks.append($0)})
-        XCTAssertEqual(chunks.joined(),longText)
-        XCTAssertEqual(chunks.allSatisfy {$0.utf16.count<=16},true)
         var c=Configuration.initial;c.commands.append(word);c.commands.append(Command(id:"w2",title:"Word 2",kind:"snippet",target:"other",keyword:"abc"));XCTAssertThrowsError(try c.validate())
     }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {

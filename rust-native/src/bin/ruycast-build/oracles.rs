@@ -1029,7 +1029,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
 
             ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "9ebb1ecff6de79f76d0f69542e250a6d041b88afe0ca1ec5beb079a08b4f042c"),
-            ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "14ce406b97d0a9bf0e7497a81f102425a73c6ac181f3d98f1b766b0bd899c49d"),
+            ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "2666410bb4fe8fcde7eac7fd7a57a74e571c5af8c9d66b8d608b862ea067c5cb"),
             ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "0c2c9f768bd6a911414ffea94335610eedebf8feea55eb6210fce6f5d72a7bdd"),
             ("rust-native/src/snippet_output.rs", include_bytes!("../../snippet_output.rs"), "40f779d97941aec293f6a53c89970051189e82a0fa2a98a86027c196724138be"),
             ("rust-native/src/native_snippet_choice.rs", include_bytes!("../../native_snippet_choice.rs"), "caa9be3b6d84594d8fabc13f797a99a5042515ba94760cae86506773139a09a9"),
@@ -2103,6 +2103,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["exact alias outranks Finder recency", "Calendar typo resolves", "equal Finder results preserve order", "Finder recency orders equal-title results", "Mail and Main typo preserve order", "recency moves Main before Mail", "literal resolver refuses fnider", "literal resolver accepts finder", "Finder typo outranks weak Find Reminders subsequence", "high distractor recency does not displace direct title typo", "Reminders transposition returns direct title and weak distractor", "distractor recency does not alter that ordering", "Notes typo keeps original ranking despite decorated recency", "punctuated noets! returns no result", "literal calender URL substring keeps priority", "Cat typo cta returns no result", "Åbcd typo Åbdc matches", "decomposed-accent query does not match", "64-character transposition matches", "65-character transposition is rejected"],
             "nativeCases": ["tests::original_bounded_typo_fallback_search_cases", "runtime::inline_tests::original_bounded_typo_fallback_keeps_resolution_literal"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.longText"] = serde_json::json!({
+            "originalSourceSHA256": "6eda2747d7ea8c664a44070efbb38078fae2be761b939530b9270669be8ab84e",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the two long-text chunk assertions are moved. The surrounding Swift helper remains active for its other scenarios.",
+            "nativeSource": "rust-native/src/keyword_matcher.rs",
+            "originalScenarios": ["100 repetitions of Hello Ω family emoji and newline concatenate to the original text", "every inserted chunk contains at most 16 UTF-16 code units"],
+            "nativeCases": ["keyword_matcher::cancellation_checks::original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -2594,6 +2602,37 @@ mod tests {
             .contains("fn original_bounded_typo_fallback_search_cases()"));
         assert!(include_str!("../../runtime_private_tests.rs")
             .contains("fn original_bounded_typo_fallback_keeps_resolution_literal()"));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn long_snippet_chunk_assertions_are_crosswalked_without_retiring_the_swift_helper() {
+        use sha2::Digest;
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
+        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
+        assert!(!core.contains("let longText=String(repeating:"));
+        assert!(!core.contains("chunks.allSatisfy {$0.utf16.count<=16}"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.longText"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(
+            mapping["originalSourceSHA256"],
+            "6eda2747d7ea8c664a44070efbb38078fae2be761b939530b9270669be8ab84e"
+        );
+        let case = "keyword_matcher::cancellation_checks::original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit";
+        assert_eq!(mapping["nativeCases"], serde_json::json!([case]));
+        assert!(include_str!("../../keyword_matcher.rs")
+            .contains("fn original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit()"));
+
+        let input = super::settings_sources("--check-interactions")
+            .iter()
+            .find(|(path, _, _)| *path == "rust-native/src/keyword_matcher.rs")
+            .unwrap();
+        assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
+        assert!(super::settings_source_bindings("--check-interactions").contains(&(input.0, input.2)));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
