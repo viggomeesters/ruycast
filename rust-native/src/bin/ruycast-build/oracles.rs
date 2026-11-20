@@ -1280,7 +1280,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "cefa77c11c4cd3543dc547f0696854d4e4601550fc701440803b74f4a8287092"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "96fdd4bcf34424e61d7ce97064ff7e6fecd412a2acfdb7efb9e5114a26d6a36a"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "c0466bf7304982cd5e274959ec13ad4e2a01b27213c735166a2306044dd29c56"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1340,7 +1340,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_process.rs", include_bytes!("../../../tests/snippet_process.rs"), "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0"),
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "cb1441b9c63056ed828df688e8af5a4f6cbfd3208352d37f493c51a8ef0a06cd"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "96fdd4bcf34424e61d7ce97064ff7e6fecd412a2acfdb7efb9e5114a26d6a36a"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "c0466bf7304982cd5e274959ec13ad4e2a01b27213c735166a2306044dd29c56"),
         ],
         "--check-command-log" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
@@ -2183,6 +2183,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["exact alias mt stays ahead of recent result when recency is high", "multi-term prefix query mic tea returns teams first", "multi-term fuzzy query mft returns teams first", "exact Microsoft Teams title stays ahead of recent history result"],
             "nativeCases": ["tests::original_quality_ranking_alias_recency_and_multi_term_search"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.blankQueries"] = serde_json::json!({
+            "originalSourceSHA256": "a0f320926f7fd9743b2b669d8e636bf3fb2714d102099b18f20d340b1abc523d",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the two blank-query assertions on the nonempty catalog move to Rust. The fixture, other search and storage assertions, Swift method and runner stay active.",
+            "nativeSource": "rust/src/lib.rs",
+            "originalScenarios": ["whitespace query returns all commands in catalog order", "empty query with the original z recency entry returns all commands in catalog order"],
+            "nativeCases": ["tests::original_blank_queries_preserve_nonempty_catalog_order"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -2969,6 +2977,40 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 3);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_large_equal_title_ties_preserve_order_and_alias_precedence"]));
         assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_large_equal_title_ties_preserve_order_and_alias_precedence()"));
+
+        for pipeline in ["--check-performance-pipeline", "--check-settings"] {
+            let input = super::settings_sources(pipeline)
+                .iter()
+                .find(|(path, _, _)| *path == "rust/src/lib.rs")
+                .unwrap();
+            assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
+            assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
+        }
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn nonempty_catalog_blank_queries_are_crosswalked_to_rust() {
+        use sha2::Digest;
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
+        assert!(!core.contains("index.search(\"   \")"));
+        assert!(!core.contains("index.search(\"\",recency:[\"z\":999])"));
+        assert!(core.contains("let commands=["));
+        assert!(core.contains("index.search(\"does not exist\")"));
+        assert!(core.contains("for query in ["));
+        assert!(core.contains("for _ in 0..<100 {let temporary=try CommandSearchIndex"));
+        assert!(core.contains("let root=FileManager.default.temporaryDirectory.appendingPathComponent(\"ranking-"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.blankQueries"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "a0f320926f7fd9743b2b669d8e636bf3fb2714d102099b18f20d340b1abc523d");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 2);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_blank_queries_preserve_nonempty_catalog_order"]));
+        assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_blank_queries_preserve_nonempty_catalog_order()"));
 
         for pipeline in ["--check-performance-pipeline", "--check-settings"] {
             let input = super::settings_sources(pipeline)
@@ -5222,7 +5264,7 @@ mod tests {
     }
     #[test]
     fn history_source_pins_match_current_rust_bytes() {
-        let expected = "96fdd4bcf34424e61d7ce97064ff7e6fecd412a2acfdb7efb9e5114a26d6a36a";
+        let expected = "c0466bf7304982cd5e274959ec13ad4e2a01b27213c735166a2306044dd29c56";
         for gate in ["--check-performance-pipeline", "--check-settings"] {
             let (path, bytes, pin) = settings_sources(gate)
                 .iter()

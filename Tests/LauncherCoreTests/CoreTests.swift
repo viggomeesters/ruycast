@@ -16,8 +16,6 @@ struct CoreTests {
         XCTAssertEqual(index.search(" BETA ").map(\.id),["z","c"])
         XCTAssertEqual(index.search("ÅNGSTRÖM notes").map(\.id),["b"])
         XCTAssertEqual(index.search("nul\0alias").map(\.id),["b"])
-        XCTAssertEqual(index.search("   "),commands)
-        XCTAssertEqual(index.search("",recency:["z":999]),commands)
         XCTAssertEqual(index.search("does not exist"),[])
         var legacy=Configuration.initial;legacy.commands=commands
         for query in ["go"," BETA ","ÅNGSTRÖM notes","nul\0alias","   ","does not exist","example"] {
