@@ -41,6 +41,7 @@ mod clipboard_cli;
 #[cfg(test)]
 mod parity_inventory;
 #[path = "ruycast-build/parity_report.rs"]
+#[cfg(test)]
 mod parity_report;
 #[path = "ruycast-build/parity_toolchain.rs"]
 mod parity_toolchain;

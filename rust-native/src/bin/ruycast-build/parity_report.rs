@@ -1,13 +1,9 @@
 //! Assemble candidate evidence without upgrading mentions or names to acceptance.
 use super::*;
 use serde_json::{json, Value};
-use std::{io::Write, time::Duration};
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Input {
-    reference: PathBuf,
-    out: PathBuf,
-    deadline_nanos: u64,
     source_files: BTreeMap<String, Value>,
     compiler_context: Vec<Value>,
     test_inventory: Value,
@@ -30,57 +26,6 @@ fn summary(matrix: &Value) -> Result<Value> {
     Ok(
         json!({"modules":sources.len(),"declarations":count,"families":matrix["contractFamilies"].as_array().ok_or("Missing contract families.")?.len(),"wireOperations":matrix["wireOperations"].as_array().ok_or("Missing wire operations.")?.len(),"unclassified":0,"overallComplete":false}),
     )
-}
-fn validate(root: &Path, input: &Input) -> Result<()> {
-    if !input.reference.is_absolute() || !input.out.is_absolute() {
-        return Err("Choose absolute reference and output paths.".into());
-    }
-    let current = parity_sources::run(root, &input.reference)?;
-    let mut files = input.source_files.clone();
-    for value in files.values_mut() {
-        value
-            .as_object_mut()
-            .ok_or("Invalid source file row.")?
-            .remove("declarations")
-            .ok_or("Missing compiler declarations.")?;
-    }
-    if json!(files) != current["sourceFiles"] {
-        return Err("Report sources differ from current/reference binding.".into());
-    }
-    let source_families = input
-        .source_files
-        .iter()
-        .map(|(path, value)| (path, &value["contractFamily"]))
-        .collect::<BTreeMap<_, _>>();
-    let families = parity_families::run(
-        root,
-        &json!({"sourceFamilies":source_families,"testInventory":input.test_inventory}).to_string(),
-    )?;
-    if families["contractFamilies"] != json!(input.contract_families) {
-        return Err("Report contract families or gaps changed.".into());
-    }
-    let wire = &input.wire_inventory;
-    let hashes = wire["sources"]
-        .as_object()
-        .ok_or("Missing wire source binding.")?;
-    if hashes.len() != 2 {
-        return Err("Invalid wire source binding.".into());
-    }
-    for path in [
-        "Sources/RuycastApp/AppState.swift",
-        "rust-native/src/runtime.rs",
-    ] {
-        if hashes.get(path).and_then(Value::as_str) != Some(digest(&root.join(path))?.as_str()) {
-            return Err("Report wire source binding changed.".into());
-        }
-    }
-    if wire["sources"]["Sources/RuycastApp/AppState.swift"]
-        != input.source_files["Sources/RuycastApp/AppState.swift"]["sha256"]
-    {
-        return Err("Wire source differs from compiler/reference source".into());
-    }
-    summary(&assemble(input, "", "", json!({})))?;
-    Ok(())
 }
 const IMPORTS: &[&str] = &[
     ".build/swift/debug/Modules/LauncherCore.swiftmodule",
@@ -121,53 +66,6 @@ fn write_output(path: &Path, matrix: &Value) -> Result<()> {
     bytes.push(b'\n');
     fs::create_dir_all(path.parent().ok_or("Missing report output parent.")?).map_err(error)?;
     fs::write(path, bytes).map_err(error)
-}
-pub(super) fn run(root: &Path, lease: &BuildLock, payload: &str) -> Result<Value> {
-    let input: Input = serde_json::from_str(payload).map_err(error)?;
-    validate(root, &input)?;
-    let mut git = Command::new("git");
-    git.arg("-C")
-        .arg(&input.reference)
-        .args(["rev-parse", "HEAD"])
-        .current_dir(root);
-    lease.apply_to_child(&mut git)?;
-    let head = process::capture(
-        git,
-        parity_bootstrap::inner_budget(input.deadline_nanos)?.min(Duration::from_secs(10)),
-        1024 * 1024,
-    )?;
-    lease.validate()?;
-    if !head.status.success() {
-        return Err(String::from_utf8_lossy(&head.stderr).into_owned());
-    }
-    std::io::stderr().write_all(&head.stderr).map_err(error)?;
-    let head = String::from_utf8(head.stdout).map_err(error)?;
-    let version = parity_toolchain::run(
-        root,
-        lease,
-        "version",
-        &json!({"deadlineNanos":input.deadline_nanos}).to_string(),
-    )?;
-    let architecture = match std::env::consts::ARCH {
-        "aarch64" => "arm64-apple-macosx",
-        "x86_64" => "x86_64-apple-macosx",
-        _ => return Err("Unsupported Swift import architecture.".into()),
-    };
-    let imported = imports(root, architecture)?;
-    let matrix = assemble(
-        &input,
-        head.trim(),
-        version["compilerVersion"]
-            .as_str()
-            .ok_or("Missing compiler version.")?,
-        imported,
-    );
-    let result = summary(&matrix)?;
-    validate(root, &input)?;
-    lease.validate()?;
-    write_output(&input.out, &matrix)?;
-    lease.validate()?;
-    Ok(result)
 }
 #[cfg(test)]
 mod tests {
@@ -219,9 +117,6 @@ mod tests {
     #[test]
     fn candidate_schema_and_summary_never_claim_acceptance() {
         let input = Input {
-            reference: PathBuf::from("/reference"),
-            out: PathBuf::from("/output"),
-            deadline_nanos: 0,
             source_files: BTreeMap::from([(
                 "Sources/Module.swift".into(),
                 json!({"declarations":[{"name":"entry"}]}),
