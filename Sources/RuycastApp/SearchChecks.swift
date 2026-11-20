@@ -37,7 +37,6 @@ func searchFixture()->[Command] {
     let cases=[""," ","MICROSOFT","a42","item.11","project dashboard","example.com/42","missing","Ångström","a\0b"]
     state.query="new app"
     state.applications=[Command(id:"discovered.test",title:"New App",kind:"app",target:"org.test.app")]
-    guard state.results.first?.id=="discovered.test" else {throw LauncherError("Discovered apps are stale.")}
     var changed=state.config
     changed.commands=[Command(id:"replacement",title:"New App",kind:"app",target:"org.test.app")]
     try Files.save(changed,to:state.configURL);try state.reload()

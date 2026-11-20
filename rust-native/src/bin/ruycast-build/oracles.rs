@@ -2374,6 +2374,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "retiredAssertions": ["Swift withObservationTracking callback-count check is a legacy wrapper detail; Rust invalidation is checked at query, rows, selection and results_revision"],
             "nativeCases": ["runtime::system::shortcut_budget_tests::browser_busy_main_cli_preserves_local_results_and_exactly_one_response"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.discoveredAppsRefresh"] = serde_json::json!({
+            "originalSourceSHA256": "d4af372db2da26489feaf66123891ad1a1930d33b726f72fa30d6f7bdf0b2dc5",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the assertion that a newly discovered application refreshes the already-active palette query moves to the Rust runtime test. The application fixture remains for the following config reload/deduplication scenario.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["with New App queried and no matching saved command, increment applications_revision, synchronize the window, and return exactly discovered.test in the active palette"],
+            "nativeCases": ["runtime::inline_tests::discovered_application_refreshes_an_existing_palette_query"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3724,6 +3732,37 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["retiredAssertions"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::system::shortcut_budget_tests::browser_busy_main_cli_preserves_local_results_and_exactly_one_response"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_discovered_application_palette_refresh_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_private_tests.rs");
+        let scenario = rust
+            .split_once("fn discovered_application_refreshes_an_existing_palette_query()")
+            .unwrap()
+            .1
+            .split_once("\n#[test]")
+            .unwrap()
+            .0;
+        let query = scenario.find("window.session.set_query(\"New App\");").unwrap();
+        let empty = scenario.find("assert!(window.session.rows().next().is_none());").unwrap();
+        let app_revision = scenario.find("state.applications_revision += 1;").unwrap();
+        let sync = scenario.find("window.sync(&state);").unwrap();
+        let palette_result = scenario.find("window.session.rows().map(|command| command.id.as_str()).collect::<Vec<_>>()").unwrap();
+        assert!(query < empty && empty < app_revision && app_revision < sync && sync < palette_result);
+        assert!(scenario.contains("state.applications = vec![discovered];"));
+        assert!(scenario.contains("[\"discovered.test\"]"));
+        assert!(scenario.contains("window.session.results_revision() > before_revision"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.discoveredAppsRefresh"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "d4af372db2da26489feaf66123891ad1a1930d33b726f72fa30d6f7bdf0b2dc5");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::discovered_application_refreshes_an_existing_palette_query"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
