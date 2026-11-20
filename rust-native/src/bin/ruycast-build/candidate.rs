@@ -3,6 +3,31 @@ use super::*;
 use std::os::unix::fs::PermissionsExt;
 
 const CANDIDATE_SCHEMA: &str = "ruycast.rust-unsigned-candidate.v2";
+
+fn accepted_notary_submission_id(bytes: &[u8]) -> Result<String> {
+    let result: serde_json::Value = serde_json::from_slice(bytes).map_err(error)?;
+    if result.get("status").and_then(serde_json::Value::as_str) != Some("Accepted") {
+        return Err("Notarization not accepted; inspect the submission log.".into());
+    }
+    result
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| "Accepted notarization result has no submission ID.".into())
+}
+
+pub(super) fn notary_result(args: &[String]) -> Result<Option<String>> {
+    if args.len() == 1 && matches!(args[0].as_str(), "--help" | "-h") {
+        return Ok(None);
+    }
+    if args.len() != 2 || args[0] != "--file" {
+        return Err("Usage: ruycast-build notary-result --file PATH".into());
+    }
+    let bytes = fs::read(Path::new(&args[1])).map_err(error)?;
+    accepted_notary_submission_id(&bytes).map(Some)
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct Entry {
@@ -413,6 +438,34 @@ fn verify_under_lease(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn accepted_notary_result_returns_only_its_submission_id() {
+        assert_eq!(
+            accepted_notary_submission_id(br#"{"status":"Accepted","id":"submission-123"}"#),
+            Ok("submission-123".into())
+        );
+    }
+    #[test]
+    fn non_accepted_or_missing_notary_status_is_rejected() {
+        for bytes in [
+            br#"{"status":"In Progress","id":"submission-123"}"#.as_slice(),
+            br#"{"status":"Rejected","id":"submission-123"}"#,
+            br#"{"id":"submission-123"}"#,
+        ] {
+            assert!(accepted_notary_submission_id(bytes).is_err());
+        }
+    }
+    #[test]
+    fn missing_notary_id_or_malformed_json_is_rejected() {
+        for bytes in [
+            br#"{"status":"Accepted"}"#.as_slice(),
+            br#"{"status":"Accepted","id":""}"#,
+            br#"{"status":"Accepted","id":123}"#,
+            b"{",
+        ] {
+            assert!(accepted_notary_submission_id(bytes).is_err());
+        }
+    }
     #[test]
     fn real_owned_prepared_pair_stages_exclusively_and_rejects_mixed_source() {
         let f = super::super::tests::Fixture::compiler_pair();
