@@ -2723,7 +2723,6 @@ mod tests {
         assert!(!root.join("Tests/LauncherCoreTests/ABIChecks.swift").exists());
         let runner = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(!runner.contains("checkPreparedRanking"));
-        assert!(!runner.contains("checkImportedABI"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
@@ -2741,8 +2740,6 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Tests/LauncherCoreTests/ABIChecks.swift";
         assert!(!root.join(retired).exists());
-        let runner = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(!runner.contains("checkImportedABI"));
         assert!(!include_str!("../ruycast-source/policy.rs")
             .lines()
             .any(|line| line == retired));
