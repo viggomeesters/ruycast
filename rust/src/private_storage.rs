@@ -619,6 +619,21 @@ mod guarded_publication_tests {
         assert!(published.file_type().is_file());
         assert_eq!(published.mode() & 0o777, 0o600);
 
+        let config = rustcast_core::validate(&rustcast_core::default_config()).unwrap();
+        let bytes = serde_json::to_vec(&config).unwrap();
+        write(&target, &bytes, true).unwrap();
+        let stored: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&target).unwrap()).unwrap();
+        let restored = rustcast_core::validate(&stored).unwrap();
+        assert_eq!(
+            serde_json::to_value(&config).unwrap(),
+            serde_json::to_value(&restored).unwrap()
+        );
+        assert_eq!(
+            std::fs::symlink_metadata(&target).unwrap().mode() & 0o777,
+            0o600
+        );
+
         let blocked = own.0.join("directory.json");
         std::fs::create_dir(&blocked).unwrap();
         let child = blocked.join("keep");
