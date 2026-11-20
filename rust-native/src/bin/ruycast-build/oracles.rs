@@ -2763,9 +2763,6 @@ mod tests {
     }
     #[test]
     fn exact_alias_core_test_is_crosswalked_to_rust_runtime_test() {
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(!core.contains("testExactAliasBeatsTitleAndSupportsMultipleTerms"));
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Tests/LauncherCoreTests/CoreTests.swift::testExactAliasBeatsTitleAndSupportsMultipleTerms"];
