@@ -594,41 +594,52 @@ fn shortcut_uuid_parser_overrides_and_execution_tuple_are_exact() {
 }
 #[test]
 fn owned_shortcut_children_drain_both_pipes_and_never_wait_for_inherited_eof() {
+    let parent=std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").map(std::path::PathBuf::from)
+        .unwrap_or_else(||std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target"));
+    let directory=parent.join(format!("shortcut-child-{}",std::process::id()));
+    std::fs::create_dir(&directory).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {fn drop(&mut self){std::fs::remove_dir_all(&self.0).unwrap();}}
+    let _cleanup=Cleanup(directory.clone());
+    let fixture=directory.join("shortcut-child");
+    let log=std::fs::File::create(directory.join("rustc.log")).unwrap();
+    let mut compiler=std::process::Command::new("rustc")
+        .arg("--edition=2021")
+        .arg(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/shortcut_child.rs"))
+        .arg("-o").arg(&fixture)
+        .stdout(log.try_clone().unwrap()).stderr(log).spawn().unwrap();
+    let compile_until=Instant::now()+Duration::from_secs(30);
+    let status=loop {
+        if let Some(status)=compiler.try_wait().unwrap(){break status;}
+        if Instant::now()>=compile_until {
+            compiler.kill().unwrap();
+            compiler.wait().unwrap();
+            panic!("owned shortcut fixture compilation exceeded 30 seconds");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    assert!(status.success(),"owned shortcut fixture compilation failed: {}",
+        std::fs::read_to_string(directory.join("rustc.log")).unwrap());
+    let executable=fixture.to_str().unwrap();
     let t = ticket();
-    assert_eq!(
-        apple_shortcuts::capture("/bin/sh", &["-c", "printf owned"], &t, 128).unwrap(),
-        b"owned"
-    );
-    for script in [
-        "exit 1",
-        "exec /bin/sleep 5",
-        "while :; do printf xxxxxxxxxx; done",
-        "while :; do printf xxxxxxxxxx >&2; done",
-        "/bin/sleep 1 & exit 0",
-    ] {
+    assert_eq!(apple_shortcuts::capture(executable, &["success"], &t, 128).unwrap(),b"owned");
+    for mode in ["nonzero", "sleep", "stdout-flood", "stderr-flood", "inherited-pipes"] {
         let started = Instant::now();
         let t = Ticket {
             deadline: started + Duration::from_millis(50),
             live: Arc::new(|| true),
         };
-        assert!(apple_shortcuts::capture("/bin/sh", &["-c", script], &t, 128).is_err());
-        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(apple_shortcuts::capture(executable, &[mode], &t, 128).is_err(),"{mode}");
+        assert!(started.elapsed() < Duration::from_secs(1),"{mode}");
     }
     // Revoke only after the disposable child has actually entered its body.
     // This is distinct from the existing deadline and before-spawn checks.
-    let parent=std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR").map(std::path::PathBuf::from)
-        .unwrap_or_else(||std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target"));
-    let directory=parent.join(format!("shortcut-cancel-{}",std::process::id()));
-    std::fs::create_dir(&directory).unwrap();
-    struct Cleanup(std::path::PathBuf);
-    impl Drop for Cleanup {fn drop(&mut self){std::fs::remove_dir_all(&self.0).unwrap();}}
-    let _cleanup=Cleanup(directory.clone());
     let marker=directory.join("entered");
     let live=Arc::new(AtomicBool::new(true));
     let t=Ticket{deadline:Instant::now()+Duration::from_secs(2),live:{let live=live.clone();Arc::new(move||live.load(Ordering::Acquire))}};
     let child_marker=marker.clone();
     let started=Instant::now();
-    let worker=std::thread::spawn(move||apple_shortcuts::capture("/bin/sh",&["-c","printf entered > \"$1\"; exec /bin/sleep 5","owned",child_marker.to_str().unwrap()],&t,128));
+    let worker=std::thread::spawn(move||apple_shortcuts::capture(fixture.to_str().unwrap(),&["cancel",child_marker.to_str().unwrap()],&t,128));
     let until=Instant::now()+Duration::from_secs(1);
     while std::fs::read(&marker).ok().as_deref()!=Some(b"entered") && Instant::now()<until {
         std::thread::sleep(Duration::from_millis(2));
