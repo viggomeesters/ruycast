@@ -1280,7 +1280,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "cefa77c11c4cd3543dc547f0696854d4e4601550fc701440803b74f4a8287092"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "c804375e7faa70f21be04f6a91a14e76ae76bdbc9be29a139b96d46fb4399c28"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "84e19ec5bc237c13bb753dc0c63a253e88d2fde0750c9f4e127adc6a6f12a1a4"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1340,7 +1340,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_process.rs", include_bytes!("../../../tests/snippet_process.rs"), "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0"),
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "cb1441b9c63056ed828df688e8af5a4f6cbfd3208352d37f493c51a8ef0a06cd"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "c804375e7faa70f21be04f6a91a14e76ae76bdbc9be29a139b96d46fb4399c28"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "84e19ec5bc237c13bb753dc0c63a253e88d2fde0750c9f4e127adc6a6f12a1a4"),
         ],
         "--check-command-log" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
@@ -2223,6 +2223,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["case-insensitive query ÅNGSTRÖM notes returns only command b"],
             "nativeCases": ["tests::original_accented_uppercase_title_query_returns_matching_command"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.goAliasOrder"] = serde_json::json!({
+            "originalSourceSHA256": "8376288be5aa8ecd4a2eb4794ee49281b575bfc91cff835acf1b8e95909e6c63",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the direct full-result go alias assertion moves to Rust. The shared Swift fixture, legacy comparison loop and remaining ranking/storage checks stay active.",
+            "nativeSource": "rust/src/lib.rs",
+            "originalScenarios": ["query go returns ordered command IDs z, a, b"],
+            "nativeCases": ["tests::original_go_alias_query_preserves_complete_result_order"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3018,6 +3026,27 @@ mod tests {
             assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
             assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
         }
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn go_alias_query_assertion_is_crosswalked_to_rust() {
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
+        assert!(!core.contains("index.search(\"go\").map(\\.id)"));
+        assert!(core.contains("let commands=["));
+        assert!(core.contains("for query in ["));
+        assert!(core.contains("legacy.search(query)"));
+        assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_go_alias_query_preserves_complete_result_order()"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.goAliasOrder"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "8376288be5aa8ecd4a2eb4794ee49281b575bfc91cff835acf1b8e95909e6c63");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_go_alias_query_preserves_complete_result_order"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
@@ -5380,7 +5409,7 @@ mod tests {
     }
     #[test]
     fn history_source_pins_match_current_rust_bytes() {
-        let expected = "c804375e7faa70f21be04f6a91a14e76ae76bdbc9be29a139b96d46fb4399c28";
+        let expected = "84e19ec5bc237c13bb753dc0c63a253e88d2fde0750c9f4e127adc6a6f12a1a4";
         for gate in ["--check-performance-pipeline", "--check-settings"] {
             let (path, bytes, pin) = settings_sources(gate)
                 .iter()

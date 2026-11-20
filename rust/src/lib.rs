@@ -1160,6 +1160,24 @@ mod tests {
     }
 
     #[test]
+    fn original_go_alias_query_preserves_complete_result_order() {
+        let commands: Vec<Command> = serde_json::from_value(json!([
+            {"id":"z","title":"Beta","kind":"url","target":"https://example.com/one","aliases":["go"]},
+            {"id":"a","title":"Go Alpha","kind":"url","target":"https://example.com/two"},
+            {"id":"b","title":"Ångström Notes","kind":"url","target":"https://example.com/three","aliases":["nul\0alias"]},
+            {"id":"c","title":"Beta","kind":"url","target":"https://example.com/four"}
+        ]))
+        .unwrap();
+        let index = SearchIndex::new(&commands);
+        let ids = index
+            .search("go")
+            .iter()
+            .map(|position| commands[*position].id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["z", "a", "b"]);
+    }
+
+    #[test]
     fn original_accented_uppercase_title_query_returns_matching_command() {
         let commands: Vec<Command> = serde_json::from_value(json!([
             {"id":"z","title":"Beta","kind":"url","target":"https://example.com/one","aliases":["go"]},
