@@ -333,6 +333,23 @@ pub fn render(source: &str, mode: Option<&str>, cursor: Option<isize>) -> Payloa
 mod link_editor_tests {
     use super::*;
     #[test]
+    fn link_source_round_trips_original_escaped_labels_and_parentheses() {
+        let original = link_source("[Guide]", "https://example.com/?a=1&b=2");
+        let parsed = links(&original);
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].label, "[Guide]");
+        assert_eq!(parsed[0].url, "https://example.com/?a=1&b=2");
+
+        for label in [r"a\]b", r"a\b", "[brackets]", "😀"] {
+            let encoded = link_source(label, "https://example.com/a)b");
+            let parsed = links(&encoded);
+            assert_eq!(parsed.len(), 1, "{label}");
+            assert_eq!(parsed[0].label, label, "{label}");
+            assert_eq!(parsed[0].url, "https://example.com/a%29b", "{label}");
+            assert_eq!(render(&encoded, Some("teams"), None).text, label, "{label}");
+        }
+    }
+    #[test]
     fn link_draft_preserves_utf16_selection_edit_and_source_authority() {
         let mut draft = LinkDraft::new(
             "😀 Guide tail",
