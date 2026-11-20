@@ -307,6 +307,46 @@ mod cancellation_checks {
     }
 
     #[test]
+    fn original_snippet_prefix_reset_backspace_and_word_boundary() {
+        let snippet: Command = serde_json::from_value(serde_json::json!({
+            "id": "s",
+            "title": "Greeting",
+            "kind": "snippet",
+            "target": r#"Hi {clipboard}, {cursor}{argument name="Tone" options="Hello,Hi" default="Hello"}"#,
+            "keyword": ";hi"
+        }))
+        .unwrap();
+        let snippet_catalog = Catalog::new(std::slice::from_ref(&snippet)).unwrap();
+        let word: Command = serde_json::from_value(serde_json::json!({
+            "id": "w",
+            "title": "Word",
+            "kind": "snippet",
+            "target": "expanded",
+            "keyword": "abc"
+        }))
+        .unwrap();
+        let word_catalog = Catalog::new(std::slice::from_ref(&word)).unwrap();
+        let mut matcher = Matcher::default();
+        let assert_command = |actual: Option<&Command>, expected: &Command| {
+            assert_eq!(serde_json::to_value(actual).unwrap(), serde_json::to_value(expected).unwrap());
+        };
+
+        assert!(matcher.type_text(";h", &snippet_catalog).is_none());
+        assert_command(matcher.type_text("i", &snippet_catalog), &snippet);
+        assert!(matcher.type_text("i", &snippet_catalog).is_none());
+
+        matcher.reset();
+        assert!(matcher.type_text(";hx", &snippet_catalog).is_none());
+        matcher.backspace();
+        assert_command(matcher.type_text("i", &snippet_catalog), &snippet);
+
+        matcher.reset();
+        assert!(matcher.type_text("xabc", &word_catalog).is_none());
+        matcher.reset();
+        assert_command(matcher.type_text("abc", &word_catalog), &word);
+    }
+
+    #[test]
     fn original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit() {
         let text = "Hello Ω 👨‍👩‍👧‍👦\n".repeat(100);
         let mut chunks = Vec::new();
