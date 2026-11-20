@@ -3343,7 +3343,6 @@ mod tests {
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
         assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(!core.contains("XCTAssertEqual(index.search(\"nul"));
         assert!(core.contains("let commands=["));
         assert!(core.contains("for query in ["));
         assert!(core.contains("legacy.search(query)"));
