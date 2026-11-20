@@ -1247,6 +1247,142 @@ mod tests {
         assert_eq!(ids, ["typo.finder", "typo.distractor"]);
     }
     #[test]
+    fn original_bounded_typo_fallback_search_cases() {
+        fn command(id: &str, title: &str, kind: &str, target: &str, aliases: &[&str]) -> Command {
+            serde_json::from_value(json!({
+                "id": id,
+                "title": title,
+                "kind": kind,
+                "target": target,
+                "aliases": aliases,
+            }))
+            .unwrap()
+        }
+        fn ids<'a>(commands: &'a [Command], results: Vec<usize>) -> Vec<&'a str> {
+            results
+                .iter()
+                .map(|index| commands[*index].id.as_str())
+                .collect()
+        }
+
+        let commands = vec![
+            command("finder", "Finder", "app", "com.apple.finder", &[]),
+            command("calendar", "Calendar", "app", "com.apple.iCal", &[]),
+            command("alias", "Zulu", "url", "https://example.com", &["fnider"]),
+        ];
+        let index = SearchIndex::new(&commands);
+        assert_eq!(
+            ids(
+                &commands,
+                index.search_with_recency("fnider", &[999.0, 0.0, 0.0]).unwrap()
+            ),
+            ["alias"]
+        );
+        assert_eq!(ids(&commands, index.search("calender")), ["calendar"]);
+
+        let ties = vec![
+            command("a", "Finder", "url", "https://example.com/a", &[]),
+            command("b", "Finder", "url", "https://example.com/b", &[]),
+        ];
+        let index = SearchIndex::new(&ties);
+        assert_eq!(ids(&ties, index.search("fnider")), ["a", "b"]);
+        assert_eq!(
+            ids(&ties, index.search_with_recency("fnider", &[0.0, 100.0]).unwrap()),
+            ["b", "a"]
+        );
+
+        let ambiguous = vec![
+            command("mail", "Mail", "url", "https://example.com", &[]),
+            command("main", "Main", "url", "https://example.com", &[]),
+        ];
+        let index = SearchIndex::new(&ambiguous);
+        assert_eq!(ids(&ambiguous, index.search("maik")), ["mail", "main"]);
+        assert_eq!(
+            ids(
+                &ambiguous,
+                index.search_with_recency("maik", &[0.0, 100.0]).unwrap()
+            ),
+            ["main", "mail"]
+        );
+
+        let weak_sequence = vec![
+            commands[0].clone(),
+            command("reminders", "Reminders", "url", "https://example.com", &[]),
+            command(
+                "distractor",
+                "Find Reminders",
+                "url",
+                "https://example.com",
+                &[],
+            ),
+        ];
+        let index = SearchIndex::new(&weak_sequence);
+        assert_eq!(ids(&weak_sequence, index.search("fnider")), ["finder", "distractor"]);
+        assert_eq!(
+            ids(
+                &weak_sequence,
+                index
+                    .search_with_recency("fnider", &[0.0, 0.0, 999.0])
+                    .unwrap()
+            ),
+            ["finder", "distractor"]
+        );
+        assert_eq!(
+            ids(&weak_sequence, index.search("remidners")),
+            ["reminders", "distractor"]
+        );
+        assert_eq!(
+            ids(
+                &weak_sequence,
+                index
+                    .search_with_recency("remidners", &[0.0, 0.0, 999.0])
+                    .unwrap()
+            ),
+            ["reminders", "distractor"]
+        );
+
+        let decorated = vec![
+            command("plain", "Notes", "url", "https://example.com", &[]),
+            command("decorated", "Notes!", "url", "https://example.com", &[]),
+        ];
+        let index = SearchIndex::new(&decorated);
+        assert_eq!(
+            ids(&decorated, index.search_with_recency("noets", &[0.0, 999.0]).unwrap()),
+            ["plain", "decorated"]
+        );
+        assert!(index.search("noets!").is_empty());
+
+        let weak = [
+            commands.clone(),
+            vec![command(
+                "weak",
+                "Other",
+                "url",
+                "https://example.com/calender",
+                &[],
+            )],
+        ]
+        .concat();
+        let index = SearchIndex::new(&weak);
+        assert_eq!(ids(&weak, index.search("calender")), ["weak"]);
+
+        let short = vec![command("short", "Cat", "url", "https://example.com", &[])];
+        assert!(SearchIndex::new(&short).search("cta").is_empty());
+
+        let unicode = vec![command("word", "Åbcd", "url", "https://example.com", &[])];
+        let index = SearchIndex::new(&unicode);
+        assert_eq!(ids(&unicode, index.search("Åbdc")), ["word"]);
+        assert!(index.search("Åb\u{0301}dc").is_empty());
+
+        for (length, expected) in [(64, true), (65, false)] {
+            let title = format!("{}bc", "a".repeat(length - 2));
+            let typo = format!("{}cb", "a".repeat(length - 2));
+            let long = vec![command("long", &title, "url", "https://example.com", &[])];
+            let results = SearchIndex::new(&long).search(&typo);
+            assert_eq!(ids(&long, results), if expected { vec!["long"] } else { vec![] });
+        }
+    }
+    #[test]
     fn single_typo_matches_independent_edit_neighborhood() {
         fn strings(n: usize) -> Vec<String> {
             let mut all = vec![String::new()];

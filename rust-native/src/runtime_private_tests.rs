@@ -17,6 +17,25 @@ fn original_exact_alias_title_multiterm_and_uppercase_resolution() {
 }
 
 #[test]
+fn original_bounded_typo_fallback_keeps_resolution_literal() {
+    let (_temp, mut state, window, _, _) = setup();
+    let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+    config["commands"] = json!([{
+        "id": "finder",
+        "title": "Finder",
+        "kind": "app",
+        "target": "com.apple.finder"
+    }]);
+    state.configuration.save(&config).unwrap();
+
+    match resolve_command(&state, &window, "fnider") {
+        Err(error) => assert_eq!(error, "Unknown command."),
+        Ok(_) => panic!("literal resolution must not use typo fallback"),
+    }
+    assert_eq!(resolve_command(&state, &window, "finder").unwrap().0.id, "finder");
+}
+
+#[test]
 fn watched_reload_preserves_one_fresh_cli_reply_cancellation_and_shutdown() {
     use std::io::{BufRead,BufReader,Write}; use std::os::unix::net::UnixStream;
     fn client(socket: std::path::PathBuf) -> std::thread::JoinHandle<Value> {
