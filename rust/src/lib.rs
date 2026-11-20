@@ -1252,17 +1252,16 @@ mod tests {
     }
     #[test]
     fn negative_display_coordinates() {
-        let f = layout(
-            Frame {
-                x: -3440.,
-                y: -200.,
-                width: 3440.,
-                height: 1400.,
-            },
-            "last-two-thirds",
-        )
-        .unwrap();
+        let frame = Frame {
+            x: -3440.,
+            y: -200.,
+            width: 3440.,
+            height: 1400.,
+        };
+        let f = layout(frame, "last-two-thirds").unwrap();
         assert!((f.x - (-3440. + 3440. / 3.)).abs() < 0.01);
+        assert!((f.width - (3440. * 2. / 3.)).abs() < 0.01);
+        assert!(layout(frame, "other").is_err());
     }
     #[test]
     fn history_bounds_expiry_and_secrets() {

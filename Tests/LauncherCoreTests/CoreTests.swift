@@ -274,12 +274,6 @@ struct CoreTests {
         XCTAssertThrowsError(try WindowPlacement.apply(target,read:{current},resize:{_ in attempts+=1;throw LauncherError("Not resizable")},position:{_ in},pause:{}))
         XCTAssertEqual(attempts,1)
     }
-    func testThirdsOnNegativeOriginDisplay() throws {
-        let screen=Frame(x:-3440,y:-200,width:3440,height:1400)
-        let r=try screen.layout("last-two-thirds")
-        XCTAssertEqual(r.x,-3440+3440.0/3,accuracy:0.01);XCTAssertEqual(r.width,3440*2.0/3,accuracy:0.01)
-        XCTAssertThrowsError(try screen.layout("other"))
-    }
     func testRoundTripAndPrivateStorage() throws {
         let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
@@ -289,7 +283,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testThirdsOnNegativeOriginDisplay();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
