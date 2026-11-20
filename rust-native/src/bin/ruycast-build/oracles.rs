@@ -2231,6 +2231,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["query go returns ordered command IDs z, a, b"],
             "nativeCases": ["tests::original_go_alias_query_preserves_complete_result_order"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.privatePermissions"] = serde_json::json!({
+            "originalSourceSHA256": "d318506a3da5ce51fad4040432486b656bb8553840306964b9df698f3a93f718",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the successful-ranking file's 0600 mode assertion moves to Rust. The remaining Swift ranking/storage flow, assertions, method and runner stay active.",
+            "nativeSource": "rust-native/src/ranking.rs",
+            "originalScenarios": ["after a successful choice, search-ranking.json has mode 0600"],
+            "nativeCases": ["ranking::tests::original_successful_choice_ranking_file_has_private_permissions"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3026,6 +3034,28 @@ mod tests {
             assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
             assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
         }
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn ranking_private_permissions_assertion_is_crosswalked_to_rust() {
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
+        assert!(!core.contains("posixPermissions"));
+        assert!(core.contains("try ranking.recordSuccess(\"chosen\",now:now)"));
+        assert!(core.contains("try ranking.reset()"));
+        let source = include_str!("../../ranking.rs");
+        assert!(source.contains("fn original_successful_choice_ranking_file_has_private_permissions()"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.privatePermissions"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "d318506a3da5ce51fad4040432486b656bb8553840306964b9df698f3a93f718");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/ranking.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["ranking::tests::original_successful_choice_ranking_file_has_private_permissions"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
