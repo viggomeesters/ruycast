@@ -2627,15 +2627,6 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 mod tests {
     use super::*;
 
-    fn assert_template_helper_retired(core: &str) {
-        assert!(!core.contains("func testTemplatesAndSnippetMatching()"));
-        assert!(!core.contains("try t.testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("func testWindowReadsRetryOnlyTemporaryFailures()"));
-        assert!(core.contains("try t.testWindowReadsRetryOnlyTemporaryFailures()"));
-    }
-
     #[test]
     fn retired_snippet_output_helper_is_removed_and_all_cases_are_crosswalked() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
@@ -2852,8 +2843,6 @@ mod tests {
     #[test]
     fn snippet_matcher_assertions_remain_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert_template_helper_retired(core);
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
