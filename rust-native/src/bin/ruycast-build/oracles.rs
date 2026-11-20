@@ -1280,7 +1280,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "cefa77c11c4cd3543dc547f0696854d4e4601550fc701440803b74f4a8287092"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "9ccd9e4f2a1c0013d56b39645884f2892064bc6643a109bc088eca9ea0009143"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "189da49b55b8b7f34641d7a27525ac3f516b7827af02c0dc287f99f20c1958fd"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "a5a2bb9b80662518ed192ff65c39e178dd928e114f8f20173925d225d261c206"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1340,7 +1340,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/snippet_process.rs", include_bytes!("../../../tests/snippet_process.rs"), "cfe1f20e499e4da81bb7c8508f1a5c951a0114da28a6b7feabd4ba58dee673c0"),
             ("rust-native/tests/snippet_reference.json", include_bytes!("../../../tests/snippet_reference.json"), "b19d5abc788642df64402065797d255db3fa399b0b763eb2cf66544746f1f746"),
             ("rust-native/tests/startup_process.rs", include_bytes!("../../../tests/startup_process.rs"), "cb1441b9c63056ed828df688e8af5a4f6cbfd3208352d37f493c51a8ef0a06cd"),
-            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "9ccd9e4f2a1c0013d56b39645884f2892064bc6643a109bc088eca9ea0009143"),
+            ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "189da49b55b8b7f34641d7a27525ac3f516b7827af02c0dc287f99f20c1958fd"),
         ],
         "--check-command-log" => &[
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "8d64821e8f8e1507b8dde3274d6c8a10a59873489679fc19693a17a0ffb44f88"),
@@ -2167,6 +2167,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["query Ω returns only the scalar command", "query İ lowercases to two Unicode scalars and returns only the expanded command"],
             "nativeCases": ["tests::original_unicode_scalar_and_expanded_lowercase_search"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.largeTies"] = serde_json::json!({
+            "originalSourceSHA256": "063c54f1cf0c835dd3547f07155d2dc9b446e93ed43c34459647913f3d38e435",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the three equal-title tie assertions move to Rust. The remaining ranking and storage assertions, Swift method and runner call stay active.",
+            "nativeSource": "rust/src/lib.rs",
+            "originalScenarios": ["128 equal-title results preserve catalog order for title", "exact alias same remains ahead of recency-ranked tie.64", "128 equal-title fuzzy results preserve catalog order for s t"],
+            "nativeCases": ["tests::original_large_equal_title_ties_preserve_order_and_alias_precedence"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -2922,6 +2930,37 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 2);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_unicode_scalar_and_expanded_lowercase_search"]));
         assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_unicode_scalar_and_expanded_lowercase_search()"));
+
+        for pipeline in ["--check-performance-pipeline", "--check-settings"] {
+            let input = super::settings_sources(pipeline)
+                .iter()
+                .find(|(path, _, _)| *path == "rust/src/lib.rs")
+                .unwrap();
+            assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
+            assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
+        }
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn large_equal_title_ties_are_crosswalked_to_rust() {
+        use sha2::Digest;
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
+        assert!(!core.contains("let ties=(0..<128)"));
+        assert!(!core.contains("tied.search(\"title\")"));
+        assert!(!core.contains("tied.search(\"same\""));
+        assert!(!core.contains("tied.search(\"s t\")"));
+        assert!(core.contains("let quality=try CommandSearchIndex(commands:["));
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.largeTies"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "063c54f1cf0c835dd3547f07155d2dc9b446e93ed43c34459647913f3d38e435");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 3);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_large_equal_title_ties_preserve_order_and_alias_precedence"]));
+        assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_large_equal_title_ties_preserve_order_and_alias_precedence()"));
 
         for pipeline in ["--check-performance-pipeline", "--check-settings"] {
             let input = super::settings_sources(pipeline)
@@ -5141,7 +5180,7 @@ mod tests {
     }
     #[test]
     fn history_source_pins_match_current_rust_bytes() {
-        let expected = "9ccd9e4f2a1c0013d56b39645884f2892064bc6643a109bc088eca9ea0009143";
+        let expected = "189da49b55b8b7f34641d7a27525ac3f516b7827af02c0dc287f99f20c1958fd";
         for gate in ["--check-performance-pipeline", "--check-settings"] {
             let (path, bytes, pin) = settings_sources(gate)
                 .iter()
