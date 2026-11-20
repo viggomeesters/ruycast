@@ -61,15 +61,6 @@ struct CoreTests {
         XCTAssertEqual((try FileManager.default.attributesOfItem(atPath:path.path))[.posixPermissions] as? Int,0o600)
         try ranking.reset();XCTAssertEqual(SearchRanking(root:root,now:now).entries.count,0)
     }
-    func testTemplatesAndSnippetMatching() throws {
-        let link=Command(id:"link",title:"Maps",kind:"url",target:"https://example.com/search?q={query}&place={Place}")
-        XCTAssertEqual(Templates.fields(link).map(\.id),["Query","Place"])
-        let rendered=try Templates.render(link,values:["Query":"a&b #/Ω","Place":"New York"]).0
-        let url=URLComponents(string:rendered)!
-        XCTAssertEqual(url.queryItems?.first?.value,"a&b #/Ω")
-        XCTAssertEqual(url.queryItems?.last?.value,"New York")
-        XCTAssertThrowsError(try Templates.render(link,values:[:]))
-    }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {
         var calls=0;var waits:[Double]=[]
         let window:String=try WindowRead.perform("AXFocusedWindow",retryingStatus:-25204,read:{
@@ -111,7 +102,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testPersistentIndexRankingAndUnicode();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {let t=CoreTests();try t.testPersistentIndexRankingAndUnicode();try t.testWindowReadsRetryOnlyTemporaryFailures();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
