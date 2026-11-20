@@ -5,11 +5,6 @@ import Foundation
 import LauncherCore
 import LauncherModels
 struct CoreTests {
-    func testExactAliasBeatsTitleAndSupportsMultipleTerms() throws {
-        var c=Configuration.initial;c.commands.append(Command(id:"link",title:"Finder documentation",kind:"url",target:"https://example.com",aliases:["docs"]))
-        XCTAssertEqual(c.search("finder").first?.id,"app.finder");XCTAssertEqual(c.search("finder documentation").first?.id,"link")
-        XCTAssertEqual(c.resolve("DOCS")?.id,"link")
-    }
     func testPersistentIndexRankingAndUnicode() throws {
         let commands=[
             Command(id:"z",title:"Beta",kind:"url",target:"https://example.com/one",aliases:["go"]),
@@ -178,7 +173,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();let t=CoreTests();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();let t=CoreTests();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)

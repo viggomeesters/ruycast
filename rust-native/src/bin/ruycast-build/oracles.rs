@@ -2078,6 +2078,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["an already prepared catalog keeps its original ranking", "recording a successful choice increments revision and a new catalog ranks that choice first", "reset increments revision and restores catalog order", "stale recency for a different command does not affect a replacement catalog"],
             "nativeCases": ["ranking::tests::original_prepared_ranking_snapshots_track_success_reset_and_replacement"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testExactAliasBeatsTitleAndSupportsMultipleTerms"] = serde_json::json!({
+            "originalSourceSHA256": "bb86e8804323ae68cfd126f75d9c5d4af70e354fadc1356a53c89eea3452ee34",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The exact Finder title, multi-term local query and uppercase saved alias assertions moved to the existing Rust runtime search and resolver; unrelated CoreTests remain active.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["finder resolves to the existing app.finder command", "finder documentation resolves to the added link command", "uppercase DOCS resolves the saved link alias"],
+            "nativeCases": ["runtime::inline_tests::original_exact_alias_title_multiterm_and_uppercase_resolution"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
             "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
             "originalMethods": [
@@ -2476,6 +2484,21 @@ mod tests {
         let case = "original_prepared_ranking_snapshots_track_success_reset_and_replacement";
         assert_eq!(mapping["nativeCases"], serde_json::json!([format!("ranking::tests::{case}")]));
         assert!(include_str!("../../ranking.rs").contains(&format!("fn {case}()")));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+    #[test]
+    fn exact_alias_core_test_is_crosswalked_to_rust_runtime_test() {
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(!core.contains("testExactAliasBeatsTitleAndSupportsMultipleTerms"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testExactAliasBeatsTitleAndSupportsMultipleTerms"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        let case = "original_exact_alias_title_multiterm_and_uppercase_resolution";
+        assert_eq!(mapping["nativeCases"], serde_json::json!([format!("runtime::inline_tests::{case}")]));
+        assert!(include_str!("../../runtime_private_tests.rs").contains(&format!("fn {case}()")));
         assert_eq!(inventory["productionAccepted"], false);
     }
     #[test]
