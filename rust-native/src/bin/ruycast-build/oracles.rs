@@ -2258,10 +2258,18 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.loadedEntryLimit"] = serde_json::json!({
             "originalSourceSHA256": "c069c4eb7a5bb4941bb1d7ffb4840b330e3e00ab8b514f0d4fcd7fbf2809cfab",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the loaded-entry count limit assertion moves to Rust. The source seed, expired/future checks, record/reset calls, method and runner stay active.",
+            "scope": "Only the loaded-entry count limit assertion moves to Rust. The source seed and expired check, record/reset calls, method and runner stay active; future filtering is crosswalked separately.",
             "nativeSource": "rust-native/src/ranking.rs",
             "originalScenarios": ["loading the original schema-1 ranking seed caps retained entries at 512"],
             "nativeCases": ["ranking::tests::original_loaded_ranking_is_capped_at_512_entries"]
+        });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.futureTimestamp"] = serde_json::json!({
+            "originalSourceSHA256": "4490761aa2666c7410a1aedfc0d821b509d597edf007a8069a242ba6557b1f8d",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the direct future-timestamp rejection assertion moves to Rust. The original seed and expired check, record/reset calls, method and runner remain active.",
+            "nativeSource": "rust-native/src/ranking.rs",
+            "originalScenarios": ["loading the original schema-1 ranking seed rejects future at now plus 61 seconds"],
+            "nativeCases": ["ranking::tests::original_loaded_ranking_rejects_future_timestamp"]
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
@@ -3062,13 +3070,34 @@ mod tests {
     }
 
     #[test]
+    fn future_ranking_timestamp_assertion_is_crosswalked_to_rust() {
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
+        assert!(!core.contains("ranking.entries[\"future\"],nil"));
+        assert!(core.contains("ranking.entries[\"expired\"],nil"));
+        assert!(core.contains("try ranking.recordSuccess(\"chosen\",now:now)"));
+        assert!(core.contains("try ranking.reset()"));
+        assert!(include_str!("../../ranking.rs").contains("fn original_loaded_ranking_rejects_future_timestamp()"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.futureTimestamp"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "4490761aa2666c7410a1aedfc0d821b509d597edf007a8069a242ba6557b1f8d");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/ranking.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["ranking::tests::original_loaded_ranking_rejects_future_timestamp"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
     fn loaded_ranking_entry_limit_is_crosswalked_to_rust() {
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
         assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
         assert!(!core.contains("ranking.entries.count,512"));
         assert!(core.contains("ranking.entries[\"expired\"],nil"));
-        assert!(core.contains("ranking.entries[\"future\"],nil"));
         assert!(core.contains("try ranking.recordSuccess(\"chosen\",now:now)"));
         assert!(core.contains("try ranking.reset()"));
         assert!(include_str!("../../ranking.rs").contains("fn original_loaded_ranking_is_capped_at_512_entries()"));
@@ -3092,7 +3121,6 @@ mod tests {
         assert!(!core.contains("SearchRanking(root:root,now:now).entries.count,0"));
         assert!(core.contains("try ranking.reset()"));
         assert!(core.contains("ranking.entries[\"expired\"],nil"));
-        assert!(core.contains("ranking.entries[\"future\"],nil"));
         let source = include_str!("../../ranking.rs");
         assert!(source.contains("fn original_reset_ranking_is_empty_after_reopen()"));
 
