@@ -111,6 +111,30 @@ fn utility_history_stale_show_logs_original_error_without_mutating_native_intent
     assert!(!state.activity.counts.contains_key(&command.id));
 }
 #[test]
+fn discovered_application_refreshes_an_existing_palette_query() {
+    let (_temp, mut state, mut window, ui, local) = private_fixture("local.fixture", false);
+    window.session.set_query("New App");
+    let before_revision = window.session.results_revision();
+    assert!(window.session.rows().next().is_none());
+
+    let mut discovered = local;
+    discovered.id = "discovered.test".into();
+    discovered.title = "New App".into();
+    discovered.kind = "application".into();
+    discovered.target = "/owned/New App.app".into();
+    state.applications = vec![discovered];
+    state.applications_revision += 1;
+    window.sync(&state);
+    window.publish(&state, &ui);
+
+    assert_eq!(
+        window.session.rows().map(|command| command.id.as_str()).collect::<Vec<_>>(),
+        ["discovered.test"]
+    );
+    assert!(window.session.results_revision() > before_revision);
+}
+
+#[test]
 fn prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection() {
     let (_temp, mut state, mut window, _ui, mut a) = private_fixture("cache.a", false);
     a.title = "Owned cache".into();
