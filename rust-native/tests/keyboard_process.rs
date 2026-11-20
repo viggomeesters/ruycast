@@ -77,7 +77,6 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
     cmd.env("HOME", home)
         .env("RUYCAST_KEYBOARD_FIXTURE_HOME", home);
     let mut artifacts = std::collections::BTreeMap::new();
-    let mut originals = std::collections::BTreeMap::new();
     for (label, var, name) in [
         (
             "complete",
@@ -100,7 +99,6 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
             Sha256::digest(fs::read(&artifact).unwrap()),
             Sha256::digest(fs::read(&copy).unwrap())
         );
-        originals.insert(label, artifact);
         artifacts.insert(label, copy);
     }
     if let Some(which) = shim {
@@ -140,7 +138,7 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
         })
         .collect::<std::collections::BTreeMap<_, _>>();
         let mut copies = std::collections::BTreeMap::new();
-        for (label, source) in &originals {
+        for (label, source) in &artifacts {
             let (path, digest) =
                 runtime_host::snapshot_artifact(source, &format!("keyboard-{label}"));
             copies.insert(path, digest);
