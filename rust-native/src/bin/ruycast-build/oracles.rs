@@ -1030,7 +1030,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
 
             ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "9ebb1ecff6de79f76d0f69542e250a6d041b88afe0ca1ec5beb079a08b4f042c"),
             ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "4f35db2014bc5ec4832a10ad42b7ba9318930d1d09e8937839d3c0a37c1433dd"),
-            ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "0c2c9f768bd6a911414ffea94335610eedebf8feea55eb6210fce6f5d72a7bdd"),
+            ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "179ea6f781dfca27cad12b3a8d04486f4c1d2b278f6cbca82bb2731d3318805b"),
             ("rust-native/src/snippet_output.rs", include_bytes!("../../snippet_output.rs"), "40f779d97941aec293f6a53c89970051189e82a0fa2a98a86027c196724138be"),
             ("rust-native/src/native_snippet_choice.rs", include_bytes!("../../native_snippet_choice.rs"), "caa9be3b6d84594d8fabc13f797a99a5042515ba94760cae86506773139a09a9"),
             ("rust-native/src/snippet_choice.rs", include_bytes!("../../snippet_choice.rs"), "d340d341185ef6000347355f8b88f68da6b34458730ecf646c5eb5541e2b95aa"),
@@ -2127,6 +2127,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["incomplete ;h prefix returns no match", "typing i completes ;hi and returns the full Greeting command", "a second i after the successful match returns no match", "backspace changes ;hx to ;h before i completes the match", "xabc does not match at an internal word boundary", "abc returns the full Word command"],
             "nativeCases": ["keyword_matcher::cancellation_checks::original_snippet_prefix_reset_backspace_and_word_boundary"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.snippetRender"] = serde_json::json!({
+            "originalSourceSHA256": "bdb976419921267514aba471ddb15032aeda190a3893315a8233113d8407352b",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The three Greeting output, UTF-16 cursor-prefix and missing-clipboard assertions move to the existing Rust template tests. URL assertions, the surrounding Swift method and its runner call remain active.",
+            "nativeSource": "rust-native/src/templates.rs",
+            "originalScenarios": ["clipboard Ω with the default Tone option renders Hi Ω, Hello", "the cursor prefix is exactly Hi Ω, ", "rendering without clipboard text returns Clipboard text is unavailable."],
+            "nativeCases": ["templates::tests::original_snippet_clipboard_default_cursor_and_missing_clipboard"]
+        });
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.duplicateKeyword"] = serde_json::json!({
             "originalSourceSHA256": "a4ed4e769adecebd65fcc7a2cc2e95c85574ac34b7468cb84988b8af03f22686",
             "status": "source-qualified-rust-case-crosswalk",
@@ -2676,7 +2684,7 @@ mod tests {
         assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
         assert!(!core.contains("let interactive=Command(id:\"i\",title:\"Input\""));
         assert!(!core.contains("matcher.type(\";name\",commands:[interactive])"));
-        assert!(core.contains("XCTAssertEqual(result.0,\"Hi Ω, Hello\")"));
+        assert!(core.contains("XCTAssertEqual(url.queryItems?.first?.value,\"a&b #/Ω\")"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
@@ -2707,7 +2715,7 @@ mod tests {
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(core.contains("func testTemplatesAndSnippetMatching()"));
         assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("XCTAssertEqual(result.0,\"Hi Ω, Hello\")"));
+        assert!(core.contains("XCTAssertEqual(url.queryItems?.first?.value,\"a&b #/Ω\")"));
         for assertion in [
             "matcher.type(\";h\",commands:[snippet])",
             "matcher.type(\"i\",commands:[snippet])",
@@ -2731,6 +2739,41 @@ mod tests {
         let input = super::settings_sources("--check-interactions")
             .iter()
             .find(|(path, _, _)| *path == "rust-native/src/keyword_matcher.rs")
+            .unwrap();
+        assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
+        assert!(super::settings_source_bindings("--check-interactions").contains(&(input.0, input.2)));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn snippet_render_assertions_are_crosswalked_to_templates_rust() {
+        use sha2::Digest;
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
+        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
+        assert!(core.contains("XCTAssertEqual(url.queryItems?.first?.value,\"a&b #/Ω\")"));
+        for assertion in [
+            "let result=try Templates.render(snippet,values:[:],clipboard:\"Ω\")",
+            "XCTAssertEqual(result.0,\"Hi Ω, Hello\")",
+            "substring(to:result.1!)",
+            "XCTAssertThrowsError(try Templates.render(snippet,values:[:]))",
+        ] {
+            assert!(!core.contains(assertion), "moved snippet assertion remains: {assertion}");
+        }
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.snippetRender"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "bdb976419921267514aba471ddb15032aeda190a3893315a8233113d8407352b");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 3);
+        let case = "templates::tests::original_snippet_clipboard_default_cursor_and_missing_clipboard";
+        assert_eq!(mapping["nativeCases"], serde_json::json!([case]));
+        assert!(include_str!("../../templates.rs").contains("fn original_snippet_clipboard_default_cursor_and_missing_clipboard()"));
+
+        let input = super::settings_sources("--check-interactions")
+            .iter()
+            .find(|(path, _, _)| *path == "rust-native/src/templates.rs")
             .unwrap();
         assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
         assert!(super::settings_source_bindings("--check-interactions").contains(&(input.0, input.2)));

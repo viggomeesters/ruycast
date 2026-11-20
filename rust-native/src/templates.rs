@@ -451,6 +451,30 @@ mod tests {
         );
     }
     #[test]
+    fn original_snippet_clipboard_default_cursor_and_missing_clipboard() {
+        let snippet: Command = serde_json::from_value(serde_json::json!({
+            "id": "s",
+            "title": "Greeting",
+            "kind": "snippet",
+            "target": r#"Hi {clipboard}, {cursor}{argument name="Tone" options="Hello,Hi" default="Hello"}"#,
+            "keyword": ";hi"
+        }))
+        .unwrap();
+        let plan = Plan::parse(&snippet, Limits::application()).unwrap();
+        let mut context = context();
+        context.clipboard = Some("Ω");
+        let (rendered, cursor) = plan.render(&[], &context).unwrap();
+        assert_eq!(rendered, "Hi Ω, Hello");
+        assert_eq!(cursor, Some(6));
+        assert_eq!(
+            rendered.encode_utf16().take(cursor.unwrap()).collect::<Vec<_>>(),
+            "Hi Ω, ".encode_utf16().collect::<Vec<_>>()
+        );
+
+        context.clipboard = None;
+        assert_eq!(plan.render(&[], &context).unwrap_err(), "Clipboard text is unavailable.");
+    }
+    #[test]
     fn prompt_bytes_are_part_of_the_explicit_parse_policy() {
         let mut source = command("plain");
         source.input_prompt = Some("x".repeat(20));

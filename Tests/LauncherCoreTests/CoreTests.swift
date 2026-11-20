@@ -69,11 +69,6 @@ struct CoreTests {
         XCTAssertEqual(url.queryItems?.first?.value,"a&b #/Ω")
         XCTAssertEqual(url.queryItems?.last?.value,"New York")
         XCTAssertThrowsError(try Templates.render(link,values:[:]))
-        let snippet=Command(id:"s",title:"Greeting",kind:"snippet",target:#"Hi {clipboard}, {cursor}{argument name="Tone" options="Hello,Hi" default="Hello"}"#,keyword:";hi")
-        let result=try Templates.render(snippet,values:[:],clipboard:"Ω")
-        XCTAssertEqual(result.0,"Hi Ω, Hello")
-        XCTAssertEqual((result.0 as NSString).substring(to:result.1!),"Hi Ω, ")
-        XCTAssertThrowsError(try Templates.render(snippet,values:[:]))
     }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {
         var calls=0;var waits:[Double]=[]
