@@ -3527,14 +3527,6 @@ mod tests {
     #[test]
     fn nonempty_catalog_blank_queries_are_crosswalked_to_rust() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("let commands=["));
-        assert!(core.contains("legacy.search(query)"));
-        assert!(core.contains("for query in ["));
-        assert!(core.contains("let root=FileManager.default.temporaryDirectory.appendingPathComponent(\"ranking-"));
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.blankQueries"];
@@ -3553,6 +3545,24 @@ mod tests {
             assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
         }
         assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn nonempty_catalog_blank_query_crosswalk_does_not_embed_live_swift_source() {
+        let source = include_str!("oracles.rs");
+        let assertion = source
+            .split_once("\n    fn nonempty_catalog_blank_queries_are_crosswalked_to_rust() {\n")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        let swift_include = [
+            "include_str!(\"../../../../Tests/LauncherCoreTests/",
+            "CoreTests.swift\")",
+        ]
+        .concat();
+        assert!(!assertion.contains(&swift_include));
     }
 
     #[test]
