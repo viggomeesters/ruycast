@@ -28,6 +28,22 @@ fn config(launcher: &str, clipboard: &str) -> Value {
 fn stage(c: Value) -> Value {
     json!({"action":"stage","config":c})
 }
+fn literal_shortcut_corpus() -> Value {
+    let bytes =
+        fs::read(runtime_host::root().join("rust-native/tests/keyboard_keycodes_reference.json"))
+            .unwrap();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bytes)),
+        "4cac352ef3da30cb8d25236cec5eb46789e623ee3c763fdbfcbb96f7c60cd4e8"
+    );
+    let gold: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(gold["source"], "Sources/LauncherCore/RustBridge.swift");
+    assert_eq!(
+        gold["sourceSHA256"],
+        "ddcc0cdf77db35ca157cda6d36e78925dfd47a5f17fcaeba2529aeab73e5bd6e"
+    );
+    gold
+}
 fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Value, Vec<Value>) {
     let owned = runtime_host::OwnedDir::new();
     let home = &owned.0;
@@ -375,16 +391,13 @@ fn failed_remove_and_null_handler_keep_callback_disabled() {
     assert!(phases(&t, "register").is_empty());
 }
 #[test]
+fn literal_shortcut_corpus_pins_historical_swift_identity() {
+    let gold = literal_shortcut_corpus();
+    assert_eq!(gold["keyCodes"].as_object().unwrap().len(), 71);
+}
+#[test]
 fn every_literal_swift_shortcut_keycode_including_escape() {
-    let bytes =
-        fs::read(runtime_host::root().join("rust-native/tests/keyboard_keycodes_reference.json"))
-            .unwrap();
-    let gold: Value = serde_json::from_slice(&bytes).unwrap();
-    let source = fs::read(runtime_host::root().join(gold["source"].as_str().unwrap())).unwrap();
-    assert_eq!(
-        format!("{:x}", Sha256::digest(source)),
-        gold["sourceSHA256"]
-    );
+    let gold = literal_shortcut_corpus();
     let codes = gold["keyCodes"].as_object().unwrap();
     assert_eq!(codes.len(), 71);
     for (key, code) in codes {
