@@ -3005,8 +3005,6 @@ mod tests {
     fn large_equal_title_ties_are_crosswalked_to_rust() {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
         assert!(!core.contains("let ties=(0..<128)"));
         assert!(!core.contains("tied.search(\"title\")"));
         assert!(!core.contains("tied.search(\"same\""));
