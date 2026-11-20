@@ -349,6 +349,21 @@ mod link_editor_tests {
     }
 
     #[test]
+    fn original_literal_and_unsafe_snippet_sources_stay_safe() {
+        let source = "Hi 👋\n\nSee [Guide & tips](https://example.com/a_(b)?x=1&y=2)\nGoodbye\n";
+        let literal = render(source, None, None);
+        assert_eq!(literal.text, source);
+        assert!(literal.html.is_none());
+
+        let unsafe_source = "<img src=x> [X](javascript:alert(1)) [Y](file:///etc/passwd)";
+        let html = render(unsafe_source, Some("html"), None)
+            .html
+            .expect("HTML mode should produce rich output");
+        assert!(!html.contains("<img"));
+        assert!(!html.contains("<a "));
+    }
+
+    #[test]
     fn rich_choice_replacement_preserves_original_text_and_hyperlink() {
         let command: rustcast_core::Command = serde_json::from_value(serde_json::json!({
             "id": "choice.rich",
