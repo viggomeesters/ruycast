@@ -43,39 +43,22 @@ pub fn bind_artifact(path: &Path, label: &str) -> (String, String) {
     let destination = if path.starts_with(&root) {
         path.to_owned()
     } else {
-        let parent = root.join("rust-native/target/runtime-proof-artifacts");
-        fs::create_dir_all(&parent).unwrap();
-        let target = parent.join(format!("{label}-{digest}"));
-        if !target.exists() {
-            static NEXT: AtomicU64 = AtomicU64::new(0);
-            let temporary = parent.join(format!(
-                "copy-{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
-            let mut file = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temporary)
-                .unwrap();
-            struct Pending(PathBuf);
-            impl Drop for Pending {
-                fn drop(&mut self) {
-                    let _ = fs::remove_file(&self.0);
-                }
-            }
-            let pending = Pending(temporary.clone());
-            file.write_all(&bytes).unwrap();
-            drop(file);
-            let published = fs::hard_link(&temporary, &target);
-            drop(pending);
-            if let Err(error) = published {
-                assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
-            }
-        }
-        target
+        publish_artifact_snapshot(&root, label, &bytes, &digest)
     };
     assert_eq!(hash(&fs::read(&destination).unwrap()), digest);
+    artifact_binding(&root, &destination, &digest)
+}
+
+pub fn snapshot_artifact(path: &Path, label: &str) -> (String, String) {
+    let root = root();
+    let bytes = fs::read(path).unwrap();
+    let digest = hash(&bytes);
+    let destination = publish_artifact_snapshot(&root, label, &bytes, &digest);
+    assert_eq!(hash(&fs::read(&destination).unwrap()), digest);
+    artifact_binding(&root, &destination, &digest)
+}
+
+fn artifact_binding(root: &Path, destination: &Path, digest: &str) -> (String, String) {
     (
         destination
             .strip_prefix(&root)
@@ -83,8 +66,51 @@ pub fn bind_artifact(path: &Path, label: &str) -> (String, String) {
             .to_str()
             .unwrap()
             .to_owned(),
-        digest,
+        digest.to_owned(),
     )
+}
+
+fn publish_artifact_snapshot(root: &Path, label: &str, bytes: &[u8], digest: &str) -> PathBuf {
+    assert!(
+        !label.is_empty()
+            && label
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    );
+    let parent = root.join("rust-native/target/runtime-proof-artifacts");
+    fs::create_dir_all(&parent).unwrap();
+    let target = parent.join(format!("{label}-{digest}"));
+    if !target.exists() {
+        static NEXT: AtomicU64 = AtomicU64::new(0);
+        let temporary = parent.join(format!(
+            "copy-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .unwrap();
+        struct Pending(PathBuf);
+        impl Drop for Pending {
+            fn drop(&mut self) {
+                let _ = fs::remove_file(&self.0);
+            }
+        }
+        let pending = Pending(temporary.clone());
+        file.write_all(bytes).unwrap();
+        drop(file);
+        let published = fs::hard_link(&temporary, &target);
+        drop(pending);
+        if let Err(error) = published {
+            assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        }
+    }
+    let metadata = fs::symlink_metadata(&target).unwrap();
+    assert!(metadata.is_file() && !metadata.file_type().is_symlink());
+    assert_eq!(hash(&fs::read(&target).unwrap()), digest);
+    target
 }
 // Each fixture consumer selects only its own guarded entry point.
 #[derive(Clone, Copy)]

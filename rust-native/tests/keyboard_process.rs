@@ -77,7 +77,6 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
     cmd.env("HOME", home)
         .env("RUYCAST_KEYBOARD_FIXTURE_HOME", home);
     let mut artifacts = std::collections::BTreeMap::new();
-    let mut originals = std::collections::BTreeMap::new();
     for (label, var, name) in [
         (
             "complete",
@@ -100,7 +99,6 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
             Sha256::digest(fs::read(&artifact).unwrap()),
             Sha256::digest(fs::read(&copy).unwrap())
         );
-        originals.insert(label, artifact);
         artifacts.insert(label, copy);
     }
     if let Some(which) = shim {
@@ -140,8 +138,9 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
         })
         .collect::<std::collections::BTreeMap<_, _>>();
         let mut copies = std::collections::BTreeMap::new();
-        for (label, source) in &originals {
-            let (path, digest) = runtime_host::bind_artifact(source, &format!("keyboard-{label}"));
+        for (label, source) in &artifacts {
+            let (path, digest) =
+                runtime_host::snapshot_artifact(source, &format!("keyboard-{label}"));
             copies.insert(path, digest);
         }
         fs::write(
@@ -182,6 +181,41 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
     assert!(trace.iter().all(|e| e["mainThread"] == true));
     (v, trace)
 }
+#[test]
+fn in_repository_keyboard_fixture_is_snapshotted_immutably() {
+    struct Cleanup(Vec<PathBuf>);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            for path in &self.0 {
+                let _ = fs::remove_file(path);
+            }
+        }
+    }
+
+    let root = runtime_host::root();
+    let parent = root.join("rust-native/target/runtime-proof-artifacts");
+    fs::create_dir_all(&parent).unwrap();
+    let id = std::process::id();
+    let source = parent.join(format!("snapshot-test-source-{id}"));
+    let original = b"owned keyboard fixture snapshot";
+    fs::write(&source, original).unwrap();
+    let (relative, digest) =
+        runtime_host::snapshot_artifact(&source, &format!("keyboard-snapshot-test-{id}"));
+    let artifact = root.join(relative);
+    let _cleanup = Cleanup(vec![source.clone(), artifact.clone()]);
+    assert_eq!(artifact.parent(), Some(parent.as_path()));
+    assert!(artifact
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with("keyboard-snapshot-test-"));
+    assert_eq!(digest, format!("{:x}", Sha256::digest(original)));
+    assert_eq!(fs::read(&artifact).unwrap(), original);
+
+    fs::write(&source, b"changed source bytes").unwrap();
+    assert_eq!(fs::read(&artifact).unwrap(), original);
+}
+
 fn phases<'a>(trace: &'a [Value], name: &str) -> Vec<&'a Value> {
     trace.iter().filter(|e| e["phase"] == name).collect()
 }
