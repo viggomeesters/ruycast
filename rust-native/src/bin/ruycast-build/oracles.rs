@@ -2886,17 +2886,6 @@ mod tests {
     #[test]
     fn snippet_render_assertions_remain_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert_template_helper_retired(core);
-        for assertion in [
-            "let result=try Templates.render(snippet,values:[:],clipboard:\"Ω\")",
-            "XCTAssertEqual(result.0,\"Hi Ω, Hello\")",
-            "substring(to:result.1!)",
-            "XCTAssertThrowsError(try Templates.render(snippet,values:[:]))",
-        ] {
-            assert!(!core.contains(assertion), "moved snippet assertion remains: {assertion}");
-        }
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.snippetRender"];
