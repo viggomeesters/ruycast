@@ -49,6 +49,10 @@ pub fn bind_artifact(path: &Path, label: &str) -> (String, String) {
     artifact_binding(&root, &destination, &digest)
 }
 
+#[allow(
+    dead_code,
+    reason = "Only the keyboard process consumer needs forced snapshots."
+)]
 pub fn snapshot_artifact(path: &Path, label: &str) -> (String, String) {
     let root = root();
     let bytes = fs::read(path).unwrap();
@@ -61,7 +65,7 @@ pub fn snapshot_artifact(path: &Path, label: &str) -> (String, String) {
 fn artifact_binding(root: &Path, destination: &Path, digest: &str) -> (String, String) {
     (
         destination
-            .strip_prefix(&root)
+            .strip_prefix(root)
             .unwrap()
             .to_str()
             .unwrap()
