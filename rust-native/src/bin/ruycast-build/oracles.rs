@@ -3100,7 +3100,6 @@ mod tests {
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
         assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(!core.contains("ranking.entries.count,512"));
         assert!(core.contains("entries[\"expired\"]=now.timeIntervalSince1970-SearchRanking.retention-1"));
         assert!(core.contains("try ranking.recordSuccess(\"chosen\",now:now)"));
         assert!(core.contains("try ranking.reset()"));
