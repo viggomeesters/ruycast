@@ -51,7 +51,7 @@ fn keyboard_fixture_sources() -> BTreeMap<PathBuf, String> {
         ),
         (
             "rust-native/tests/fixtures/hid_sdk.rs",
-            "0938d1bc1661386ff5d2ce353c25fcad81b147872cdda5ee877ce4451580ad47",
+            "f7b3af5d34bc4ccc3fd5ea091acf4d714fec789e19af5757fcc5831fc0105e77",
         ),
         (
             "rust-native/tests/fixtures/keyboard_sdk.rs",
