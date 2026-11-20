@@ -991,6 +991,32 @@ mod tests {
     }
 
     #[test]
+    fn original_duplicate_snippet_keyword_is_rejected() {
+        let first = json!({
+            "id": "w",
+            "title": "Word",
+            "kind": "snippet",
+            "target": "expanded",
+            "keyword": "abc"
+        });
+        let mut config = default_config();
+        config["commands"].as_array_mut().unwrap().push(first);
+        assert!(validate(&config).is_ok());
+
+        config["commands"].as_array_mut().unwrap().push(json!({
+            "id": "w2",
+            "title": "Word 2",
+            "kind": "snippet",
+            "target": "other",
+            "keyword": "abc"
+        }));
+        let error = validate(&config)
+            .err()
+            .expect("duplicate snippet keywords must be rejected");
+        assert_eq!(error, "Duplicate or non-snippet keyword.");
+    }
+
+    #[test]
     fn typed_search_respects_capacity_and_rejects_invalid_input() {
         let commands = validate(&default_config()).unwrap().commands;
         let index = SearchIndex::new(&commands);
