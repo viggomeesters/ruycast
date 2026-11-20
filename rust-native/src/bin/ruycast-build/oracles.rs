@@ -2328,6 +2328,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "retiredAssertions": ["returned hardwareAcceptance status is a static requirement, not a hardware test", "test-recorder strings are not posted OS events; event tap, HID manager, Carbon registration, permissions and desktop input are not exercised"],
             "nativeCases": ["keyboard_state::tests::original_keyboard_acceptance_scenarios_remain_in_rust"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testWindowReadsRetryOnlyTemporaryFailures"] = serde_json::json!({
+            "originalSourceSHA256": "26a71c8720522dabdccadb3972b65f7546d9b9979f20af20f22b58c15011ce5c",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the bounded AX attribute retry test and its runner call are retired; CoreTests and the remaining LauncherCoreChecks stay active. The existing production AX boundary keeps its deadline, cancellation, timeout and owned-CF guards.",
+            "nativeSource": "rust-native/src/system_search/native.rs",
+            "originalScenarios": ["two temporary failures then success: three reads and 20/40 ms waits", "temporary failures during WindowPlacement readback: four reads and 20/40/80 ms waits", "persistent -25204 fails after four reads", "-25205, -25212, -25202 and status zero without a value fail immediately", "immediate success reads once without waiting"],
+            "nativeCases": ["system_search::native::tests::placement_attribute_preserves_original_retry_scenarios", "system_search::native::tests::placement_attribute_retries_within_verified_window_readback", "system_search::native::tests::placement_attribute_preserves_deadline_and_cancellation_guards"]
+        });
         inventory["rustRootTestCrosswalk"]["Tests/test_private_storage.py"] = serde_json::json!({
             "scope": "all twelve private-storage scenarios are covered by the shared Rust writer, actual Rust CLI, owned Rust headless runtime and Rust fcntl fault fixture; the Python and forwarding consumers are retired",
             "originalMethods": [
@@ -2626,6 +2634,17 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ax_retry_crosswalk_preserves_historical_source_and_rust_cases() {
+        let mapping = &super::inventory("check").unwrap()["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testWindowReadsRetryOnlyTemporaryFailures"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "26a71c8720522dabdccadb3972b65f7546d9b9979f20af20f22b58c15011ce5c");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 5);
+        assert_eq!(mapping["nativeCases"].as_array().unwrap().len(), 3);
+        assert_eq!(mapping["productionAccepted"], serde_json::Value::Null);
+    }
 
     #[test]
     fn retired_snippet_output_helper_is_removed_and_all_cases_are_crosswalked() {

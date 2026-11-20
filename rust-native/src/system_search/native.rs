@@ -10,6 +10,7 @@ use std::{
     collections::{HashMap, VecDeque},
     ffi::c_void,
     sync::Mutex,
+    time::Duration,
 };
 
 type Ptr = *mut c_void;
@@ -88,6 +89,34 @@ fn cf_integer(value: Option<CF>) -> Option<i64> {
         None
     }
 }
+const PLACEMENT_READ_BACKOFFS: [f64; 3] = [0.02, 0.04, 0.08];
+fn placement_attribute<T>(
+    key: &str,
+    mut before_read: impl FnMut() -> Result<(), String>,
+    mut read: impl FnMut() -> (i32, Option<T>),
+    mut after_read: impl FnMut() -> Result<(), String>,
+    mut remaining: impl FnMut() -> Result<f64, String>,
+    mut pause: impl FnMut(f64) -> Result<(), String>,
+) -> Result<T, String> {
+    for attempt in 0..=PLACEMENT_READ_BACKOFFS.len() {
+        before_read()?;
+        let (status, value) = read();
+        after_read()?;
+        if status == 0 {
+            return value.ok_or_else(|| format!("Cannot read {key} from this window (0)."));
+        }
+        if status != -25204 {
+            return Err(format!("Cannot read {key} from this window ({status})."));
+        }
+        if attempt == PLACEMENT_READ_BACKOFFS.len() {
+            return Err(format!(
+                "The app did not respond while reading {key}. Try again."
+            ));
+        }
+        pause(PLACEMENT_READ_BACKOFFS[attempt].min(remaining()?))?;
+    }
+    unreachable!()
+}
 #[derive(Default)]
 struct Handles {
     next: u64,
@@ -160,8 +189,10 @@ impl Native {
     fn placement_value(&self, node: Element, key: &str, t: &Ticket) -> Result<CF, String> {
         let node = self.get(node)?;
         let name = NSString::from_str(key);
-        for attempt in 0..4 {
-            self.timeout(&node, t)?;
+        placement_attribute(
+            key,
+            || self.timeout(&node, t),
+            || {
             let mut raw = std::ptr::null_mut();
             let status = unsafe {
                 AXUIElementCopyAttributeValue(
@@ -171,23 +202,15 @@ impl Native {
                 )
             };
             let value = (!raw.is_null()).then(|| CF(raw));
-            t.check()?;
-            if status == 0 {
-                return value.ok_or_else(|| format!("Cannot read {key} from this window (0)."));
-            }
-            if status != -25204 {
-                return Err(format!("Cannot read {key} from this window ({status})."));
-            }
-            if attempt == 3 {
-                return Err(format!(
-                    "The app did not respond while reading {key}. Try again."
-                ));
-            }
-            std::thread::sleep(std::time::Duration::from_secs_f64(
-                [0.02f64, 0.04, 0.08][attempt].min(t.remaining()?),
-            ));
-        }
-        unreachable!()
+                (status, value)
+            },
+            || t.check(),
+            || t.remaining(),
+            |seconds| {
+                std::thread::sleep(Duration::from_secs_f64(seconds));
+                Ok(())
+            },
+        )
     }
     fn placement_write(
         &self,
@@ -823,6 +846,162 @@ fn strings(value: &D, t: &Ticket) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn retry_fixture(statuses: &[(i32, Option<i32>)]) -> (Result<i32, String>, usize, Vec<f64>) {
+        let mut reads = 0;
+        let mut pauses = Vec::new();
+        let result = placement_attribute(
+            "AXPosition",
+            || Ok(()),
+            || {
+                let value = statuses[reads];
+                reads += 1;
+                value
+            },
+            || Ok(()),
+            || Ok(1.0),
+            |seconds| {
+                pauses.push(seconds);
+                Ok(())
+            },
+        );
+        (result, reads, pauses)
+    }
+
+    #[test]
+    fn placement_attribute_preserves_original_retry_scenarios() {
+        let (result, reads, pauses) = retry_fixture(&[
+            (-25204, None),
+            (-25204, None),
+            (0, Some(7)),
+        ]);
+        assert_eq!(result, Ok(7));
+        assert_eq!(reads, 3);
+        assert_eq!(pauses, [0.02, 0.04]);
+
+        let (result, reads, pauses) = retry_fixture(&[
+            (-25204, None),
+            (-25204, None),
+            (-25204, None),
+            (0, Some(7)),
+        ]);
+        assert_eq!(result, Ok(7));
+        assert_eq!(reads, 4);
+        assert_eq!(pauses, [0.02, 0.04, 0.08]);
+
+        let (result, reads, pauses) = retry_fixture(&[(-25204, None); 4]);
+        assert!(result.unwrap_err().contains("did not respond"));
+        assert_eq!(reads, 4);
+        assert_eq!(pauses, [0.02, 0.04, 0.08]);
+
+        for (status, value) in [(-25205, None), (-25212, None), (-25202, None), (0, None)] {
+            let (result, reads, pauses) = retry_fixture(&[(status, value)]);
+            assert!(result.is_err(), "status {status} unexpectedly succeeded");
+            assert_eq!(reads, 1, "status {status} retried");
+            assert!(pauses.is_empty());
+        }
+
+        let (result, reads, pauses) = retry_fixture(&[(0, Some(42))]);
+        assert_eq!(result, Ok(42));
+        assert_eq!(reads, 1);
+        assert!(pauses.is_empty());
+
+        let reads = std::cell::Cell::new(0);
+        let mut pauses = Vec::new();
+        let result = placement_attribute(
+            "AXPosition",
+            || Ok(()),
+            || {
+                let attempt = reads.get();
+                reads.set(attempt + 1);
+                if attempt == 0 { (-25204, None) } else { (0, Some(9)) }
+            },
+            || Ok(()),
+            || Ok(0.01),
+            |seconds| { pauses.push(seconds); Ok(()) },
+        );
+        assert_eq!(result, Ok(9));
+        assert_eq!(reads.get(), 2);
+        assert_eq!(pauses, [0.01]);
+    }
+
+    #[test]
+    fn placement_attribute_retries_within_verified_window_readback() {
+        struct Readback {
+            target: rustcast_core::Frame,
+            calls: usize,
+            attribute_waits: Vec<f64>,
+            placement_waits: Vec<f64>,
+        }
+        impl crate::window_placement::Transport for Readback {
+            fn check(&mut self) -> Result<(), String> { Ok(()) }
+            fn read(&mut self) -> Result<rustcast_core::Frame, String> {
+                let mut attempt = 0;
+                let mut waits = Vec::new();
+                let target = self.target;
+                let result = placement_attribute(
+                    "AXPosition",
+                    || Ok(()),
+                    || {
+                        self.calls += 1;
+                        attempt += 1;
+                        if attempt < 4 { (-25204, None) } else { (0, Some(target)) }
+                    },
+                    || Ok(()),
+                    || Ok(1.0),
+                    |seconds| { waits.push(seconds); Ok(()) },
+                )?;
+                self.attribute_waits = waits;
+                Ok(result)
+            }
+            fn resize(&mut self, _: rustcast_core::Frame) -> Result<(), String> { Ok(()) }
+            fn position(&mut self, _: rustcast_core::Frame) -> Result<(), String> { Ok(()) }
+            fn pause(&mut self, seconds: f64) -> Result<(), String> {
+                self.placement_waits.push(seconds);
+                Ok(())
+            }
+        }
+        let target = rustcast_core::Frame { x: 1720.0, y: 0.0, width: 1720.0, height: 1400.0 };
+        let mut io = Readback { target, calls: 0, attribute_waits: Vec::new(), placement_waits: Vec::new() };
+        let placed = crate::window_placement::apply(target, &mut io).unwrap();
+        assert!(crate::window_placement::matches(placed, target));
+        assert_eq!(io.calls, 4);
+        assert_eq!(io.attribute_waits, [0.02, 0.04, 0.08]);
+        assert!(io.placement_waits.is_empty());
+    }
+
+    #[test]
+    fn placement_attribute_preserves_deadline_and_cancellation_guards() {
+        let reads = std::cell::Cell::new(0);
+        let result = placement_attribute(
+            "AXPosition",
+            || Err("cancelled before read".into()),
+            || {
+                reads.set(reads.get() + 1);
+                (-25204, None::<i32>)
+            },
+            || Ok(()),
+            || Ok(0.0),
+            |_| panic!("cancelled request must not pause"),
+        );
+        assert_eq!(result, Err("cancelled before read".into()));
+        assert_eq!(reads.get(), 0);
+
+        let reads = std::cell::Cell::new(0);
+        let result = placement_attribute(
+            "AXPosition",
+            || Ok(()),
+            || {
+                reads.set(reads.get() + 1);
+                (-25204, None::<i32>)
+            },
+            || Err("deadline elapsed".into()),
+            || Ok(0.0),
+            |_| panic!("expired request must not pause"),
+        );
+        assert_eq!(result, Err("deadline elapsed".into()));
+        assert_eq!(reads.get(), 1);
+    }
+
     #[test]
     fn owned_cf_menu_attribute_consumers_refuse_wrong_types_and_preserve_values() {
         autoreleasepool(|_| {
