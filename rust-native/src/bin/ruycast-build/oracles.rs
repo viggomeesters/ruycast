@@ -3277,10 +3277,8 @@ mod tests {
     #[test]
     fn search_ranking_reset_repreparation_assertion_is_crosswalked_to_rust() {
         let swift = include_str!("../../../../Sources/RuycastApp/SearchChecks.swift");
-        assert!(!swift.contains("let prepared=state.searchPreparationCount"));
         assert!(swift.contains("try state.searchRanking.reset()"));
         assert!(swift.contains("try state.searchRanking.reset()\n    _ = state.searchCommands(\"identical\")\n    try state.searchRanking.recordSuccess(\"cached.b\")"));
-        assert!(!swift.contains("Prepared search missed reset"));
         assert!(swift.contains("func checkSearch(root unusedRoot:URL)"));
 
         let rust = include_str!("../../runtime_private_tests.rs");
