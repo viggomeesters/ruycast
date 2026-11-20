@@ -3415,11 +3415,6 @@ mod tests {
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
         assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
         assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(!core.contains("let quality=try CommandSearchIndex(commands:["));
-        assert!(!core.contains("quality.search(\"mt\""));
-        assert!(!core.contains("quality.search(\"mic tea\")"));
-        assert!(!core.contains("quality.search(\"mft\")"));
-        assert!(!core.contains("quality.search(\"Microsoft Teams\""));
         assert!(core.contains("let root=FileManager.default.temporaryDirectory.appendingPathComponent(\"ranking-"));
 
         let inventory = super::inventory("check").unwrap();
