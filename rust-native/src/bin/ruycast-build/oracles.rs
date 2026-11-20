@@ -2776,10 +2776,6 @@ mod tests {
 
     #[test]
     fn bounded_typo_fallback_core_test_is_retired_to_two_rust_cases() {
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(!core.contains("testBoundedTypoFallback"));
-        assert!(!core.contains("try t.testBoundedTypoFallback()"));
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Tests/LauncherCoreTests/CoreTests.swift::testBoundedTypoFallback"];
