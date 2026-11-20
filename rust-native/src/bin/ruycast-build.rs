@@ -53,6 +53,7 @@ mod parity_sources;
 #[path = "ruycast-build/parity_families.rs"]
 mod parity_families;
 #[path = "ruycast-build/parity_wire.rs"]
+#[cfg(test)]
 mod parity_wire;
 #[path = "ruycast-build/test_catalog.rs"]
 mod test_catalog;
