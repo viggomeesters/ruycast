@@ -14,21 +14,6 @@ struct CoreTests {
         XCTAssertEqual(CommandProjection.emptyQuery(commands,usage:[:],limit:100),commands)
         XCTAssertEqual(CommandProjection.emptyQuery([],usage:usage,limit:100),[])
     }
-    func testConfigRejectsAmbiguousAliasesAndHotkeys() throws {
-        XCTAssertEqual(try Shortcut("right-cmd+a").commandSide,"right-cmd")
-        XCTAssertEqual(try Shortcut("left-cmd+a").commandSide,"left-cmd")
-        XCTAssertEqual(try Shortcut("cmd+a").commandSide,nil)
-        XCTAssertThrowsError(try Shortcut("cmd+right-cmd+a"))
-        var c=Configuration.initial;try c.validate()
-        XCTAssertEqual(c.separatesCommandKeys,false)
-        c.separateCommandKeys=nil;XCTAssertEqual(c.separatesCommandKeys,true)
-        c.separateCommandKeys=false;XCTAssertEqual(c.separatesCommandKeys,false)
-        c.separateCommandKeys=true;try c.validate();XCTAssertEqual(c.separatesCommandKeys,true)
-        c.commands.append(Command(id:"collision",title:"Collision",kind:"path",target:"/",aliases:["FiNdEr"]))
-        XCTAssertThrowsError(try c.validate())
-        c=Configuration.initial;c.commands[0].hotkey="alt+ctrl+space";XCTAssertThrowsError(try c.validate())
-        c=Configuration.initial;c.version=2;XCTAssertThrowsError(try c.validate())
-    }
     func testExactAliasBeatsTitleAndSupportsMultipleTerms() throws {
         var c=Configuration.initial;c.commands.append(Command(id:"link",title:"Finder documentation",kind:"url",target:"https://example.com",aliases:["docs"]))
         XCTAssertEqual(c.search("finder").first?.id,"app.finder");XCTAssertEqual(c.search("finder documentation").first?.id,"link")
@@ -283,7 +268,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testConfigRejectsAmbiguousAliasesAndHotkeys();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();t.testEmptyQueryProjection();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)

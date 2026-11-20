@@ -1038,6 +1038,12 @@ mod tests {
             shortcut("ctrl+alt+space").unwrap(),
             shortcut("alt+ctrl+space").unwrap()
         );
+        let mut reserved_hotkey = default_config();
+        reserved_hotkey["commands"][0]["hotkey"] = json!("alt+ctrl+space");
+        assert!(validate(&reserved_hotkey).is_err());
+        let mut unsupported_version = default_config();
+        unsupported_version["version"] = json!(2);
+        assert!(validate(&unsupported_version).is_err());
     }
     #[test]
     fn command_sides_are_independent() {
@@ -1053,8 +1059,11 @@ mod tests {
         assert_eq!(validate(&legacy).unwrap().separate_command_keys, None);
         legacy["separateCommandKeys"] = json!(true);
         assert_eq!(validate(&legacy).unwrap().separate_command_keys, Some(true));
+        legacy["separateCommandKeys"] = json!(false);
+        assert_eq!(validate(&legacy).unwrap().separate_command_keys, Some(false));
         legacy["separateCommandKeys"] = json!("true");
         assert!(validate(&legacy).is_err());
+        assert_eq!(shortcut("cmd+a").unwrap(), "cmd+a");
         assert_eq!(shortcut("RIGHT-CMD+a").unwrap(), "right-cmd+a");
         assert_eq!(shortcut("shift+left-cmd+a").unwrap(), "left-cmd+shift+a");
         for invalid in [

@@ -566,6 +566,11 @@ mod tests {
         assert!(!format!("{p:?}").contains("private"));
         assert!(!p.carbon.contains_key("alt+cmd+ctrl+shift+f12"));
         let mut c = c;
+        c.separate_command_keys = None;
+        assert_eq!(
+            Plan::from_config(&c).unwrap().sided["right-cmd+a"],
+            "a"
+        );
         c.separate_command_keys = Some(false);
         assert!(Plan::from_config(&c).unwrap().sided.is_empty());
         c.commands[1].hotkey = Some("cmd+left-control".into());
