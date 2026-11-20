@@ -736,6 +736,9 @@ fn step(
     let normal_host = if normal_host_negative(entry) {
         Some(prepare_normal_host(root, receipt, copies)?)
     } else { None };
+    if let Some(inputs) = normal_host.as_ref() {
+        normal_host_environment(root, &mut command, inputs)?;
+    }
     let captured = process::capture_logged(
         command,
         step_timeout(&entry.name),
@@ -1807,7 +1810,7 @@ fn check_host_sdk_sources(root: &Path, binding: &serde_json::Value) -> Result<()
     }
     Ok(())
 }
-const NORMAL_HOST_ALIAS: &str = "rust-native/target/debug/ruycast-native";
+const NORMAL_HOST_ALIAS: &str = "rust-native/target/verification/normal-host/ruycast-native";
 fn normal_host_negative(entry: &Step) -> bool {
     matches!(entry.name.as_str(), "bridge-process")
 }
@@ -1828,6 +1831,13 @@ fn prepare_normal_host(root: &Path, receipt: &Receipt, copies: &mut BTreeMap<Str
     compatibility_copy(root, inputs["source"].as_str().ok_or("Missing normal host source.")?, NORMAL_HOST_ALIAS, copies)?;
     check_normal_host_inputs(root, receipt, &inputs)?;
     Ok(inputs)
+}
+fn normal_host_environment(root: &Path, command: &mut Command, inputs: &serde_json::Value) -> Result<()> {
+    if inputs["alias"].as_str() != Some(NORMAL_HOST_ALIAS) {
+        return Err("Bridge normal-host alias differs from its verified input binding.".into());
+    }
+    command.env("RUYCAST_TEST_NORMAL_HOST", root.join(NORMAL_HOST_ALIAS));
+    Ok(())
 }
 fn check_normal_host_inputs(root: &Path, receipt: &Receipt, inputs: &serde_json::Value) -> Result<()> {
     if inputs != &normal_host_inputs(root, receipt)?
@@ -3202,8 +3212,25 @@ mod tests {
         let inputs = prepare_normal_host(&fixture.0, &receipt, &mut copies).unwrap();
         assert_eq!(digest(&fixture.0.join(NORMAL_HOST_ALIAS)).unwrap(), expected);
         assert_eq!(copies[NORMAL_HOST_ALIAS]["source"], source);
+        let mut command = Command::new("unused-bridge-fixture");
+        command.env("RUYCAST_TEST_NORMAL_HOST", "/untrusted/ambient-host");
+        normal_host_environment(&fixture.0, &mut command, &inputs).unwrap();
+        assert_eq!(
+            command
+                .get_envs()
+                .filter(|(name, _)| *name == std::ffi::OsStr::new("RUYCAST_TEST_NORMAL_HOST"))
+                .last()
+                .and_then(|(_, value)| value)
+                .map(PathBuf::from),
+            Some(fixture.0.join(NORMAL_HOST_ALIAS)),
+            "the bridge runner must replace any ambient host override with its owned alias"
+        );
         check_normal_host_inputs(&fixture.0, &receipt, &inputs).unwrap();
-        fs::write(fixture.0.join(NORMAL_HOST_ALIAS), b"late tools overwrite").unwrap();
+        let shared_tools_alias = fixture.0.join("rust-native/target/debug/ruycast-native");
+        fs::create_dir_all(shared_tools_alias.parent().unwrap()).unwrap();
+        fs::write(&shared_tools_alias, b"later test-tools build").unwrap();
+        check_normal_host_inputs(&fixture.0, &receipt, &inputs).unwrap();
+        fs::write(fixture.0.join(NORMAL_HOST_ALIAS), b"mutated verified alias").unwrap();
         assert!(check_normal_host_inputs(&fixture.0, &receipt, &inputs).is_err());
         prepare_normal_host(&fixture.0, &receipt, &mut copies).unwrap();
         fs::write(fixture.0.join(&source), b"changed receipt source").unwrap();
