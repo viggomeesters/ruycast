@@ -2247,6 +2247,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["after record_success, reopening RankingStore preserves chosen at the exact original timestamp"],
             "nativeCases": ["ranking::tests::original_successful_choice_timestamp_survives_reopen"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.resetReopen"] = serde_json::json!({
+            "originalSourceSHA256": "11160b6434aafdad4a752f09616cae0bcb42d46acca01d6e00596650b759a525",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the empty ranking-after-reset-and-reopen assertion moves to Rust. The active Swift reset call, retention checks, method and runner stay active.",
+            "nativeSource": "rust-native/src/ranking.rs",
+            "originalScenarios": ["after a successful choice, reset leaves zero ranking entries after reopening the store"],
+            "nativeCases": ["ranking::tests::original_reset_ranking_is_empty_after_reopen"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3042,6 +3050,28 @@ mod tests {
             assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
             assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
         }
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn reset_reopen_ranking_assertion_is_crosswalked_to_rust() {
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
+        assert!(!core.contains("SearchRanking(root:root,now:now).entries.count,0"));
+        assert!(core.contains("try ranking.reset()"));
+        assert!(core.contains("ranking.entries.count,512"));
+        let source = include_str!("../../ranking.rs");
+        assert!(source.contains("fn original_reset_ranking_is_empty_after_reopen()"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.resetReopen"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "11160b6434aafdad4a752f09616cae0bcb42d46acca01d6e00596650b759a525");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/ranking.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["ranking::tests::original_reset_ranking_is_empty_after_reopen"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
