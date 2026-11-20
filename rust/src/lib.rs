@@ -1104,6 +1104,23 @@ mod tests {
         assert!(index.search("").is_empty());
     }
     #[test]
+    fn original_unicode_scalar_and_expanded_lowercase_search() {
+        let commands: Vec<Command> = serde_json::from_value(json!([
+            {"id":"scalar","title":"A Ω B","kind":"url","target":"https://example.com"},
+            {"id":"expanded","title":"I x \u{0307}","kind":"url","target":"https://example.com"}
+        ]))
+        .unwrap();
+        let index = SearchIndex::new(&commands);
+        for (query, expected) in [("Ω", "scalar"), ("İ", "expanded")] {
+            let ids = index
+                .search(query)
+                .iter()
+                .map(|position| commands[*position].id.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(ids, [expected], "query {query}");
+        }
+    }
+    #[test]
     fn duplicate_aliases_and_modifiers_fail() {
         let mut v = default_config();
         v["commands"][1]["aliases"] = json!(["FiNdEr"]);
