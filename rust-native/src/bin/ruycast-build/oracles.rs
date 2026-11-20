@@ -961,7 +961,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/file_search.rs", include_bytes!("../../file_search.rs"), "991b29f39c2da3608c17ad8de243a17eb1e7b32b16436b430cdc863e95ad5f28"),
             ("rust-native/src/os_command.rs", include_bytes!("../../os_command.rs"), "1faa996a7c7257702cabcd00bc2ecdb8c6b1e2951e0d24b563693ba062501da2"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
-            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d35042be9f1f88dc038a19e14d0e7c66f685fd0c2069afdfad5c85d1036f6bab"),
+            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d7b7c83a4f29634f8f9c44477170d58f24e5cc5908a9470d3cf08cd6162b3daa"),
+            ("rust-native/tests/fixtures/shortcut_child.rs", include_bytes!("../../../tests/fixtures/shortcut_child.rs"), "0776e88ac058de87d07f8e92a7f819d1132a276f6b63013dee08959c944bf8dd"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "47b7823c045903339702225fdf009eb7f0913d4ccde98e5f208263fceea8bec7"),
             ("rust-native/src/system_search/main_bridge.rs", include_bytes!("../../system_search/main_bridge.rs"), "d0267d4a14fbefc08a7c17a50c4e1f9872abb11fe414fe32f7507274552c908e"),
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
@@ -1109,7 +1110,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "c1650b38647d7d538b226fba3279ef71fe844755b9895bf72757cdf230adfaee"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "47b7823c045903339702225fdf009eb7f0913d4ccde98e5f208263fceea8bec7"),
-            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d35042be9f1f88dc038a19e14d0e7c66f685fd0c2069afdfad5c85d1036f6bab"),
+            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d7b7c83a4f29634f8f9c44477170d58f24e5cc5908a9470d3cf08cd6162b3daa"),
+            ("rust-native/tests/fixtures/shortcut_child.rs", include_bytes!("../../../tests/fixtures/shortcut_child.rs"), "0776e88ac058de87d07f8e92a7f819d1132a276f6b63013dee08959c944bf8dd"),
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/src/system_search/native.rs", include_bytes!("../../system_search/native.rs"), "d4be9915ab842a74652001bed1c7f7b363c72d5b94ca1dcac3e1db41652ea750"),
@@ -1148,7 +1150,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "c1650b38647d7d538b226fba3279ef71fe844755b9895bf72757cdf230adfaee"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "47b7823c045903339702225fdf009eb7f0913d4ccde98e5f208263fceea8bec7"),
-            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d35042be9f1f88dc038a19e14d0e7c66f685fd0c2069afdfad5c85d1036f6bab"),
+            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d7b7c83a4f29634f8f9c44477170d58f24e5cc5908a9470d3cf08cd6162b3daa"),
+            ("rust-native/tests/fixtures/shortcut_child.rs", include_bytes!("../../../tests/fixtures/shortcut_child.rs"), "0776e88ac058de87d07f8e92a7f819d1132a276f6b63013dee08959c944bf8dd"),
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/src/system_search/native.rs", include_bytes!("../../system_search/native.rs"), "d4be9915ab842a74652001bed1c7f7b363c72d5b94ca1dcac3e1db41652ea750"),
@@ -1183,7 +1186,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "c1650b38647d7d538b226fba3279ef71fe844755b9895bf72757cdf230adfaee"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "47b7823c045903339702225fdf009eb7f0913d4ccde98e5f208263fceea8bec7"),
-            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d35042be9f1f88dc038a19e14d0e7c66f685fd0c2069afdfad5c85d1036f6bab"),
+            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d7b7c83a4f29634f8f9c44477170d58f24e5cc5908a9470d3cf08cd6162b3daa"),
+            ("rust-native/tests/fixtures/shortcut_child.rs", include_bytes!("../../../tests/fixtures/shortcut_child.rs"), "0776e88ac058de87d07f8e92a7f819d1132a276f6b63013dee08959c944bf8dd"),
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/src/system_search/native.rs", include_bytes!("../../system_search/native.rs"), "d4be9915ab842a74652001bed1c7f7b363c72d5b94ca1dcac3e1db41652ea750"),
@@ -1244,7 +1248,8 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "c1650b38647d7d538b226fba3279ef71fe844755b9895bf72757cdf230adfaee"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "47b7823c045903339702225fdf009eb7f0913d4ccde98e5f208263fceea8bec7"),
-            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d35042be9f1f88dc038a19e14d0e7c66f685fd0c2069afdfad5c85d1036f6bab"),
+            ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "d7b7c83a4f29634f8f9c44477170d58f24e5cc5908a9470d3cf08cd6162b3daa"),
+            ("rust-native/tests/fixtures/shortcut_child.rs", include_bytes!("../../../tests/fixtures/shortcut_child.rs"), "0776e88ac058de87d07f8e92a7f819d1132a276f6b63013dee08959c944bf8dd"),
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
             ("rust-native/src/system_search/native.rs", include_bytes!("../../system_search/native.rs"), "d4be9915ab842a74652001bed1c7f7b363c72d5b94ca1dcac3e1db41652ea750"),
@@ -2693,10 +2698,10 @@ mod tests {
         assert_eq!(gate.required_native_steps, &["unit", "system-search-cli-process", "system-search-sdk"]);
         assert_eq!(gate.native_cases.len(), 18);
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 33);
+        assert_eq!(inputs.len(), 34);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml"));
         let bindings = settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 34);
+        assert_eq!(bindings.len(), 35);
         for (path, _, hash) in inputs {
             assert!(bindings.contains(&(*path, *hash)), "missing current window-search binding {path}");
         }
@@ -2727,6 +2732,18 @@ mod tests {
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
         assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn owned_shortcut_child_fixture_is_bound_to_every_system_search_test_consumer() {
+        for id in ["--check-feedback", "--check-menu-actions", "--check-window-search", "--check-apple-shortcuts", "--check-browser-tabs"] {
+            let inputs = settings_sources(id);
+            for path in ["rust-native/src/system_search/tests.rs", "rust-native/tests/fixtures/shortcut_child.rs"] {
+                let entries = inputs.iter().filter(|entry| entry.0 == path).collect::<Vec<_>>();
+                assert_eq!(entries.len(), 1, "{id}: {path}");
+                assert_eq!(format!("{:x}", Sha256::digest(entries[0].1)), entries[0].2, "{id}: {path}");
+                assert!(settings_source_bindings(id).contains(&(path, entries[0].2)), "{id}: {path}");
+            }
+        }
     }
     #[test]
     fn script_result_basic_binds_current_sources_and_route() {
@@ -4104,7 +4121,7 @@ mod tests {
             (
                 "--check-browser-tabs",
                 &["unit",  "system-search-cli-process", "system-search-sdk"][..],
-                31,
+                32,
             ),
             (
                 "--check-performance-pipeline",
@@ -4120,7 +4137,7 @@ mod tests {
                 assert_eq!(gate.native_cases.len(), 28);
                 assert!(!entries.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
-                assert_eq!(bindings.len(), 32);
+                assert_eq!(bindings.len(), 33);
                 for (path, _, hash) in entries {
                     assert!(bindings.contains(&(*path, *hash)), "missing current browser binding {path}");
                 }
@@ -4187,8 +4204,8 @@ mod tests {
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
         ];
         for (id, steps, case_count, source_count) in [
-            ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 33),
-            ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 45),
+            ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 34),
+            ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 46),
             ("--check-render-updates", &["render-updates-process"][..], 1, 13),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
@@ -4200,7 +4217,7 @@ mod tests {
             if id == "--check-window-search" {
                 assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
-                assert_eq!(bindings.len(), 34);
+                assert_eq!(bindings.len(), 35);
                 assert!(bindings.contains(&(gate.original_source, WINDOW_SEARCH_ORACLE_SHA256)));
                 assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
             } else if id == "--check-render-updates" {
@@ -4212,7 +4229,7 @@ mod tests {
             } else if id == "--check-apple-shortcuts" {
                 assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
-                assert_eq!(bindings.len(), 46);
+                assert_eq!(bindings.len(), 47);
                 assert!(bindings.contains(&(gate.original_source, APPLE_SHORTCUTS_ORACLE_SHA256)));
                 assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
             } else {
@@ -4239,10 +4256,10 @@ mod tests {
         assert_eq!(gate.required_native_steps, &["unit", "system-search-cli-process", "system-search-sdk"]);
         assert_eq!(gate.native_cases.len(), 22);
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 37);
+        assert_eq!(inputs.len(), 38);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/" ) || *path == "rust-toolchain.toml" || *path == "config/default.json"));
         let bindings = settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 38);
+        assert_eq!(bindings.len(), 39);
         for (path, _, hash) in inputs {
             assert!(bindings.contains(&(*path, *hash)), "missing current menu-actions binding {path}");
         }
@@ -4261,8 +4278,8 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["unit", "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"]);
         assert_eq!(gate.native_cases.len(), 10);
-        assert_eq!(inputs.len(), 45);
-        assert_eq!(bindings.len(), 46);
+        assert_eq!(inputs.len(), 46);
+        assert_eq!(bindings.len(), 47);
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert!(bindings.contains(&provenance));
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml" || *path == "config/default.json"));
@@ -4495,9 +4512,9 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["unit", "creation-process", "input-process-rust", "actions-process", "feedback-actions-process", "utility-process", "polish-original-process", "system-search-cli-process", "remaining-macos-process"]);
         assert_eq!(gate.native_cases.len(), 21);
-        assert_eq!(inputs.len(), 35);
-        assert_eq!(bindings.len(), 39);
-        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 39);
+        assert_eq!(inputs.len(), 36);
+        assert_eq!(bindings.len(), 40);
+        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 40);
         assert_eq!(provenance.1, "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04");
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert_eq!(additional, &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
@@ -4620,7 +4637,7 @@ mod tests {
         ];
         for (id, count, input_count, complete) in [
             ("--check-polish", 10, 32, true),
-            ("--check-feedback", 21, 35, true),
+            ("--check-feedback", 21, 36, true),
             ("--check-actions-menu", 11, 25, true),
             ("--check-interactions", 16, 44, true),
         ] {

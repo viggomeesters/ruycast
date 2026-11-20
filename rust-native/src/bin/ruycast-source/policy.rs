@@ -452,6 +452,7 @@ rust-native/tests/supervision_io_process.rs
 rust-native/tests/supervision_protocol_process.rs
 rust-native/tests/supervision_fault_process.rs
 rust-native/tests/supervision_host_process.rs
+rust-native/tests/fixtures/shortcut_child.rs
 rust-native/tests/fixtures/supervision_io_fixture.rs
 rust-native/tests/system_search_cli_process.rs
 rust-native/tests/system_search_sdk.rs
