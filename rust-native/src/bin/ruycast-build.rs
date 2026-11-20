@@ -44,6 +44,7 @@ mod parity_inventory;
 #[cfg(test)]
 mod parity_report;
 #[path = "ruycast-build/parity_toolchain.rs"]
+#[cfg(test)]
 mod parity_toolchain;
 #[path = "ruycast-build/parity_bootstrap.rs"]
 mod parity_bootstrap;
