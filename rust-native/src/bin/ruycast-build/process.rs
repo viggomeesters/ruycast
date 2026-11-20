@@ -7,6 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 thread_local! {static OUTER_DEADLINE:std::cell::Cell<Option<u64>>=const{std::cell::Cell::new(None)};}
+#[cfg(test)]
 pub(super) fn with_deadline<T>(
     deadline: u64,
     run: impl FnOnce() -> Result<T, String>,
