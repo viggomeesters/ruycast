@@ -396,6 +396,47 @@ impl Model {
             }
         }
     }
+    pub fn cancel_deferred_alias_child(&mut self, physical_input_token: u64) -> bool {
+        let Self::Live { view, connection } = self else {
+            return false;
+        };
+        let Some(parent) = view.editor.as_ref() else {
+            return false;
+        };
+        if parent.mode != ruycast_native::actions::Mode::Input
+            || !parent.run_inline
+            || parent.token != physical_input_token
+            || view.revision != connection.applied_revision()
+            || connection.stop_requested()
+            || connection.stopped()
+        {
+            return false;
+        }
+        let published = connection.view();
+        if published.revision <= view.revision
+            || published.epoch != view.epoch
+            || view.epoch != connection.latest_epoch()
+            || published.dismissal != view.dismissal
+            || view.dismissal != connection.latest_dismissal()
+        {
+            return false;
+        }
+        let Some(child) = published.editor.as_ref() else {
+            return false;
+        };
+        if child.id != parent.id
+            || child.mode != ruycast_native::actions::Mode::Alias
+            || child.run_inline
+            || child.suspended_input_token != Some(parent.token)
+            || child.origin_menu != Some(view.menu_token)
+        {
+            return false;
+        }
+        let menu_token = view.menu_token;
+        view.actions_open = false;
+        connection.action(Action::CloseActions { token: menu_token });
+        true
+    }
     pub fn cancel_input_control(&self, attempt: u64) {
         if let Self::Live { connection, .. } = self {
             connection.cancel_input_control(attempt);
