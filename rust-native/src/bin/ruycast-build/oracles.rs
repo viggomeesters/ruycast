@@ -3023,11 +3023,6 @@ mod tests {
     #[test]
     fn large_equal_title_ties_are_crosswalked_to_rust() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(!core.contains("let ties=(0..<128)"));
-        assert!(!core.contains("tied.search(\"title\")"));
-        assert!(!core.contains("tied.search(\"same\""));
-        assert!(!core.contains("tied.search(\"s t\")"));
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.largeTies"];
@@ -3046,6 +3041,63 @@ mod tests {
             assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
         }
         assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn large_equal_title_ties_crosswalk_does_not_embed_live_swift_source() {
+        let source = include_str!("oracles.rs");
+        let assertion = source
+            .split_once("\n    fn large_equal_title_ties_are_crosswalked_to_rust() {\n")
+            .unwrap()
+            .1
+            .split_once("\n    }\n\n    #[test]")
+            .unwrap()
+            .0;
+        let mut code = String::with_capacity(assertion.len());
+        let mut chars = assertion.chars().peekable();
+        let mut in_string = false;
+        let mut escaped = false;
+        while let Some(character) = chars.next() {
+            if in_string {
+                code.push(character);
+                if escaped {
+                    escaped = false;
+                } else if character == '\\' {
+                    escaped = true;
+                } else if character == '"' {
+                    in_string = false;
+                }
+            } else if character == '"' {
+                in_string = true;
+                code.push(character);
+            } else if character == '/' && chars.peek() == Some(&'/') {
+                chars.next();
+                for rest in chars.by_ref() {
+                    if rest == '\n' {
+                        code.push(rest);
+                        break;
+                    }
+                }
+            } else if character == '/' && chars.peek() == Some(&'*') {
+                chars.next();
+                let mut depth = 1usize;
+                while let Some(comment_character) = chars.next() {
+                    if comment_character == '/' && chars.peek() == Some(&'*') {
+                        chars.next();
+                        depth += 1;
+                    } else if comment_character == '*' && chars.peek() == Some(&'/') {
+                        chars.next();
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                }
+            } else {
+                code.push(character);
+            }
+        }
+        assert!(!code.contains("../../../../Tests/LauncherCoreTests/CoreTests.swift"));
     }
 
     #[test]
