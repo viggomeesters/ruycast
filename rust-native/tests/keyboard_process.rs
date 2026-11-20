@@ -112,7 +112,7 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
         let folder = PathBuf::from(evidence);
         fs::create_dir_all(&folder).unwrap();
         let root = runtime_host::root();
-        let mut sources = [
+        let sources = [
             "rust-native/tests/fixtures/keyboard_sdk.rs",
             "rust-native/tests/fixtures/keyboard_fixture.rs",
             "rust-native/tests/fixtures/keyboard_missing_parameter.rs",
@@ -125,13 +125,20 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
             )
         })
         .collect::<std::collections::BTreeMap<_, _>>();
-        let lock: Value = serde_json::from_str(include_str!("../swift-reference-lock.json")).unwrap();
-        for path in ["Sources/LauncherCore/RustBridge.swift", "Sources/RuycastApp/Hotkeys.swift"] {
+        let lock: Value =
+            serde_json::from_str(include_str!("../swift-reference-lock.json")).unwrap();
+        let retired_swift_sources = [
+            "Sources/LauncherCore/RustBridge.swift",
+            "Sources/RuycastApp/Hotkeys.swift",
+        ]
+        .into_iter()
+        .map(|path| {
             let sha256 = lock["files"][path]
                 .as_str()
                 .expect("historical keyboard source must remain pinned in the reference lock");
-            sources.insert(path.to_owned(), sha256.to_owned());
-        }
+            (path, sha256)
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
         let mut copies = std::collections::BTreeMap::new();
         for (label, source) in &originals {
             let (path, digest) = runtime_host::bind_artifact(source, &format!("keyboard-{label}"));
@@ -139,7 +146,13 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
         }
         fs::write(
             folder.join("keyboard-reference-bindings.json"),
-            serde_json::to_vec_pretty(&json!({"sources":sources,"artifacts":copies})).unwrap(),
+            serde_json::to_vec_pretty(&json!({
+                "schema":"ruycast.keyboard-reference-bindings.v1",
+                "sources":sources,
+                "artifacts":copies,
+                "retiredSwiftSources":retired_swift_sources,
+            }))
+            .unwrap(),
         )
         .unwrap();
     }
