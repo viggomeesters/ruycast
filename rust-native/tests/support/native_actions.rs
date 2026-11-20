@@ -27,12 +27,7 @@ pub fn view(host: &Bridge, predicate: impl Fn(&Value) -> bool) -> Value {
             !remaining.is_zero(),
             "Native action/editor did not reach expected state"
         );
-        let value = host.rpc_timeout(
-            &json!({"op":"native.test","action":"read"}),
-            remaining.min(Duration::from_secs(3)),
-        );
-        assert_eq!(value["ok"], true, "{value}");
-        let value = value["result"].clone();
+        let value = host.probe_until("read", json!({}), until);
         if predicate(&value) {
             return value;
         }

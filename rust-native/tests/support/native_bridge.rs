@@ -8,7 +8,11 @@ use std::{
     fs,
     ops::{Deref, DerefMut},
     path::PathBuf,
+    thread,
+    time::{Duration, Instant},
 };
+
+const UNPUBLISHED_PROBE_REFUSAL: &str = "Native view changed before probe dispatch.";
 pub fn normal_host() -> PathBuf {
     let path = std::env::var_os("RUYCAST_TEST_NORMAL_HOST")
         .map(PathBuf::from)
@@ -44,12 +48,33 @@ impl Bridge {
         })
     }
     pub fn probe(&self, action: &str, fields: Value) -> Value {
+        self.probe_until(action, fields, Instant::now() + Duration::from_secs(3))
+    }
+    pub fn probe_until(&self, action: &str, fields: Value, deadline: Instant) -> Value {
         let mut request = fields.as_object().unwrap().clone();
         request.insert("op".into(), json!("native.test"));
         request.insert("action".into(), json!(action));
-        let response = self.host.rpc(&Value::Object(request));
-        assert_eq!(response["ok"], true, "{response}");
-        response["result"].clone()
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            assert!(
+                !remaining.is_zero(),
+                "Native test probe did not reach a dispatchable view"
+            );
+            let response = self.host.rpc_timeout(
+                &Value::Object(request.clone()),
+                remaining.min(Duration::from_secs(3)),
+            );
+            if response["ok"] == true {
+                return response["result"].clone();
+            }
+            // This exact refusal precedes native_probe; every other refusal stays terminal.
+            if response["error"].as_str() != Some(UNPUBLISHED_PROBE_REFUSAL) {
+                assert_eq!(response["ok"], true, "{response}");
+            }
+            thread::sleep(
+                Duration::from_millis(10).min(deadline.saturating_duration_since(Instant::now())),
+            );
+        }
     }
     pub fn capture(&self, name: &str) -> Value {
         let value = self.probe("screenshot", json!({}));
