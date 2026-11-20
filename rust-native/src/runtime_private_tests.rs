@@ -135,6 +135,51 @@ fn discovered_application_refreshes_an_existing_palette_query() {
 }
 
 #[test]
+fn configuration_reload_deduplicates_discovered_app_in_active_palette() {
+    let (_temp, mut state, mut window, ui, local) = private_fixture("local.fixture", false);
+    window.session.set_query("New App");
+    let before_revision = window.session.results_revision();
+
+    let mut discovered = local.clone();
+    discovered.id = "discovered.test".into();
+    discovered.title = "New App".into();
+    discovered.kind = "app".into();
+    discovered.target = "org.test.app".into();
+    state.applications = vec![discovered];
+    state.applications_revision += 1;
+    window.sync(&state);
+    window.publish(&state, &ui);
+    assert_eq!(
+        window.session.rows().map(|command| command.id.as_str()).collect::<Vec<_>>(),
+        ["discovered.test"]
+    );
+
+    let mut replacement = local;
+    replacement.id = "replacement".into();
+    replacement.title = "New App".into();
+    replacement.kind = "app".into();
+    replacement.target = "org.test.app".into();
+    let mut changed = serde_json::to_value(state.configuration.current()).unwrap();
+    changed["commands"] = json!([replacement]);
+    crate::private_storage::write(
+        &state.configuration.file,
+        &serde_json::to_vec(&changed).unwrap(),
+        true,
+    )
+    .unwrap();
+    assert!(state.reload_watched().unwrap());
+    window.sync(&state);
+    window.publish(&state, &ui);
+
+    assert_eq!(window.session.query, "New App");
+    assert_eq!(
+        window.session.rows().map(|command| command.id.as_str()).collect::<Vec<_>>(),
+        ["replacement"]
+    );
+    assert!(window.session.results_revision() > before_revision);
+}
+
+#[test]
 fn prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection() {
     let (_temp, mut state, mut window, _ui, mut a) = private_fixture("cache.a", false);
     a.title = "Owned cache".into();

@@ -2382,6 +2382,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["with New App queried and no matching saved command, increment applications_revision, synchronize the window, and return exactly discovered.test in the active palette"],
             "nativeCases": ["runtime::inline_tests::discovered_application_refreshes_an_existing_palette_query"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.reloadDeduplicatesDiscoveredApp"] = serde_json::json!({
+            "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the active-query configuration reload assertion that a saved app replaces its discovered duplicate moves to the Rust runtime test.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["with New App queried and discovered.test visible, write replacement with the same app target to configuration, reload from disk, preserve the query, and return exactly replacement"],
+            "nativeCases": ["runtime::inline_tests::configuration_reload_deduplicates_discovered_app_in_active_palette"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3763,6 +3771,38 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::discovered_application_refreshes_an_existing_palette_query"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_configuration_reload_deduplication_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_private_tests.rs");
+        let scenario = rust
+            .split_once("fn configuration_reload_deduplicates_discovered_app_in_active_palette()")
+            .unwrap()
+            .1
+            .split_once("\n#[test]")
+            .unwrap()
+            .0;
+        let query = scenario.find("window.session.set_query(\"New App\");").unwrap();
+        let discovery = scenario.find("state.applications = vec![discovered];").unwrap();
+        let discovery_rows = scenario.find("[\"discovered.test\"]").unwrap();
+        let disk_write = scenario.find("crate::private_storage::write(").unwrap();
+        let reload = scenario.find("state.reload_watched().unwrap()").unwrap();
+        let sync = scenario.rfind("window.sync(&state);").unwrap();
+        let replacement_rows = scenario.find("[\"replacement\"]").unwrap();
+        assert!(query < discovery && discovery < discovery_rows && discovery_rows < disk_write);
+        assert!(disk_write < reload && reload < sync && sync < replacement_rows);
+        assert!(scenario.contains("assert_eq!(window.session.query, \"New App\")"));
+        assert!(scenario.contains("replacement.target = \"org.test.app\".into();"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.reloadDeduplicatesDiscoveredApp"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::configuration_reload_deduplicates_discovered_app_in_active_palette"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
