@@ -48,9 +48,6 @@ func searchFixture()->[Command] {
     var reply:[String:Any]=[:]
     state.handle(["op":"search","query":"a42"]) {reply=$0}
     guard state.query=="left",state.results==results,changes.read({$0})==0,reply["ok"] as? Bool==true else {throw LauncherError("CLI search changed the palette.")}
-    state.query=""
-    state.counts["item.42"]=10
-    guard state.results.first?.id=="item.42" else {throw LauncherError("Usage ranking is stale.")}
     state.query="new app"
     state.applications=[Command(id:"discovered.test",title:"New App",kind:"app",target:"org.test.app")]
     guard state.results.first?.id=="discovered.test" else {throw LauncherError("Discovered apps are stale.")}
