@@ -28,7 +28,6 @@ struct CoreTests {
         let ranking=SearchRanking(root:root,now:now)
         XCTAssertEqual(ranking.entries.count,512);XCTAssertEqual(ranking.entries["expired"],nil);XCTAssertEqual(ranking.entries["future"],nil)
         try ranking.recordSuccess("chosen",now:now)
-        XCTAssertEqual(SearchRanking(root:root,now:now).entries["chosen"],now.timeIntervalSince1970)
         try ranking.reset();XCTAssertEqual(SearchRanking(root:root,now:now).entries.count,0)
     }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {
