@@ -25,7 +25,6 @@ struct CoreTests {
         let path=root.appendingPathComponent("search-ranking.json")
         try JSONSerialization.data(withJSONObject:["schema":1,"entries":entries]).write(to:path)
         let ranking=SearchRanking(root:root,now:now)
-        XCTAssertEqual(ranking.entries["expired"],nil);
         try ranking.recordSuccess("chosen",now:now)
         try ranking.reset()
     }

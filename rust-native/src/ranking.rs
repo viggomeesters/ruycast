@@ -175,6 +175,58 @@ mod tests {
     }
 
     #[test]
+    fn original_loaded_ranking_rejects_expired_timestamp() {
+        struct TemporaryRoot(PathBuf);
+        impl Drop for TemporaryRoot {
+            fn drop(&mut self) {
+                let _ = fs::remove_file(self.0.join("search-ranking.json"));
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+
+        let root = TemporaryRoot(std::env::temp_dir().join(format!(
+            "ruycast-ranking-expired-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+        private_storage::secure_directory(&root.0).unwrap();
+        let now = 1_800_000_000.0;
+        let path = root.0.join("search-ranking.json");
+
+        let mut original_entries = (0..600)
+            .map(|i| (format!("id.{i}"), now - f64::from(i)))
+            .collect::<HashMap<_, _>>();
+        original_entries.insert("expired".into(), now - 90.0 * 86400.0 - 1.0);
+        original_entries.insert("future".into(), now + 61.0);
+        fs::write(
+            &path,
+            serde_json::to_vec(&serde_json::json!({"schema": 1, "entries": original_entries}))
+                .unwrap(),
+        )
+        .unwrap();
+        let original = RankingStore::open(&root.0, now);
+        assert!(original.entries().contains_key("id.0"));
+        assert!(!original.entries().contains_key("expired"));
+
+        let isolated_entries = HashMap::from([
+            ("recent".to_string(), now - 1.0),
+            ("expired".to_string(), now - 90.0 * 86400.0 - 1.0),
+        ]);
+        fs::write(
+            &path,
+            serde_json::to_vec(&serde_json::json!({"schema": 1, "entries": isolated_entries}))
+                .unwrap(),
+        )
+        .unwrap();
+        let isolated = RankingStore::open(&root.0, now);
+        assert!(isolated.entries().contains_key("recent"));
+        assert!(!isolated.entries().contains_key("expired"));
+    }
+
+    #[test]
     fn original_loaded_ranking_is_capped_at_512_entries() {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
