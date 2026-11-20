@@ -1,4 +1,22 @@
 #[test]
+fn original_exact_alias_title_multiterm_and_uppercase_resolution() {
+    let (_temp, mut state, window, _, _) = setup();
+    let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+    config["commands"].as_array_mut().unwrap().push(json!({
+        "id": "link",
+        "title": "Finder documentation",
+        "kind": "url",
+        "target": "https://example.com",
+        "aliases": ["docs"]
+    }));
+    state.configuration.save(&config).unwrap();
+
+    assert_eq!(system::local(&state, "finder", 0)[0].id, "app.finder");
+    assert_eq!(system::local(&state, "finder documentation", 0)[0].id, "link");
+    assert_eq!(resolve_command(&state, &window, "DOCS").unwrap().0.id, "link");
+}
+
+#[test]
 fn watched_reload_preserves_one_fresh_cli_reply_cancellation_and_shutdown() {
     use std::io::{BufRead,BufReader,Write}; use std::os::unix::net::UnixStream;
     fn client(socket: std::path::PathBuf) -> std::thread::JoinHandle<Value> {
