@@ -811,6 +811,20 @@ pub unsafe extern "C" fn rustcast_free(ptr: *mut c_char) {
 mod tests {
     use super::*;
     #[test]
+    fn abi_null_call_returns_owned_error_and_null_free_is_safe() {
+        let response = unsafe { rustcast_call(std::ptr::null(), std::ptr::null()) };
+        assert!(!response.is_null());
+        let bytes = unsafe { CStr::from_ptr(response).to_bytes() };
+        let value: Value = serde_json::from_slice(bytes).unwrap();
+        assert_eq!(value["ok"], false);
+        unsafe {
+            rustcast_free(response);
+            rustcast_free(std::ptr::null_mut());
+            rustcast_index_free(std::ptr::null_mut());
+        }
+    }
+
+    #[test]
     fn snippet_output_modes_roundtrip_validate_and_reject_unknown() {
         let source = "Hi 👋\n\nSee [Guide & tips](https://example.com/a_(b)?x=1&y=2)\nGoodbye\n";
         for mode in ["plain", "teams", "html"] {
