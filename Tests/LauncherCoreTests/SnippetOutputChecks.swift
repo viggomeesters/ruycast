@@ -22,8 +22,6 @@ func checkSnippetOutput() throws {
     for (sourceOffset,expectedOffset) in [(0,0),(1,1),(labeled.utf16.count-1,3),(labeled.utf16.count,4)] {
         precondition(SnippetOutput.render(labeled,mode:"html",cursor:sourceOffset).cursor==expectedOffset)
     }
-    let triple="[Folder](https://example.com/folder)\n[Guide](https://example.com/guide?a=1&b=2)\n[Starter](https://example.com/starter.zip)"
-    precondition(SnippetOutput.render(triple,mode:"teams").html!.components(separatedBy:"<a href=").count==4)
     let choice=Command(id:"choice.rich",title:"Rich choice",kind:"snippet",target:"Hi {argument name=\"Person\" options=\"A,B\"}\n\n[Guide](https://example.com)",keyword:";choice",snippetOutput:"teams")
     let request=SnippetChoiceRequest(command:choice,pid:123)
     let replacement=try request.replacement(values:["Person":"B"],pid:123,safe:true,unchanged:true)

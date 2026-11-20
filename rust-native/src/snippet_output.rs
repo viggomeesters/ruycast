@@ -333,6 +333,22 @@ pub fn render(source: &str, mode: Option<&str>, cursor: Option<isize>) -> Payloa
 mod link_editor_tests {
     use super::*;
     #[test]
+    fn teams_rendering_preserves_all_original_three_links() {
+        let source = "[Folder](https://example.com/folder)\n[Guide](https://example.com/guide?a=1&b=2)\n[Starter](https://example.com/starter.zip)";
+        let rendered = render(source, Some("teams"), None);
+        let html = rendered
+            .html
+            .expect("Teams mode should produce rich output");
+
+        assert_eq!(html.matches("<a href=").count(), 3);
+        assert_eq!(rendered.text, "Folder\nGuide\nStarter");
+        let folder = html.find(">Folder</a>").unwrap();
+        let guide = html.find(">Guide</a>").unwrap();
+        let starter = html.find(">Starter</a>").unwrap();
+        assert!(folder < guide && guide < starter);
+    }
+
+    #[test]
     fn link_source_round_trips_original_escaped_labels_and_parentheses() {
         let original = link_source("[Guide]", "https://example.com/?a=1&b=2");
         let parsed = links(&original);
