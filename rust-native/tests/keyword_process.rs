@@ -4,6 +4,7 @@
 mod child_output;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use ruycast_native::{keyword_matcher, templates};
 use std::{
     collections::BTreeMap,
     fs,
@@ -296,6 +297,50 @@ fn replacement_utf16_chunking_cursor_and_erase_counts() {
 #[test]
 fn focus_secure_precedence() {
     compare("focus_secure_precedence");
+    for (secure_input, subrole, expected) in [
+        (false, None, true),
+        (false, Some("AXStandardWindow"), true),
+        (true, None, false),
+        (false, Some("AXSecureTextField"), false),
+    ] {
+        assert_eq!(
+            keyword_matcher::allows_expansion(secure_input, subrole),
+            expected
+        );
+    }
+
+    let mut command = ruycast_native::session::fixture(1).remove(0);
+    command.id = "snippet.now".into();
+    command.kind = "snippet".into();
+    command.target = "{datetime}".into();
+    command.keyword = Some(";;".into());
+    let catalog = keyword_matcher::Catalog::new(&[command.clone()]).unwrap();
+    let mut matcher = keyword_matcher::Matcher::default();
+    assert!(matcher.type_text(";", &catalog).is_none());
+    let matched = matcher.type_text(";", &catalog).unwrap();
+    assert_eq!(
+        serde_json::to_value(matched).unwrap(),
+        serde_json::to_value(&command).unwrap()
+    );
+
+    let context = templates::Context {
+        clipboard: None,
+        now: 1_761_420_900.,
+        locale: Some("en_GB"),
+        time_zone: Some("GMT"),
+    };
+    let (rendered, _) = catalog
+        .plan("snippet.now")
+        .unwrap()
+        .render(&[], &context)
+        .unwrap();
+    assert_eq!(rendered, "25 October 2025 19:35");
+
+    let mut explicit = command;
+    explicit.target = "{datetime:yyyy-MM-dd HH:mm}".into();
+    let plan = templates::Plan::parse(&explicit, templates::Limits::application()).unwrap();
+    let (rendered, _) = plan.render(&[], &context).unwrap();
+    assert_eq!(rendered, "2025-10-25 19:35");
 }
 #[test]
 fn choice_single_use_retries_cancel_and_target_guards() {

@@ -106,22 +106,6 @@ struct CoreTests {
             XCTAssertEqual(long.search(typo).map(\.id),length==64 ? ["long"]:[])
         }
     }
-    func testSnippetFocusAndDateTime() throws {
-        // AX-unavailable editors are not necessarily password fields.
-        XCTAssertEqual(SnippetFocusPolicy.allowsExpansion(secureInput:false,subrole:nil),true)
-        XCTAssertEqual(SnippetFocusPolicy.allowsExpansion(secureInput:false,subrole:"AXStandardWindow"),true)
-        XCTAssertEqual(SnippetFocusPolicy.allowsExpansion(secureInput:true,subrole:nil),false)
-        XCTAssertEqual(SnippetFocusPolicy.allowsExpansion(secureInput:false,subrole:"AXSecureTextField"),false)
-        let command=Command(id:"now",title:"Now",kind:"snippet",target:"{datetime}",keyword:";;")
-        var matcher=SnippetMatcher()
-        XCTAssertEqual(matcher.type(";",commands:[command]),nil)
-        XCTAssertEqual(matcher.type(";",commands:[command]),command)
-        let date=Date(timeIntervalSince1970:1761420900)
-        let rendered=try Templates.render(command,values:[:],now:date,locale:Locale(identifier:"en_GB"),timeZone:TimeZone(secondsFromGMT:0)!)
-        XCTAssertEqual(rendered.0,"25 October 2025 19:35")
-        let explicit=Command(id:"iso",title:"ISO",kind:"snippet",target:"{datetime:yyyy-MM-dd HH:mm}")
-        XCTAssertEqual(try Templates.render(explicit,values:[:],now:date,locale:Locale(identifier:"en_GB"),timeZone:TimeZone(secondsFromGMT:0)!).0,"2025-10-25 19:35")
-    }
     func testTemplatesAndSnippetMatching() throws {
         let link=Command(id:"link",title:"Maps",kind:"url",target:"https://example.com/search?q={query}&place={Place}")
         XCTAssertEqual(Templates.fields(link).map(\.id),["Query","Place"])
@@ -243,7 +227,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
