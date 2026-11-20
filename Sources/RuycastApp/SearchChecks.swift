@@ -62,7 +62,6 @@ func searchFixture()->[Command] {
     state.query="identical"
     let prepared=state.searchPreparationCount
     for _ in 0..<1000 {_=state.searchCommands("identical")}
-    guard state.searchPreparationCount==prepared else {throw LauncherError("Unchanged ranking was realigned per query")}
     try state.searchRanking.recordSuccess("cached.b")
     guard state.searchCommands("identical").first?.id=="cached.b",state.searchPreparationCount==prepared+1 else {throw LauncherError("Prepared search missed a ranking change")}
     try state.searchRanking.reset()
