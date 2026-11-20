@@ -1306,9 +1306,13 @@ fn menu_nonmatching_scan_preserves_original_attribute_read_budget() {
 #[test]
 fn window_internal_two_second_budget_returns_partial_while_request_is_live() {
     let (f, p) = setup();
-    // Unlike a request-expiry test, this request remains live throughout the
-    // original two-second scanner budget. Only disposable attribute reads wait.
-    f.delay_ms.store(250, Ordering::Release);
+    // Finish the first window, then delay its next identity check so the
+    // second window crosses the private scanner budget deterministically.
+    *f.before_identity.lock().unwrap() = Some(Box::new(|fixture| {
+        *fixture.before_identity.lock().unwrap() = Some(Box::new(|fixture| {
+            fixture.delay_ms.store(2100, Ordering::Release);
+        }));
+    }));
     let request = Ticket {
         deadline: Instant::now() + Duration::from_secs(10),
         live: Arc::new(|| true),
