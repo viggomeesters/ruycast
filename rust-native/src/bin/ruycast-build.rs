@@ -64,7 +64,7 @@ type Result<T> = std::result::Result<T, String>;
 const SCHEMA: &str = "ruycast.rust-development-build.v4";
 const OUTPUT: &str = ".build/full-rust-release";
 static BUILD_EXIT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(1);
-const USAGE: &str = "ruycast-build build|verify --repo ABSOLUTE_REPOSITORY [--configuration debug|release]\nruycast-build version|fingerprint|validation-plan|disk-status --repo ABSOLUTE_REPOSITORY\nruycast-build clean-build-caches --repo ABSOLUTE_REPOSITORY\nruycast-build stage --repo ABSOLUTE_REPOSITORY --build POSITIVE_NUMBER\nruycast-build verify-candidate --repo ABSOLUTE_REPOSITORY --candidate ABSOLUTE_DIRECTORY\nruycast-build check-native|pure-core-oracle|verify-pure-core-oracle --repo ABSOLUTE_REPOSITORY\nruycast-build gate-inventory --repo ABSOLUTE_REPOSITORY --pipeline check|settings\nruycast-build sample-performance --pid PID --probe PATH --out PATH --label LABEL [--seconds 600]\nruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts 30] [--samples 1000] [--active-seconds 600] [--idle-seconds 600]\nruycast-build compat ENTRY --repo ABSOLUTE_REPOSITORY -- [compatibility arguments]\nruycast-build notary-result --file PATH";
+const USAGE: &str = "ruycast-build build|verify --repo ABSOLUTE_REPOSITORY [--configuration debug|release]\nruycast-build version|fingerprint|validation-plan|disk-status --repo ABSOLUTE_REPOSITORY\nruycast-build clean-build-caches --repo ABSOLUTE_REPOSITORY\nruycast-build stage --repo ABSOLUTE_REPOSITORY --build POSITIVE_NUMBER\nruycast-build verify-candidate --repo ABSOLUTE_REPOSITORY --candidate ABSOLUTE_DIRECTORY\nruycast-build check-native|pure-core-oracle|verify-pure-core-oracle --repo ABSOLUTE_REPOSITORY\nruycast-build gate-inventory --repo ABSOLUTE_REPOSITORY --pipeline check|settings\nruycast-build sample-performance --pid PID --probe PATH --out PATH --label LABEL [--seconds 600]\nruycast-build benchmark-host --host PATH --cli PATH --probe PATH --out PATH [--cold-starts 30] [--samples 1000] [--active-seconds 600] [--idle-seconds 600]\nruycast-build compat ENTRY --repo ABSOLUTE_REPOSITORY -- [compatibility arguments]\nruycast-build notary-result --file PATH\nruycast-build release-receipt --candidate PATH --public-commit HASH --signature TEXT";
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -500,6 +500,11 @@ fn run() -> Result<()> {
     run_with_args(std::env::args().skip(1).collect())
 }
 fn run_with_args(mut args: Vec<String>) -> Result<()> {
+    if args.first().is_some_and(|value| value == "release-receipt") {
+        args.remove(0);
+        candidate::release_receipt(&args)?;
+        return Ok(());
+    }
     if args.first().is_some_and(|value| value == "notary-result") {
         args.remove(0);
         if let Some(id) = candidate::notary_result(&args)? {

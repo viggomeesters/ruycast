@@ -1,5 +1,6 @@
 //! Unsigned, source-bound app staging. No signing, installation or publication.
 use super::*;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 
 const CANDIDATE_SCHEMA: &str = "ruycast.rust-unsigned-candidate.v2";
@@ -26,6 +27,58 @@ pub(super) fn notary_result(args: &[String]) -> Result<Option<String>> {
     }
     let bytes = fs::read(Path::new(&args[1])).map_err(error)?;
     accepted_notary_submission_id(&bytes).map(Some)
+}
+
+fn release_receipt_value(
+    candidate: &[u8],
+    notarization: &[u8],
+    zip: &[u8],
+    public_commit: &str,
+    signature: &str,
+) -> Result<serde_json::Value> {
+    let unsigned_candidate: serde_json::Value = serde_json::from_slice(candidate).map_err(error)?;
+    let notarization_value: serde_json::Value =
+        serde_json::from_slice(notarization).map_err(error)?;
+    accepted_notary_submission_id(notarization)?;
+    if public_commit.trim().is_empty() || signature.trim().is_empty() {
+        return Err("Release receipt needs the public commit and codesign details.".into());
+    }
+    Ok(serde_json::json!({
+        "unsignedCandidate": unsigned_candidate,
+        "notarization": notarization_value,
+        "zipSHA256": hash(zip),
+        "publicCommit": public_commit.trim(),
+        "signature": signature,
+    }))
+}
+
+pub(super) fn release_receipt(args: &[String]) -> Result<()> {
+    if args.len() != 6
+        || args[0] != "--candidate"
+        || args[2] != "--public-commit"
+        || args[4] != "--signature"
+    {
+        return Err("Usage: ruycast-build release-receipt --candidate PATH --public-commit HASH --signature TEXT".into());
+    }
+    no_links(Path::new(&args[1]))?;
+    let candidate = fs::canonicalize(&args[1]).map_err(error)?;
+    let record = release_receipt_value(
+        &regular_bytes(&candidate.join("candidate.json"))?,
+        &regular_bytes(&candidate.join("notary-result.json"))?,
+        &regular_bytes(&candidate.join("Ruycast-macOS.zip"))?,
+        &args[3],
+        &args[5],
+    )?;
+    let bytes = serde_json::to_vec_pretty(&record).map_err(error)?;
+    let target = candidate.join("release-receipt.json");
+    let mut output = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&target)
+        .map_err(error)?;
+    output.write_all(&bytes).map_err(error)?;
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -465,6 +518,32 @@ mod tests {
         ] {
             assert!(accepted_notary_submission_id(bytes).is_err());
         }
+    }
+    #[test]
+    fn release_receipt_binds_candidate_notarization_zip_commit_and_signature() {
+        let candidate = br#"{"build":68,"productionAccepted":false}"#;
+        let notarization = br#"{"status":"Accepted","id":"submission-68"}"#;
+        let record = release_receipt_value(
+            candidate,
+            notarization,
+            b"synthetic final zip",
+            "abc123\n",
+            "Identifier=nl.viggomeesters.ruycast\nTeamIdentifier=TEAM123",
+        )
+        .unwrap();
+        assert_eq!(record["unsignedCandidate"]["build"], 68);
+        assert_eq!(record["notarization"]["id"], "submission-68");
+        assert_eq!(record["zipSHA256"], hash(b"synthetic final zip"));
+        assert_eq!(record["publicCommit"], "abc123");
+        assert!(record["signature"].as_str().unwrap().contains("TEAM123"));
+    }
+    #[test]
+    fn release_receipt_refuses_unaccepted_notary_or_missing_capture() {
+        let candidate = br#"{"build":68}"#;
+        let accepted = br#"{"status":"Accepted","id":"submission-68"}"#;
+        assert!(release_receipt_value(candidate, br#"{"status":"Invalid"}"#, b"zip", "abc", "sig").is_err());
+        assert!(release_receipt_value(candidate, accepted, b"zip", "", "sig").is_err());
+        assert!(release_receipt_value(candidate, accepted, b"zip", "abc", " ").is_err());
     }
     #[test]
     fn real_owned_prepared_pair_stages_exclusively_and_rejects_mixed_source() {
