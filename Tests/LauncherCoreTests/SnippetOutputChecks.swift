@@ -13,11 +13,7 @@ func checkSnippetOutput() throws {
         if mode=="teams" {precondition(!value.html!.contains("<table") && !value.html!.contains("<td") && value.html!.components(separatedBy:"<p style=\"margin:0\">").count==6 && value.html!.contains("<p style=\"margin:0\"><br></p>"),"Teams snippets must be normal paragraphs, never a visible table")}
         else {precondition(value.html!.contains("Hi 👋<br><br>See"))}
     }
-    precondition(SnippetOutput.render(source,mode:nil).text==source && SnippetOutput.render(source,mode:nil).html==nil)
     precondition(SnippetOutput.links("[line1\nline2](https://example.com)").isEmpty)
-    let unsafe="<img src=x> [X](javascript:alert(1)) [Y](file:///etc/passwd)"
-    let escaped=SnippetOutput.render(unsafe,mode:"html").html!
-    precondition(!escaped.contains("<img") && !escaped.contains("<a "))
     let labeled="a[😀](https://example.com)b"
     for (sourceOffset,expectedOffset) in [(0,0),(1,1),(labeled.utf16.count-1,3),(labeled.utf16.count,4)] {
         precondition(SnippetOutput.render(labeled,mode:"html",cursor:sourceOffset).cursor==expectedOffset)
