@@ -144,6 +144,21 @@ fn prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projectio
     assert_eq!(literal.id,"cache.b");
     assert_eq!(literal.target,"/owned/new-script");
     assert_eq!(literal.arguments,["literal {query}","NUL\u{0}tail"]);
+
+    let mut scenario=serde_json::to_value(state.configuration.current()).unwrap();
+    scenario["commands"][0]["id"]=json!("cached.a");
+    scenario["commands"][0]["title"]=json!("Identical");
+    scenario["commands"][0]["enabled"]=json!(true);
+    scenario["commands"][1]["id"]=json!("cached.b");
+    scenario["commands"][1]["title"]=json!("Identical");
+    scenario["commands"][1]["enabled"]=json!(true);
+    state.configuration.save(&scenario).unwrap();
+    assert_eq!(ids(system::local(&state,"identical",0)),["cached.a","cached.b"]);
+    state.ranking.record_success("cached.b",1_700_000_001.).unwrap();
+    assert_eq!(ids(system::local(&state,"identical",0)),["cached.b","cached.a"]);
+    scenario["commands"][1]["enabled"]=json!(false);
+    state.configuration.save(&scenario).unwrap();
+    assert_eq!(ids(system::local(&state,"identical",0)),["cached.a"]);
 }
 
 #[test]
