@@ -75,14 +75,6 @@ fn compare(
     }
     Ok(modules)
 }
-pub(super) fn run(root: &Path, reference: &Path) -> Result<Value> {
-    let (owners, definitions) = parity_families::owners(root)?;
-    let sources = compare(root, reference, &owners)?;
-    if parity_families::owners(root)?.1 != definitions {
-        return Err("Contract family definitions changed during source inventory.".into());
-    }
-    Ok(json!({"sourceFiles":sources,"definitionsSHA256":definitions}))
-}
 #[cfg(test)]
 mod tests {
     use super::super::tests::Fixture;

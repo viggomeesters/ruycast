@@ -50,6 +50,7 @@ mod parity_bootstrap;
 #[path = "ruycast-build/parity_compile.rs"]
 mod parity_compile;
 #[path = "ruycast-build/parity_sources.rs"]
+#[cfg(test)]
 mod parity_sources;
 #[path = "ruycast-build/parity_families.rs"]
 mod parity_families;
