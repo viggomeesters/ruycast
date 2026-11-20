@@ -1326,7 +1326,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/settings_surface.rs", include_bytes!("../../settings_surface.rs"), "0578d288549d01d76d3168cc8607ab56bd46df03d8583a49ab266ce95b5e5b37"),
             ("rust-native/src/snippet_output.rs", include_bytes!("../../snippet_output.rs"), "40f779d97941aec293f6a53c89970051189e82a0fa2a98a86027c196724138be"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
-            ("rust-native/tests/keyword_process.rs", include_bytes!("../../../tests/keyword_process.rs"), "6376af678ea56c1a06ee9c0ba95c290723c9ef372de633e035f2edbfbf8026e7"),
+            ("rust-native/tests/keyword_process.rs", include_bytes!("../../../tests/keyword_process.rs"), "7d21b25eb979f3bacd663111e1f206cc5ace2dcc312f1ff7e60066c449bbe3e9"),
             ("rust-native/tests/keyword_reference.json", include_bytes!("../../../tests/keyword_reference.json"), "b3ad168109a4712a792756f6227a730cec365fae7399824803034131ce956119"),
             ("rust-native/tests/keyword_rich_process.rs", include_bytes!("../../../tests/keyword_rich_process.rs"), "f9d5bfbdeeaebaba0e9568d9772d08bf77f5606911dd1e22105700453ca5c9ad"),
             ("rust-native/tests/support/keyword_capture.rs", include_bytes!("../../../tests/support/keyword_capture.rs"), "44869110fc147b039d54e068be36cbaf668ce15fd493be3ee263b633f95b21d1"),
