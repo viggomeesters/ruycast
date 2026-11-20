@@ -994,6 +994,52 @@ fn main() {
 }
 #[cfg(test)]mod startup_discovery_tests{
     use super::*;
+    fn wait_owned_cli_output(mut child:std::process::Child,timeout:Duration,max_output_bytes:usize)->io::Result<std::process::Output>{
+        use std::{io::{Error,ErrorKind},os::fd::AsRawFd,time::Instant};
+        let deadline=Instant::now()+timeout;
+        let result=(||->io::Result<std::process::Output>{
+            let mut stdout=child.stdout.take().ok_or_else(||Error::other("Owned CLI stdout unavailable"))?;
+            let mut stderr=child.stderr.take().ok_or_else(||Error::other("Owned CLI stderr unavailable"))?;
+            for fd in [stdout.as_raw_fd(),stderr.as_raw_fd()] {
+                let flags=unsafe{libc::fcntl(fd,libc::F_GETFL)};
+                if flags<0||unsafe{libc::fcntl(fd,libc::F_SETFL,flags|libc::O_NONBLOCK)}<0 {return Err(Error::last_os_error());}
+            }
+            let mut output=[Vec::new(),Vec::new()];let mut eof=[false,false];let mut oversized=false;let mut status=None;
+            loop {
+                for (index,pipe) in [&mut stdout as &mut dyn io::Read,&mut stderr as &mut dyn io::Read].into_iter().enumerate() {
+                    if eof[index] {continue;}
+                    for _ in 0..8 {
+                        let mut buffer=[0u8;8192];
+                        match pipe.read(&mut buffer) {
+                            Ok(0)=>{eof[index]=true;break;}
+                            Ok(count)=>{
+                                let remaining=max_output_bytes.saturating_sub(output[index].len());
+                                let retained=count.min(remaining);
+                                output[index].extend_from_slice(&buffer[..retained]);
+                                oversized|=retained<count;
+                            }
+                            Err(error) if error.kind()==ErrorKind::WouldBlock=>break,
+                            Err(error) if error.kind()==ErrorKind::Interrupted=>continue,
+                            Err(error)=>return Err(error),
+                        }
+                    }
+                }
+                if status.is_none(){status=child.try_wait()?;}
+                if let Some(status)=status.filter(|_|eof[0]&&eof[1]) {
+                    if oversized{return Err(Error::other("Owned CLI output exceeds its explicit per-stream limit"));}
+                    return Ok(std::process::Output{status,stdout:std::mem::take(&mut output[0]),stderr:std::mem::take(&mut output[1])});
+                }
+                if Instant::now()>=deadline{return Err(Error::new(ErrorKind::TimedOut,"Owned CLI operation deadline expired"));}
+                let mut descriptors=[
+                    libc::pollfd{fd:if eof[0]{-1}else{stdout.as_raw_fd()},events:libc::POLLIN,revents:0},
+                    libc::pollfd{fd:if eof[1]{-1}else{stderr.as_raw_fd()},events:libc::POLLIN,revents:0},
+                ];
+                rustcast_core::script::wait_pipe_readiness(&mut descriptors,Some(deadline))?;
+            }
+        })();
+        if result.is_err(){if matches!(child.try_wait(),Ok(None)){let _=child.kill();}let _=child.wait();}
+        result
+    }
     fn wait_socket(fd: libc::c_int, events: libc::c_short, deadline: std::time::Instant) -> io::Result<()> {
         loop {
             let remaining = deadline.saturating_duration_since(std::time::Instant::now());
@@ -1281,21 +1327,17 @@ fn main() {
         let (cli,cli_sha)=bound_test_binary("RUYCAST_CLI_PARITY_BINARY","RUYCAST_CLI_PARITY_BINARY_SHA256");
         let (host,host_sha)=bound_test_binary("RUYCAST_CLI_PARITY_HOST","RUYCAST_CLI_PARITY_HOST_SHA256");
         let run=|args:&[&str]| {
-            let mut child=OwnedChild(Command::new(&cli).args(args).env_clear()
+            let child=Command::new(&cli).args(args).env_clear()
                 .env("HOME",&owned.0).env("RUYCAST_HOME",owned.0.join("p")).env("PATH","/usr/bin:/bin")
-                .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap());
-            let deadline=std::time::Instant::now()+Duration::from_secs(8);
-            let status=loop {
-                if let Some(status)=child.0.try_wait().unwrap(){break status;}
-                assert!(std::time::Instant::now()<deadline,"Owned CLI operation did not finish: {args:?}");
-                thread::sleep(Duration::from_millis(5));
-            };
-            let mut stdout=String::new();child.0.stdout.take().unwrap().read_to_string(&mut stdout).unwrap();
-            let mut stderr=String::new();child.0.stderr.take().unwrap().read_to_string(&mut stderr).unwrap();
+                .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+            let output=wait_owned_cli_output(child,Duration::from_secs(8),1024*1024)
+                .unwrap_or_else(|error|panic!("Owned CLI operation failed or exceeded its deadline: {args:?}: {error}"));
+            let stdout=String::from_utf8(output.stdout).expect("CLI JSON envelope is UTF-8");
+            let stderr=String::from_utf8(output.stderr).expect("CLI stderr is UTF-8");
             assert!(stderr.is_empty(),"CLI contract writes envelopes to stdout: {stderr}");
             assert_eq!(stdout.lines().count(),1,"One complete JSON envelope per command");
             let value:Value=serde_json::from_str(&stdout).unwrap();
-            assert_eq!(status.code(),Some(if value["ok"]==true {0}else{1}),"JSON/exit contract: {value}");
+            assert_eq!(output.status.code(),Some(if value["ok"]==true {0}else{1}),"JSON/exit contract: {value}");
             value
         };
         assert_eq!(run(&["config","init"])["ok"],true);
@@ -1557,18 +1599,13 @@ fn main() {
                 .env("RUYCAST_APP_BINARY",&host).env("PATH","/usr/bin:/bin")
                 .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
             if group.is_none(){command.process_group(0);}
-            let mut child=command.spawn().unwrap();
+            let child=command.spawn().unwrap();
             if group.is_none(){*group=Some(i32::try_from(child.id()).unwrap());}
             owned.group.set(*group);
-            let deadline=std::time::Instant::now()+Duration::from_secs(8);
-            let status=loop {
-                if let Some(status)=child.try_wait().unwrap(){break status;}
-                if std::time::Instant::now()>=deadline {let _=child.kill();let _=child.wait();panic!("Owned CLI start/control deadline");}
-                thread::sleep(Duration::from_millis(5));
-            };
-            let mut stdout=String::new();child.stdout.take().unwrap().read_to_string(&mut stdout).unwrap();
-            let mut stderr=String::new();child.stderr.take().unwrap().read_to_string(&mut stderr).unwrap();assert!(stderr.is_empty());
-            assert!(status.success());assert_eq!(stdout.lines().count(),1);
+            let output=wait_owned_cli_output(child,Duration::from_secs(8),1024*1024).expect("Owned CLI start/control deadline or output limit");
+            let stdout=String::from_utf8(output.stdout).expect("CLI JSON envelope is UTF-8");
+            let stderr=String::from_utf8(output.stderr).expect("CLI stderr is UTF-8");assert!(stderr.is_empty());
+            assert!(output.status.success());assert_eq!(stdout.lines().count(),1);
             let response:Value=serde_json::from_str(&stdout).unwrap();assert_eq!(response["ok"],true);response
         };
         let mut group=None;
