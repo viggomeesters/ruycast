@@ -1,12 +1,5 @@
 //! Read-only installed toolchain discovery; driver argument text is data, never executed.
 use super::*;
-use serde_json::{json, Value};
-use std::time::Duration;
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct Request {
-    deadline_nanos: u64,
-}
 // Python shlex.split(posix=True,comments=False), including quote concatenation,
 // empty quoted words, escaped newlines and literal # characters.
 fn split(text: &str) -> Result<Vec<String>> {
@@ -94,80 +87,10 @@ fn text(bytes: Vec<u8>) -> Result<String> {
         .replace("\r\n", "\n")
         .replace('\r', "\n"))
 }
-fn capture(
-    root: &Path,
-    lease: &BuildLock,
-    program: &str,
-    args: &[&str],
-    deadline: u64,
-    seconds: u64,
-    limit: usize,
-) -> Result<(String, String)> {
-    let mut command = Command::new(program);
-    command.args(args).current_dir(root);
-    lease.apply_to_child(&mut command)?;
-    lease.validate()?;
-    let budget = parity_bootstrap::inner_budget(deadline)?.min(Duration::from_secs(seconds));
-    let result = process::capture(command, budget, limit)?;
-    lease.validate()?;
-    let stdout = text(result.stdout)?;
-    let stderr = text(result.stderr)?;
-    if !result.status.success() {
-        return Err(format!("{program} failed ({}): {stderr}", result.status));
-    }
-    Ok((stdout, stderr))
-}
-fn trimmed(text: &str) -> &str {
-    text.trim_matches(|ch: char| ch.is_whitespace() || matches!(ch, '\u{1c}'..='\u{1f}'))
-}
-pub(super) fn run(root: &Path, lease: &BuildLock, stage: &str, payload: &str) -> Result<Value> {
-    let request: Request = serde_json::from_str(payload).map_err(error)?;
-    match stage {
-        "discover" => {
-            let (sdk, sdk_stderr) = capture(
-                root,
-                lease,
-                "xcrun",
-                &["--show-sdk-path"],
-                request.deadline_nanos,
-                10,
-                1024 * 1024,
-            )?;
-            eprint!("{sdk_stderr}");
-            let (stdout, stderr) = capture(
-                root,
-                lease,
-                "swiftc",
-                &[
-                    "-###",
-                    "-typecheck",
-                    "Sources/RuycastApp/FeatureState.swift",
-                ],
-                request.deadline_nanos,
-                15,
-                8 * 1024 * 1024,
-            )?;
-            Ok(json!({"sdk":trimmed(&sdk),"plugins":plugins(&(stdout+&stderr))?}))
-        }
-        "version" => {
-            let (version, stderr) = capture(
-                root,
-                lease,
-                "swiftc",
-                &["--version"],
-                request.deadline_nanos,
-                10,
-                1024 * 1024,
-            )?;
-            eprint!("{stderr}");
-            Ok(json!({"compilerVersion":trimmed(&version)}))
-        }
-        _ => Err("Unknown toolchain discovery stage.".into()),
-    }
-}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     #[test]
     fn subprocess_text_normalizes_newlines_and_refuses_bad_utf8() {
         assert_eq!(text(b"a\r\nb\rc\n".to_vec()).unwrap(), "a\nb\nc\n");
