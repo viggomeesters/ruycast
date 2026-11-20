@@ -82,6 +82,66 @@ mod tests {
     use super::*;
     use std::fs;
     #[test]
+    fn original_prepared_ranking_snapshots_track_success_reset_and_replacement() {
+        struct TemporaryRoot(PathBuf);
+        impl Drop for TemporaryRoot {
+            fn drop(&mut self) {
+                let _ = fs::remove_file(&self.0);
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let root = TemporaryRoot(std::env::temp_dir().join(format!(
+            "ruycast-prepared-ranking-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+        private_storage::secure_directory(&root.0).unwrap();
+        let now = 1_761_420_900.;
+        let mut ranking = RankingStore::open(&root.0, now);
+        let mut commands = crate::session::fixture(2);
+        commands[0].id = "a".into();
+        commands[0].title = "Same".into();
+        commands[0].target = "https://example.com".into();
+        commands[1].id = "b".into();
+        commands[1].title = "Same".into();
+        commands[1].target = "https://example.com".into();
+
+        let ids = |catalog: &crate::catalog::Catalog| {
+            catalog
+                .search("same", 0)
+                .iter()
+                .map(|&index| catalog.command(index).id.clone())
+                .collect::<Vec<_>>()
+        };
+        let mut original = crate::catalog::Catalog::new(commands.clone());
+        original.prepare_recency(ranking.entries());
+        let initial = ranking.revision;
+        ranking.record_success("b", now).unwrap();
+        assert_ne!(ranking.revision, initial);
+        let mut trained = crate::catalog::Catalog::new(commands.clone());
+        trained.prepare_recency(ranking.entries());
+        assert_eq!(ids(&original), ["a", "b"]);
+        assert_eq!(ids(&trained)[0], "b");
+
+        let before_reset = ranking.revision;
+        ranking.reset().unwrap();
+        assert_ne!(ranking.revision, before_reset);
+        let mut after_reset = crate::catalog::Catalog::new(commands);
+        after_reset.prepare_recency(ranking.entries());
+        assert_eq!(ids(&after_reset)[0], "a");
+
+        let mut replacement_commands = crate::session::fixture(1);
+        replacement_commands[0].id = "new".into();
+        replacement_commands[0].title = "Same".into();
+        replacement_commands[0].target = "https://example.com".into();
+        let mut replacement = crate::catalog::Catalog::new(replacement_commands);
+        replacement.prepare_recency(&HashMap::from([("b".into(), 100.)]));
+        assert_eq!(ids(&replacement), ["new"]);
+    }
+    #[test]
     fn failed_durable_write_preserves_revision_and_entries() {
         struct TemporaryRoot(PathBuf);
         impl Drop for TemporaryRoot {
