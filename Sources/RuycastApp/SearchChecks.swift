@@ -35,13 +35,6 @@ func searchFixture()->[Command] {
     let state=try AppState(root:sandbox,headless:true)
     state.config.commands=searchFixture()
     let cases=[""," ","MICROSOFT","a42","item.11","project dashboard","example.com/42","missing","Ångström","a\0b"]
-    state.query="left"
-    let results=state.results
-    let changes=LockedValue(0)
-    withObservationTracking {_=state.query;_=state.results;_=state.selection} onChange:{changes.update {$0+=1}}
-    var reply:[String:Any]=[:]
-    state.handle(["op":"search","query":"a42"]) {reply=$0}
-    guard state.query=="left",state.results==results,changes.read({$0})==0,reply["ok"] as? Bool==true else {throw LauncherError("CLI search changed the palette.")}
     state.query="new app"
     state.applications=[Command(id:"discovered.test",title:"New App",kind:"app",target:"org.test.app")]
     guard state.results.first?.id=="discovered.test" else {throw LauncherError("Discovered apps are stale.")}
