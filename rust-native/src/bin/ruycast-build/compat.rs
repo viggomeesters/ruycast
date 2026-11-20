@@ -1030,21 +1030,8 @@ fn main() {{
         assert!(!report.exists());
     }
     #[test]
-    fn real_compatibility_processes_only_forward_to_explicit_host_rust_bootstrap() {
-        let fixture = super::super::tests::Fixture::new();
-        let directory = fixture.0.join("owned-bootstrap");
-        fs::create_dir(&directory).unwrap();
-        let source = directory.join("capture.rs");
-        fs::write(&source, r#"fn main(){let mut bytes=Vec::new();for value in std::env::args().skip(1){bytes.extend_from_slice(value.as_bytes());bytes.push(0);}std::fs::write(std::env::var("RUYCAST_OWNED_DISPATCH_RECORD").unwrap(),bytes).unwrap();std::process::exit(7);}"#).unwrap();
-        let cargo = directory.join("cargo");
-        output(
-            &fixture.0,
-            "rustc",
-            &[source.to_str().unwrap(), "-o", cargo.to_str().unwrap()],
-        )
-        .unwrap();
+    fn retired_check_settings_shell_entries_are_absent() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let record = directory.join("arguments");
         assert!(!root.join("scripts/prepare_release.py").exists());
         assert!(!root.join("scripts/build-native-locked.sh").exists());
         assert!(!root.join("scripts/build-native.sh").exists());
@@ -1053,74 +1040,7 @@ fn main() {{
         assert!(!root.join("scripts/check-locked.sh").exists());
         assert!(!root.join("scripts/check.sh").exists());
         assert!(!root.join("scripts/check-settings.sh").exists());
-        // Build/check facades must run without any Python interpreter in PATH.
-        // The recorder itself executes no child; only dirname and the
-        // locked wrappers' nested bash are available before Cargo.
-        std::os::unix::fs::symlink("/usr/bin/dirname", directory.join("dirname")).unwrap();
-        std::os::unix::fs::symlink("/bin/bash", directory.join("bash")).unwrap();
-        for (interpreter, script, entry, tail) in [
-            ("bash", "scripts/check-settings-locked.sh", "build-receipt", vec!["--literal=owned value"]),
-        ] {
-            let shell_route = interpreter == "bash";
-            let mut command = Command::new(if shell_route { "/bin/bash" } else { interpreter });
-            command
-                .arg(root.join(script))
-                .args(&tail)
-                .env(
-                    "PATH",
-                    if shell_route { directory.display().to_string() }
-                    else { format!("{}:{}", directory.display(), std::env::var("PATH").unwrap()) },
-                )
-                .env("RUYCAST_OWNED_DISPATCH_RECORD", &record);
-            let result =
-                process::capture(command, std::time::Duration::from_secs(10), 65536).unwrap();
-            assert_eq!(
-                result.status.code(),
-                Some(7),
-                "{script}: {}",
-                String::from_utf8_lossy(&result.stderr)
-            );
-            let bytes = fs::read(&record).unwrap();
-            let forwarded = bytes
-                .split(|byte| *byte == 0)
-                .filter(|part| !part.is_empty())
-                .map(|part| std::str::from_utf8(part).unwrap())
-                .collect::<Vec<_>>();
-            let prefix = ["run", "--quiet", "--locked", "--offline", "--target-dir"];
-            assert_eq!(&forwarded[..prefix.len()], prefix);
-            assert!(
-                !forwarded
-                    .iter()
-                    .any(|arg| matches!(*arg, "--target" | "host-tuple")),
-                "native Cargo bootstrap must use its default host target"
-            );
-            assert_eq!(
-                forwarded[5],
-                root.join(".build/delivery-tools").to_str().unwrap()
-            );
-            assert_eq!(forwarded[6], "--manifest-path");
-            assert_eq!(
-                forwarded[7],
-                root.join("rust-native/Cargo.toml").to_str().unwrap()
-            );
-            assert_eq!(
-                &forwarded[8..13],
-                ["--bin", "ruycast-build", "--", "compat", entry]
-            );
-            assert_eq!(forwarded[13], "--repo");
-            assert_eq!(forwarded[14], root.to_str().unwrap());
-            assert_eq!(forwarded[15], "--");
-            let action = match script {
-                "scripts/check-settings-locked.sh" => Some("settings"),
-                _ => None,
-            };
-            let mut expected = vec![];
-            if let Some(action) = action {
-                expected.push(action);
-            }
-            expected.extend(tail);
-            assert_eq!(&forwarded[16..], expected);
-        }
+        assert!(!root.join("scripts/check-settings-locked.sh").exists());
         assert!(!root.join("scripts/build_receipt.py").exists());
     }
     #[test]
