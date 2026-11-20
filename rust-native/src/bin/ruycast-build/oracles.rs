@@ -2341,6 +2341,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["changing theme to graphite and syncing leaves catalog preparation work, results revision and selection unchanged; a following title change does rebuild the catalog"],
             "nativeCases": ["runtime::inline_tests::prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.usageRankingRefreshes"] = serde_json::json!({
+            "originalSourceSHA256": "4ed29d77d3c72b1ee1e7489ddad15bfc30f7bb2bb9864b91650f6ae4a6d0be0b",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the empty-query usage-ranking result assertion moves to the existing Rust runtime test. The result field and remaining search checks and --check-search route stay active.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["after usage count increases for one catalog item, the empty query returns that item first while non-empty catalog order remains unchanged"],
+            "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3587,6 +3595,25 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_usage_ranking_refresh_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_private_tests.rs");
+        assert!(rust.contains("fn prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection()"));
+        assert!(rust.contains(r#"state.activity.counts.insert("cache.b".into(),7); state.activity.usage_revision+=1;"#));
+        assert!(rust.contains(r#"assert_eq!(system::local(&state,"",0)[0].id,"cache.b");"#));
+        assert!(rust.contains(r#"assert_eq!(ids(system::local(&state,"Owned cache",0)), ["cache.a", "cache.b"]);"#));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.usageRankingRefreshes"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "4ed29d77d3c72b1ee1e7489ddad15bfc30f7bb2bb9864b91650f6ae4a6d0be0b");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
