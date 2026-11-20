@@ -1168,6 +1168,14 @@ mod tests {
             {"id":"c","title":"Beta","kind":"url","target":"https://example.com/four"}
         ]))
         .unwrap();
+        for _ in 0..100 {
+            let temporary = SearchIndex::new(&commands);
+            let first_id = temporary
+                .search("go")
+                .first()
+                .map(|position| commands[*position].id.as_str());
+            assert_eq!(first_id, Some("z"));
+        }
         let index = SearchIndex::new(&commands);
         let ids = index
             .search("go")

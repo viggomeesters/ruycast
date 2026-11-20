@@ -16,7 +16,6 @@ struct CoreTests {
         for query in ["go"," BETA ","ÅNGSTRÖM notes","nul\0alias","   ","does not exist","example"] {
             XCTAssertEqual(index.search(query),legacy.search(query))
         }
-        for _ in 0..<100 {let temporary=try CommandSearchIndex(commands:commands);XCTAssertEqual(temporary.search("go").first?.id,"z")}
         let root=FileManager.default.temporaryDirectory.appendingPathComponent("ranking-"+UUID().uuidString)
         defer {try? FileManager.default.removeItem(at:root)}
         try FileManager.default.createDirectory(at:root,withIntermediateDirectories:true)
