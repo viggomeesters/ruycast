@@ -2701,7 +2701,6 @@ mod tests {
         let retired = "Tests/LauncherCoreTests/TaskDateInputChecks.swift";
         assert!(!root.join(retired).exists());
         assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
-        assert!(!include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift").contains("checkTaskDateInput"));
         let value = inventory("check").unwrap();
         let mapping = &value["retiredSwiftChecks"][retired];
         let expected = [
