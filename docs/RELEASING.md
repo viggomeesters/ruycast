@@ -192,13 +192,9 @@ ditto -c -k --keepParent "$RUYCAST_APP" "$RUYCAST_CANDIDATE/notary-upload.zip"
 xcrun notarytool submit "$RUYCAST_CANDIDATE/notary-upload.zip" \
   --keychain-profile "$RUYCAST_NOTARY_PROFILE" --wait --output-format json \
   > "$RUYCAST_CANDIDATE/notary-result.json"
-python3 - "$RUYCAST_CANDIDATE/notary-result.json" <<'PY'
-import json, sys
-result = json.load(open(sys.argv[1]))
-if result.get('status') != 'Accepted':
-    raise SystemExit('Notarization not accepted; inspect the submission log.')
-print(result['id'])
-PY
+cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml \
+  --target-dir .build/delivery-tools --bin ruycast-build -- notary-result \
+  --file "$RUYCAST_CANDIDATE/notary-result.json"
 # Download and inspect that submission's notarytool log, including warnings.
 xcrun stapler staple "$RUYCAST_APP"
 xcrun stapler validate "$RUYCAST_APP"
