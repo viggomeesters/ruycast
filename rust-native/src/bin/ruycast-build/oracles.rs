@@ -2183,6 +2183,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["exact alias mt stays ahead of recent result when recency is high", "multi-term prefix query mic tea returns teams first", "multi-term fuzzy query mft returns teams first", "exact Microsoft Teams title stays ahead of recent history result"],
             "nativeCases": ["tests::original_quality_ranking_alias_recency_and_multi_term_search"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.legacyParity"] = serde_json::json!({
+            "originalSourceSHA256": "b6bb2be6a66ec71d5467fcd1363d9cd9e2f668b6dfd9d081f1b3bd01140f1427",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The seven-query four-command search parity loop now checks complete Rust index/dispatch results and ranked ABI order. Swift ranking storage, runner and private library route remain active.",
+            "nativeSource": "rust/src/lib.rs",
+            "originalScenarios": ["query go", "query BETA with surrounding spaces", "query ÅNGSTRÖM notes", "query nul\\0alias", "blank query", "query does not exist", "query example"],
+            "nativeCases": ["tests::original_seven_query_index_dispatch_and_abi_parity"]
+        });
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.blankQueries"] = serde_json::json!({
             "originalSourceSHA256": "a0f320926f7fd9743b2b669d8e636bf3fb2714d102099b18f20d340b1abc523d",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3017,6 +3025,20 @@ mod tests {
             assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
             assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
         }
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn seven_query_index_parity_is_crosswalked_to_rust() {
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testPersistentIndexRankingAndUnicode.legacyParity"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "b6bb2be6a66ec71d5467fcd1363d9cd9e2f668b6dfd9d081f1b3bd01140f1427");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 7);
+        assert_eq!(mapping["nativeSource"], "rust/src/lib.rs");
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_seven_query_index_dispatch_and_abi_parity"]));
+        assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_seven_query_index_dispatch_and_abi_parity()"));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
