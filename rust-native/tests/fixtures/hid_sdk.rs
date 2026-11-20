@@ -17,6 +17,7 @@ struct Obj {
     valid: bool,
     enabled: bool,
     scheduled: bool,
+    open: bool,
     input: Option<HidCallback>,
     remove: Option<HidCallback>,
     tap: Option<TapCallback>,
@@ -254,10 +255,19 @@ sdk!(manager_create => IOHIDManagerCreate(allocator: Ptr, options: u32) -> Ptr {
     let value = object(1); STATE.lock().unwrap().manager = value as usize; value
 });
 sdk!(manager_open => IOHIDManagerOpen(value: Ptr, options: u32) -> i32 {
-    assert!(value == manager().cast() && options == 0); if hidcall(c"manager_open") { -101 } else { 0 }
+    assert!(value == manager().cast() && options == 0);
+    let failed = hidcall(c"manager_open");
+    (*value.cast::<Obj>()).open = true;
+    if failed { -101 } else { 0 }
 });
 sdk!(manager_close => IOHIDManagerClose(value: Ptr, options: u32) -> i32 {
-    assert!(value == manager().cast() && options == 0); if hidcall(c"manager_close") { -102 } else { 0 }
+    assert!(value == manager().cast() && options == 0);
+    let failed = hidcall(c"manager_close");
+    if !(*value.cast::<Obj>()).open { return 0xe00002cd_u32 as i32; }
+    if failed { return -102; }
+    let closed_with_error = hidcall(c"manager_close_closed");
+    (*value.cast::<Obj>()).open = false;
+    if closed_with_error { -102 } else { 0 }
 });
 sdk!(device_matching => IOHIDManagerSetDeviceMatching(value: Ptr, dictionary: Ptr) -> () {
     assert!(value == manager().cast() && (*dictionary.cast::<Obj>()).kind == 4); hidcall(c"device_matching");

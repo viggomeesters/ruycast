@@ -686,7 +686,12 @@ impl Service {
                 (api.unschedule)(resources.manager, resources.runloop, resources.mode);
                 (api.register_input)(resources.manager, None, null_mut());
                 (api.register_remove)(resources.manager, None, null_mut());
-                if (api.manager_close)(resources.manager, 0) == 0 {
+                // IOKit reports NotOpen for a manager that never opened or was
+                // already closed, including after a failed child-device close.
+                // Callbacks have already been removed and the run loop unscheduled.
+                let result = (api.manager_close)(resources.manager, 0);
+                const IO_RETURN_NOT_OPEN: i32 = 0xe00002cd_u32 as i32;
+                if result == 0 || result == IO_RETURN_NOT_OPEN {
                     (api.release)(resources.manager);
                     resources.manager = null_mut();
                 }
