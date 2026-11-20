@@ -1099,6 +1099,11 @@ mod tests {
         validate(&default_config()).unwrap();
     }
     #[test]
+    fn original_empty_catalog_search_returns_no_commands() {
+        let index = SearchIndex::new(&[]);
+        assert!(index.search("").is_empty());
+    }
+    #[test]
     fn duplicate_aliases_and_modifiers_fail() {
         let mut v = default_config();
         v["commands"][1]["aliases"] = json!(["FiNdEr"]);
