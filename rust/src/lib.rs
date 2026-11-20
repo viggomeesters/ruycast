@@ -1007,6 +1007,24 @@ mod tests {
         }
     }
     #[test]
+    fn original_script_and_settings_validation_rejections() {
+        let mut relative_script = default_config();
+        relative_script["commands"].as_array_mut().unwrap().push(json!({
+            "id": "s",
+            "title": "Script",
+            "kind": "script",
+            "target": "relative"
+        }));
+        assert!(validate(&relative_script).is_err());
+
+        let mut oversized_clipboard = default_config();
+        oversized_clipboard["clipboard"]["limit"] = json!(1001);
+        assert!(validate(&oversized_clipboard).is_err());
+        assert!(shortcut("ctrl+ctrl+v").is_err());
+        assert!(shortcut("space").is_err());
+    }
+
+    #[test]
     fn default_is_valid() {
         validate(&default_config()).unwrap();
     }
