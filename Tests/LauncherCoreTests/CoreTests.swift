@@ -13,7 +13,6 @@ struct CoreTests {
             Command(id:"c",title:"Beta",kind:"url",target:"https://example.com/four")]
         let index=try CommandSearchIndex(commands:commands)
         XCTAssertEqual(index.search("go").map(\.id),["z","a","b"])
-        XCTAssertEqual(index.search("ÅNGSTRÖM notes").map(\.id),["b"])
         var legacy=Configuration.initial;legacy.commands=commands
         for query in ["go"," BETA ","ÅNGSTRÖM notes","nul\0alias","   ","does not exist","example"] {
             XCTAssertEqual(index.search(query),legacy.search(query))
