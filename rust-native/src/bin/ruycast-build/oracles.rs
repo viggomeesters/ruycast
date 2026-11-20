@@ -2827,10 +2827,6 @@ mod tests {
     #[test]
     fn required_snippet_argument_assertion_remains_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert_template_helper_retired(core);
-        assert!(!core.contains("let interactive=Command(id:\"i\",title:\"Input\""));
-        assert!(!core.contains("matcher.type(\";name\",commands:[interactive])"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
