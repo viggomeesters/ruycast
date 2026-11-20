@@ -1193,6 +1193,13 @@ pub fn fixture(request: &serde_json::Value) -> Result<serde_json::Value, String>
                     serde_json::json!({"created":created,"removed":removed,"delivered":delivered,"active":active}),
                 );
             }
+            "refresh" => {
+                let service = FIXTURE_SERVICE
+                    .with(|slot| slot.borrow().upgrade())
+                    .ok_or("Own host keyword service required")?;
+                service.refresh();
+                return Ok(serde_json::json!({"status":service.status()}));
+            }
             "choice" => {
                 let service = FIXTURE_SERVICE
                     .with(|slot| slot.borrow().upgrade())
