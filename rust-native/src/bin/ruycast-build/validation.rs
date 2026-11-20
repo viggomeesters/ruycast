@@ -416,7 +416,6 @@ const SOURCE_ROSTER: &[&str] = &[
     "Sources/LauncherCore/Files.swift",
     "Sources/RuycastApp/SnippetExpander.swift",
     "Sources/RuycastApp/SnippetChoice.swift",
-    "Sources/RuycastApp/KeyboardChecks.swift",
     "Sources/RuycastApp/SettingsChecks.swift",
     "Sources/RuycastApp/AnalyticsStore.swift",
     "rust-native/src",
@@ -2279,8 +2278,11 @@ mod tests {
     #[test]
     fn source_snapshot_accepts_the_migrated_checkout_with_or_without_empty_retired_directory() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/KeyboardChecks.swift";
         assert!(!SOURCE_ROSTER.contains(&"rust-native/scripts"));
+        assert!(!SOURCE_ROSTER.contains(&retired));
         let snapshot = sources(root).unwrap();
+        assert!(!snapshot.contains_key(retired));
         assert!(!snapshot
             .keys()
             .any(|path| path.starts_with("rust-native/scripts/")));

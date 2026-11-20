@@ -59,7 +59,6 @@
     "Sources/RuycastApp/HyperKey.swift": "a60dff19c9ab210fd8dc3ae564f962a2708b1e32a2f69663ff2c48e6d70b1544",
     "Sources/RuycastApp/InteractionChecks.swift": "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858",
     "Sources/RuycastApp/InteractionPerformanceChecks.swift": "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da",
-    "Sources/RuycastApp/KeyboardChecks.swift": "5cbaf9f3e805ccc44df691fafc0fdf9f2681d6854d6381e2e818115a2e4dac53",
     "Sources/RuycastApp/LauncherResults.swift": "fa4385bac97d2462bbb2326f0d175487e902be2d903b339ba974a8e52a624ef3",
     "Sources/RuycastApp/LockedValue.swift": "73649e80b6444e34014b2bd6ae8ade486842e17789a56268caccbbaad9634418",
     "Sources/RuycastApp/MainRunLoop.swift": "4d40b6705099184c26d56d8a03d024a010751d715e0ff34a316a011c87e550ba",
@@ -104,6 +103,6 @@
     "Sources/RuycastApp/WindowManager.swift": "01b6d2951b64698664e175694407e9df84faf8a08adb84966fd4a3db7f58fd87",
     "Sources/RuycastApp/WindowSearch.swift": "1f4d263bfbffb0c323aaa48f24a7a90783f127e2ffb03ed18a79bb924e1218e9",
     "Sources/RuycastApp/WindowSearchChecks.swift": "cae0f60d635d6aa5af41d8fe8ecc9bc8102c28e49e2aec87a7e53462829ddf7f",
-    "Sources/RuycastApp/main.swift": "29dd080268931e4cc8525372241d1fcb57b2d2c630a92af2544ec88205f78400"
+    "Sources/RuycastApp/main.swift": "6796eefc8c35b9c0a142a31e015ce1ffaa5de07a32ffef2aa67dcb49e7e76994"
   }
 }

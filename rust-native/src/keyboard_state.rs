@@ -454,6 +454,96 @@ mod tests {
             assert_eq!(rewritten_flags(physical, true, tag), physical);
         }
     }
+
+    #[test]
+    fn original_keyboard_acceptance_scenarios_remain_in_rust() {
+        fn input(
+            state: &mut Physical,
+            effects: &mut Vec<String>,
+            usage: u32,
+            down: bool,
+            time: f64,
+            device: u64,
+        ) {
+            let before = state.caps_held();
+            if let Some(action) = state.input(device, usage, down, time) {
+                effects.push(format!("tap:{action}"));
+            }
+            if before != state.caps_held() {
+                effects.push(if state.caps_held() {
+                    "hyper:down".into()
+                } else {
+                    "hyper:up".into()
+                });
+            }
+        }
+
+        let mut state = Physical::default();
+        let mut effects = Vec::new();
+        input(&mut state, &mut effects, 0x39, true, 0.0, 1);
+        input(&mut state, &mut effects, 0x39, true, 0.01, 1);
+        input(&mut state, &mut effects, 4, true, 0.02, 1);
+        input(&mut state, &mut effects, 4, false, 0.03, 1);
+        input(&mut state, &mut effects, 0x39, false, 0.04, 1);
+        assert_eq!(effects, ["hyper:down", "hyper:up"]);
+        assert!(state.usages().is_empty());
+
+        effects.clear();
+        input(&mut state, &mut effects, 0xe0, true, 1.0, 1);
+        input(&mut state, &mut effects, 0xe0, false, 1.1, 1);
+        input(&mut state, &mut effects, 0xe2, true, 2.0, 1);
+        input(&mut state, &mut effects, 0xe2, false, 2.1, 1);
+        assert_eq!(effects, ["tap:224", "tap:226"]);
+
+        effects.clear();
+        input(&mut state, &mut effects, 0xe0, true, 3.0, 1);
+        input(&mut state, &mut effects, 4, true, 3.1, 1);
+        input(&mut state, &mut effects, 4, false, 3.15, 1);
+        input(&mut state, &mut effects, 0xe0, false, 3.2, 1);
+        input(&mut state, &mut effects, 0xe2, true, 4.0, 1);
+        input(&mut state, &mut effects, 0xe1, true, 4.1, 1);
+        input(&mut state, &mut effects, 0xe1, false, 4.2, 1);
+        input(&mut state, &mut effects, 0xe2, false, 4.3, 1);
+        input(&mut state, &mut effects, 0xe0, true, 5.0, 1);
+        input(&mut state, &mut effects, 0xe0, false, 6.0, 1);
+        input(&mut state, &mut effects, 0xe7, true, 7.0, 1);
+        input(&mut state, &mut effects, 0xe0, true, 7.1, 1);
+        input(&mut state, &mut effects, 0xe0, false, 7.2, 1);
+        input(&mut state, &mut effects, 0xe7, false, 7.3, 1);
+        assert!(effects.is_empty());
+
+        input(&mut state, &mut effects, 0xe2, true, 8.0, 1);
+        state.cancel_tap();
+        input(&mut state, &mut effects, 0xe2, false, 8.1, 1);
+        assert!(effects.is_empty());
+
+        input(&mut state, &mut effects, 0x39, true, 9.0, 1);
+        input(&mut state, &mut effects, 0x39, true, 9.1, 2);
+        input(&mut state, &mut effects, 0x39, false, 9.2, 1);
+        assert!(state.caps_held());
+        state.remove(2);
+        assert!(!state.caps_held());
+
+        input(&mut state, &mut effects, 0x39, true, 10.0, 1);
+        input(&mut state, &mut effects, 0xe0, true, 10.1, 1);
+        state.reset();
+        assert!(!state.caps_held() && state.usages().is_empty());
+        input(&mut state, &mut effects, 0xe0, false, 11.0, 1);
+        assert!(state.usages().is_empty());
+
+        let right_command = COMMAND | RIGHT_COMMAND | 0x10;
+        assert_eq!(rewritten_flags(right_command, false, 0), right_command);
+        let combined = rewritten_flags(right_command | CAPS, true, 0);
+        assert!(combined & HYPER == HYPER && combined & 0x10 != 0 && combined & CAPS == 0);
+        for tag in [GENERATED_HYPER, GENERATED_SNIPPET] {
+            assert_eq!(
+                rewritten_flags(COMMAND | CONTROL, true, tag),
+                COMMAND | CONTROL
+            );
+            assert_eq!(rewritten_flags(0, true, tag), 0);
+        }
+    }
+
     #[test]
     fn sided_press_repeat_and_release_keep_ownership() {
         let mut f = CommandFilter::default();
