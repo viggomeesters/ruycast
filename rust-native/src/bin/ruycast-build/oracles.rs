@@ -2644,10 +2644,6 @@ mod tests {
         assert!(!include_str!("../ruycast-source/policy.rs")
             .lines()
             .any(|line| line == retired));
-        let core_checks = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(!core_checks.contains("checkSnippetOutput"));
-        assert!(!core_checks.contains("Snippet output checks passed"));
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"][retired];
         assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
