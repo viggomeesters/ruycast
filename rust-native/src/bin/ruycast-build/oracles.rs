@@ -2295,6 +2295,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["1000 identical searches do not rebuild the catalog index or prepare ranking again"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingChangeReprepare"] = serde_json::json!({
+            "originalSourceSHA256": "7823f355133f4084ad263b919fb1a970a42d04e284a55eb146a689a4a676cc03",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the successful-ranking result and one-repreparation assertion moves to Rust. The ranking update, baseline, reset assertion, remaining scenarios and --check-search route stay active.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["successful ranking change moves cached.b first and triggers exactly one ranking preparation"],
+            "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3279,7 +3287,7 @@ mod tests {
         assert!(swift.contains("let prepared=state.searchPreparationCount"));
         assert!(swift.contains("for _ in 0..<1000 {_=state.searchCommands(\"identical\")}"));
         assert!(!swift.contains("guard state.searchPreparationCount==prepared"));
-        assert!(swift.contains("state.searchPreparationCount==prepared+1"));
+        assert!(swift.contains("try state.searchRanking.recordSuccess(\"cached.b\")"));
         assert!(swift.contains("state.searchPreparationCount==prepared+2"));
         assert!(swift.contains("func checkSearch(root unusedRoot:URL)"));
 
@@ -3295,6 +3303,33 @@ mod tests {
             ["Sources/RuycastApp/SearchChecks.swift::checkSearch.unchangedRankingReuse"];
         assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
         assert_eq!(mapping["originalSourceSHA256"], "7c9174e4d63490a1a7962b60c8621d3ab51d67568f23413809c54a2564f87ccf");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_ranking_change_repreparation_assertion_is_crosswalked_to_rust() {
+        let swift = include_str!("../../../../Sources/RuycastApp/SearchChecks.swift");
+        assert!(swift.contains("let prepared=state.searchPreparationCount"));
+        assert!(swift.contains("for _ in 0..<1000 {_=state.searchCommands(\"identical\")}"));
+        assert!(swift.contains("try state.searchRanking.recordSuccess(\"cached.b\")"));
+        assert!(!swift.contains("Prepared search missed a ranking change"));
+        assert!(swift.contains("try state.searchRanking.recordSuccess(\"cached.b\")\n    _ = state.searchCommands(\"identical\")\n    try state.searchRanking.reset()"));
+        assert!(swift.contains("state.searchPreparationCount==prepared+2"));
+        assert!(swift.contains("func checkSearch(root unusedRoot:URL)"));
+
+        let rust = include_str!("../../runtime_private_tests.rs");
+        assert!(rust.contains("state.ranking.record_success(\"cache.b\", 1_700_000_000.)"));
+        assert!(rust.contains("[\"cache.b\", \"cache.a\"]"));
+        assert!(rust.contains("(ranked.0-after.0,ranked.1-after.1),(0,1)"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingChangeReprepare"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "7823f355133f4084ad263b919fb1a970a42d04e284a55eb146a689a4a676cc03");
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]));
