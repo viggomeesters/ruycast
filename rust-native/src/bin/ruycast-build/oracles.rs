@@ -2365,6 +2365,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["for the 256-command fixture and all ten queries including Unicode and embedded NUL, compare full SearchIndex and dispatch outputs and verify ranked C ABI count and order"],
             "nativeCases": ["tests::original_256_command_ten_query_index_dispatch_and_abi_parity"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.cliSearchLeavesPaletteUntouched"] = serde_json::json!({
+            "originalSourceSHA256": "c2c2962d6d5da6e9d2f17cd54eae21345ad402be9975f9c398b84141cc682920",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The active Rust CLI socket route preserves the current query, complete rows, selection and results revision while returning one successful search response. The legacy Swift Observation callback assertion has no Rust primitive counterpart.",
+            "nativeSource": "rust-native/src/runtime_system.rs",
+            "originalScenarios": ["while the optional Safari provider is busy, search Owned Local over the real control socket; preserve the active Owned palette query, full rows, selection and results revision; return one successful local match and no second response"],
+            "retiredAssertions": ["Swift withObservationTracking callback-count check is a legacy wrapper detail; Rust invalidation is checked at query, rows, selection and results_revision"],
+            "nativeCases": ["runtime::system::shortcut_budget_tests::browser_busy_main_cli_preserves_local_results_and_exactly_one_response"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3689,6 +3698,32 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust/src/lib.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::original_256_command_ten_query_index_dispatch_and_abi_parity"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_cli_palette_isolation_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_system.rs");
+        assert!(rust.contains("fn browser_busy_main_cli_preserves_local_results_and_exactly_one_response()"));
+        assert!(rust.contains("palette_query"));
+        assert!(rust.contains("palette_rows"));
+        assert!(rust.contains("palette_selection"));
+        assert!(rust.contains("palette_revision"));
+        assert!(rust.contains("CLI search changed the active palette query"));
+        assert!(rust.contains("CLI search changed the full active palette rows"));
+        assert!(rust.contains("CLI search invalidated the active palette"));
+        assert!(rust.contains("assert_eq!(extra,0,\"late provider must not produce a second wire response\")"));
+        assert!(rust.contains("busy optional provider must preserve CLI locals"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.cliSearchLeavesPaletteUntouched"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "c2c2962d6d5da6e9d2f17cd54eae21345ad402be9975f9c398b84141cc682920");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_system.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["retiredAssertions"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::system::shortcut_budget_tests::browser_busy_main_cli_preserves_local_results_and_exactly_one_response"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
