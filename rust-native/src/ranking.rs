@@ -82,6 +82,35 @@ mod tests {
     use super::*;
     use std::fs;
     #[test]
+    fn failed_durable_write_preserves_revision_and_entries() {
+        struct TemporaryRoot(PathBuf);
+        impl Drop for TemporaryRoot {
+            fn drop(&mut self) {
+                let _ = fs::remove_file(&self.0);
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let root = TemporaryRoot(std::env::temp_dir().join(format!(
+            "ruycast-ranking-failed-write-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+        let now = 1_800_000_000.;
+        let mut ranking = RankingStore::open(&root.0, now);
+        ranking.record_success("b", now).unwrap();
+        ranking.reset().unwrap();
+        fs::remove_dir_all(&root.0).unwrap();
+        fs::write(&root.0, b"not a directory").unwrap();
+        let revision = ranking.revision;
+        let entries = ranking.entries().clone();
+        assert!(ranking.record_success("b", now).is_err());
+        assert_eq!(ranking.revision, revision);
+        assert_eq!(ranking.entries(), &entries);
+    }
+    #[test]
     fn roundtrip_schema_retention_reset_and_no_query_fields() {
         let root = std::env::temp_dir().join(format!(
             "ruycast-ranking-{}-{}",
