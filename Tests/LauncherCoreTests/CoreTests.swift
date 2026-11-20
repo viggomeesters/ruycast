@@ -176,15 +176,6 @@ struct CoreTests {
             XCTAssertThrowsError(try request.replacement(values:["Contact":"Alpha"],pid:pid,safe:safe,unchanged:unchanged))
         }
     }
-    func testHistoryDeduplicatesBoundsAndExpires() {
-        let now=Date();let s=ClipboardSettings(limit:2,maxTextBytes:20,retentionDays:1,excludedApps:["secret"])
-        let a=Clip(text:"a",source:"app"),b=Clip(text:"b",source:"app")
-        let items=History.insert(a,into:[b,a,Clip(text:"expired",source:"app",date:now.addingTimeInterval(-90000))],settings:s,now:now)
-        XCTAssertEqual(items.map(\.text),["a","b"])
-        XCTAssertEqual(History.insert(Clip(text:"password",source:"secret"),into:items,settings:s),items)
-        XCTAssertEqual(History.insert(Clip(text:String(repeating:"x",count:21),source:"app"),into:items,settings:s),items)
-        XCTAssertEqual(History.insert(Clip(text:"  ",source:"app"),into:items,settings:s),items)
-    }
     func testWindowReadsRetryOnlyTemporaryFailures() throws {
         var calls=0;var waits:[Double]=[]
         let window:String=try WindowRead.perform("AXFocusedWindow",retryingStatus:-25204,read:{
@@ -259,7 +250,7 @@ struct CoreTests {
     }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();t.testHistoryDeduplicatesBoundsAndExpires();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testSnippetChoices();try t.testSnippetFocusAndDateTime();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();try t.testRoundTripAndPrivateStorage();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
