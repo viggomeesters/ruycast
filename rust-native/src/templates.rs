@@ -475,6 +475,36 @@ mod tests {
         assert_eq!(plan.render(&[], &context).unwrap_err(), "Clipboard text is unavailable.");
     }
     #[test]
+    fn original_url_template_fields_encoding_and_missing_input() {
+        let link: Command = serde_json::from_value(serde_json::json!({
+            "id": "link",
+            "title": "Maps",
+            "kind": "url",
+            "target": "https://example.com/search?q={query}&place={Place}"
+        }))
+        .unwrap();
+        let plan = Plan::parse(&link, Limits::application()).unwrap();
+        assert_eq!(
+            plan.fields().iter().map(|field| field.id.as_str()).collect::<Vec<_>>(),
+            ["Query", "Place"]
+        );
+        let values = [
+            ("Query".to_owned(), "a&b #/Ω".to_owned()),
+            ("Place".to_owned(), "New York".to_owned()),
+        ];
+        let rendered = plan.render(&values, &context()).unwrap().0;
+        objc2::rc::autoreleasepool(|_| {
+            use objc2_foundation::{NSString, NSURLComponents};
+            let parts = NSURLComponents::componentsWithString(&NSString::from_str(&rendered))
+                .unwrap();
+            let items = parts.queryItems().unwrap();
+            assert_eq!(items.len(), 2);
+            assert_eq!(items.objectAtIndex(0).value().unwrap().to_string(), "a&b #/Ω");
+            assert_eq!(items.objectAtIndex(1).value().unwrap().to_string(), "New York");
+        });
+        assert!(plan.render(&[], &context()).is_err());
+    }
+    #[test]
     fn prompt_bytes_are_part_of_the_explicit_parse_policy() {
         let mut source = command("plain");
         source.input_prompt = Some("x".repeat(20));

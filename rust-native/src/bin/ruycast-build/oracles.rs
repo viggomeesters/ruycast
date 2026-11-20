@@ -1030,7 +1030,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
 
             ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "9ebb1ecff6de79f76d0f69542e250a6d041b88afe0ca1ec5beb079a08b4f042c"),
             ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "4f35db2014bc5ec4832a10ad42b7ba9318930d1d09e8937839d3c0a37c1433dd"),
-            ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "179ea6f781dfca27cad12b3a8d04486f4c1d2b278f6cbca82bb2731d3318805b"),
+            ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "420e51cd15454dd20a366bde6e8c02cdec659726e0d45a2069f77d37660bdf7f"),
             ("rust-native/src/snippet_output.rs", include_bytes!("../../snippet_output.rs"), "40f779d97941aec293f6a53c89970051189e82a0fa2a98a86027c196724138be"),
             ("rust-native/src/native_snippet_choice.rs", include_bytes!("../../native_snippet_choice.rs"), "caa9be3b6d84594d8fabc13f797a99a5042515ba94760cae86506773139a09a9"),
             ("rust-native/src/snippet_choice.rs", include_bytes!("../../snippet_choice.rs"), "d340d341185ef6000347355f8b88f68da6b34458730ecf646c5eb5541e2b95aa"),
@@ -2106,7 +2106,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.longText"] = serde_json::json!({
             "originalSourceSHA256": "6eda2747d7ea8c664a44070efbb38078fae2be761b939530b9270669be8ab84e",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the two long-text chunk assertions are moved. The surrounding Swift helper remains active for its other scenarios.",
+            "scope": "The two long-text chunk assertions are covered by Rust. The Swift helper was retired after every scenario in the method received a Rust crosswalk.",
             "nativeSource": "rust-native/src/keyword_matcher.rs",
             "originalScenarios": ["100 repetitions of Hello Ω family emoji and newline concatenate to the original text", "every inserted chunk contains at most 16 UTF-16 code units"],
             "nativeCases": ["keyword_matcher::cancellation_checks::original_long_snippet_unicode_chunks_preserve_complete_text_and_utf16_limit"]
@@ -2114,7 +2114,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.requiredArgument"] = serde_json::json!({
             "originalSourceSHA256": "56df09b0b0669f0a326ebcde08f54c2f9db3b539bc6a77b65d6b33dd497b37d3",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the required-argument snippet eligibility assertion moved to Rust. The surrounding Swift method and runner call remain active.",
+            "scope": "The required-argument snippet eligibility assertion is covered by Rust. The Swift helper was retired after every scenario in the method received a Rust crosswalk.",
             "nativeSource": "rust-native/src/keyword_matcher.rs",
             "originalScenarios": ["a snippet with required Name input and no options or default does not expand its ;name keyword"],
             "nativeCases": ["keyword_matcher::cancellation_checks::original_required_snippet_argument_prevents_keyword_expansion"]
@@ -2122,7 +2122,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.matcher"] = serde_json::json!({
             "originalSourceSHA256": "dba3ad2b3ec56498c7fa2613b850a488ddb1e99d496847c0bdaabbf7e886206b",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "The six remaining snippet-prefix and word-boundary assertions move to one Rust matcher test. Template rendering, the surrounding Swift method and its runner call remain active.",
+            "scope": "The six snippet-prefix and word-boundary assertions are covered by one Rust matcher test. The Swift helper was retired after every scenario in the method received a Rust crosswalk.",
             "nativeSource": "rust-native/src/keyword_matcher.rs",
             "originalScenarios": ["incomplete ;h prefix returns no match", "typing i completes ;hi and returns the full Greeting command", "a second i after the successful match returns no match", "backspace changes ;hx to ;h before i completes the match", "xabc does not match at an internal word boundary", "abc returns the full Word command"],
             "nativeCases": ["keyword_matcher::cancellation_checks::original_snippet_prefix_reset_backspace_and_word_boundary"]
@@ -2130,15 +2130,23 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.snippetRender"] = serde_json::json!({
             "originalSourceSHA256": "bdb976419921267514aba471ddb15032aeda190a3893315a8233113d8407352b",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "The three Greeting output, UTF-16 cursor-prefix and missing-clipboard assertions move to the existing Rust template tests. URL assertions, the surrounding Swift method and its runner call remain active.",
+            "scope": "The three Greeting output, UTF-16 cursor-prefix and missing-clipboard assertions are covered by Rust. The Swift helper was retired after every scenario in the method received a Rust crosswalk.",
             "nativeSource": "rust-native/src/templates.rs",
             "originalScenarios": ["clipboard Ω with the default Tone option renders Hi Ω, Hello", "the cursor prefix is exactly Hi Ω, ", "rendering without clipboard text returns Clipboard text is unavailable."],
             "nativeCases": ["templates::tests::original_snippet_clipboard_default_cursor_and_missing_clipboard"]
         });
+        inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.urlRender"] = serde_json::json!({
+            "originalSourceSHA256": "200fc776a731ffdf77637be04f67868d50f4c0b5cdcfeb98e2efeb446ce5c4e0",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The four URL-template field, encoded query-value and missing-input outcomes are covered by Rust. The Swift helper was retired after every scenario in the method received a Rust crosswalk.",
+            "nativeSource": "rust-native/src/templates.rs",
+            "originalScenarios": ["URL template fields are Query then Place", "encoded query q decodes to a&b #/Ω", "encoded query place decodes to New York", "rendering without URL field values throws"],
+            "nativeCases": ["templates::tests::original_url_template_fields_encoding_and_missing_input"]
+        });
         inventory["retiredSwiftChecks"]["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.duplicateKeyword"] = serde_json::json!({
             "originalSourceSHA256": "a4ed4e769adecebd65fcc7a2cc2e95c85574ac34b7468cb84988b8af03f22686",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the duplicate snippet keyword validation assertion moved to Rust. The surrounding Swift method and runner call remain active.",
+            "scope": "The duplicate snippet keyword validation assertion is covered by Rust. The Swift helper was retired after every scenario in the method received a Rust crosswalk.",
             "nativeSource": "rust/src/lib.rs",
             "originalScenarios": ["a single snippet with keyword abc validates", "a second snippet with the same keyword abc is rejected"],
             "nativeCases": ["tests::original_duplicate_snippet_keyword_is_rejected"]
@@ -2466,6 +2474,15 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 mod tests {
     use super::*;
 
+    fn assert_template_helper_retired(core: &str) {
+        assert!(!core.contains("func testTemplatesAndSnippetMatching()"));
+        assert!(!core.contains("try t.testTemplatesAndSnippetMatching()"));
+        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
+        assert!(core.contains("func testWindowReadsRetryOnlyTemporaryFailures()"));
+        assert!(core.contains("try t.testWindowReadsRetryOnlyTemporaryFailures()"));
+    }
+
     #[test]
     fn retired_snippet_output_helper_is_removed_and_all_cases_are_crosswalked() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
@@ -2646,11 +2663,10 @@ mod tests {
     }
 
     #[test]
-    fn long_snippet_chunk_assertions_are_crosswalked_without_retiring_the_swift_helper() {
+    fn long_snippet_chunk_assertions_remain_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
+        assert_template_helper_retired(core);
         assert!(!core.contains("let longText=String(repeating:"));
         assert!(!core.contains("chunks.allSatisfy {$0.utf16.count<=16}"));
 
@@ -2677,14 +2693,12 @@ mod tests {
     }
 
     #[test]
-    fn required_snippet_argument_assertion_is_crosswalked_without_retiring_swift_method() {
+    fn required_snippet_argument_assertion_remains_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
+        assert_template_helper_retired(core);
         assert!(!core.contains("let interactive=Command(id:\"i\",title:\"Input\""));
         assert!(!core.contains("matcher.type(\";name\",commands:[interactive])"));
-        assert!(core.contains("XCTAssertEqual(url.queryItems?.first?.value,\"a&b #/Ω\")"));
 
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
@@ -2710,12 +2724,10 @@ mod tests {
     }
 
     #[test]
-    fn remaining_snippet_matcher_assertions_are_crosswalked_to_one_rust_case() {
+    fn snippet_matcher_assertions_remain_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("XCTAssertEqual(url.queryItems?.first?.value,\"a&b #/Ω\")"));
+        assert_template_helper_retired(core);
         for assertion in [
             "matcher.type(\";h\",commands:[snippet])",
             "matcher.type(\"i\",commands:[snippet])",
@@ -2746,12 +2758,10 @@ mod tests {
     }
 
     #[test]
-    fn snippet_render_assertions_are_crosswalked_to_templates_rust() {
+    fn snippet_render_assertions_remain_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("XCTAssertEqual(url.queryItems?.first?.value,\"a&b #/Ω\")"));
+        assert_template_helper_retired(core);
         for assertion in [
             "let result=try Templates.render(snippet,values:[:],clipboard:\"Ω\")",
             "XCTAssertEqual(result.0,\"Hi Ω, Hello\")",
@@ -2781,11 +2791,10 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_snippet_keyword_assertion_is_crosswalked_without_retiring_swift_method() {
+    fn duplicate_snippet_keyword_assertion_remains_crosswalked_after_swift_helper_retirement() {
         use sha2::Digest;
         let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testTemplatesAndSnippetMatching()"));
-        assert!(core.contains("try t.testTemplatesAndSnippetMatching()"));
+        assert_template_helper_retired(core);
         assert!(!core.contains("XCTAssertThrowsError(try c.validate())"));
 
         let inventory = super::inventory("check").unwrap();
@@ -2812,6 +2821,39 @@ mod tests {
             assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
             assert!(super::settings_source_bindings(pipeline).contains(&(input.0, input.2)));
         }
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn url_template_assertions_are_crosswalked_after_swift_helper_retirement() {
+        use sha2::Digest;
+        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
+        assert_template_helper_retired(core);
+        assert!(!core.contains("URLComponents(string:rendered)"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.urlRender"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "200fc776a731ffdf77637be04f67868d50f4c0b5cdcfeb98e2efeb446ce5c4e0");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 4);
+        let case = "templates::tests::original_url_template_fields_encoding_and_missing_input";
+        assert_eq!(mapping["nativeCases"], serde_json::json!([case]));
+        assert!(include_str!("../../templates.rs").contains("fn original_url_template_fields_encoding_and_missing_input()"));
+        for scenario in ["longText", "requiredArgument", "matcher", "snippetRender", "duplicateKeyword"] {
+            let key = format!(
+                "Tests/LauncherCoreTests/CoreTests.swift::testTemplatesAndSnippetMatching.{scenario}"
+            );
+            let mapping = inventory["retiredSwiftChecks"].get(&key).unwrap();
+            assert!(mapping["scope"].as_str().unwrap().contains("Swift helper was retired"));
+        }
+
+        let input = super::settings_sources("--check-interactions")
+            .iter()
+            .find(|(path, _, _)| *path == "rust-native/src/templates.rs")
+            .unwrap();
+        assert_eq!(format!("{:x}", sha2::Sha256::digest(input.1)), input.2);
+        assert!(super::settings_source_bindings("--check-interactions").contains(&(input.0, input.2)));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
