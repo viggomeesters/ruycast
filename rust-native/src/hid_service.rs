@@ -40,6 +40,7 @@ pub(crate) struct Callback {
     gate: Rc<dyn Fn() -> Gate>,
     sink: Rc<dyn Fn(Press) -> bool>,
     interrupt_notifier: RefCell<Option<Rc<dyn Fn()>>>,
+    before_manager_close: RefCell<Option<Rc<dyn Fn()>>>,
     #[cfg(feature = "test-tools")]
     source_ticket: Cell<Option<crate::owned_host_entry::NativeInputSourceTicket>>,
     #[cfg(feature = "test-tools")]
@@ -579,6 +580,7 @@ impl Service {
                 gate,
                 sink,
                 interrupt_notifier: RefCell::new(None),
+                before_manager_close: RefCell::new(None),
                 #[cfg(feature = "test-tools")]
                 source_ticket: Cell::new(None),
                 #[cfg(feature = "test-tools")]
@@ -612,6 +614,12 @@ impl Service {
     }
     pub fn set_interrupt_notifier(&self, notify: Rc<dyn Fn()>) {
         *self.callback.interrupt_notifier.borrow_mut() = Some(notify);
+    }
+    /// Prepare main-thread UI authority before a synchronous SDK close. The
+    /// observer must not reborrow the native keyboard owner. Recovery uses the
+    /// same callback, so failed retirement cannot bypass this boundary.
+    pub fn set_before_manager_close(&self, prepare: Rc<dyn Fn()>) {
+        *self.callback.before_manager_close.borrow_mut() = Some(prepare);
     }
     /// Main dispatch rechecks secure input after the original tap callback,
     /// matching the old asynchronous sided-action guard before delivery.
@@ -689,6 +697,8 @@ impl Service {
                 // IOKit reports NotOpen for a manager that never opened or was
                 // already closed, including after a failed child-device close.
                 // Callbacks have already been removed and the run loop unscheduled.
+                let prepare = callback.before_manager_close.borrow().clone();
+                if let Some(prepare) = prepare { prepare(); }
                 let result = (api.manager_close)(resources.manager, 0);
                 const IO_RETURN_NOT_OPEN: i32 = 0xe00002cd_u32 as i32;
                 if result == 0 || result == IO_RETURN_NOT_OPEN {
