@@ -473,7 +473,6 @@ fn sanitized(
         .env("RUYCAST_REPAIR_CLI", root.join(".build/rust/release/ruycast"))
         .env("RUYCAST_RICH_PASTE_CLI", root.join(".build/rust/release/ruycast"))
         .env("TMPDIR", short_tmp)
-        .env("PYTHONDONTWRITEBYTECODE", "1")
         .env(
             "RUYCAST_NATIVE_EVIDENCE_DIR",
             root.join(DIRECTORY).join("native-profile"),
