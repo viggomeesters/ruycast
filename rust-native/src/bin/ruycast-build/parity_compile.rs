@@ -1,7 +1,8 @@
 //! Actual compiler-to-bound-parser inventory. No source-language program is synthesized.
 use super::*;
-use serde_json::{json, Value};
-use std::{collections::BTreeSet, time::Duration};
+use serde_json::Value;
+#[cfg(test)]
+use std::collections::BTreeSet;
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Parser {
@@ -11,12 +12,12 @@ struct Parser {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg(test)]
 struct Input {
     module: String,
     paths: BTreeSet<String>,
     sdk: String,
     plugins: Vec<String>,
-    parser: Parser,
 }
 fn relative(path: &str) -> bool {
     let path = Path::new(path);
@@ -61,6 +62,7 @@ fn parser_binding(root: &Path, parser: &Parser) -> Result<()> {
     }
     Ok(())
 }
+#[cfg(test)]
 fn sources(root: &Path, module: &str) -> Result<BTreeMap<String, String>> {
     let directory = root.join("Sources").join(module);
     let metadata = fs::symlink_metadata(&directory).map_err(error)?;
@@ -82,6 +84,7 @@ fn sources(root: &Path, module: &str) -> Result<BTreeMap<String, String>> {
     }
     Ok(files)
 }
+#[cfg(test)]
 fn arguments(root: &Path, input: &Input) -> Result<(Vec<String>, BTreeMap<String, String>)> {
     if input.module.is_empty()
         || !input
@@ -143,72 +146,10 @@ fn arguments(root: &Path, input: &Input) -> Result<(Vec<String>, BTreeMap<String
     }
     Ok((args, before))
 }
-pub(super) fn run(root: &Path, lease: &BuildLock, payload: &str) -> Result<Value> {
-    let input: Input = serde_json::from_str(payload).map_err(error)?;
-    parser_binding(root, &input.parser)?;
-    let (arguments, before) = arguments(root, &input)?;
-    let mut compiler = Command::new(&arguments[0]);
-    compiler.args(&arguments[1..]).current_dir(root);
-    lease.apply_to_child(&mut compiler)?;
-    lease.validate()?;
-    let stage = preparation::Stage::new(root, "parity-compiler-input")?;
-    let ast = stage.path().join("compiler.ast");
-    let file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&ast)
-        .map_err(error)?;
-    let compiled = process::capture_stdout_file(
-        compiler,
-        file,
-        Duration::from_secs(90),
-        1024 * 1024 * 1024,
-        64 * 1024 * 1024,
-    )?;
-    lease.validate()?;
-    if !compiled.status.success() {
-        return Err(String::from_utf8_lossy(&compiled.stderr).into_owned());
-    }
-    parser_binding(root, &input.parser)?;
-    let mut parser = Command::new(root.join(&input.parser.artifact));
-    parser.current_dir(root);
-    for path in &input.paths {
-        parser.args(["--source", path]);
-    }
-    lease.apply_to_child(&mut parser)?;
-    let parsed = process::capture_file_input(
-        parser,
-        regular_file(&ast)?,
-        Duration::from_secs(10),
-        64 * 1024 * 1024,
-    )?;
-    lease.validate()?;
-    if !parsed.status.success() {
-        return Err(String::from_utf8_lossy(&parsed.stderr).into_owned());
-    }
-    parser_binding(root, &input.parser)?;
-    if sources(root, &input.module)? != before {
-        return Err("Compiler source inputs changed during inventory.".into());
-    }
-    let value: Value = serde_json::from_slice(&parsed.stdout).map_err(error)?;
-    let declarations = value
-        .get("declarations")
-        .and_then(Value::as_object)
-        .ok_or("Invalid AST parser declarations.")?;
-    if declarations.keys().collect::<BTreeSet<_>>() != input.paths.iter().collect::<BTreeSet<_>>()
-        || value.get("sourceASTs").and_then(Value::as_u64) != Some(input.paths.len() as u64)
-    {
-        return Err("AST parser source inventory differs from requested sources.".into());
-    }
-
-    Ok(
-        json!({"declarations":value["declarations"],"context":{"command":arguments,"inputHashes":before,"exitCode":compiled.status.code(),"diagnostics":String::from_utf8(compiled.stderr).map_err(error)?.trim(),"sourceASTs":value["sourceASTs"],"astParser":input.parser}}),
-    )
-}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
     #[test]
     fn parser_snapshot_drift_and_links_are_refused() {
         let fixture = super::super::tests::Fixture::new();
@@ -269,11 +210,6 @@ mod tests {
             paths: BTreeSet::from(["Sources/Models/A.swift".into()]),
             sdk: "/sdk".into(),
             plugins: vec![],
-            parser: Parser {
-                artifact: String::new(),
-                sha256: String::new(),
-                sources: BTreeMap::new(),
-            },
         };
         let (args, hashes) = arguments(&fixture.0, &input).unwrap();
         assert_eq!(

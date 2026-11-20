@@ -165,6 +165,7 @@ pub(super) fn capture_logged(
         },
     )
 }
+#[cfg(test)]
 pub(super) fn capture_file_input(
     command: Command,
     input: std::fs::File,
@@ -184,6 +185,7 @@ pub(super) fn capture_file_input(
         },
     )
 }
+#[cfg(test)]
 pub(super) fn capture_stdout_file(
     command: Command,
     output: std::fs::File,
