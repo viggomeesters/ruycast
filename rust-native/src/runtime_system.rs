@@ -348,6 +348,23 @@ pub(super) fn local(state: &SharedState, query: &str, limit: usize) -> Vec<rustc
         .map(|i| prepared.catalog.command(i).clone())
         .collect()
 }
+pub(super) fn cli_local_search(
+    state: &SharedState,
+    request: &serde_json::Value,
+) -> Vec<rustcast_core::Command> {
+    let query = request["query"].as_str().unwrap_or("");
+    let mode = request["mode"].as_str().unwrap_or("commands");
+    let limit = request["limit"].as_i64().unwrap_or(100);
+    local(state, query, 0)
+        .into_iter()
+        .filter(|command| match mode {
+            "snippets" => command.kind == "snippet",
+            "quicklinks" => command.kind == "url" || command.kind == "path",
+            _ => true,
+        })
+        .take(if limit <= 0 { usize::MAX } else { limit as usize })
+        .collect()
+}
 fn combine(
     state: &SharedState,
     scope: Scope,
@@ -1413,6 +1430,61 @@ pub(super) fn fixture(state: &SharedState, request: &Value) -> Value {
 #[cfg(test)]
 mod shortcut_budget_tests {
     use super::*;
+    #[test]
+    fn cli_snippet_mode_returns_all_matching_rows_from_mixed_catalog() {
+        let mut case = BrowserCase::new();
+        let mut config = serde_json::to_value(case.state.configuration.current()).unwrap();
+        let mut commands = Vec::new();
+        for index in 0..140 {
+            commands.push(json!({
+                "id": format!("fixture.url.{index}"),
+                "title": format!("Unrelated URL {index}"),
+                "kind": "url",
+                "target": format!("https://example.invalid/{index}")
+            }));
+        }
+        for index in 0..117 {
+            let title = if index < 12 {
+                format!("Needle snippet {index}")
+            } else {
+                format!("Saved snippet {index}")
+            };
+            commands.push(json!({
+                "id": format!("fixture.snippet.{index}"),
+                "title": title,
+                "kind": "snippet",
+                "target": format!("Snippet body {index} {{cursor}}"),
+                "keyword": format!(";saved{index}")
+            }));
+        }
+        config["commands"] = json!(commands);
+        rustcast_core::validate(&config).unwrap();
+        std::fs::write(
+            &case.state.configuration.file,
+            serde_json::to_vec(&config).unwrap(),
+        )
+        .unwrap();
+        assert!(case.state.configuration.reload().unwrap());
+
+        let old_general_page = local(&case.state, "", 100)
+            .into_iter()
+            .filter(|command| command.kind == "snippet")
+            .collect::<Vec<_>>();
+        assert!(old_general_page.is_empty());
+
+        let all = cli_local_search(
+            &case.state,
+            &json!({"op":"search","query":"","mode":"snippets","limit":0}),
+        );
+        assert_eq!(all.len(), 117);
+        assert!(all.iter().all(|command| command.kind == "snippet"));
+        let matching = cli_local_search(
+            &case.state,
+            &json!({"op":"search","query":"needle","mode":"snippets","limit":0}),
+        );
+        assert_eq!(matching.len(), 12);
+        assert!(matching.iter().all(|command| command.title.contains("Needle")));
+    }
     #[test]
     fn system_action_error_log_retains_worker_message_and_response_trace() {
         use std::io::{BufRead, BufReader, Write}; use std::os::unix::net::UnixStream;
