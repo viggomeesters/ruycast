@@ -187,6 +187,95 @@ mod tests {
         );
     }
     #[test]
+    fn original_window_placement_clamping_transient_failure_and_hard_error() {
+        #[derive(Clone, Copy)]
+        enum ResizeMode {
+            ClampAtOldPosition,
+            DelayUntilWrite(usize),
+            NeverApply,
+            Refuse,
+        }
+        struct DynamicIo {
+            current: Frame,
+            writes: usize,
+            mode: ResizeMode,
+        }
+        impl Transport for DynamicIo {
+            fn check(&mut self) -> Result<()> {
+                Ok(())
+            }
+            fn read(&mut self) -> Result<Frame> {
+                Ok(self.current)
+            }
+            fn resize(&mut self, target: Frame) -> Result<()> {
+                self.writes += 1;
+                match self.mode {
+                    ResizeMode::Refuse => Err("Not resizable".into()),
+                    ResizeMode::DelayUntilWrite(until) if self.writes <= until => Ok(()),
+                    ResizeMode::NeverApply => Ok(()),
+                    ResizeMode::ClampAtOldPosition if self.current.y > 0. => {
+                        self.current.width = target.width;
+                        self.current.height = target.height.min(1400. - self.current.y);
+                        Ok(())
+                    }
+                    _ => {
+                        self.current.width = target.width;
+                        self.current.height = target.height;
+                        Ok(())
+                    }
+                }
+            }
+            fn position(&mut self, target: Frame) -> Result<()> {
+                self.current.x = target.x;
+                self.current.y = target.y;
+                Ok(())
+            }
+            fn pause(&mut self, seconds: f64) -> Result<()> {
+                assert_eq!(seconds, 0.02);
+                Ok(())
+            }
+        }
+        let target = frame(1720., 0., 1720., 1400.);
+        let exact = |actual: Frame| {
+            assert_eq!(
+                (actual.x, actual.y, actual.width, actual.height),
+                (target.x, target.y, target.width, target.height)
+            );
+        };
+
+        let mut clamped = DynamicIo {
+            current: frame(100., 400., 900., 600.),
+            writes: 0,
+            mode: ResizeMode::ClampAtOldPosition,
+        };
+        exact(apply(target, &mut clamped).unwrap());
+        assert!(clamped.writes >= 2);
+
+        let mut delayed = DynamicIo {
+            current: frame(0., 0., 500., 500.),
+            writes: 0,
+            mode: ResizeMode::DelayUntilWrite(2),
+        };
+        exact(apply(target, &mut delayed).unwrap());
+        assert_eq!(delayed.writes, 4);
+
+        let mut constrained = DynamicIo {
+            current: frame(0., 0., 800., 600.),
+            writes: 0,
+            mode: ResizeMode::NeverApply,
+        };
+        assert!(apply(target, &mut constrained).is_err());
+        assert_eq!(constrained.writes, 6);
+
+        let mut refused = DynamicIo {
+            current: frame(0., 0., 800., 600.),
+            writes: 0,
+            mode: ResizeMode::Refuse,
+        };
+        assert_eq!(apply(target, &mut refused).unwrap_err(), "Not resizable");
+        assert_eq!(refused.writes, 1);
+    }
+    #[test]
     fn revoked_identity_stops_before_next_native_effect() {
         for (at, expected) in [
             (1, vec![]),

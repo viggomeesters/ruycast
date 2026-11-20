@@ -176,35 +176,9 @@ struct CoreTests {
         let immediate:Int=try WindowRead.perform("AXSize",retryingStatus:-25204,read:{calls+=1;return (0,42)},pause:{waits.append($0)})
         XCTAssertEqual(immediate,42);XCTAssertEqual(calls,1);XCTAssertEqual(waits,[])
     }
-    func testWindowPlacementConvergesAfterClampingAndTransientFailure() throws {
-        let target=Frame(x:1720,y:0,width:1720,height:1400)
-        var current=Frame(x:100,y:400,width:900,height:600)
-        var writes=0
-        let actual=try WindowPlacement.apply(target,read:{current},resize:{ f in
-            writes+=1
-            // First request at the old position is clamped; its AX call may
-            // report cannotComplete despite having changed the window.
-            current.width=f.width;current.height=min(f.height,1400-current.y)
-        },position:{ f in current.x=f.x;current.y=f.y },pause:{})
-        XCTAssertEqual(actual,target);XCTAssertEqual(writes>=2,true)
-
-        current=Frame(x:0,y:0,width:500,height:500);writes=0
-        let retried=try WindowPlacement.apply(target,read:{current},resize:{ f in
-            writes+=1
-            if writes>2 {current.width=f.width;current.height=f.height}
-        },position:{ f in current.x=f.x;current.y=f.y },pause:{})
-        XCTAssertEqual(retried,target);XCTAssertEqual(writes,4)
-
-        var attempts=0
-        XCTAssertThrowsError(try WindowPlacement.apply(target,read:{Frame(x:0,y:0,width:800,height:600)},resize:{_ in attempts+=1},position:{_ in},pause:{}))
-        XCTAssertEqual(attempts,6)
-        attempts=0
-        XCTAssertThrowsError(try WindowPlacement.apply(target,read:{current},resize:{_ in attempts+=1;throw LauncherError("Not resizable")},position:{_ in},pause:{}))
-        XCTAssertEqual(attempts,1)
-    }
 }
 
-@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();try t.testWindowPlacementConvergesAfterClampingAndTransientFailure();print("Core behavior checks passed")
+@main struct CheckRunner {static func main() throws {try checkImportedABI();try checkPreparedRanking();let t=CoreTests();try t.testExactAliasBeatsTitleAndSupportsMultipleTerms();try t.testPersistentIndexRankingAndUnicode();try t.testBoundedTypoFallback();try t.testTemplatesAndSnippetMatching();try t.testWindowReadsRetryOnlyTemporaryFailures();print("Core behavior checks passed")
         let args=Array(CommandLine.arguments.dropFirst())
         if args.count==2,args[0]=="--library" {
             let config=try Files.config(URL(fileURLWithPath:args[1]));let index=try CommandSearchIndex(commands:config.commands)
