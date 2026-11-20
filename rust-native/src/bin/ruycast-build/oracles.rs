@@ -3083,14 +3083,6 @@ mod tests {
 
     #[test]
     fn expired_ranking_timestamp_assertion_is_crosswalked_to_rust() {
-        let core = include_str!("../../../../Tests/LauncherCoreTests/CoreTests.swift");
-        assert!(core.contains("func testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("try t.testPersistentIndexRankingAndUnicode()"));
-        assert!(core.contains("entries[\"expired\"]=now.timeIntervalSince1970-SearchRanking.retention-1"));
-        assert!(core.contains("entries[\"future\"]=now.timeIntervalSince1970+61"));
-        assert!(core.contains("try ranking.recordSuccess(\"chosen\",now:now)"));
-        assert!(core.contains("try ranking.reset()"));
-
         let source = include_str!("../../ranking.rs");
         assert!(source.contains("fn original_loaded_ranking_rejects_expired_timestamp()"));
         assert!(source.contains("original.entries().contains_key(\"expired\")"));
@@ -3105,6 +3097,24 @@ mod tests {
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["ranking::tests::original_loaded_ranking_rejects_expired_timestamp"]));
         assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn expired_ranking_crosswalk_does_not_embed_live_swift_source() {
+        let source = include_str!("oracles.rs");
+        let assertion = source
+            .split_once("fn expired_ranking_timestamp_assertion_is_crosswalked_to_rust()")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        let swift_include = [
+            "include_str!(\"../../../../Tests/LauncherCoreTests/",
+            "CoreTests.swift\")",
+        ]
+        .concat();
+        assert!(!assertion.contains(&swift_include));
     }
 
     #[test]
