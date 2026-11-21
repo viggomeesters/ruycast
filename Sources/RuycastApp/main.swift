@@ -31,9 +31,7 @@ if args.first=="--render-brand" {
 if args.first=="--render-public" {
     do {guard args.count==2 else {throw LauncherError("Expected assets directory")};output(try renderPublicPreview(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if ["--check-system","--check-clipboard"].contains(args.first ?? "") {
-    do {let result = try args.first=="--check-system" ? checkSystemServices():checkClipboardStore();output(result);exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
+if args.first=="--check-system" {do {output(try checkSystemServices());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-rich-resources" {
     do {guard args.count==2 else {throw LauncherError("Expected output directory")};output(try checkRichResources(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }

@@ -2655,6 +2655,42 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
         inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
     }
+    if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/ClipboardChecks.swift::checkClipboardStore"] = serde_json::json!({
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the obsolete clipboard checker and its --check-clipboard entrypoint are retired. ClipboardStore remains active for AppState and preview runtime callers. Existing Rust cases cover the helper's distinct assertion groups; this is not full product acceptance.",
+            "originalSourceSHA256": "bda0fc08d8b64c4598538078362da8c811617c99c223f3fa26caf62d2e33a6ae",
+            "originalScenarios": [
+                "named-board text capture, copy, and exact readback",
+                "maxTextBytes skips longer captured text",
+                "file URL capture/copy/readback without copying a missing source file",
+                "image capture and exact dimensions/pixel/alpha readback",
+                "private asset permissions and removal of inherited readable ACLs",
+                "image size limits and invalid image rejection",
+                "non-file URL and unsafe image path rejection",
+                "owned asset pruning preserves valid keep entries, external files, unrelated files, and symlinks"
+            ],
+            "nativeCases": [
+                "clipboard_history_host_process::test_cli_text_copy_roundtrips_to_owned_named_board",
+                "clipboard_history_host_process::test_native_capture_skips_text_above_max_text_bytes_without_changing_history",
+                "clipboard_history_host_process::test_rich_copy_routes_and_invalid_data_do_not_clear_destination",
+                "clipboard_history_host_process::test_capture_text_files_image_and_private_own_activation_filters",
+                "clipboard_history::tests::image_roundtrip_bounds_acl_and_owned_pruning",
+                "clipboard_history::tests::file_copy_payload_rejects_non_file_urls",
+                "clipboard_history::tests::image_copy_payload_rejects_unsafe_asset_paths",
+                "clipboard_history::tests::external_edits_are_the_transaction_base_and_links_never_become_assets"
+            ],
+            "qualifiedCaseSourceBindings": {
+                "rust-native/tests/clipboard_history_host_process.rs": "8cf10e2943cf3f48c6a2a7edebbf1721ad305a34116e9fe357ae66b93eb7a0f8",
+                "rust-native/src/clipboard_history.rs": "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"
+            },
+            "retiredAssertions": [
+                "The Swift JSON/CLI wrapper shape is retired with this helper; no product CLI compatibility claim follows.",
+                "Native checker compilation is smoke coverage only; production clipboard behavior is not certified by helper retirement."
+            ],
+            "productionAccepted": false
+        });
+    }
     Ok(inventory)
 }
 pub(super) fn require_complete(kind: &str) -> Result<()> {
@@ -2671,6 +2707,43 @@ pub(super) fn require_complete(kind: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retired_clipboard_helper_is_absent_and_its_assertions_are_crosswalked() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/ClipboardChecks.swift";
+        assert!(!root.join(retired).exists());
+        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
+        assert!(!main.contains("--check-clipboard"));
+        assert!(!main.contains("checkClipboardStore"));
+        assert!(main.contains("--check-system"));
+        assert!(main.contains("checkSystemServices"));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
+        let lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
+        ).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/ClipboardChecks.swift::checkClipboardStore"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "bda0fc08d8b64c4598538078362da8c811617c99c223f3fa26caf62d2e33a6ae");
+        assert_eq!(mapping["productionAccepted"], false);
+        let cases = mapping["nativeCases"].as_array().unwrap();
+        assert_eq!(cases.len(), 8);
+        let host = include_str!("../../../tests/clipboard_history_host_process.rs");
+        let history = include_str!("../../clipboard_history.rs");
+        for case in cases {
+            let id = case.as_str().unwrap();
+            let function = id.rsplit("::").next().unwrap();
+            let source = if id.starts_with("clipboard_history_host_process::") { host } else { history };
+            assert!(source.contains(&format!("fn {function}(")), "missing Rust case {id}");
+        }
+        let host_hash = format!("{:x}", Sha256::digest(host.as_bytes()));
+        let history_hash = format!("{:x}", Sha256::digest(history.as_bytes()));
+        assert_eq!(mapping["qualifiedCaseSourceBindings"]["rust-native/tests/clipboard_history_host_process.rs"], host_hash);
+        assert_eq!(mapping["qualifiedCaseSourceBindings"]["rust-native/src/clipboard_history.rs"], history_hash);
+        assert_eq!(inventory["productionAccepted"], false);
+    }
 
     #[test]
     fn ax_retry_crosswalk_preserves_historical_source_and_rust_cases() {
