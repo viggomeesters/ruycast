@@ -47,6 +47,10 @@ fn open_and_cancel_leave_configuration_untouched() {
     let host = host();
     let before = fs::read(&host.config).unwrap();
     let state = open(&host);
+    let input=actions::probe(&host,"run-input-read");
+    for field in ["focused","allowsUndo","hasTextStorage","hasTextContainer"] {
+        assert_eq!(input[field],true,"owned input {field}");
+    }
     assert!(state["screenText"]
         .as_array()
         .unwrap()
@@ -55,7 +59,6 @@ fn open_and_cancel_leave_configuration_untouched() {
     assert!(!serde_json::to_string(&state)
         .unwrap()
         .contains("PRIVATE-TARGET-ARG"));
-    assert_eq!(actions::probe(&host, "run-input-read")["focused"], true);
     input_type(&host, "PRIVATE-DRAFT");
     assert_eq!(host.rpc(&json!({"op":"logs"}))["result"], json!([]));
     actions::probe(&host, "cancel-editor");
