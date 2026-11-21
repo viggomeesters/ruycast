@@ -92,19 +92,6 @@ func featureFixture()->[Command] {
     guard document.string=="prefix 25 October 2025 19:35",
         !SnippetFocusPolicy.allowsExpansion(secureInput:true,subrole:nil),
         !SnippetFocusPolicy.allowsExpansion(secureInput:false,subrole:kAXSecureTextFieldSubrole) else {throw LauncherError("Datetime expansion or secure-entry guard failed.")}
-    var roundTrip="",eventPayloadValid=true
-    let longText=String(repeating:"Line Ω 👨‍👩‍👧‍👦\n",count:40)
-    SnippetReplacement(keyword:";test",finalInput:"t",text:longText,cursor:nil).apply(key:{_ in},insert:{chunk in
-        let units=Array(chunk.utf16)
-        guard let event=CGEvent(keyboardEventSource:nil,virtualKey:0,keyDown:true) else {eventPayloadValid=false;return}
-        event.keyboardSetUnicodeString(stringLength:units.count,unicodeString:units)
-        var outputUnits=[UniChar](repeating:0,count:32),length=0
-        event.keyboardGetUnicodeString(maxStringLength:32,actualStringLength:&length,unicodeString:&outputUnits)
-        let decoded=String(utf16CodeUnits:outputUnits,count:length)
-        eventPayloadValid = eventPayloadValid && decoded==chunk && length<=16
-        roundTrip+=decoded
-    })
-    guard eventPayloadValid,roundTrip==longText else {throw LauncherError("CGEvent Unicode payload changed or truncated.")}
     let choiceCommand=Command(id:"choice",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Example A, Example B"}{cursor} Ω"#,keyword:";contact")
     let choiceFields=Templates.fields(choiceCommand)
     guard choiceFields.first?.options == ["Example A","Example B"] else {throw LauncherError("Choice options were not normalized.")}
@@ -118,7 +105,7 @@ func featureFixture()->[Command] {
     try checkAppLaunchDismissal()
     try checkSnippetChoiceKeyboard()
     panel.close()
-    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 // Route real AppKit key events through the same hidden panel as production.
 @MainActor func checkSnippetChoiceKeyboard() throws {

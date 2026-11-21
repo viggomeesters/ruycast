@@ -1795,6 +1795,18 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.nativeUnicodeEventPayloadRoundTrip"] = serde_json::json!({
+            "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate local CGEvent Unicode payload assertion retired",
+            "scope": "Only the local CGEvent Unicode create/set/get roundtrip and nativeUnicodeEventPayloadRoundTrip result field are retired. The shared checkInteractions helper and all other interaction checks remain active.",
+            "nativeSteps": ["native-light-600"],
+            "nativeCases": ["native_edit::check_snippet_replacement"],
+            "originalAssertions": ["Forty copies of Line Ω 👨‍👩‍👧‍👦 plus newline roundtrip exactly through local CGEvents.", "Each inserted chunk is at most 16 UTF-16 units and reads back through a 32-unit buffer."],
+            "compatibilityNotes": ["The local CGEvents are never posted. The Rust native route verifies the same CoreGraphics roundtrip through the existing production snippet replacement check."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-apple-shortcuts").unwrap();
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AppleShortcutChecks.swift::checkAppleShortcuts"] = serde_json::json!({
             "originalSourceSHA256": APPLE_SHORTCUTS_ORACLE_SHA256,
@@ -5456,6 +5468,8 @@ mod tests {
         assert!(main.find(retired_flag).unwrap() < main.find("let app=NSApplication.shared").unwrap());
         assert!(!main.contains("try renderFeatures("));
         assert!(interactions.contains("func checkInteractions"));
+        assert!(!interactions.contains("nativeUnicodeEventPayloadRoundTrip"));
+        assert!(!interactions.contains("CGEvent(keyboardEventSource:nil,virtualKey:0,keyDown:true)"));
         assert!(interactions.contains("func featureFixture"));
         assert!(!interactions.contains("func renderFeatures"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
@@ -7866,9 +7880,17 @@ mod tests {
         }
         assert_eq!(gate.required_native_steps.len(), 14);
         assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
-        let inventory = inventory("settings").unwrap();
-        assert_eq!(inventory["productionAccepted"], false);
-        assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        let settings_inventory = inventory("settings").unwrap();
+        assert_eq!(settings_inventory["productionAccepted"], false);
+        let crosswalk = inventory("check").unwrap();
+        let unicode = &crosswalk["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.nativeUnicodeEventPayloadRoundTrip"];
+        assert_eq!(unicode["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
+        assert_eq!(unicode["status"], "source-qualified-rust-case-crosswalk; duplicate local CGEvent Unicode payload assertion retired");
+        assert_eq!(unicode["nativeSteps"], serde_json::json!(["native-light-600"]));
+        assert_eq!(unicode["nativeCases"], serde_json::json!(["native_edit::check_snippet_replacement"]));
+        assert_eq!(unicode["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"native_edit::check_snippet_replacement"));
+        assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn polish_composition_and_partial_original_gates_keep_precise_cases_and_refusals() {
