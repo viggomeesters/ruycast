@@ -180,6 +180,59 @@ fn original_project_part_navigation_and_single_submit() {
     );
 }
 #[test]
+fn stale_project_part_refusal_recovers_with_command_r_reload() {
+    let host = GracefulBridge(host("project-part-stale"));
+    let initial = open(&host)["scriptResult"].clone();
+    assert_eq!(
+        initial["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["project", "part"]
+    );
+    host.probe("query", json!({"query":"PLAN"}));
+    let filtered = view(&host, |r| r["query"] == "PLAN")["scriptResult"].clone();
+    assert_eq!(filtered["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(filtered["rows"][0]["id"], "part");
+    fs::write(host.base.join("stale"), "stale").unwrap();
+    actions::key(&host, 36, 0, "\r", false);
+    let refused = view(&host, |r| {
+        r["busy"] == false
+            && r["error"] == "Project choices are stale. Reload to try again."
+    });
+    let result = &refused["scriptResult"];
+    assert_eq!(result.get("token"), initial.get("token"));
+    assert_eq!(result["title"], initial["title"]);
+    assert_eq!(result["query"], "PLAN");
+    assert_eq!(result["rows"], filtered["rows"]);
+    assert_eq!(result["selection"], filtered["selection"]);
+    assert!(actions::text_contains(&refused, "Planning"));
+    assert!(actions::text_contains(
+        &refused,
+        "Project choices are stale. Reload to try again."
+    ));
+    assert!(!host.base.join("selected").exists());
+    assert!(!host.base.join("ready").exists());
+
+    fs::remove_file(host.base.join("stale")).unwrap();
+    // Dispatch the actual Command+R NSEvent inside the owned hidden host.
+    actions::key(&host, 15, actions::CMD, "r", false);
+    let fresh = view(&host, |r| r.get("token") != initial.get("token"));
+    let result = &fresh["scriptResult"];
+    assert_eq!(result["busy"], false);
+    assert_eq!(result["error"], "");
+    assert_eq!(result["query"], "");
+    assert_eq!(result["rows"], initial["rows"]);
+    assert_eq!(result["selection"], 0);
+    assert!(actions::text_contains(&fresh, "Example Project"));
+    assert!(actions::text_contains(&fresh, "Planning"));
+    assert!(!actions::text_contains(&fresh, "Project choices are stale."));
+    assert!(!host.base.join("selected").exists());
+    assert!(!host.base.join("ready").exists());
+}
+#[test]
 fn reload_replaces_token_and_stale_button_is_detached() {
     let host = host("close");
     let old = open(&host)["scriptResult"].get("token").unwrap().clone();
