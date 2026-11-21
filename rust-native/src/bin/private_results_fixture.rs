@@ -85,6 +85,17 @@ fn main() {
             std::thread::sleep(std::time::Duration::from_millis(300));
             std::fs::write(&args[2], "done").unwrap();
         }
+        Some("execution-invocation") if args.len() == 3 => {
+            println!("{}", args[1]);
+            println!("{}", args[2]);
+            for key in [
+                "VIGGOBSIDIAN_INVOCATION_ID",
+                "VIGGOBSIDIAN_INVOCATION_AT",
+                "VIGGOBSIDIAN_INVOCATION_LAUNCHER",
+            ] {
+                println!("{}", std::env::var(key).unwrap_or_else(|_| "<absent>".into()));
+            }
+        }
         Some("execution-tree") if args.len() == 3 => {
             std::fs::write(&args[1], std::process::id().to_string()).unwrap();
             unsafe { libc::signal(libc::SIGTERM, libc::SIG_IGN); }

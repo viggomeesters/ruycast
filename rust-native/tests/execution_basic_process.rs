@@ -28,6 +28,51 @@ fn replace_command(h: &Host, cmd: Value) {
     assert_eq!(h.rpc(&json!({"op":"reload"}))["ok"], true);
 }
 #[test]
+fn opted_in_invocation_reaches_the_actual_script_as_one_utc_fact() {
+    let probe = env!("CARGO_BIN_EXE_private-results-fixture");
+    let marker = "{invocation-provenance}";
+    let mut cmd = command(
+        probe,
+        json!([marker, "execution-invocation", "{uuid}", "{input}"]),
+    );
+    cmd["inputPrompt"] = json!("Text");
+    let h = host(cmd);
+    let run = || h.cli(&["run", "runfixture", "--input", marker]);
+    let before = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    let first = run();
+    let after = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    assert_eq!(first["ok"], true);
+    let lines: Vec<_> = first["result"]["stdout"]
+        .as_str()
+        .unwrap()
+        .lines()
+        .collect();
+    assert_eq!(lines.len(), 5);
+    assert_eq!(lines[0].len(), 36);
+    assert_eq!(lines[1], marker);
+    assert_eq!(lines[2], lines[0]);
+    assert!(lines[3].ends_with('Z'));
+    assert_eq!(lines[4], "Ruycast");
+    let sampled = chrono::DateTime::parse_from_rfc3339(lines[3]).unwrap();
+    assert!(sampled >= before - chrono::TimeDelta::milliseconds(1));
+    assert!(sampled <= after);
+    assert_ne!(
+        run()["result"]["stdout"].as_str().unwrap().lines().next(),
+        Some(lines[0])
+    );
+
+    let mut ordinary = command(probe, json!(["execution-invocation", "{uuid}", "{input}"]));
+    ordinary["inputPrompt"] = json!("Text");
+    replace_command(&h, ordinary);
+    let result = run();
+    let lines: Vec<_> = result["result"]["stdout"]
+        .as_str()
+        .unwrap()
+        .lines()
+        .collect();
+    assert_eq!(lines[1..], [marker, "<absent>", "<absent>", "<absent>"]);
+}
+#[test]
 fn cli_literal_input_uuid_usage_and_private_logs() {
     let mut cmd = command(
         "/usr/bin/printf",

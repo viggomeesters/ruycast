@@ -9,7 +9,7 @@ use std::{
         Arc, Mutex, OnceLock,
     },
     thread::{self, JoinHandle},
-    time::Instant,
+    time::{Instant, SystemTime},
 };
 
 pub const LIMIT: usize = crate::control::CLIENT_LIMIT;
@@ -186,6 +186,7 @@ impl<C> Manager<C> {
     pub fn admit(
         &mut self,
         command: Command,
+        invocation_id: Option<String>,
         cli: bool,
         live: Live,
         deadline: Option<Instant>,
@@ -212,6 +213,11 @@ impl<C> Manager<C> {
             Err(error) => return Err((error, context)),
         };
         let home = self.home.clone();
+        let invocation = invocation_id.map(|id| crate::supervision::Invocation {
+            id,
+            at: chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        });
         self.admit_job(
             cli,
             live,
@@ -220,8 +226,15 @@ impl<C> Manager<C> {
             Kind::Script,
             true,
             move |live| {
-                crate::supervision::run(&helper, &command, &home, deadline, || !live())
-                    .map(Outcome::Script)
+                crate::supervision::run(
+                    &helper,
+                    &command,
+                    &home,
+                    invocation.as_ref(),
+                    deadline,
+                    || !live(),
+                )
+                .map(Outcome::Script)
             },
         )
     }
@@ -603,6 +616,30 @@ pub fn prepare(command: &Command, values: &serde_json::Value) -> Result<Command,
 pub(crate) fn prepare_result(command: &Command, input: Option<&str>) -> Result<Command, String> {
     expand(command, input.unwrap_or(""), false)
 }
+const INVOCATION_MARKER: &str = "{invocation-provenance}";
+
+fn invocation_arguments(command: &Command) -> Option<&[String]> {
+    let (first, rest) = command.arguments.split_first()?;
+    (first == INVOCATION_MARKER).then_some(rest)
+}
+
+fn uuid() -> String {
+    objc2::rc::autoreleasepool(|_| objc2_foundation::NSUUID::new().UUIDString().to_string())
+}
+
+/// Use the original configured arguments, not literal user input, to find
+/// the intentional opt-in and reuse its UUID across the child boundary.
+pub(crate) fn invocation_id(original: &Command, prepared: &Command) -> Option<String> {
+    let arguments = invocation_arguments(original)?;
+    Some(
+        arguments
+            .iter()
+            .zip(&prepared.arguments)
+            .find(|(original, _)| original.as_str() == "{uuid}")
+            .map_or_else(uuid, |(_, expanded)| expanded.clone()),
+    )
+}
+
 fn expand(command: &Command, input: &str, require_input: bool) -> Result<Command, String> {
     eligible(command)?;
     if let Some(prompt) = command.input_prompt.as_ref().filter(|_| require_input) {
@@ -615,14 +652,14 @@ fn expand(command: &Command, input: &str, require_input: bool) -> Result<Command
     }
     budget(command, Some(input))?;
     let mut ready = command.clone();
+    let shared_id = invocation_arguments(command).map(|_| {
+        ready.arguments.remove(0);
+        uuid()
+    });
     for argument in &mut ready.arguments {
         match argument.as_str() {
             "{input}" => *argument = input.to_string(),
-            "{uuid}" => {
-                *argument = objc2::rc::autoreleasepool(|_| {
-                    objc2_foundation::NSUUID::new().UUIDString().to_string()
-                })
-            }
+            "{uuid}" => *argument = shared_id.clone().unwrap_or_else(uuid),
             _ => {}
         }
     }
@@ -831,6 +868,30 @@ mod tests {
         assert!(prepare(&command, &json!({})).is_err());
     }
     #[test]
+    fn opt_in_shares_the_action_id_without_interpreting_literal_input() {
+        let mut command = command();
+        command.arguments = vec![
+            INVOCATION_MARKER.into(),
+            "{input}".into(),
+            "{uuid}".into(),
+            "{uuid}".into(),
+        ];
+        let ready = prepare(&command, &json!({"input":INVOCATION_MARKER})).unwrap();
+        assert_eq!(ready.arguments.len(), 3);
+        assert_eq!(ready.arguments[0], INVOCATION_MARKER);
+        assert_eq!(ready.arguments[1], ready.arguments[2]);
+        assert_eq!(
+            invocation_id(&command, &ready).as_deref(),
+            Some(ready.arguments[1].as_str())
+        );
+        command.arguments.remove(0);
+        let ordinary = prepare(&command, &json!({"input":INVOCATION_MARKER})).unwrap();
+        assert!(invocation_id(&command, &ordinary).is_none());
+        command.arguments = vec![INVOCATION_MARKER.into(), "{input}".into()];
+        let no_placeholder = prepare(&command, &json!({"input":"note"})).unwrap();
+        assert_eq!(invocation_id(&command, &no_placeholder).unwrap().len(), 36);
+    }
+    #[test]
     fn actual_worker_panic_yields_terminal_result_and_capacity() {
         let (tx, rx) = mpsc::sync_channel(1);
         let mut manager = Manager::new(PathBuf::from("/tmp"), tx);
@@ -841,7 +902,9 @@ mod tests {
             }
             true
         });
-        manager.admit(command(), true, live, None, ()).unwrap();
+        manager
+            .admit(command(), None, true, live, None, ())
+            .unwrap();
         rx.recv_timeout(Duration::from_secs(2)).unwrap();
         let result = manager.harvest();
         assert_eq!(result.len(), 1);

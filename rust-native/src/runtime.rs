@@ -3184,6 +3184,7 @@ fn start_execution(
     let logged_id =
         crate::activity::Activity::log_id(&command.id, values, &state.configuration.paths.home);
     let source = destination.source();
+    let invocation_id = crate::execution::invocation_id(&command, &prepared);
     let context = ExecutionContext {
         capture_result: None,
         initial_result,
@@ -3206,7 +3207,7 @@ fn start_execution(
     };
     match state
         .execution
-        .admit(prepared, source == "cli", live, deadline, context)
+        .admit(prepared, invocation_id, source == "cli", live, deadline, context)
     {
         Ok(_) => {
             state.activity.record(&trace, &logged_id, source, None);

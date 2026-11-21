@@ -1,5 +1,7 @@
 # Contributing
 
+Saved native script commands can opt into invocation provenance by putting the literal `{invocation-provenance}` first in `arguments`. It is not passed to the script. The supervisor gives the script a `VIGGOBSIDIAN_INVOCATION_ID` UUID and `VIGGOBSIDIAN_INVOCATION_AT` UTC timestamp sampled at admission. In this mode any `{uuid}` argument uses that same UUID. Literal input cannot enable the mode. Persist both values if the script supports recovery; running the command again is a new action, not a replay.
+
 Ruycast's production host, domain library, CLI and delivery policy are Rust. The native host uses AppKit through Rust bindings. Frozen Swift sources are historical parity oracles, not a production host or fallback. Start with the [architecture](docs/ARCHITECTURE.md), [product contract](docs/vision.json) and the [current source beta](https://github.com/viggomeesters/ruycast/releases/tag/v0.9.0-beta.17).
 
 ## Build and check
