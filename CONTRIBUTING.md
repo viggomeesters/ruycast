@@ -36,7 +36,7 @@ CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-
 CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- check-native --repo "$PWD"
 ```
 
-The core gate now compiles and links the Rust static library with SwiftPM RuycastApp; pre-main search retains a source-qualified crosswalk. The retired concurrency and task-date helpers map to existing Rust tests in the gate inventory. Their source/artifact receipts are under `.build/receipts`. These checks do not establish full product acceptance, signing or physical desktop behavior.
+The Core gate compiles and links the Rust static library with SwiftPM RuycastApp. The standalone pre-main Swift compile/link smoke is retired because it duplicated that check; the pre-main search crosswalk remains source-qualified in the gate inventory. The retired concurrency and task-date helpers map to existing Rust tests in the gate inventory. Core source/artifact receipts are under `.build/receipts`. These checks do not establish full product acceptance, signing or physical desktop behavior.
 
 Production release builds use explicit host-target output paths and v4 receipts. A release receipt requires matching retained originals/dSYM, unchanged backed sections/UUID and the hashed release-preparation record. Debug receipts have `releasePreparation: null` and cannot authorize packaging or installation. V2/v3 build receipts and historical candidate 67 remain historical evidence. Failed release builds invalidate their previous build receipt.
 
