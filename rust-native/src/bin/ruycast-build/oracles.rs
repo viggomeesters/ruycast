@@ -1807,6 +1807,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["The partial date `in 3` is invalid.", "Submitting it leaves the command form open and does not execute it."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift natural-date validity assertion retired",
+            "scope": "Only the Swift `morgen` inline-preview validity assertion is retired. Input, non-null preview binding/capture, later frozen-value submission, other date captures, and --check-polish remain active.",
+            "nativeSteps": ["unit", "task-date-process"],
+            "nativeCases": ["task_date::tests::original_natural_date_vectors_and_labels_match", "ui_completion::task_date"],
+            "originalAssertions": ["Natural input `morgen` produces a valid inline date preview."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.frozenDateSubmissionValue"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift frozen-date submission value assertion retired",
@@ -7929,6 +7938,22 @@ mod tests {
         assert!(polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
         assert!(!polish_source.contains("Partial date accepted"));
         assert!(polish_source.contains("Invalid date executed or discarded input"));
+    }
+    #[test]
+    fn polish_natural_date_preview_validity_is_retired_and_crosswalked() {
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift natural-date validity assertion retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit", "task-date-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["task_date::tests::original_natural_date_vectors_and_labels_match", "ui_completion::task_date"]));
+        assert_eq!(retired["productionAccepted"], false);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
+        assert!(!polish.contains("Natural date preview missing"));
+        assert!(polish.contains("state.inlineInput=\"morgen\""));
+        assert!(polish.contains("let frozen=state.inlineDatePreview!"));
+        assert!(polish.contains("date-valid"));
     }
     #[test]
     fn polish_frozen_date_submission_value_is_retired_and_crosswalked() {

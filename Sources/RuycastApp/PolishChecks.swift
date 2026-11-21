@@ -100,7 +100,6 @@ import LauncherModels
     state.mode="commands";state.query=""
     let dateCommand=Command(id:"fixture.date",title:"Task Deadline",kind:"script",target:"/bin/echo",arguments:["{input}"],inputPrompt:"Deadline (YYYY-MM-DD of clear)")
     state.config.commands.append(dateCommand);state.begin(dateCommand);state.inlineInput="morgen"
-    try require(state.inlineDatePreview?.isValid==true,"Natural date preview missing")
     let frozen=state.inlineDatePreview!
     try capture(Palette(state:state),"date-valid",NSSize(width:760,height:480),required:[frozen.label],absent:["YYYY-MM-DD"])
     state.inlineInput="in 3"
