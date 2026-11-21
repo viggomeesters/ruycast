@@ -28,7 +28,6 @@ Sources/LauncherCore/WindowPlacement.swift
 Sources/LauncherCore/WindowRead.swift
 Sources/LauncherModels/Models.swift
 Sources/RuycastApp/ActionMenuChecks.swift
-Sources/RuycastApp/AnalyticsChecks.swift
 Sources/RuycastApp/AnalyticsDashboard.swift
 Sources/RuycastApp/AnalyticsStore.swift
 Sources/RuycastApp/AppBrand.swift
