@@ -1507,6 +1507,19 @@ mod tests {
         c.error("runtime", "invalid");
         c.flush();
         assert_eq!(std::fs::read(&invalid_hour_path).unwrap(), invalid_hour_bytes);
+
+        let overflow_root = t.0.join("overflow");
+        crate::private_storage::secure_directory(&overflow_root).unwrap();
+        let mut overflow = Document::new(1_760_000_000.);
+        assert!(overflow.valid());
+        overflow.total_attempts = i64::MAX;
+        let overflow_bytes = serde_json::to_vec(&overflow).unwrap();
+        std::fs::write(overflow_root.join("analytics.json"), &overflow_bytes).unwrap();
+        let overflow_writer = Writer::open(&overflow_root, None).unwrap();
+        assert_eq!(
+            overflow_writer.client().storage_error().as_deref(),
+            Some(READ_ERROR)
+        );
     }
     #[test]
     fn writer_shutdown_waits_for_real_span_completion_without_losing_final_snapshot() {
