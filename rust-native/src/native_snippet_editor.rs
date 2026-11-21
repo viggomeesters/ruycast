@@ -603,8 +603,25 @@ impl SnippetEditor {
         let markers = s.ruler.markers(s.ruler.bounds());
         let f = s.ruler.frame();
         let b = s.ruler.bounds();
+        let line_starts = line_starts_utf16(&text.string().to_string());
+        let second_line_y = line_starts.get(1).and_then(|offset| {
+            let layout = unsafe { text.layoutManager() }?;
+            let container = unsafe { text.textContainer() }?;
+            layout.ensureLayoutForTextContainer(&container);
+            Some(if *offset == text.string().length() {
+                layout.extraLineFragmentRect().origin.y
+            } else {
+                unsafe {
+                    layout.lineFragmentRectForGlyphAtIndex_effectiveRange(
+                        layout.glyphIndexForCharacterAtIndex(*offset),
+                        std::ptr::null_mut(),
+                    ).origin.y
+                }
+            })
+        });
+        let text_frame = text.frame();
         Ok(
-            serde_json::json!({"open":s.draft.borrow().is_some(),"source":text.string().to_string(),"selection":[selection.location,selection.length],"label":s.label.stringValue().to_string(),"url":s.url.stringValue().to_string(),"saveEnabled":s.save.isEnabled(),"error":s.error.stringValue().to_string(),"lineStarts":line_starts_utf16(&text.string().to_string()),"visibleMarkers":markers,"rulerVisible":s.scroll.load().is_some_and(|v|v.rulersVisible()),"sourceVisible":s.scroll.load().is_some_and(|v|!v.isHidden()),"rulerFrame":[f.origin.x,f.origin.y,f.size.width,f.size.height],"rulerBounds":[b.origin.x,b.origin.y,b.size.width,b.size.height],"canUndo":text.undoManager().is_some_and(|u|u.canUndo()),"active":s.active.get()}),
+            serde_json::json!({"open":s.draft.borrow().is_some(),"source":text.string().to_string(),"selection":[selection.location,selection.length],"label":s.label.stringValue().to_string(),"url":s.url.stringValue().to_string(),"saveEnabled":s.save.isEnabled(),"error":s.error.stringValue().to_string(),"lineStarts":line_starts,"secondLogicalLineY":second_line_y,"visibleMarkers":markers,"rulerVisible":s.scroll.load().is_some_and(|v|v.rulersVisible()),"sourceVisible":s.scroll.load().is_some_and(|v|!v.isHidden()),"ruleThickness":s.ruler.ruleThickness(),"textFrame":[text_frame.origin.x,text_frame.origin.y,text_frame.size.width,text_frame.size.height],"rulerFrame":[f.origin.x,f.origin.y,f.size.width,f.size.height],"rulerBounds":[b.origin.x,b.origin.y,b.size.width,b.size.height],"canUndo":text.undoManager().is_some_and(|u|u.canUndo()),"active":s.active.get()}),
         )
     }
 }

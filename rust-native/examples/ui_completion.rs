@@ -1299,6 +1299,29 @@ fn snippet_links(root: &Path) {
         let h = Host::new(root, theme);
         let config = fs::read(h.profile.join("config.json")).unwrap();
         h.edit("snippet.fixture");
+        let original = "Hoi 👋,\n\nSee [Guide](https://example.com/a_(b)?x=1&y=2)\n\nGoodbye\n";
+        h.probe(true, "command-input", json!({"key":"target","text":original}));
+        let original_view = h.probe(true, "snippet-link", json!({"command":"scroll","location":0}));
+        assert_eq!(original_view["source"], original);
+        assert_eq!(original_view["rulerVisible"], true);
+        assert!(original_view["ruleThickness"].as_f64().unwrap() >= 44., "{original_view}");
+        assert_eq!(original_view["lineStarts"], json!([0, 8, 9, 56, 57, 65]));
+        let starts = original_view["lineStarts"].as_array().unwrap();
+        assert_eq!(starts.len(), 6);
+        assert_eq!(starts.last().unwrap(), &json!(original.encode_utf16().count()));
+        // Record the actual native view geometry. These are not the Swift
+        // helper's 520/760-point screenshot dimensions or pixel-parity evidence.
+        fs::write(
+            h.out.join(format!("snippet-original-layout-{theme}.json")),
+            serde_json::to_vec_pretty(&original_view).unwrap(),
+        ).unwrap();
+        h.probe(true, "snippet-link", json!({"command":"selection","location":0,"length":0}));
+        h.probe(true, "snippet-type", json!({"text":"Changed "}));
+        let typed = h.probe(true, "snippet-link", json!({"command":"read"}));
+        assert_eq!(typed["source"], format!("Changed {original}"));
+        assert_eq!(typed["canUndo"], true);
+        let undone = h.probe(true, "snippet-link", json!({"command":"undo"}));
+        assert_eq!(undone["source"], original);
         let wrapped = format!("{}\nlast\n", "Long wrapped text ".repeat(80));
         h.probe(
             true,
@@ -1333,6 +1356,23 @@ fn snippet_links(root: &Path) {
             "{bottom}"
         );
         h.capture(true, &format!("snippet-link-ruler-scroll-{theme}"));
+        let many_lines = format!(
+            "{}\n{}\n",
+            "wrapped word ".repeat(40),
+            (1..=70).map(|line| format!("Line {line}")).collect::<Vec<_>>().join("\n"),
+        );
+        h.probe(true, "command-input", json!({"key":"target","text":many_lines}));
+        let layout = h.probe(true, "snippet-link", json!({"command":"scroll","location":0}));
+        assert_eq!(layout["lineStarts"].as_array().unwrap().len(), 72);
+        assert!(layout["secondLogicalLineY"].as_f64().unwrap() > 50., "{layout}");
+        let scrolled = h.probe(true, "snippet-link", json!({"command":"scroll","location":many_lines.encode_utf16().count() - 1}));
+        let markers = scrolled["visibleMarkers"].as_array().unwrap();
+        assert!(markers.iter().any(|marker| marker[0].as_u64().unwrap() > 50), "{scrolled}");
+        assert!(!markers.iter().any(|marker| marker[0] == 1), "{scrolled}");
+        fs::write(
+            h.out.join(format!("snippet-many-lines-scroll-{theme}.json")),
+            serde_json::to_vec_pretty(&scrolled).unwrap(),
+        ).unwrap();
         h.probe(
             true,
             "command-input",
