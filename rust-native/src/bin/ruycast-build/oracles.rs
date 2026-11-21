@@ -2443,6 +2443,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeCases": ["execution_native_process::ranked_command_is_filtered_after_disable_and_removal"],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.traceStateBoundsAndIdentity"] = serde_json::json!({
+            "originalSourceSHA256": "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the five pure trace-state assertions move to the existing Rust test. The interaction benchmark helper, its route, and native field/capture assertions stay active.",
+            "nativeSource": "rust-native/src/performance_trace.rs",
+            "originalScenarios": ["350 search-model samples retain at most 256", "a different field owner cannot complete or cancel pending reconciliation", "superseding input and explicit cancellation count as two cancelled and zero completed reconciliations", "reset prevents an old span from completing a new span", "100 in-flight spans remain bounded at 32 and reset leaves no active spans"],
+            "nativeCases": ["performance_trace::tests::original_retention_field_ownership_cancellation_reset_and_overflow_contract"],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.enabledTypoCliParity"] = serde_json::json!({
             "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
             "status": "source-qualified-rust-case-crosswalk",
@@ -4018,6 +4027,37 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/tests/execution_native_process.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 2);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["execution_native_process::ranked_command_is_filtered_after_disable_and_removal"]));
+        assert_eq!(mapping["productionAccepted"], false);
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn interaction_trace_state_assertions_are_crosswalked_to_rust() {
+        let rust = include_str!("../../performance_trace.rs");
+        let case = rust
+            .split_once("fn original_retention_field_ownership_cancellation_reset_and_overflow_contract()")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        assert!(case.contains("for _ in 0..350"));
+        assert!(case.contains("[\"retainedSamples\"], 256"));
+        assert!(case.contains("trace.did_reconcile_field(2)"));
+        assert!(case.contains("trace.cancel_input(Some(2))"));
+        assert!(case.contains("[\"cancelled\"],\n            2"));
+        assert!(case.contains("trace.reset();"));
+        assert!(case.contains("let spans: Vec<_> = (0..100)"));
+        assert!(case.contains("assert_eq!(trace.snapshot()[\"activeIntervals\"], 32)"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.traceStateBoundsAndIdentity"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/performance_trace.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 5);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["performance_trace::tests::original_retention_field_ownership_cancellation_reset_and_overflow_contract"]));
         assert_eq!(mapping["productionAccepted"], false);
         assert_eq!(inventory["productionAccepted"], false);
     }
