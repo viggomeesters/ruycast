@@ -6747,7 +6747,8 @@ mod tests {
         assert!(!root.join("Sources/RuycastApp/WindowSearchChecks.swift").exists());
         for gate in SETTINGS {
             if matches!(gate.id, "--check-command-log" | "--check-window-search"
-                | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands" | "--check-feedback") {
+                | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands" | "--check-feedback"
+                | "--check-actions-menu" | "--check-menu-actions") {
                 // Retired helpers retain their original path/hash as historical provenance.
                 assert!(!root.join(gate.original_source).exists());
             } else {
