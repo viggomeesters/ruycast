@@ -216,6 +216,44 @@ fn preview(root: &Path, clip: &Clip) -> Result<Option<Preview>, String> {
 #[cfg(all(test, feature = "test-tools"))]
 mod tests {
     use super::*;
+
+    fn one_pixel_image_clip(root: &Path, id: &str) -> Clip {
+        use objc2::AnyThread;
+        use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSDeviceRGBColorSpace};
+        use objc2_foundation::NSDictionary;
+
+        let bitmap = unsafe {
+            NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+                NSBitmapImageRep::alloc(), std::ptr::null_mut(), 1, 1, 8, 4, true, false,
+                NSDeviceRGBColorSpace, 4, 32,
+            )
+        }
+        .unwrap();
+        let pointer = bitmap.bitmapData();
+        assert!(!pointer.is_null());
+        unsafe { std::slice::from_raw_parts_mut(pointer, 4).copy_from_slice(&[120, 60, 30, 255]) };
+        let png = unsafe {
+            bitmap.representationUsingType_properties(
+                NSBitmapImageFileType::PNG,
+                &NSDictionary::new(),
+            )
+        }
+        .unwrap()
+        .to_vec();
+        let asset = "clipboard-assets/11111111-1111-4111-8111-111111111111.png";
+        crate::private_storage::secure_directory(&root.join("clipboard-assets")).unwrap();
+        crate::private_storage::write(&root.join(asset), &png, false).unwrap();
+        Clip {
+            id: id.into(),
+            text: "Image".into(),
+            date: crate::clipboard_history::now(),
+            source: "fixture".into(),
+            content_type: Some("image".into()),
+            data_file: Some(asset.into()),
+            file_urls: None,
+        }
+    }
+
     #[test]
     fn original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets() {
         use objc2::AnyThread;
@@ -377,9 +415,6 @@ mod tests {
 
     #[test]
     fn equal_metadata_different_id_replaces_preview_owner_and_releases_old_image() {
-        use objc2::AnyThread;
-        use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSDeviceRGBColorSpace};
-        use objc2_foundation::NSDictionary;
         use std::{
             os::unix::fs::DirBuilderExt,
             sync::Arc,
@@ -403,37 +438,7 @@ mod tests {
         }
         let _cleanup = Cleanup(root.clone());
 
-        let bitmap = unsafe {
-            NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
-                NSBitmapImageRep::alloc(), std::ptr::null_mut(), 1, 1, 8, 4, true, false,
-                NSDeviceRGBColorSpace, 4, 32,
-            )
-        }
-        .unwrap();
-        let pointer = bitmap.bitmapData();
-        assert!(!pointer.is_null());
-        unsafe { std::slice::from_raw_parts_mut(pointer, 4).copy_from_slice(&[120, 60, 30, 255]) };
-        let png = unsafe {
-            bitmap.representationUsingType_properties(
-                NSBitmapImageFileType::PNG,
-                &NSDictionary::new(),
-            )
-        }
-        .unwrap()
-        .to_vec();
-        let asset = "clipboard-assets/11111111-1111-4111-8111-111111111111.png";
-        crate::private_storage::secure_directory(&root.join("clipboard-assets")).unwrap();
-        crate::private_storage::write(&root.join(asset), &png, false).unwrap();
-
-        let first = Clip {
-            id: "preview-first-owner".into(),
-            text: "Image".into(),
-            date: crate::clipboard_history::now(),
-            source: "fixture".into(),
-            content_type: Some("image".into()),
-            data_file: Some(asset.into()),
-            file_urls: None,
-        };
+        let first = one_pixel_image_clip(&root, "preview-first-owner");
         let mut second = first.clone();
         second.id = "preview-second-owner".into();
         assert_ne!(first.id, second.id);
@@ -479,5 +484,81 @@ mod tests {
         assert!(!Arc::ptr_eq(&current, &previous));
         drop(previous);
         assert!(previous_weak.upgrade().is_none());
+    }
+
+    #[test]
+    fn decoded_preview_cancelled_before_poll_is_not_published_and_released() {
+        use std::{
+            os::unix::fs::DirBuilderExt,
+            sync::Arc,
+            time::{Duration, Instant},
+        };
+
+        let parent = PathBuf::from(
+            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
+                .expect("Owned fixture parent required"),
+        );
+        let root = parent.join(format!(
+            "clipboard-preview-cancel-ready-{}",
+            std::process::id()
+        ));
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&root)
+            .unwrap();
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+
+        let clip = one_pixel_image_clip(&root, "ready-before-publication");
+        let mut worker = Worker::new(false).unwrap();
+        worker.load(&root, Some(&clip));
+        let until = Instant::now() + Duration::from_secs(3);
+        loop {
+            let ready = worker
+                .state
+                .result
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_some();
+            if ready {
+                break;
+            }
+            assert!(
+                Instant::now() < until,
+                "Preview decode did not finish before its deadline"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(worker.loading);
+        assert!(worker.image.is_none());
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+        let generation = worker.generation;
+        let unpublished = {
+            let result = worker
+                .state
+                .result
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let Some((result_generation, Ok(Some(image)))) = result.as_ref() else {
+                panic!("Expected a completed successful preview awaiting poll");
+            };
+            assert_eq!(*result_generation, generation);
+            assert_eq!((image.width, image.height), (1, 1));
+            Arc::downgrade(image)
+        };
+
+        worker.load(&root, None);
+        assert!(worker.generation > generation);
+        assert!(!worker.poll());
+        assert!(!worker.loading);
+        assert!(worker.image.is_none());
+        assert!(worker.id.is_none());
+        assert!(worker.error.is_none());
+        assert!(unpublished.upgrade().is_none());
     }
 }
