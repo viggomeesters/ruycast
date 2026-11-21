@@ -55,7 +55,6 @@ Sources/RuycastApp/LauncherResults.swift
 Sources/RuycastApp/LockedValue.swift
 Sources/RuycastApp/MainRunLoop.swift
 Sources/RuycastApp/Management.swift
-Sources/RuycastApp/MenuActionChecks.swift
 Sources/RuycastApp/MenuActions.swift
 Sources/RuycastApp/MonitorPerformance.swift
 Sources/RuycastApp/NativeEditCommands.swift
