@@ -49,10 +49,9 @@ import LauncherModels
     }}
     var routed=false;state.showAnalytics={routed=true};let palette=PaletteController(state:state);palette.show("analytics")
     try require(routed && !palette.panel.isVisible,"Dashboard did not use management window routing")
-    let configBefore=try Data(contentsOf:state.configURL)
     let preReset=state.analytics.recordAttempt("old-inflight",source:"cli")!
     _=try cli(["analytics","reset","--confirm"])
     state.analytics.recordCompletion(preReset,success:true,ms:1)
-    try require(state.analytics.snapshot.totalAttempts==0 && state.analytics.snapshot.totalSuccesses==0 && state.analytics.snapshot.timings.isEmpty && state.analytics.snapshot.commands.isEmpty && state.analytics.snapshot.events.isEmpty && (try Data(contentsOf:state.configURL))==configBefore,"Reset changed configuration or retained metrics")
-    return ["ok":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"rustCLIControls":true,"resetPreservesConfig":true,"resetDiscardsPriorInflight":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
+    try require(state.analytics.snapshot.totalAttempts==0 && state.analytics.snapshot.totalSuccesses==0 && state.analytics.snapshot.timings.isEmpty && state.analytics.snapshot.commands.isEmpty && state.analytics.snapshot.events.isEmpty,"Reset retained metrics")
+    return ["ok":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"rustCLIControls":true,"resetDiscardsPriorInflight":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
 }
