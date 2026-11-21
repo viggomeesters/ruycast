@@ -1834,6 +1834,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["After moving down once from the first row, `fixture.long` is selected."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardGeometry"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift clipboard geometry assertion retired",
+            "scope": "Only the Swift clipboard-frame growth and screen-containment assertion is retired. The native Rust polish-original process checks the same screen bounds in both context themes; all three Swift clipboard PNG captures and Vision OCR assertions remain active.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["The clipboard frame is larger than the normal frame and stays within the full screen bounds."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift natural-date validity assertion retired",
@@ -8021,6 +8030,26 @@ mod tests {
         assert!(!polish.contains("Arrow selection changed after rendering bindings"));
         assert!(!polish.contains("state.moveSelection(1)"));
         assert!(polish.contains("snippetAliasesAndKeywordSearch"));
+    }
+    #[test]
+    fn polish_clipboard_geometry_is_retired_and_crosswalked() {
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardGeometry"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift clipboard geometry assertion retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["The clipboard frame is larger than the normal frame and stays within the full screen bounds."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
+        assert!(!polish.contains("Clipboard geometry did not grow safely"));
+        assert!(!polish.contains("PaletteGeometry.frame(in:screen,mode:\"clipboard\")"));
+        for capture in ["clipboard-large", "clipboard-small", "clipboard-cleared"] {
+            assert!(polish.contains(capture));
+        }
+        assert!(polish.contains("Readable clipboard text"));
+        assert!(polish.contains("Select an item"));
     }
     #[test]
     fn polish_natural_date_preview_validity_is_retired_and_crosswalked() {
