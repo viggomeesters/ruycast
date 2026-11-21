@@ -17,15 +17,7 @@ struct CoreReceipt {
     commands: Vec<Vec<String>>,
     outcome: String,
     production_accepted: bool,
-    swift_compatibility: SwiftCompatibility,
     policy: CorePolicyEvidence,
-}
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct SwiftCompatibility {
-    modulemap: String,
-    architecture: String,
-    alias_target: Option<String>,
 }
 pub(super) fn swift_alias(root: &Path, architecture: &str) -> Result<Option<String>> {
     if !matches!(architecture, "arm64-apple-macosx" | "x86_64-apple-macosx") {
@@ -45,32 +37,6 @@ pub(super) fn swift_alias(root: &Path, architecture: &str) -> Result<Option<Stri
         Ok(_) => Err("SwiftPM debug alias must be the expected relative link.".into()),
         Err(e) => Err(error(e)),
     }
-}
-fn swift_compatibility(root: &Path, scratch: &Path, bin: &Path, target: &str) -> Result<SwiftCompatibility> {
-    let architecture = match target {
-        "aarch64-apple-darwin" => "arm64-apple-macosx",
-        "x86_64-apple-darwin" => "x86_64-apple-macosx",
-        _ => return Err("Unsupported Swift oracle target.".into()),
-    };
-    let suffix = bin.strip_prefix(scratch).map_err(error)?;
-    if suffix.as_os_str() != PathBuf::from(architecture).join("debug").as_os_str() {
-        return Err("Swift oracle reported an unexpected physical debug suffix.".into());
-    }
-    let alias_target = swift_alias(root, architecture)?;
-    let compatibility_bin = if alias_target.is_some() { suffix } else { Path::new("debug") };
-    let modulemap = PathBuf::from(".build/swift").join(compatibility_bin).join("CRuycastCore.build/module.modulemap");
-    Ok(SwiftCompatibility { modulemap: modulemap.to_string_lossy().into_owned(), architecture: architecture.into(), alias_target })
-}
-fn verify_swift_compatibility(root: &Path, binding: &SwiftCompatibility, artifacts: &BTreeMap<String, String>) -> Result<()> {
-    let compatibility_bin = if binding.alias_target.is_some() { PathBuf::from(&binding.architecture).join("debug") } else { PathBuf::from("debug") };
-    let expected = PathBuf::from(".build/swift").join(compatibility_bin).join("CRuycastCore.build/module.modulemap");
-    if Path::new(&binding.modulemap) != expected
-        || swift_alias(root, &binding.architecture)? != binding.alias_target
-        || artifacts.get(&binding.modulemap) != Some(&digest(&root.join(&expected))?)
-    {
-        return Err("Swift oracle compatibility binding changed.".into());
-    }
-    Ok(())
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all="camelCase", deny_unknown_fields)]
@@ -309,7 +275,6 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
     data_copy(root, &archive, &compatibility_archive)?;
     let archive_sha256 = digest(&archive)?;
     let commands = core_build_commands(&target, &archive_sha256)?;
-    let scratch = format!(".build/oracle-swift/{archive_sha256}");
     tool(root, lease, &commands[1])?;
     let bin_path = tool(root, lease, &commands[2])?;
     let bin_path = PathBuf::from(bin_path.trim());
@@ -325,9 +290,6 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
         return Err("Swift oracle build reported an unexpected artifact path.".into());
     }
     let modulemap = bin_path.join("CRuycastCore.build/module.modulemap");
-    let swift_compatibility = swift_compatibility(root, &root.join(&scratch), &bin_path, &target)?;
-    let compatibility_modulemap = root.join(&swift_compatibility.modulemap);
-    data_copy(root, &modulemap, &compatibility_modulemap)?;
     let binary = bin_path.join("RuycastApp");
     regular_file(&binary)?;
     let policy_after=execute_core_policy(root,lease,&policy_artifact,"after")?;
@@ -341,7 +303,6 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
         &archive,
         &compatibility_archive,
         &modulemap,
-        &compatibility_modulemap,
         &binary,
     ] {
         artifacts.insert(
@@ -354,8 +315,7 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
         );
     }
     artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-    verify_swift_compatibility(root, &swift_compatibility, &artifacts)?;
-    let receipt=CoreReceipt{schema:"ruycast.core-build-link-smoke.v2".into(),scope:CORE_SMOKE_SCOPE.into(),sources:before,artifacts,commands,outcome:"Core build/link smoke passed".into(),production_accepted:false,swift_compatibility,policy};
+    let receipt=CoreReceipt{schema:"ruycast.core-build-link-smoke.v3".into(),scope:CORE_SMOKE_SCOPE.into(),sources:before,artifacts,commands,outcome:"Core build/link smoke passed".into(),production_accepted:false,policy};
     lease.validate()?;
     let path = root.join(".build/receipts/pure-core-oracle.json");
     ruycast_native::private_storage::write(
@@ -468,10 +428,10 @@ pub(super) fn verify_core(root: &Path, lease: &BuildLock) -> Result<serde_json::
     let compatibility_archive=".build/rust/release/librustcast_core.a";
     let expected_artifacts=BTreeSet::from([
         archive_path.clone(),modulemap.clone(),binary.clone(),compatibility_archive.into(),
-        receipt.swift_compatibility.modulemap.clone(),receipt.policy.artifact.path.clone(),
+        receipt.policy.artifact.path.clone(),
     ]);
     let actual_artifacts=receipt.artifacts.keys().cloned().collect::<BTreeSet<_>>();
-    if receipt.schema != "ruycast.core-build-link-smoke.v2"
+    if receipt.schema != "ruycast.core-build-link-smoke.v3"
         || receipt.production_accepted
         || receipt.sources != core_sources(root)?
         || actual_artifacts != expected_artifacts
@@ -479,14 +439,13 @@ pub(super) fn verify_core(root: &Path, lease: &BuildLock) -> Result<serde_json::
         || receipt.commands != expected_commands
         || receipt.scope != CORE_SMOKE_SCOPE
         || receipt.artifacts.get(&archive_path) != receipt.artifacts.get(compatibility_archive)
-        || receipt.artifacts.get(&modulemap) != receipt.artifacts.get(&receipt.swift_compatibility.modulemap)
     {
         return Err("Core build/link smoke receipt is invalid or stale.".into());
     }
     check_core_policy_evidence(root,&receipt.policy)?;
-    if receipt.artifacts.get(&receipt.policy.artifact.path)!=Some(&receipt.policy.artifact.sha256)
-        || receipt.swift_compatibility.architecture!=architecture {return Err("Core policy lost its actual artifact/architecture role.".into());}
-    verify_swift_compatibility(root, &receipt.swift_compatibility, &receipt.artifacts)?;
+    if receipt.artifacts.get(&receipt.policy.artifact.path)!=Some(&receipt.policy.artifact.sha256) {
+        return Err("Core policy lost its actual artifact role.".into());
+    }
     for (name, expected) in &receipt.artifacts {
         if Path::new(name).is_absolute()
             || Path::new(name)
@@ -5278,30 +5237,27 @@ mod tests {
     }
     fn core_smoke_receipt(root:&Path,policy:CorePolicyEvidence)->CoreReceipt {
         let target=policy.artifact.target.as_str();
-        let architecture=match target {"aarch64-apple-darwin"=>"arm64-apple-macosx","x86_64-apple-darwin"=>"x86_64-apple-macosx",_=>panic!("unexpected target")};
         let archive=format!(".build/oracle-core/{target}/debug/librustcast_core.a");
         fs::create_dir_all(root.join(&archive).parent().unwrap()).unwrap();
         fs::write(root.join(&archive),b"owned Rust archive fixture").unwrap();
         let archive_sha256=digest(&root.join(&archive)).unwrap();
         let scratch=format!(".build/oracle-swift/{archive_sha256}");
-        let bin=format!("{scratch}/{architecture}/debug");
+        let bin=format!("{scratch}/arm64-apple-macosx/debug");
         let modulemap=format!("{bin}/CRuycastCore.build/module.modulemap");
-        let compatibility_modulemap=".build/swift/debug/CRuycastCore.build/module.modulemap";
         let compatibility_archive=".build/rust/release/librustcast_core.a";
         let binary=format!("{bin}/RuycastApp");
         let mut artifacts=BTreeMap::new();
-        for name in [&modulemap,compatibility_modulemap,compatibility_archive,&binary] {
+        for name in [&modulemap,compatibility_archive,&binary] {
             fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();
             fs::write(root.join(name),b"owned nonexecutable receipt fixture").unwrap();
         }
         fs::copy(root.join(&archive),root.join(compatibility_archive)).unwrap();
-        fs::copy(root.join(&modulemap),root.join(compatibility_modulemap)).unwrap();
-        for name in [&modulemap,compatibility_modulemap,compatibility_archive,&binary] {
+        for name in [&modulemap,compatibility_archive,&binary] {
             artifacts.insert((*name).into(),digest(&root.join(name)).unwrap());
         }
         artifacts.insert(archive.clone(),archive_sha256.clone());
         artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-        CoreReceipt{schema:"ruycast.core-build-link-smoke.v2".into(),scope:CORE_SMOKE_SCOPE.into(),sources:core_sources(root).unwrap(),artifacts,commands:core_build_commands(target,&archive_sha256).unwrap(),outcome:"Core build/link smoke passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:compatibility_modulemap.into(),architecture:architecture.into(),alias_target:None},policy}
+        CoreReceipt{schema:"ruycast.core-build-link-smoke.v3".into(),scope:CORE_SMOKE_SCOPE.into(),sources:core_sources(root).unwrap(),artifacts,commands:core_build_commands(target,&archive_sha256).unwrap(),outcome:"Core build/link smoke passed".into(),production_accepted:false,policy}
     }
     #[test]
     fn core_rust_policy_snapshot_preserves_actual_calls_after_rebuild_and_fails_closed() {
@@ -5324,7 +5280,11 @@ mod tests {
     }
     #[test]
     fn core_build_link_smoke_receipt_requires_current_policy_source_artifact_and_both_gates() {
+        use std::os::unix::fs::symlink;
         let fixture=core_policy_fixture();let root=&fixture.0;
+        let debug_alias=root.join(".build/swift/debug");
+        fs::create_dir_all(debug_alias.parent().unwrap()).unwrap();
+        symlink("preserved-existing-target",&debug_alias).unwrap();
         let helper=root.join("scripts/helper.rs");
         fs::create_dir_all(helper.parent().unwrap()).unwrap();
         let helper_bytes=b"fn main() {}\n";
@@ -5336,7 +5296,11 @@ mod tests {
         let mut receipt=core_smoke_receipt(root,policy);
         let path=root.join(".build/receipts/pure-core-oracle.json");
         let save=|value:&CoreReceipt|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
-        save(&receipt);verify_core(root,&lease).unwrap();
+        save(&receipt);
+        let verified=verify_core(root,&lease).unwrap();
+        assert!(verified.get("swiftCompatibility").is_none());
+        assert_eq!(fs::read_link(&debug_alias).unwrap(),Path::new("preserved-existing-target"));
+        assert!(!root.join(".build/swift/debug/CRuycastCore.build/module.modulemap").exists());
         fs::write(&helper,b"fn main() { let changed = true; }\n").unwrap();
         let captured=tool_capture(root,&lease,&core_policy_arguments(&receipt.policy.artifact)).unwrap();
         assert!(captured.status.success());
@@ -5345,19 +5309,28 @@ mod tests {
         fs::write(&helper,helper_bytes).unwrap();
         verify_core(root,&lease).unwrap();
         let good=serde_json::to_value(&receipt).unwrap();
-        for mutation in ["command-scratch", "outcome", "scope", "missing-modulemap", "wrong-binary"] {
+        let modulemap=receipt.artifacts.keys().find(|name|name.ends_with("/CRuycastCore.build/module.modulemap")).unwrap().clone();
+        for mutation in ["command-scratch", "outcome", "scope", "missing-modulemap", "changed-modulemap-hash", "wrong-binary"] {
             let mut changed=good.clone();
             match mutation {
                 "command-scratch"=>changed["commands"][1][3]=serde_json::json!(".build/oracle-swift/unbound"),
                 "outcome"=>changed["outcome"]=serde_json::json!("Core behavior checks passed"),
                 "scope"=>changed["scope"]=serde_json::json!("behavior and ABI call acceptance"),
-                "missing-modulemap"=>{changed["artifacts"].as_object_mut().unwrap().remove(".build/swift/debug/CRuycastCore.build/module.modulemap");},
+                "missing-modulemap"=>{changed["artifacts"].as_object_mut().unwrap().remove(&modulemap);},
+                "changed-modulemap-hash"=>{changed["artifacts"].as_object_mut().unwrap().insert(modulemap.clone(),serde_json::json!("0".repeat(64)));},
                 _=>{let artifacts=changed["artifacts"].as_object_mut().unwrap();let binary=artifacts.keys().find(|name|name.ends_with("/RuycastApp")).unwrap().clone();artifacts.remove(&binary);},
             }
             fs::write(&path,serde_json::to_vec(&changed).unwrap()).unwrap();
             assert!(verify_core(root,&lease).is_err(),"{mutation}");
         }
         save(&receipt);
+        let modulemap_path=root.join(&modulemap);
+        let modulemap_bytes=fs::read(&modulemap_path).unwrap();
+        fs::write(&modulemap_path,b"changed actual modulemap").unwrap();
+        assert!(verify_core(root,&lease).is_err());
+        fs::write(&modulemap_path,modulemap_bytes).unwrap();
+        assert_eq!(fs::read_link(&debug_alias).unwrap(),Path::new("preserved-existing-target"));
+        verify_core(root,&lease).unwrap();
         let policy=receipt.policy.clone();
         let compat_archive=root.join(".build/rust/release/librustcast_core.a");
         fs::write(&compat_archive,b"changed compatibility archive").unwrap();
@@ -5373,10 +5346,10 @@ mod tests {
             while parent!=root {if fs::remove_dir(parent).is_err(){break;}parent=parent.parent().unwrap();}
             verify_core(root,&lease).unwrap();
         }
-        for old in ["ruycast.core-build-link-smoke.v1", "ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4", "ruycast.pure-core-oracle.v5", "ruycast.pure-core-oracle.v6"] {
+        for old in ["ruycast.core-build-link-smoke.v1", "ruycast.core-build-link-smoke.v2", "ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4", "ruycast.pure-core-oracle.v5", "ruycast.pure-core-oracle.v6"] {
             receipt.schema=old.into();save(&receipt);assert_eq!(verify_core(root,&lease).unwrap_err(), "Core build/link smoke receipt is invalid or stale.");
         }
-        receipt.schema="ruycast.core-build-link-smoke.v2".into();save(&receipt);
+        receipt.schema="ruycast.core-build-link-smoke.v3".into();save(&receipt);
         let mut missing=serde_json::to_value(&receipt).unwrap();missing.as_object_mut().unwrap().remove("policy");
         fs::write(&path,serde_json::to_vec(&missing).unwrap()).unwrap();assert!(verify_core(root,&lease).is_err());
         save(&receipt);fs::write(root.join("rust-native/src/main.rs"),b"changed bound runtime fixture").unwrap();assert!(verify_core(root,&lease).is_err());
@@ -7033,88 +7006,22 @@ mod tests {
         );
     }
     #[test]
-    fn swift_compatibility_fresh_and_plain_debug_directories_support_legacy_import() {
-        use std::os::unix::fs::symlink;
-        for existing_debug in [false, true] {
-            let fixture = super::super::tests::Fixture::new();
-            let root = &fixture.0;
-            let scratch = root.join(".build/oracle-swift/owned");
-            let bin = scratch.join("arm64-apple-macosx/debug");
-            let source = bin.join("CRuycastCore.build/module.modulemap");
-            fs::create_dir_all(source.parent().unwrap()).unwrap();
-            fs::write(&source, b"fresh legacy modulemap").unwrap();
-            let debug = root.join(".build/swift/debug");
-            if existing_debug { fs::create_dir_all(&debug).unwrap(); }
-            let binding = swift_compatibility(root, &scratch, &bin, "aarch64-apple-darwin").unwrap();
-            assert!(binding.alias_target.is_none());
-            assert_eq!(binding.modulemap, ".build/swift/debug/CRuycastCore.build/module.modulemap");
-            data_copy(root, &source, &root.join(&binding.modulemap)).unwrap();
-            // Legacy import compatibility remains for the other Swift/Core oracles.
-            let legacy = debug.join("CRuycastCore.build/module.modulemap");
-            assert_eq!(regular_bytes(&legacy).unwrap(), b"fresh legacy modulemap");
-            let artifacts = BTreeMap::from([(binding.modulemap.clone(), digest(&legacy).unwrap())]);
-            verify_swift_compatibility(root, &binding, &artifacts).unwrap();
-            fs::rename(&debug, root.join(".build/swift/retained-debug")).unwrap();
-            symlink("arm64-apple-macosx/debug", &debug).unwrap();
-            assert!(verify_swift_compatibility(root, &binding, &artifacts).is_err());
-        }
-    }
-    #[test]
-    fn swift_compatibility_uses_physical_path_and_receipt_rejects_repointed_alias() {
-        use std::os::unix::fs::symlink;
-        let fixture = super::super::tests::Fixture::new();
-        let root = &fixture.0;
-        let scratch = root.join(".build/oracle-swift/owned");
-        let bin = scratch.join("arm64-apple-macosx/debug");
-        let source = bin.join("CRuycastCore.build/module.modulemap");
-        fs::create_dir_all(source.parent().unwrap()).unwrap();
-        fs::write(&source, b"owned modulemap").unwrap();
-        fs::create_dir_all(root.join(".build/swift")).unwrap();
-        let alias = root.join(".build/swift/debug");
-        symlink("arm64-apple-macosx/debug", &alias).unwrap();
-        let binding = swift_compatibility(root, &scratch, &bin, "aarch64-apple-darwin").unwrap();
-        let physical = root.join(&binding.modulemap);
-        data_copy(root, &source, &physical).unwrap();
-        assert_eq!(fs::read_link(&alias).unwrap(), Path::new("arm64-apple-macosx/debug"));
-        let artifacts = BTreeMap::from([(binding.modulemap.clone(), digest(&physical).unwrap())]);
-        // Read the exact serialized field used in CoreReceipt verification.
-        let captured: SwiftCompatibility = serde_json::from_slice(&serde_json::to_vec(&binding).unwrap()).unwrap();
-        verify_swift_compatibility(root, &captured, &artifacts).unwrap();
-        fs::remove_file(&alias).unwrap();
-        symlink("x86_64-apple-macosx/debug", &alias).unwrap();
-        assert!(verify_swift_compatibility(root, &captured, &artifacts).is_err());
-        assert_eq!(fs::read(&physical).unwrap(), b"owned modulemap");
-    }
-    #[test]
-    fn swift_compatibility_refuses_hostile_aliases_and_copy_escapes_before_write() {
+    fn core_archive_copy_refuses_existing_destination_escape_and_symlinked_parent() {
         use std::os::unix::fs::symlink;
         let fixture = super::super::tests::Fixture::new();
         let outside = super::super::tests::Fixture::new();
         let root = &fixture.0;
-        let scratch = root.join(".build/oracle-swift/owned");
-        let bin = scratch.join("arm64-apple-macosx/debug");
-        let source = bin.join("CRuycastCore.build/module.modulemap");
+        let source = root.join(".build/oracle-core/owned-source.a");
         fs::create_dir_all(source.parent().unwrap()).unwrap();
-        fs::write(&source, b"must stay inside").unwrap();
-        fs::create_dir_all(root.join(".build/swift")).unwrap();
-        let alias = root.join(".build/swift/debug");
+        fs::write(&source, b"owned Rust archive").unwrap();
         let sentinel = outside.0.join("sentinel"); fs::write(&sentinel, b"unchanged").unwrap();
-        for target in [outside.0.clone(), PathBuf::from("../escape"), PathBuf::from("arm64-apple-macosx/../debug"), PathBuf::from("arm64-apple-macosx/./debug"), PathBuf::from("arm64-apple-macosx//debug"), PathBuf::from("x86_64-apple-macosx/debug")] {
-            symlink(target, &alias).unwrap();
-            assert!(swift_compatibility(root, &scratch, &bin, "aarch64-apple-darwin").is_err());
-            assert!(!root.join(".build/swift/arm64-apple-macosx/debug/CRuycastCore.build/module.modulemap").exists());
-            assert_eq!(fs::read(&sentinel).unwrap(), b"unchanged");
-            fs::remove_file(&alias).unwrap();
-        }
         assert!(data_copy(root, &source, &sentinel).is_err());
         assert_eq!(fs::read(&sentinel).unwrap(), b"unchanged");
         assert!(data_copy(root, &source, &root.join("../escaped-modulemap")).is_err());
-        // An otherwise correct alias cannot permit a linked physical parent.
-        symlink("arm64-apple-macosx/debug", &alias).unwrap();
-        symlink(&outside.0, root.join(".build/swift/arm64-apple-macosx")).unwrap();
-        let binding = swift_compatibility(root, &scratch, &bin, "aarch64-apple-darwin").unwrap();
-        assert!(data_copy(root, &source, &root.join(binding.modulemap)).is_err());
-        assert!(!outside.0.join("debug/CRuycastCore.build/module.modulemap").exists());
+        let linked_parent = root.join(".build/oracle-core/linked-output");
+        symlink(&outside.0, &linked_parent).unwrap();
+        assert!(data_copy(root, &source, &linked_parent.join("copy.a")).is_err());
+        assert!(!outside.0.join("copy.a").exists());
     }
     #[test]
     fn settings_crosswalk_preserves_every_original_selector_in_order() {
