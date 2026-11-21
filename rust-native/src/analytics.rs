@@ -1158,6 +1158,20 @@ mod tests {
                 .total_failures,
             1
         );
+        let private_sentinel = "PRIVATE_INPUT_SENTINEL_1599";
+        let private_id = format!(
+            "/Users/private/{private_sentinel}/https://private.example/token"
+        );
+        let private_ticket = c.attempt(&private_id, "cli").unwrap();
+        c.complete(private_ticket, false, 4., "io", None);
+        c.flush();
+        assert!(c.storage_error().is_none());
+        let private_bytes = std::fs::read_to_string(t.0.join("analytics.json")).unwrap();
+        assert!(!private_bytes.contains(private_sentinel));
+        assert!(!private_bytes.contains("/Users/private/"));
+        assert!(!private_bytes.contains("https://private.example/token"));
+        let private_document = read(&t.0.join("analytics.json")).unwrap().unwrap();
+        assert!(private_document.commands.contains_key(&command_key(&private_id)));
     }
     #[test]
     fn concurrent_original_hourly_counts_bounds_and_aged_retention() {
