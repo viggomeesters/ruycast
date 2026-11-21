@@ -49,19 +49,6 @@ if args.first=="--check-interactions" {
 if args.first=="--render-features" {
     do {guard args.count==4 else {throw LauncherError("Expected --render-features OUTPUT light|dark MODE.")};try renderFeatures(args[1],theme:args[2],mode:args[3]);exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if args.first=="--render-icons" {
-    do {
-        guard args.count==3 else {throw LauncherError("Expected --render-icons OUTPUT light|dark.")}
-        _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
-        let view=NSHostingView(rootView:CommandIconSheet())
-        view.appearance=NSAppearance(named:args[2]=="dark" ? .darkAqua:.aqua)
-        view.frame=NSRect(x:0,y:0,width:660,height:350);view.layoutSubtreeIfNeeded()
-        guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("Could not render icons.")}
-        view.cacheDisplay(in:view.bounds,to:bitmap)
-        guard let data=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Could not encode icons.")}
-        try data.write(to:URL(fileURLWithPath:args[1]));output(["ok":true]);exit(0)
-    } catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
 if args.first=="--check-palette" {
     _=NSApplication.shared
     NSApp.setActivationPolicy(.prohibited)
