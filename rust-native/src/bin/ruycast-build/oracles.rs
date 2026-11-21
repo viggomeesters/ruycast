@@ -2630,6 +2630,12 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["a CLI dry-run returns without execution or analytics side effects"],
             "nativeCases": ["startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback", "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::renderWebsiteIcons"] = serde_json::json!({
+            "originalSourceSHA256": "e73210b69d30795488372866e45036770b3d6e5355c11b48d31a051a857ed70e",
+            "status": "source-retired; unconsumed development preview",
+            "retiredOutputs": ["sites-dark.png", "sites-light.png"],
+            "scope": "The generated website-icon screenshots and their command have no tracked consumer; the Rust WebsiteIcons product source and its privacy/cache behavior remain active."
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::renderVisualAssets"] = serde_json::json!({
             "originalSourceSHA256": "e0b3a9b53aa1041019cc10d7214e42727ed0e2f79162c6144afc35be2725ba78",
             "status": "source-retired; unconsumed development preview",
@@ -2639,7 +2645,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::checkVisualAssets"] = serde_json::json!({
             "originalSourceSHA256": "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
             "status": "source-qualified-rust-case-crosswalk; Swift check route retired",
-            "scope": "Only the visual-assets behavior check and its command dispatch are retired. The unconsumed shortcut-preview renderer is retired separately; renderWebsiteIcons remains active in the Swift source file.",
+            "scope": "The visual-assets check and both unconsumed SwiftUI screenshot generators are retired. Product WebsiteIcons behavior remains in the dedicated app module and Rust implementation.",
             "nativeCases": ["presentation::icon_tests::original_compact_keycaps_and_sided_accessibility_labels", "website_icons::tests::origin_and_candidate_privacy", "website_icons::tests::actual_transport_stream_bounds_status_cookies_and_redirects", "website_icons::tests::four_workers_cache_publication_and_cancel_join", "website_icons::tests::two_thousand_origins_bound_admission_and_deduplicate_while_four_workers_wait", "website_icons::tests::cache_special_files_and_close_are_bounded", "website_icons::tests::active_download_close_cancels_and_joins_without_cache_publication", "native_rows::check_cache", "native_process::loaded_config_alias_unicode_disabled_and_native_labels"]
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::file"] = serde_json::json!({
@@ -4565,14 +4571,24 @@ mod tests {
             "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
         )));
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let source = std::fs::read_to_string(root.join("Sources/RuycastApp/VisualAssetChecks.swift")).unwrap();
-        assert!(!source.contains("func checkVisualAssets()"));
-        assert!(!source.contains("func renderVisualAssets("));
-        assert!(source.contains("func renderWebsiteIcons("));
+        assert!(!root.join("Sources/RuycastApp/VisualAssetChecks.swift").exists());
+        let product_icons = std::fs::read_to_string(root.join("Sources/RuycastApp/WebsiteIcons.swift")).unwrap();
+        assert!(product_icons.contains("WebsiteIcons"));
+        let rust_icons = std::fs::read_to_string(root.join("rust-native/src/website_icons.rs")).unwrap();
+        assert!(rust_icons.contains("fn origin_and_candidate_privacy"));
         let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
         assert!(!main.contains("if args.first==\"--check-visual-assets\""));
         assert!(!main.contains("if args.first==\"--render-visual-assets\""));
-        assert!(main.contains("if args.first==\"--render-website-icons\""));
+        assert!(!main.contains("if args.first==\"--render-website-icons\""));
+        let source_policy = std::fs::read_to_string(root.join("rust-native/src/bin/ruycast-source/policy.rs")).unwrap();
+        assert!(!source_policy.contains("Sources/RuycastApp/VisualAssetChecks.swift"));
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get("Sources/RuycastApp/VisualAssetChecks.swift").is_none());
+        let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
+        assert!(!roster.contains("frozen-current/Sources/RuycastApp/VisualAssetChecks.swift"));
+        assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/VisualAssetChecks.swift"));
+        let public_manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        assert!(public_manifest["files"].get("Sources/RuycastApp/VisualAssetChecks.swift").is_none());
         let check_inventory = inventory("check").unwrap();
         let retired = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::checkVisualAssets"];
         assert_eq!(retired["originalSourceSHA256"], "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0");
@@ -4582,6 +4598,10 @@ mod tests {
         assert_eq!(retired_preview["originalSourceSHA256"], "e0b3a9b53aa1041019cc10d7214e42727ed0e2f79162c6144afc35be2725ba78");
         assert_eq!(retired_preview["status"], "source-retired; unconsumed development preview");
         assert_eq!(retired_preview["retiredOutputs"], serde_json::json!(["shortcuts-dark.png", "shortcuts-light.png"]));
+        let retired_icons = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::renderWebsiteIcons"];
+        assert_eq!(retired_icons["originalSourceSHA256"], "e73210b69d30795488372866e45036770b3d6e5355c11b48d31a051a857ed70e");
+        assert_eq!(retired_icons["status"], "source-retired; unconsumed development preview");
+        assert_eq!(retired_icons["retiredOutputs"], serde_json::json!(["sites-dark.png", "sites-light.png"]));
         assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);

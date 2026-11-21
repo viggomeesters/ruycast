@@ -55,9 +55,6 @@ if args.first=="--check-apple-shortcuts" {
 if args.first=="--check-menu-actions" {
     do {output(try checkMenuActions(args.count>1 ? args[1]:nil));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if args.first=="--render-website-icons" {
-    do {guard args.count==2 else {throw LauncherError("Expected output directory.")};output(try renderWebsiteIcons(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
 if args.first=="--validate-config" {
     do {guard args.count==2 else {throw LauncherError("Expected --validate-config PATH.")};let config=try Files.config(URL(fileURLWithPath:args[1]));output(["ok":true,"commands":config.commands.count]);exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
