@@ -78,7 +78,6 @@
     "Sources/RuycastApp/ReplySink.swift": "fe4376f1f22d15e80c9a69b35da4e72680f8a402640b90bd395bb9f6873746d4",
     "Sources/RuycastApp/ResourceSampler.swift": "d32b5efeddbf8d2e63d3e2c7846b9584ee918627011ed8202a95d31b1cb6e752",
     "Sources/RuycastApp/RichResourceChecks.swift": "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda",
-    "Sources/RuycastApp/ScriptChoiceChecks.swift": "7d98578478074c4c8c25d39ffc0dda8048debadd62f643ef1265700d449336cc",
     "Sources/RuycastApp/ScriptChoiceView.swift": "1f73550c79609ffb9e4f0039a78b15ea321d01c739642c5a993910c16a449012",
     "Sources/RuycastApp/SettingsChecks.swift": "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d",
     "Sources/RuycastApp/ShortcutBadge.swift": "36eada7cc27ac0089a684cd1d7766c4d3ce430a5915b96ef85a227e985b18c3e",
@@ -96,6 +95,6 @@
     "Sources/RuycastApp/WebsiteIcons.swift": "2708e4accf997b102fe831dd271fab41cf40aa6911a00454e6d0a4ad181aadc8",
     "Sources/RuycastApp/WindowManager.swift": "01b6d2951b64698664e175694407e9df84faf8a08adb84966fd4a3db7f58fd87",
     "Sources/RuycastApp/WindowSearch.swift": "1f4d263bfbffb0c323aaa48f24a7a90783f127e2ffb03ed18a79bb924e1218e9",
-    "Sources/RuycastApp/main.swift": "9a04738d306f29207779e92bd399e904114cf57e1ebd9b32f63740e453ffde36"
+    "Sources/RuycastApp/main.swift": "e4863b6331212c9b4934942e3bda0e77dd24587d7dc542567054eaebc5770b33"
   }
 }

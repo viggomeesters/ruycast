@@ -77,7 +77,6 @@ Sources/RuycastApp/PublicPreview.swift
 Sources/RuycastApp/ReplySink.swift
 Sources/RuycastApp/ResourceSampler.swift
 Sources/RuycastApp/RichResourceChecks.swift
-Sources/RuycastApp/ScriptChoiceChecks.swift
 Sources/RuycastApp/ScriptChoiceView.swift
 Sources/RuycastApp/SettingsChecks.swift
 Sources/RuycastApp/ShortcutBadge.swift
