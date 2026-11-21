@@ -5132,8 +5132,13 @@ fn native_probe(
                         &**text as *const _ as *const _,
                     )
                 });
+                // Observe the real selector without adding an NSTextStorage feature dependency.
+                let has_text_storage = unsafe {
+                    let storage: Option<Retained<NSObject>> = msg_send![&**text, textStorage];
+                    storage.is_some()
+                };
                 return Ok(
-                    serde_json::json!({"ok":true,"result":{"text":text.string().to_string(),"editable":text.isEditable(),"focused":focused,"canUndo":text.undoManager().is_some_and(|m|m.canUndo()),"pending":state.surface.pending.get().is_some()}}),
+                    serde_json::json!({"ok":true,"result":{"text":text.string().to_string(),"editable":text.isEditable(),"focused":focused,"allowsUndo":text.allowsUndo(),"hasTextStorage":has_text_storage,"hasTextContainer":unsafe{text.textContainer()}.is_some(),"canUndo":text.undoManager().is_some_and(|m|m.canUndo()),"pending":state.surface.pending.get().is_some()}}),
                 );
             }
             Some("run-input-type") => {
