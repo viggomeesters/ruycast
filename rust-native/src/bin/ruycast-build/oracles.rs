@@ -1326,7 +1326,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ),
         ],
         "--check-analytics" => &[
-            ("rust-native/tests/native_dashboard_dialog_process.rs", include_bytes!("../../../tests/native_dashboard_dialog_process.rs"), "9acf5206263ce816d73c47170d37ab1f0b21c4fb7664ec53d74b8a2e9c8b5c76"),
+            ("rust-native/tests/native_dashboard_dialog_process.rs", include_bytes!("../../../tests/native_dashboard_dialog_process.rs"), "7f6c542b17d14c05f5187475c0d7d4c76e135e0699397ae25233f8fd1ae1e32a"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "3daa927ea7f7312fced525cfcbdba488a0a5a178cedeb0e12d403e00d44f0dc4"),
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
@@ -2597,6 +2597,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeSource": "rust-native/src/analytics.rs",
             "originalScenarios": ["opening a valid analytics document removes a runtime event older than the configured seven-day retention"],
             "nativeCases": ["analytics::tests::opening_prunes_events_outside_configured_retention"]
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.managementRouting"] = serde_json::json!({
+            "originalSourceSHA256": "926b61901b45c6623d0c68a60379ec3926f71275aadae47ce5978fb6b36ad65b",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only opening Analytics through management routing and confirming the main launcher panel stays hidden are retired. Remaining analytics fixture, rendering, CLI and reset checks remain active.",
+            "nativeSource": "rust-native/tests/native_dashboard_dialog_process.rs",
+            "originalScenarios": ["opening analytics routes to the management dashboard and leaves the main palette hidden"],
+            "nativeCases": ["native_dashboard_dialog_process::management_routing_controls_custom_retention_and_reset"]
         });
         inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
     }
@@ -4636,6 +4644,11 @@ mod tests {
         let retired = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.staleLoadRetention"];
         assert_eq!(retired["originalSourceSHA256"], "80a8968e86e157a262368fe98484335d7022e6fc61591edb6b4be5e7eabedecd");
         assert_eq!(retired["nativeCases"], serde_json::json!(["analytics::tests::opening_prunes_events_outside_configured_retention"]));
+        let routing = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.managementRouting"];
+        assert_eq!(routing["originalSourceSHA256"], "926b61901b45c6623d0c68a60379ec3926f71275aadae47ce5978fb6b36ad65b");
+        assert_eq!(routing["nativeCases"], serde_json::json!(["native_dashboard_dialog_process::management_routing_controls_custom_retention_and_reset"]));
+        assert!(dialog_source.contains("let palette = h.rpc(&json!({\"op\":\"native.test\",\"action\":\"read\"}));"));
+        assert!(dialog_source.contains("assert_eq!(palette[\"result\"][\"windowShown\"], false);"));
         let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();
         assert_eq!(sources.len(),1);
         assert_eq!(format!("{:x}",sha2::Sha256::digest(sources[0].1)),sources[0].2);
