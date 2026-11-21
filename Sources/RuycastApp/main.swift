@@ -95,9 +95,6 @@ if args.first=="--check-interactions" {
 if args.first=="--render-features" {
     do {guard args.count==4 else {throw LauncherError("Expected --render-features OUTPUT light|dark MODE.")};try renderFeatures(args[1],theme:args[2],mode:args[3]);exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if args.first=="--check-search" {
-    do {output(try checkSearch(root:root));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
 if args.first=="--render-icons" {
     do {
         guard args.count==3 else {throw LauncherError("Expected --render-icons OUTPUT light|dark.")}
