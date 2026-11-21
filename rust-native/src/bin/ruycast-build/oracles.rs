@@ -1900,6 +1900,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.positivePreviewDecoderAssertions"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; positive preview decoder assertions retired",
+            "scope": "Only the Swift preview decoder calls and direct positive pixel/dimension assertions are retired. Clipboard fixture creation, six theme captures and clipboardTextImageAndImageFilePreview remain; other resource assertions and separately recorded retirements keep their scoped status.",
+            "nativeCases": ["clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"],
+            "originalAssertions": ["Decoded image and local file previews are 240x140.", "Image alpha at (60,70) exceeds 0.9 and red/blue pixels differ.", "Local-file preview width is 240."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5479,10 +5489,14 @@ mod tests {
         assert!(rich.contains("var fixture=actual;"));
         assert!(!rich.contains("Native system sampling did not return real values"));
         assert!(!rich.contains("realReadOnlySystemSampling"));
-        assert!(rich.contains("let decoded=try state.clipboardStore.preview(image),decodedFile=try state.clipboardStore.preview(fileClip)"));
+        assert!(rich.contains("for index in [0,1,2]"));
         assert!(!rich.contains("../outside.png"));
         assert!(!rich.contains("Clipboard preview accepted an unsafe owned-asset path"));
         assert!(!rich.contains("unsafeAssetPathRejected"));
+        assert!(rich.contains("clipboardTextImageAndImageFilePreview"));
+        assert!(!rich.contains("state.clipboardStore.preview(image)"));
+        assert!(!rich.contains("Image preview lost its actual pixels"));
+        assert!(!rich.contains("Image or image-file preview failed"));
         assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
         assert!(!rich.contains("Large process lists were not bounded before target registration"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
@@ -5528,6 +5542,13 @@ mod tests {
         assert_eq!(asset_retired["nativeCases"], serde_json::json!(["clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"]));
         assert_eq!(asset_retired["originalAssertions"], serde_json::json!(["Preview rejects image dataFile ../outside.png.", "The Swift resource check reports unsafeAssetPathRejected=true."]));
         assert_eq!(asset_retired["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"));
+        let positive_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.positivePreviewDecoderAssertions"];
+        assert_eq!(positive_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(positive_retired["status"], "source-qualified-rust-case-crosswalk; positive preview decoder assertions retired");
+        assert_eq!(positive_retired["nativeCases"], serde_json::json!(["clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"]));
+        assert_eq!(positive_retired["originalAssertions"], serde_json::json!(["Decoded image and local file previews are 240x140.", "Image alpha at (60,70) exceeds 0.9 and red/blue pixels differ.", "Local-file preview width is 240."]));
+        assert_eq!(positive_retired["productionAccepted"], false);
         assert!(gate.native_cases.contains(&"clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"));
         let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();

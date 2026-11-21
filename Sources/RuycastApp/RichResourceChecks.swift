@@ -84,9 +84,6 @@ import LauncherModels
     state.selection=0;pump(0.2)
     let first=capture(host,"clipboard-static-before");pump(1.2);let second=capture(host,"clipboard-static-after")
     try require(first==second,"Clipboard timestamps still animate or update while idle")
-    let decoded=try state.clipboardStore.preview(image),decodedFile=try state.clipboardStore.preview(fileClip)
-    if let decoded {let pixels=NSBitmapImageRep(cgImage:decoded.image);try require((pixels.colorAt(x:60,y:70)?.alphaComponent ?? 0)>0.9 && pixels.colorAt(x:decoded.image.width/4,y:decoded.image.height/2) != pixels.colorAt(x:decoded.image.width*3/4,y:decoded.image.height/2),"Image preview lost its actual pixels")}
-    try require(decoded?.width==240 && decoded?.height==140 && decodedFile?.width==240,"Image or image-file preview failed")
     let monitor=SystemMonitorModel();monitor.start();try wait {monitor.snapshot != nil};monitor.stop();let samplesAfterStop=monitor.history.count;pump(2.1)
     try require(!monitor.active && monitor.history.count==samplesAfterStop,"Monitor kept sampling while closed")
     let actual=ResourceSampler().sample()
