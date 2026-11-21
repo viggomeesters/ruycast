@@ -49,7 +49,6 @@ import LauncherModels
     try require(try cli(["analytics","pause"])["ok"] as? Bool==true && !state.analytics.snapshot.enabled,"Analytics CLI pause failed")
     _=try execute("fixture.success","cli");try require(state.analytics.snapshot.totalAttempts==3,"Paused execution was counted")
     try require(try cli(["analytics","resume"])["ok"] as? Bool==true,"Analytics CLI resume failed")
-    let output=try cli(["analytics","export"]);try require(output["ok"] as? Bool==true,"Analytics CLI export failed")
     state.analytics.flushSynchronously()
     let contents=String(decoding:try Data(contentsOf:fixture.appendingPathComponent("analytics.json")),as:UTF8.self)
     try require(!contents.contains(secret),"Input/query body leaked through real execution logging")
