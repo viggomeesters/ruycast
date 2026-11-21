@@ -1879,6 +1879,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["A custom builtin targeting system-monitor suppresses the default builtin.system-monitor entry."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias Enter assertion retired",
+            "scope": "Only the Swift duplicate one-shot Enter assertion and its result-summary fields are retired. The alias fixture/input check, inline-query capture, Escape restoration, expanded-input assertions, and --check-polish route remain active.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["Enter executes the inline alias exactly once; a repeated Enter while busy does not duplicate execution."],
+            "productionAccepted": false
+        });
     }
     if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
@@ -7986,6 +7995,30 @@ mod tests {
         assert_eq!(retired["productionAccepted"], false);
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
         assert!(gate.native_cases.contains(&"management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"));
+    }
+    #[test]
+    fn polish_inline_alias_enter_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Inline Enter failed or duplicated execution"));
+        assert!(!source.contains("inlineAliasAndEnter"));
+        assert!(!source.contains("inlineSubmitOnce"));
+        assert!(source.contains("Alias argument did not enter inline mode"));
+        assert!(source.contains("inline-query"));
+        assert!(source.contains("Escape did not restore search"));
+        assert!(source.contains("Expanded input lost text"));
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Enter executes the inline alias exactly once; a repeated Enter while busy does not duplicate execution."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+        let native = include_str!("../../../examples/ui_completion.rs");
+        assert!(native.contains("echo-inline Café & spaces"));
+        assert!(native.contains("h.rpc(json!({\"op\":\"usage\"}))[\"script.fixture\"],1"));
     }
     #[test]
     fn polish_partial_date_assertion_is_retired_and_crosswalked() {
