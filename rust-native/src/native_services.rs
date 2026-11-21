@@ -164,6 +164,11 @@ impl Clipboard {
             }
             return Ok(serde_json::json!({"fileURLs":urls}));
         }
+        if value["readCopiedPNG"] == true {
+            let board = shared_fixture_board().ok_or("Owned named copy board unavailable.")?;
+            let png = board.dataForType(&objc2_foundation::NSString::from_str("public.png"));
+            return Ok(serde_json::json!({"png": png.map(|data| data.to_vec())}));
+        }
         if let Some(operation)=value["creationBoard"].as_str(){
             if std::env::var("RUYCAST_NATIVE_TEST_CREATION_BOARD").as_deref()!=Ok("shared"){return Err("Explicit shared creation board fixture required.".into())}
             if !["read","clear","nontext"].contains(&operation){return Err("Unknown owned creation board operation.".into())}

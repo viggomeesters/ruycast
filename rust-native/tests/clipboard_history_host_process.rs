@@ -186,9 +186,36 @@ fn test_rich_copy_routes_and_invalid_data_do_not_clear_destination() {
     h.wait(|s| s["clipboardCount"] == 2);
     let image = items(&h)[0].clone();
     assert_eq!(
+        h.probe("clipboard-fixture", json!({"clearBoard":true}))["cleared"],
+        true
+    );
+    assert_eq!(
+        h.probe("clipboard-fixture", json!({"readCopiedPNG":true}))["png"],
+        Value::Null
+    );
+    assert_eq!(
         h.cli(&["clipboard", "copy", image["id"].as_str().unwrap()])["ok"],
         true
     );
+    let copied_png = h.probe("clipboard-fixture", json!({"readCopiedPNG":true}))["png"]
+        .as_array()
+        .expect("copied PNG bytes on the owned named board")
+        .iter()
+        .map(|byte| byte.as_u64().unwrap() as u8)
+        .collect::<Vec<_>>();
+    use objc2_app_kit::NSBitmapImageRep;
+    use objc2_foundation::NSData;
+    let copied = NSBitmapImageRep::imageRepWithData(&NSData::with_bytes(&copied_png))
+        .expect("decode copied PNG");
+    let original = NSBitmapImageRep::imageRepWithData(&NSData::with_bytes(png()))
+        .expect("decode fixture PNG");
+    assert_eq!((copied.pixelsWide(), copied.pixelsHigh()), (2, 2));
+    let actual = copied.colorAtX_y(1, 1).expect("copied pixel");
+    let expected = original.colorAtX_y(1, 1).expect("fixture pixel");
+    assert!((actual.redComponent() - expected.redComponent()).abs() < 0.005);
+    assert!((actual.greenComponent() - expected.greenComponent()).abs() < 0.005);
+    assert!((actual.blueComponent() - expected.blueComponent()).abs() < 0.005);
+    assert_eq!(actual.alphaComponent(), 1.0);
     let trace = h.base.join("workspace-trace.jsonl");
     let before = fs::read_to_string(&trace)
         .unwrap()
