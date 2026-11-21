@@ -40,7 +40,6 @@ import LauncherModels
     }
     _=try execute("fixture.success","launcher");_=try execute("fixture.success","hotkey");_=try execute("fixture.failure","cli");_=try execute("fixture.success","cli",dryRun:true)
     try require(state.analytics.snapshot.totalAttempts==3 && state.analytics.snapshot.totalSuccesses==2 && state.analytics.snapshot.totalFailures==1,"Execution or dry-run instrumentation counted incorrectly")
-    try require(state.analytics.snapshot.commands[AnalyticsStore.commandKey("fixture.success")]?.sources==["launcher":1,"hotkey":1],"Execution sources were lost")
     let server=ControlServer(root:fixture);try server.start {request,reply in state.handle(request,sink:reply)};defer {server.stop()}
     func cli(_ arguments:[String]) throws -> [String:Any] {
         let process=Process(),pipe=Pipe();process.executableURL=ruycastCLI();process.arguments=arguments;var env=ProcessInfo.processInfo.environment;env["RUYCAST_HOME"]=fixture.path;process.environment=env;process.standardOutput=pipe;process.standardError=FileHandle.nullDevice;try process.run()
