@@ -14,12 +14,12 @@ import LauncherModels
     let fixture=root.appendingPathComponent("host"),state=try AppState(root:fixture,headless:true)
     state.config.commands=[Command(id:"fixture.success",title:"Open Daily Note",kind:"script",target:"/usr/bin/true"),Command(id:"fixture.failure",title:"Run Maintenance",kind:"script",target:"/usr/bin/false")]
     state.query=secret
-    func execute(_ id:String,_ source:String) throws -> [String:Any] {
+    func execute(_ id:String,_ source:String) throws {
         var reply:[String:Any]?
         state.execute(id,dryRun:false,values:["input":secret],source:source) {reply=$0}
-        try wait {reply != nil};return reply!
+        try wait {reply != nil}
     }
-    _=try execute("fixture.success","launcher");_=try execute("fixture.success","hotkey");_=try execute("fixture.failure","cli")
+    try execute("fixture.success","launcher");try execute("fixture.success","hotkey");try execute("fixture.failure","cli")
     let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     for dark in [true,false] {for width in [980,680] {
         let view=NSHostingView(rootView:AnalyticsDashboard(store:state.analytics,commands:state.config.commands,theme:SettingsTheme(dark:dark)))
