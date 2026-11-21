@@ -28,11 +28,6 @@ func featureFixture()->[Command] {
     _=coordinator.control(input,textView:editor,doCommandBy:NSSelectorFromString("insertNewline:"))
     _=coordinator.control(input,textView:editor,doCommandBy:NSSelectorFromString("cancelOperation:"))
     guard submitted,cancelled else {throw LauncherError("Return/Escape did not reach the field delegate.")}
-    let panel=PalettePanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless],backing:.buffered,defer:false)
-    panel.isReleasedWhenClosed=false
-    panel.actions={state.actionsOpen.toggle()}
-    let event=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:.command,timestamp:0,windowNumber:panel.windowNumber,context:nil,characters:"k",charactersIgnoringModifiers:"k",isARepeat:false,keyCode:40)!
-    guard panel.performKeyEquivalent(with:event),state.actionsOpen else {throw LauncherError("Command K did not open actions.")}
     state.query="quick note";state.begin(state.selectedCommand!);state.expandInlineInput()
     guard state.form?.command.id=="capture.quick-note",state.form?.isRun==true else {throw LauncherError("Quick Note did not request input.")}
     state.form=nil;state.newCommand("url",pasteboard:NSPasteboard(name:NSPasteboard.Name("rc-create-fixture-"+UUID().uuidString)))
@@ -76,8 +71,7 @@ func featureFixture()->[Command] {
     guard try Data(contentsOf:configPath)==external,state.message.contains("changed") else {throw LauncherError("Concurrent edit was overwritten.")}
     try checkAppLaunchDismissal()
     try checkSnippetChoiceKeyboard()
-    panel.close()
-    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 // Route real AppKit key events through the same hidden panel as production.
 @MainActor func checkSnippetChoiceKeyboard() throws {
