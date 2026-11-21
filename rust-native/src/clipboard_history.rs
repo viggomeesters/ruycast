@@ -1173,6 +1173,24 @@ mod tests {
         assert!(s.items.is_empty());
     }
     #[test]
+    fn file_copy_payload_rejects_non_file_urls() {
+        let dir = temp();
+        let settings = settings();
+        let mut store = Store::open(&dir.0, &settings).unwrap();
+        let file_url = "file:///synthetic/missing%20file.txt";
+        let values = json!([{"id":"raycast-file-copy","text":"Files: missing file.txt","source":"fixture","date":now(),"contentType":"files","fileURLs":[file_url]}]);
+        assert_eq!(
+            store.import(&values, &settings, || true).unwrap()["result"]["accepted"],
+            1
+        );
+        assert_eq!(
+            store.payload("raycast-file-copy").unwrap(),
+            Payload::Files(vec![file_url.into()])
+        );
+        store.items[0].file_urls = Some(vec!["https://example.com/fixture".into()]);
+        assert!(store.payload("raycast-file-copy").is_err());
+    }
+    #[test]
     fn external_edits_are_the_transaction_base_and_links_never_become_assets() {
         use std::os::unix::fs::symlink;
         let dir = temp();
