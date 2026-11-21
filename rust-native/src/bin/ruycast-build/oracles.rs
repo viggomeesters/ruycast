@@ -2616,6 +2616,32 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/FeedbackChecks.swift::checkFeedback"] = serde_json::json!({
+            "originalSourceSHA256":FEEDBACK_ORACLE_SHA256,
+            "status":"source-qualified-rust-case-crosswalk; Swift helper retired",
+            "scope":"Only the Swift feedback-check helper and --check-feedback entrypoint are retired. Product creation, capture, bindings and clipboard code remain active. The historical SETTINGS selector, 23 cases, nine steps and Actions/Interactions provenance remain preserved.",
+            "productionAccepted":false,
+            "contractDifferences":[
+                "Native captures prove Rust controls and themes, not pixel-identical SwiftUI rendering or identical capture filenames/dimensions.",
+                "Quick capture uses owned fake runner targets and marker files; it does not write to a real vault or invoke a personal provider.",
+                "Real Rust native Return/Command-Return, IME and busy-runner routes replace the Swift callback-interception counts; literal Swift CaptureInput class identity is not claimed.",
+                "Creation actions are reached through the Rust contextual menu and Settings toolbar; fresh draft identities and unchanged configuration prove independence from the selected command.",
+                "Owned hidden windows, local NSEvents and private named boards do not prove physical input, general-clipboard behavior or complete product acceptance."
+            ],
+            "assertionCrosswalk":{
+                "Closed creation opens both kinds without repeat presentation":["ui_completion::closed_creation"],
+                "Both creation entries preserve trimmed named-board prefill and original board/config bytes":["ui_completion::feedback_actions"],
+                "Later board mutation preserves edited draft; cancel is private and explicit save persists target":["ui_completion::feedback_actions"],
+                "Non-URL defaults and empty/nontext URL fallback":["ui_completion::feedback_actions"],
+                "Quick-note/task native focus, exact multiline text and Shift-Return":["utility_process::quick_capture_ids_use_native_return_shift_return_ime_and_single_submission_in_both_entries","ui_completion::polish_original"],
+                "Return/Command-Return submit, IME refuses, and busy runner executes once":["utility_process::quick_capture_ids_use_native_return_shift_return_ime_and_single_submission_in_both_entries"],
+                "Selected item actions and alias/hotkey editor identity":["actions_process::actions_keyboard_badges_and_escape_keeps_palette","input_process::alias_and_hotkey_saves_resume_same_input"],
+                "Binding save preserves external title, target and arguments":["actions::tests::binding_save_preserves_external_execution_definition"],
+                "Alias resolution, saved disable and search exclusion":["actions_process::alias_save_clear_and_cli_resolution","actions_process::remove_confirmation_cancel_then_commit_and_disable"],
+                "Creation independent of selected row and available with no results":["ui_completion::feedback_actions","creation_process::empty_results_keep_all_three_creation_actions_available"],
+                "Light/dark native captures and no displayed fixture window":["ui_completion::feedback_actions","ui_completion::polish_original","utility_process::quick_capture_ids_use_native_return_shift_return_ime_and_single_submission_in_both_entries"]
+            }
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/EditCommandChecks.swift::checkNativeEditCommands"] = serde_json::json!({
             "originalSourceSHA256":EDIT_COMMAND_ORACLE_SHA256,
             "status":"source-qualified-rust-case-crosswalk; Swift helper retired",
@@ -2842,18 +2868,17 @@ mod tests {
         assert!(!root.join(retired).exists());
         assert!(root.join("Sources/RuycastApp/SystemServices.swift").exists());
         let main = include_str!("../../../../Sources/RuycastApp/main.swift");
-        let feedback = include_str!("../../../../Sources/RuycastApp/FeedbackChecks.swift");
+        assert!(!root.join("Sources/RuycastApp/FeedbackChecks.swift").exists());
         assert!(!main.contains("--check-system"));
-        for caller in [main, feedback] { assert!(!caller.contains("checkSystemServices")); }
-        assert!(!feedback.contains("processToolsVerifiedWithoutDesktopEffects"));
+        assert!(!main.contains("checkSystemServices"));
+        assert_eq!(settings_provenance_source("--check-feedback"),Some(("Sources/RuycastApp/FeedbackChecks.swift",FEEDBACK_ORACLE_SHA256)));
         assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
         let lock: serde_json::Value = serde_json::from_slice(
             &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
         ).unwrap();
         assert!(lock["files"].get(retired).is_none());
-        for (path, source) in [("Sources/RuycastApp/main.swift", main), ("Sources/RuycastApp/FeedbackChecks.swift", feedback)] {
-            assert_eq!(lock["files"][path], format!("{:x}", Sha256::digest(source.as_bytes())));
-        }
+        assert!(lock["files"].get("Sources/RuycastApp/FeedbackChecks.swift").is_none());
+        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"],format!("{:x}",Sha256::digest(main.as_bytes())));
         let inventory = inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/SystemChecks.swift::checkSystemServices"];
         assert_eq!(mapping["originalSourceSHA256"], "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4");
@@ -2996,6 +3021,56 @@ mod tests {
         assert_eq!(mapping["nativeCases"], serde_json::json!(["private_storage::guarded_publication_tests::original_private_file_replacement_and_create_only_sequence"]));
         assert!(include_str!("../../../../rust/src/private_storage.rs").contains("fn original_private_file_replacement_and_create_only_sequence("));
         assert_eq!(value["productionAccepted"], false);
+    }
+    #[test]
+    fn retired_feedback_helper_has_no_caller_and_preserves_native_assertions() {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired="Sources/RuycastApp/FeedbackChecks.swift";
+        assert!(!root.join(retired).exists());
+        for product in ["Sources/RuycastApp/FeatureState.swift","Sources/RuycastApp/CaptureTextEditor.swift","Sources/RuycastApp/InteractionChecks.swift"] {
+            assert!(root.join(product).is_file());
+        }
+        let main=include_str!("../../../../Sources/RuycastApp/main.swift");
+        assert!(!main.contains("--check-feedback"));
+        assert!(!main.contains("checkFeedback"));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line|line==retired));
+        let lock:serde_json::Value=serde_json::from_slice(&fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"],format!("{:x}",Sha256::digest(main.as_bytes())));
+        let gate=SETTINGS.iter().find(|gate|gate.id=="--check-feedback").unwrap();
+        assert_eq!(settings_provenance_source(gate.id),Some((retired,FEEDBACK_ORACLE_SHA256)));
+        assert_eq!(gate.native_cases.len(),23);
+        assert_eq!(gate.required_native_steps,&["unit","creation-process","input-process-rust","actions-process","feedback-actions-process","utility-process","polish-original-process","system-search-cli-process","remaining-macos-process"]);
+        for id in ["--check-actions-menu","--check-interactions"] {
+            assert!(settings_additional_provenance_sources(id).contains(&(retired,FEEDBACK_ORACLE_SHA256)));
+        }
+        let value=inventory("check").unwrap();
+        let mapping=&value["retiredSwiftChecks"]["Sources/RuycastApp/FeedbackChecks.swift::checkFeedback"];
+        assert_eq!(mapping["originalSourceSHA256"],"03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde");
+        assert_eq!(value["productionAccepted"],false);
+        assert_eq!(mapping["productionAccepted"],false);
+        assert_eq!(mapping["contractDifferences"].as_array().unwrap().len(),5);
+        let crosswalk=mapping["assertionCrosswalk"].as_object().unwrap();
+        assert_eq!(crosswalk.len(),11);
+        let mut cases=std::collections::BTreeSet::new();
+        for names in crosswalk.values() {
+            for name in names.as_array().unwrap() {
+                let case=name.as_str().unwrap();
+                // The preserved gate keeps its 23 historical case IDs; focused
+                // additional assertions reuse its already-bound current sources.
+                let function=format!("fn {}(",case.rsplit("::").next().unwrap());
+                assert!(settings_sources(gate.id).iter().any(|(_,bytes,_)|std::str::from_utf8(bytes).unwrap().contains(&function)),"case outside bound feedback sources: {case}");
+                let source=if case.starts_with("ui_completion::") {include_str!("../../../examples/ui_completion.rs")}
+                    else if case.starts_with("utility_process::") {include_str!("../../../tests/utility_process.rs")}
+                    else if case.starts_with("actions_process::") {include_str!("../../../tests/actions_process.rs")}
+                    else if case.starts_with("input_process::") {include_str!("../../../tests/input_process.rs")}
+                    else if case.starts_with("creation_process::") {include_str!("../../../tests/creation_process.rs")}
+                    else {assert!(case.starts_with("actions::tests::"));include_str!("../../actions.rs")};
+                assert!(source.contains(&format!("fn {}(",case.rsplit("::").next().unwrap())),"missing mapped case {case}");
+                cases.insert(case);
+            }
+        }
+        assert_eq!(cases.len(),10);
     }
     #[test]
     fn retired_edit_command_helper_has_no_caller_and_preserves_native_assertions() {
@@ -6292,7 +6367,7 @@ mod tests {
         assert!(!root.join("Sources/RuycastApp/WindowSearchChecks.swift").exists());
         for gate in SETTINGS {
             if matches!(gate.id, "--check-command-log" | "--check-window-search"
-                | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands") {
+                | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands" | "--check-feedback") {
                 // Retired helpers retain their original path/hash as historical provenance.
                 assert!(!root.join(gate.original_source).exists());
             } else {
