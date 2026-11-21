@@ -6226,7 +6226,8 @@ mod tests {
         assert!(!main.contains("--check-window-search"));
         assert!(!root.join("Sources/RuycastApp/WindowSearchChecks.swift").exists());
         for gate in SETTINGS {
-            if gate.id == "--check-command-log" || gate.id == "--check-window-search" {
+            if matches!(gate.id, "--check-command-log" | "--check-window-search"
+                | "--check-analytics" | "--check-visual-assets") {
                 // Retired helpers retain their original path/hash as historical provenance.
                 assert!(!root.join(gate.original_source).exists());
             } else {
