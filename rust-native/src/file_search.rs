@@ -88,6 +88,10 @@ mod tests {
             predicate("a\\b\"c*?"),
             "kMDItemFSName == \"*a\\\\b\\\"c\\*\\?*\"cd"
         );
+        assert_eq!(
+            predicate("a\" || true || \\\"*?"),
+            "kMDItemFSName == \"*a\\\" || true || \\\\\\\"\\*\\?*\"cd"
+        );
         assert_eq!(query("  file\n").unwrap(), "file");
         assert!(query("a\nb").is_err());
         assert_eq!(query(&"é".repeat(513)).unwrap(), "é".repeat(512));

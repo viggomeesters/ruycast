@@ -854,7 +854,7 @@ const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
-const FEEDBACK_ORACLE_SHA256: &str = "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04";
+const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
 const SNIPPET_EDITING_ORACLE_SHA256: &str = "adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e";
 fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'static str)] {
@@ -902,8 +902,9 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/src/benchmark_host/rpc.rs", include_bytes!("../../benchmark_host/rpc.rs"), "1faf3f1955d922d30dc409fddb6ab499931c3ae3918b651f32cec21c97d206f9"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            // Full Feedback plus its nested SystemChecks have scoped case
-            // evidence; these source pins are not a host or matrix grant.
+            // Feedback and the retired nested system helper have scoped Rust
+            // evidence; historical helper provenance is not an active caller,
+            // a host/matrix grant or exact callback-thread/token parity.
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "f63d489c549d64b01e07d5eb51a9898fc615c2a1cbf66483cd64ff9d0d547a7a"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
@@ -920,7 +921,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "7ac4dfb6af7e66a9584ef1052973805a34bbc0eeb53c8043c5f8ce8eb02b6366"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
             ("rust-native/src/system_actions.rs", include_bytes!("../../system_actions.rs"), "b97944f7f49e0fee4442084d7ef51dc7788e3f583cdf062283f9d141d5ed1833"),
-            ("rust-native/src/file_search.rs", include_bytes!("../../file_search.rs"), "991b29f39c2da3608c17ad8de243a17eb1e7b32b16436b430cdc863e95ad5f28"),
+            ("rust-native/src/file_search.rs", include_bytes!("../../file_search.rs"), "adf3f5fc557f9e22a3d2227624f8d795d133300fc417c94a48738f087f94b62a"),
             ("rust-native/src/os_command.rs", include_bytes!("../../os_command.rs"), "1faa996a7c7257702cabcd00bc2ecdb8c6b1e2951e0d24b563693ba062501da2"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "781395bce10a03e634e63fbb811498069e4679a016648b8a16ce7e42b1cf2900"),
@@ -2596,6 +2597,38 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SystemChecks.swift::checkSystemServices"] = serde_json::json!({
+            "originalSourceSHA256": SYSTEM_CHECKS_ORACLE_SHA256,
+            "originalFeedbackSourceSHA256": "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The isolated helper, --check-system entry point and nested Feedback call/result flag are retired. SystemServices.swift product behavior remains active. This is historical assertion provenance, not a current Swift helper or whole-product acceptance.",
+            "productionAccepted": false,
+            "contractDifferences": {
+                "Menu identity was unstable.": "The helper required a stable token for repeated registration. Rust deliberately creates a fresh opaque token per scan; each retained token stays bound to its captured leaf and refuses a replaced leaf.",
+                "Stale results or background callbacks reached the consumer.": "Rust adopts completed results on its runtime owner after a worker wake, rechecking current authority before publication. It does not promise a literal AppKit-main-thread callback. Empty file results and cancellation are checked separately."
+            },
+            "assertionCrosswalk": {
+                "Kill still requires confirmation.": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"],
+                "Direct Kill did not terminate the verified fixture.": ["processes::tests::owned_table_sort_and_immutable_kill_identity"],
+                "A reused process ID was terminated.": ["processes::tests::owned_table_sort_and_immutable_kill_identity"],
+                "Confirmed force quit did not use the verified process.": ["processes::tests::owned_table_sort_and_immutable_kill_identity"],
+                "The launcher could terminate itself.": ["processes::tests::matching_self_and_foreign_uid_identities_refuse_before_termination"],
+                "Another user's process could be terminated.": ["processes::tests::matching_self_and_foreign_uid_identities_refuse_before_termination"],
+                "Menu identity was unstable.": ["system_search::tests::menu_snapshot_tokens_never_redirect_to_replaced_leaf"],
+                "Menu execution lost its original app.": ["system_search::tests::menu_original_identity_must_match_the_complete_captured_identity"],
+                "Menu permission was bypassed.": ["system_search::tests::menu_post_activation_item_ancestor_identity_and_trust_are_revalidated"],
+                "Menu action was not routed to its original app.": ["system_search::tests::menus_disabled_unknown_original_app_and_shortcut_rebuild_fail_closed"],
+                "Window enumeration raised a window.": ["system_search::tests::window_identity_duplicate_titles_and_minimized_restore_are_exact"],
+                "Window action did not raise and activate.": ["system_search::tests::window_identity_duplicate_titles_and_minimized_restore_are_exact"],
+                "A token could be used for another action.": ["system_search::providers::gate_tests::cross_kind_and_missing_opaque_tokens_refuse_before_native_reads_or_effects"],
+                "An expired token was accepted.": ["system_search::providers::gate_tests::cross_kind_and_missing_opaque_tokens_refuse_before_native_reads_or_effects"],
+                "A system action ran during search.": ["system_search::tests::empty_files_query_returns_successful_empty_results_without_effects"],
+                "Monitor action did not execute.": ["remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"],
+                "Lock action did not execute.": ["system_actions::tests::complete_owned_keyboard_sdk_pairs_and_tags_lock_shortcut", "system_actions::tests::denied_and_failed_construction_never_post"],
+                "File search did not escape the Spotlight literal.": ["file_search::tests::literal_predicate_and_normalization"],
+                "Stale results or background callbacks reached the consumer.": ["runtime::system::shortcut_budget_tests::system_search_worker_completion_requires_current_owner_adoption_before_publication", "system_search::tests::main_service_queued_effect_is_revoked_before_native_adapter", "system_search::tests::empty_files_query_returns_successful_empty_results_without_effects"]
+            }
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.staleLoadRetention"] = serde_json::json!({
             "originalSourceSHA256": "80a8968e86e157a262368fe98484335d7022e6fc61591edb6b4be5e7eabedecd",
             "status": "source-qualified-rust-case-crosswalk",
@@ -2737,6 +2770,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn retired_system_helper_has_no_callers_and_preserves_historical_assertions() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/SystemChecks.swift";
+        assert!(!root.join(retired).exists());
+        assert!(root.join("Sources/RuycastApp/SystemServices.swift").exists());
+        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
+        let feedback = include_str!("../../../../Sources/RuycastApp/FeedbackChecks.swift");
+        assert!(!main.contains("--check-system"));
+        for caller in [main, feedback] { assert!(!caller.contains("checkSystemServices")); }
+        assert!(!feedback.contains("processToolsVerifiedWithoutDesktopEffects"));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
+        let lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
+        ).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        for (path, source) in [("Sources/RuycastApp/main.swift", main), ("Sources/RuycastApp/FeedbackChecks.swift", feedback)] {
+            assert_eq!(lock["files"][path], format!("{:x}", Sha256::digest(source.as_bytes())));
+        }
+        let inventory = inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/SystemChecks.swift::checkSystemServices"];
+        assert_eq!(mapping["originalSourceSHA256"], "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4");
+        assert_eq!(mapping["productionAccepted"], false);
+        assert_eq!(mapping["assertionCrosswalk"].as_object().unwrap().len(), 19);
+        assert_eq!(mapping["contractDifferences"].as_object().unwrap().len(), 2);
+        let inputs = settings_sources("--check-feedback");
+        for cases in mapping["assertionCrosswalk"].as_object().unwrap().values() {
+            for case in cases.as_array().unwrap() {
+                let name = case.as_str().unwrap().rsplit("::").next().unwrap();
+                assert!(inputs.iter().any(|(_, source, _)| std::str::from_utf8(source).unwrap().contains(&format!("fn {name}("))), "missing historical system case: {case}");
+            }
+        }
+    }
+
+    #[test]
     fn retired_clipboard_helper_is_absent_and_its_assertions_are_crosswalked() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/ClipboardChecks.swift";
@@ -2744,8 +2811,6 @@ mod tests {
         let main = include_str!("../../../../Sources/RuycastApp/main.swift");
         assert!(!main.contains("--check-clipboard"));
         assert!(!main.contains("checkClipboardStore"));
-        assert!(main.contains("--check-system"));
-        assert!(main.contains("checkSystemServices"));
         assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
         let lock: serde_json::Value = serde_json::from_slice(
             &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
@@ -4943,8 +5008,8 @@ mod tests {
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SnippetEditingChecks.swift"));
         assert_eq!(super::settings_additional_provenance_sources("--check-feedback"), &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
-        assert_eq!(super::settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
-        assert_eq!(super::settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
+        assert_eq!(super::settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
+        assert_eq!(super::settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("rust/") || *path == "rust-toolchain.toml"));
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current settings binding: {path}");
@@ -6372,7 +6437,7 @@ mod tests {
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert!(bindings.contains(&provenance));
         let additional = settings_additional_provenance_sources(gate.id);
-        assert_eq!(additional, &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
+        assert_eq!(additional, &[("Sources/RuycastApp/FeedbackChecks.swift", "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
         for provenance in additional { assert!(bindings.contains(provenance)); }
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current actions-menu binding: {path}");
@@ -6585,11 +6650,11 @@ mod tests {
         assert_eq!(inputs.len(), 36);
         assert_eq!(bindings.len(), 40);
         assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 40);
-        assert_eq!(provenance.1, "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04");
+        assert_eq!(provenance.1, "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde");
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert_eq!(additional, &[("Sources/RuycastApp/SystemChecks.swift", "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
-        assert_eq!(settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
-        assert_eq!(settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
+        assert_eq!(settings_additional_provenance_sources("--check-actions-menu"), &[("Sources/RuycastApp/FeedbackChecks.swift", "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde"), ("Sources/RuycastApp/InteractionChecks.swift", "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858")]);
+        assert_eq!(settings_additional_provenance_sources("--check-interactions"), &[("Sources/RuycastApp/FeedbackChecks.swift", "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/SystemChecks.swift"));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/ActionMenuChecks.swift"));
@@ -6649,7 +6714,7 @@ mod tests {
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/FeedbackChecks.swift"));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/ActionMenuChecks.swift"));
         let additional = settings_additional_provenance_sources(gate.id);
-        assert_eq!(additional, &[("Sources/RuycastApp/FeedbackChecks.swift", "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
+        assert_eq!(additional, &[("Sources/RuycastApp/FeedbackChecks.swift", "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde"), ("Sources/RuycastApp/ActionMenuChecks.swift", "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f")]);
         for provenance in additional { assert!(bindings.contains(provenance)); }
         for (path, _, sha) in inputs {
             assert!(bindings.contains(&(path, sha)), "missing current interactions binding: {path}");

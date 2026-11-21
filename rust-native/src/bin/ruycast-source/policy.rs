@@ -88,7 +88,6 @@ Sources/RuycastApp/SnippetEditingChecks.swift
 Sources/RuycastApp/SnippetExpander.swift
 Sources/RuycastApp/SnippetTextEditor.swift
 Sources/RuycastApp/SystemAccessibility.swift
-Sources/RuycastApp/SystemChecks.swift
 Sources/RuycastApp/SystemMonitor.swift
 Sources/RuycastApp/SystemSearchSession.swift
 Sources/RuycastApp/SystemServices.swift
