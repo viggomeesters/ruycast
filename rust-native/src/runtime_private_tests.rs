@@ -281,6 +281,71 @@ fn prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate() {
 }
 
 #[test]
+fn palette_status_changes_preserve_rows_and_selection_updates_publish() {
+    let (_temp, mut state, mut window, ui, mut local) = private_fixture("status.first", false);
+    local.title = "Owned private fixture".into();
+    local.kind = "url".into();
+    local.target = "https://example.com/first".into();
+    let mut second = local.clone();
+    second.id = "status.second".into();
+    second.title = "Owned private fixture second".into();
+    let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+    config["commands"] = json!([local, second]);
+    state.configuration.save(&config).unwrap();
+    state.clipboard = Some(crate::clipboard_history::Store::open(
+        &state.configuration.paths.root,
+        &state.configuration.current().clipboard,
+    ).unwrap());
+    window.sync(&state);
+    window.session.launcher_scope = Some(crate::session::LauncherScope::Quicklinks);
+    window.session.set_query("Owned private");
+    window.session.select_row(Some(0));
+    window.publish(&state, &ui);
+
+    let baseline = ui.view();
+    let ids = baseline.rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>();
+    assert_eq!(ids, ["status.first", "status.second"]);
+    let selected_id = window.session.selected().unwrap().id.clone();
+    let results_revision = window.session.results_revision();
+    let preparation = crate::catalog::preparation_work();
+    state.clipboard.as_mut().unwrap().pause(true, || true).unwrap();
+    window.publish(&state, &ui);
+
+    let clipboard_status = ui.view();
+    assert_eq!(clipboard_status.query, baseline.query);
+    assert_eq!(clipboard_status.rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(), ids);
+    assert_eq!(window.session.results_revision(), results_revision);
+    assert_eq!(window.session.selected().unwrap().id, selected_id);
+    assert_eq!(clipboard_status.selection, baseline.selection);
+    assert_eq!(clipboard_status.rows_revision, baseline.rows_revision);
+    assert_eq!(crate::catalog::preparation_work(), preparation);
+
+    state.configuration.last_error = Some("Fixture configuration error".into());
+    window.publish(&state, &ui);
+    let error_status = ui.view();
+    assert_eq!(error_status.message, "Config: Fixture configuration error");
+    assert_eq!(error_status.query, baseline.query);
+    assert_eq!(error_status.rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(), ids);
+    assert_eq!(error_status.selection, baseline.selection);
+    assert_eq!(window.session.results_revision(), results_revision);
+    assert_eq!(window.session.selected().unwrap().id, selected_id);
+    assert_eq!(error_status.rows_revision, baseline.rows_revision);
+    assert_eq!(crate::catalog::preparation_work(), preparation);
+
+    window.session.select_row(Some(1));
+    window.publish(&state, &ui);
+    let selected = ui.view();
+    assert_eq!(selected.selection, Some(1));
+    assert!(selected.revision > error_status.revision);
+    assert_eq!(selected.rows_revision, baseline.rows_revision);
+    assert_eq!(selected.query, baseline.query);
+    assert_eq!(selected.rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(), ids);
+    assert_eq!(window.session.results_revision(), results_revision);
+    assert_eq!(window.session.selected().unwrap().id, "status.second");
+    assert_eq!(crate::catalog::preparation_work(), preparation);
+}
+
+#[test]
 fn clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_real_owner() {
     let (_temp, mut state, mut window, ui, _) = private_fixture("script.fixture", false);
     let mut config = serde_json::to_value(state.configuration.current()).unwrap();
