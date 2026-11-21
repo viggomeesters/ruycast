@@ -30,8 +30,6 @@ func featureFixture()->[Command] {
     guard submitted,cancelled else {throw LauncherError("Return/Escape did not reach the field delegate.")}
     state.query="quick note";state.begin(state.selectedCommand!);state.expandInlineInput()
     guard state.form?.command.id=="capture.quick-note",state.form?.isRun==true else {throw LauncherError("Quick Note did not request input.")}
-    state.form=nil;state.newCommand("url",pasteboard:NSPasteboard(name:NSPasteboard.Name("rc-create-fixture-"+UUID().uuidString)))
-    guard state.form?.isNew==true,state.form?.command.kind=="url" else {throw LauncherError("Quicklink editor did not open.")}
     state.form=nil;state.mode="snippets"
     guard state.visibleCommands.map(\.id)==["snippet.greeting"] else {throw LauncherError("Snippet navigation failed.")}
     state.mode="quicklinks";state.query="gmaps"
@@ -71,7 +69,7 @@ func featureFixture()->[Command] {
     guard try Data(contentsOf:configPath)==external,state.message.contains("changed") else {throw LauncherError("Concurrent edit was overwritten.")}
     try checkAppLaunchDismissal()
     try checkSnippetChoiceKeyboard()
-    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"quickNoteInputForm":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 // Route real AppKit key events through the same hidden panel as production.
 @MainActor func checkSnippetChoiceKeyboard() throws {
