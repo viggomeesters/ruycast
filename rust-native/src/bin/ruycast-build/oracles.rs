@@ -1930,6 +1930,17 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.vanishedSelectionCannotKillNext"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; vanished process selection assertion retired",
+            "scope": "Only the Swift filtered-result removal, activateSelection and vanishedSelectionCannotKillNext assertion/result field are retired. Sort/refresh identity, subsequent Obsidian direct-kill flow, fixture restoration, captures and active selector remain.",
+            "nativeCases": ["remaining_macos_process::vanished_native_process_selection_cannot_kill_the_remaining_owned_row"],
+            "originalAssertions": ["Removing the selected process leaves no selection.", "Return does not kill or replace the remaining process row."],
+            "compatibilityNotes": ["The Rust fixture records the explicit removal as one baseline termination effect, then verifies Return adds no further termination effect."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5523,6 +5534,11 @@ mod tests {
         assert!(rich.contains("capture(host,\"clipboard-static-before\");pump(1.2);capture(host,\"clipboard-static-after\")"));
         assert!(!rich.contains("Clipboard timestamps still animate or update while idle"));
         assert!(!rich.contains("clipboardStaticWhileIdle"));
+        assert!(rich.contains("state.setProcessSort(.memory)"));
+        assert!(rich.contains("state.query=\"Obsidian\";try wait {state.results.count==1}"));
+        assert!(rich.contains("killed==[123411] && state.confirmationCommand==nil"));
+        assert!(!rich.contains("Disappearing selection activated another process"));
+        assert!(!rich.contains("vanishedSelectionCannotKillNext"));
         assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
         assert!(!rich.contains("Large process lists were not bounded before target registration"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
@@ -5590,6 +5606,14 @@ mod tests {
         assert_eq!(idle_retired["originalAssertions"], serde_json::json!(["Clipboard PNG bytes before and after a 1.2-second idle interval are equal.", "The Swift resource result reports clipboardStaticWhileIdle=true."]));
         assert_eq!(idle_retired["productionAccepted"], false);
         assert!(gate.native_cases.contains(&"remaining_macos_process::native_clipboard_two_color_image_file_pixels_and_idle_text_are_preserved_in_both_themes"));
+        let vanished_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.vanishedSelectionCannotKillNext"];
+        assert_eq!(vanished_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(vanished_retired["status"], "source-qualified-rust-case-crosswalk; vanished process selection assertion retired");
+        assert_eq!(vanished_retired["nativeCases"], serde_json::json!(["remaining_macos_process::vanished_native_process_selection_cannot_kill_the_remaining_owned_row"]));
+        assert_eq!(vanished_retired["originalAssertions"], serde_json::json!(["Removing the selected process leaves no selection.", "Return does not kill or replace the remaining process row."]));
+        assert_eq!(vanished_retired["compatibilityNotes"], serde_json::json!(["The Rust fixture records the explicit removal as one baseline termination effect, then verifies Return adds no further termination effect."]));
+        assert_eq!(vanished_retired["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"remaining_macos_process::vanished_native_process_selection_cannot_kill_the_remaining_owned_row"));
         let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
         assert_eq!(lock["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);

@@ -25,9 +25,6 @@ import LauncherModels
     metrics[original]=ProcessResource(identity:current.identity,name:current.name,path:current.path,cpuPercent:0.1,memoryBytes:current.memoryBytes)
     state.applySystemResults(state.results,resources:metrics,preserveSelection:true)
     try require(state.selectedCommand?.id==original,"Refresh moved process selection")
-    let without=state.results.filter {$0.id != original}
-    state.applySystemResults(without,resources:metrics,preserveSelection:true)
-    state.activateSelection();try require(state.selection == -1 && killed.isEmpty,"Disappearing selection activated another process")
     state.query="Obsidian";try wait {state.results.count==1}
     try require(state.actionItems.first?.title=="Kill" && !state.actionItems.contains(where:{$0.id=="set-alias" || $0.id=="set-hotkey" || $0.id=="disable"}),"Process actions are mislabeled or persist ephemeral targets")
     state.activateSelection();try wait {!state.busy && state.results.isEmpty}
@@ -97,5 +94,5 @@ import LauncherModels
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
     try require(!window.isVisible,"Resource checks opened a visible window")
-    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"monitorSeparateWindowRoute":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"monitorSeparateWindowRoute":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }
