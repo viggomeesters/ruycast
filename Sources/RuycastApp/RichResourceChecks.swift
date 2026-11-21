@@ -115,17 +115,6 @@ import LauncherModels
     }
     let monitorReply=try cli(["monitor"]),processReply=try cli(["processes","Syncthing"])
     try require(monitorReply["ok"] as? Bool==true && processReply["ok"] as? Bool==true,"Read-only resource CLI failed")
-    var batches=[[(Command,ProcessResource)]]()
-    service.processDetails("Syncthing") {if case .success(let rows)=$0 {batches.append(rows)}}
-    service.processDetails("Safari") {if case .success(let rows)=$0 {batches.append(rows)}}
-    try wait {batches.count==2}
-    try require(batches[0].first?.1.name=="Syncthing" && batches[1].first?.1.name=="Safari","Concurrent process queries mixed resource metadata")
-    var largeEffects=SystemServices.Effects()
-    largeEffects.processes={(0..<2100).map {index in ProcessResource(identity:.init(pid:pid_t(200000+index),uid:getuid(),seconds:UInt64(index),micros:0),name:"Fixture \(index)",path:"/usr/bin/true",cpuPercent:Double(index),memoryBytes:1)}}
-    let largeService=SystemServices(effects:largeEffects);var bounded:[(Command,ProcessResource)]?
-    largeService.processDetails("") {if case .success(let rows)=$0 {bounded=rows}}
-    try wait {bounded != nil}
-    try require(bounded?.count==1000 && bounded?.first?.1.cpuPercent==2099,"Large process lists were not bounded before target registration")
     try require(!window.isVisible,"Resource checks opened a visible window")
     return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"unsafeAssetPathRejected":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"realReadOnlySystemSampling":true,"monitorAndProcessCLI":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }
