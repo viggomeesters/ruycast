@@ -2452,6 +2452,17 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeCases": ["performance_trace::tests::original_retention_field_ownership_cancellation_reset_and_overflow_contract"],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.nativeFieldCycles"] = serde_json::json!({
+            "originalSourceSHA256": "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the 100 retained-field update/reconcile/capture cycles and their trace privacy assertions map to the existing native Rust route. This is offscreen host evidence, not physical desktop input or key-to-screen latency.",
+            "nativeSource": "rust-native/examples/ui_completion.rs",
+            "validationSteps": ["interaction-trace-process"],
+            "originalScenarios": ["100 query updates across five terms reconcile through the actual retained native field before capture and cause a real host draw each cycle", "the hidden-host trace retains no query, command, or profile-path text"],
+            "nativeCases": ["ui_completion::interaction_trace"],
+            "contractDifferences": ["Offscreen native host captures do not prove physical desktop input, onscreen presentation, or key-to-screen latency."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.enabledTypoCliParity"] = serde_json::json!({
             "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
             "status": "source-qualified-rust-case-crosswalk",
@@ -4058,6 +4069,43 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/performance_trace.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 5);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["performance_trace::tests::original_retention_field_ownership_cancellation_reset_and_overflow_contract"]));
+        assert_eq!(mapping["productionAccepted"], false);
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn interaction_native_field_cycles_are_crosswalked_to_rust_route() {
+        let rust = include_str!("../../../examples/ui_completion.rs");
+        let case = rust
+            .split_once("fn interaction_trace(root: &Path)")
+            .unwrap()
+            .1
+            .split_once("\nfn ")
+            .unwrap()
+            .0;
+        assert!(case.contains("for index in 0..100u64"));
+        assert!(case.contains("let terms=[\"E\",\"Ex\",\"Example 4\",\"Example 42\",\"\"]"));
+        assert!(case.contains("input.reconcile"));
+        assert!(case.contains("h.capture(false,&format!(\"interaction-trace-cycle-{index:03}\"))"));
+        assert!(case.contains("Actual host capture did not draw"));
+        assert!(case.contains("for rejected in [\"Example\",\"fixture.\",\"example.invalid\""));
+        let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
+        assert!(plan["steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|step| step["name"] == "interaction-trace-process"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.nativeFieldCycles"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da");
+        assert_eq!(mapping["nativeSource"], "rust-native/examples/ui_completion.rs");
+        assert_eq!(mapping["validationSteps"], serde_json::json!(["interaction-trace-process"]));
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 2);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["ui_completion::interaction_trace"]));
+        assert_eq!(mapping["contractDifferences"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["productionAccepted"], false);
         assert_eq!(inventory["productionAccepted"], false);
     }
