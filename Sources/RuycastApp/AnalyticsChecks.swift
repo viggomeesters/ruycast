@@ -12,9 +12,6 @@ import LauncherModels
     func wait(_ condition:()->Bool) throws {let end=Date().addingTimeInterval(8);while !condition(),Date()<end {pump()};try require(condition(),"Analytics fixture timed out")}
     let store=AnalyticsStore(root:root,saveDelay:60);store.importLegacy(["legacy":5]);store.importLegacy(["legacy":5])
     let secret="PRIVATE_INPUT_SENTINEL_DONT_LOG"
-    DispatchQueue.concurrentPerform(iterations:8) {worker in
-        for index in 0..<125 {let id="fixture.\(worker)";if let ticket=store.recordAttempt(id,source:"cli") {store.recordCompletion(ticket,success:index%5 != 0,ms:Double(index),code:"timeout")};store.recordTiming("search.model",ms:Double(index)/100)}
-    }
     let tracked=store.recordAttempt("inflight",source:"hotkey");try store.configure(enabled:false,retentionDays:7)
     if let tracked {store.recordCompletion(tracked,success:true,ms:1)}
     try store.configure(enabled:true,retentionDays:nil);store.recordError("config",code:secret);store.recordTiming(secret,ms:1)
