@@ -143,6 +143,17 @@ impl Clipboard {
     pub fn fixture(&self,value:&serde_json::Value,port:&ruycast_native::clipboard_history::CapturePort,events:&mpsc::SyncSender<ruycast_native::control::HostEvent>)->Result<serde_json::Value,String>{
         if !self.fixture||std::env::var("RUYCAST_NATIVE_TEST_CLIPBOARD").as_deref()!=Ok("named")||!ruycast_native::workspace::fixture_installed(&self.home){return Err("Owned clipboard fixture boundary required.".into())}
         if value["checkPerformancePoll"]==true{check_owned_poll(&self.home)?;return Ok(serde_json::json!({"ok":true,"ownedPerformancePoll":true}))}
+        if value["readHistoryText"] == true {
+            let board = self
+                .history_board
+                .borrow()
+                .clone()
+                .ok_or("Owned capture board unavailable.")?;
+            let text = board
+                .stringForType(unsafe { NSPasteboardTypeString })
+                .map(|value| ruycast_native::native_text::repaired(&value));
+            return Ok(serde_json::json!({"namedBoard": true, "text": text}));
+        }
         if value["clearBoard"]==true {
             let board=shared_fixture_board().ok_or("Owned named clipboard board unavailable.")?;
             board.clearContents();
