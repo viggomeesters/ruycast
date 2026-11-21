@@ -161,6 +161,47 @@ pub fn check(panel: &NSPanel, view: &NSView, mtm: MainThreadMarker) -> Result<()
     panel.makeFirstResponder(None);
     check_menu(mtm, &editor)?;
     check_owned_text_roundtrip(panel, view, mtm)?;
+    check_panel_field_select_all(panel, view, mtm)?;
+    Ok(())
+}
+
+/// Original hidden-panel NSTextField/field-editor Select All conjunction.
+fn check_panel_field_select_all(panel: &NSPanel, view: &NSView, main: MainThreadMarker) -> Result<(), String> {
+    let field = NSTextField::initWithFrame(
+        NSTextField::alloc(main),
+        NSRect::new(NSPoint::new(0.,0.), NSSize::new(200.,40.)),
+    );
+    field.setStringValue(ns_string!("Search field"));
+    view.addSubview(&field);
+    struct Remove<'a>(&'a NSPanel, &'a NSTextField);
+    impl Drop for Remove<'_> {
+        fn drop(&mut self) {
+            self.0.makeFirstResponder(None);
+            self.1.removeFromSuperview();
+        }
+    }
+    let _remove = Remove(panel, &field);
+    if !panel.makeFirstResponder(Some(&field)) {
+        return Err("panel search field focus failed".into());
+    }
+    let text = panel.firstResponder().and_then(|r|r.downcast::<NSTextView>().ok())
+        .ok_or("panel search field has no native text editor")?;
+    if text.string().to_string() != "Search field" {
+        return Err("panel first responder is not the owned search field editor".into());
+    }
+    text.setSelectedRange(NSRange::new(2,3));
+    if text.selectedRange() != NSRange::new(2,3) {
+        return Err("panel field-editor partial selection was not established".into());
+    }
+    let handled: bool = unsafe { msg_send![panel, performKeyEquivalent: &*key(panel,"a",false)?] };
+    if !handled || text.selectedRange() != NSRange::new(0,12)
+        || text.string().to_string() != "Search field" || field.stringValue().to_string() != "Search field"
+    {
+        return Err("panel field-editor Select All lost handling, full UTF16 selection or text".into());
+    }
+    if panel.isVisible() || panel.isKeyWindow() || panel.isMainWindow() {
+        return Err("panel field-editor check displayed or focused a window".into());
+    }
     Ok(())
 }
 
