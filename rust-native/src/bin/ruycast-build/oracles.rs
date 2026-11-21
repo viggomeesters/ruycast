@@ -7035,6 +7035,33 @@ mod tests {
         assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
+    fn retired_actions_menu_check_has_no_caller_and_preserves_crosswalk() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/ActionMenuChecks.swift";
+        assert!(!root.join(retired).exists());
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(!main.contains("--check-actions-menu"));
+        assert!(!main.contains("checkActionsMenu"));
+        assert!(!main.contains("checkItemBindingEditing"));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"], format!("{:x}", Sha256::digest(main.as_bytes())));
+        assert_eq!(ACTIONS_MENU_ORACLE_SHA256, "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f");
+        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        assert_eq!(public["schema"], "ruycast.public-source.v2");
+        assert!(public["files"].get(retired).is_none());
+        for path in ["Sources/RuycastApp/main.swift", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json"] {
+            assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-actions-menu").unwrap();
+        assert_eq!(gate.native_cases.len(), 11);
+        assert_eq!(gate.required_native_steps.len(), 8);
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
+    }
+
+    #[test]
     fn actions_menu_provenance_preserves_cases_shared_sources_and_routes() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-actions-menu").unwrap();
         let inputs = settings_sources(gate.id);
