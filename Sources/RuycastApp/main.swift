@@ -17,7 +17,6 @@ if args.first=="--benchmark-clipboard-poll" {
     output(["ok":false,"error":"Build with -Xswiftc -DRUYCAST_POLL_BENCHMARK to run this fixture."]);exit(1)
 #endif
 }
-if args.first=="--check-edit-commands" {do {output(try checkNativeEditCommands());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--benchmark-interactions" {do {output(try checkInteractionPerformance());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-polish" {
     do {guard args.count==2 else {throw LauncherError("Expected output directory")};output(try checkLauncherPolish(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}

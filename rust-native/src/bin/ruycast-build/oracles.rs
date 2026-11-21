@@ -2616,6 +2616,32 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/EditCommandChecks.swift::checkNativeEditCommands"] = serde_json::json!({
+            "originalSourceSHA256":EDIT_COMMAND_ORACLE_SHA256,
+            "status":"source-qualified-rust-case-crosswalk; Swift helper retired",
+            "scope":"Only the Swift edit-check helper, its private test textview and --check-edit-commands entrypoint are retired. Product editing, capture and recorder code remain active. Historical SETTINGS selector/path/hash and Rust native steps remain preserved.",
+            "productionAccepted":false,
+            "contractDifferences":[
+                "Rust observes the mounted production CommandText, not the exact pre-attachment SwiftUI constructor return instant.",
+                "Native undo/redo uses owned Rust/NSTextView fixtures with different text; production-input undo is also covered separately. Literal Swift CaptureInput class parity is not claimed.",
+                "The real recorder takes focus before capturing keys; simultaneous recorder/text focus is not claimed.",
+                "Focused Cmd+K and item binding prove the actual handled UI route and target, not the old Swift stub callback counts.",
+                "Owned hidden windows, local NSEvents and private named boards do not prove physical keyboard, visible desktop or complete product parity."
+            ],
+            "assertionCrosswalk":{
+                "Panel text focus, exact single paste, full UTF16 Select All, Copy and Cut":["native_edit::check_owned_text_roundtrip"],
+                "Caps Lock paste and modified-paste refusal":["native_edit::check_modified_paste"],
+                "Input undo policy, storage/container presence and actual input focus":["input_process::open_and_cancel_leave_configuration_untouched"],
+                "Native typing, Undo and Redo":["native_edit::check","input_process::failure_preserves_text_focus_typing_and_undo"],
+                "Panel NSTextField field-editor Select All":["native_edit::check_panel_field_select_all"],
+                "Recorder captures Cmd+V, Cmd+A and Cmd+Z":["actions_process::hotkey_sides_hyper_delete_and_repeat"],
+                "One standard Edit menu with the original selectors/keys and Redo":["native_edit::check_menu"],
+                "Ordinary-window menu exact paste, UTF16 Select All, Copy and Cut":["native_edit::check_menu"],
+                "Ordinary-window Undo/Redo, field editor and disabled editing without responder":["native_edit::check_menu"],
+                "Cmd+K and item binding while a text responder has focus":["actions_process::actions_keyboard_badges_and_escape_keeps_palette"],
+                "No displayed window or physical input":["native_edit::check_owned_text_roundtrip","native_edit::check_panel_field_select_all","native_edit::check_menu","actions_process::actions_keyboard_badges_and_escape_keeps_palette"]
+            }
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/ScriptChoiceChecks.swift::checkScriptChoicesUI"] = serde_json::json!({
             "originalSourceSHA256":"7d98578478074c4c8c25d39ffc0dda8048debadd62f643ef1265700d449336cc",
             "status":"source-qualified-rust-case-crosswalk",
@@ -2970,6 +2996,45 @@ mod tests {
         assert_eq!(mapping["nativeCases"], serde_json::json!(["private_storage::guarded_publication_tests::original_private_file_replacement_and_create_only_sequence"]));
         assert!(include_str!("../../../../rust/src/private_storage.rs").contains("fn original_private_file_replacement_and_create_only_sequence("));
         assert_eq!(value["productionAccepted"], false);
+    }
+    #[test]
+    fn retired_edit_command_helper_has_no_caller_and_preserves_native_assertions() {
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired="Sources/RuycastApp/EditCommandChecks.swift";
+        assert!(!root.join(retired).exists());
+        for product in ["Sources/RuycastApp/NativeEditCommands.swift","Sources/RuycastApp/CaptureTextEditor.swift","Sources/RuycastApp/ShortcutRecorder.swift"] {
+            assert!(root.join(product).is_file());
+        }
+        let main=include_str!("../../../../Sources/RuycastApp/main.swift");
+        assert!(!main.contains("--check-edit-commands"));
+        assert!(!main.contains("checkNativeEditCommands"));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line|line==retired));
+        let lock:serde_json::Value=serde_json::from_slice(&fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"],format!("{:x}",Sha256::digest(main.as_bytes())));
+        let gate=SETTINGS.iter().find(|gate|gate.id=="--check-edit-commands").unwrap();
+        assert_eq!(settings_provenance_source(gate.id),Some((retired,EDIT_COMMAND_ORACLE_SHA256)));
+        assert_eq!(gate.native_cases,&["native_edit::check"]);
+        assert_eq!(gate.required_native_steps,&["native-light-600","native-light-760","native-dark-600","native-dark-760"]);
+        let value=inventory("check").unwrap();
+        let mapping=&value["retiredSwiftChecks"]["Sources/RuycastApp/EditCommandChecks.swift::checkNativeEditCommands"];
+        assert_eq!(mapping["originalSourceSHA256"],"a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145");
+        assert_eq!(mapping["productionAccepted"],false);
+        assert_eq!(mapping["contractDifferences"].as_array().unwrap().len(),5);
+        let crosswalk=mapping["assertionCrosswalk"].as_object().unwrap();
+        assert_eq!(crosswalk.len(),11);
+        let mut cases=std::collections::BTreeSet::new();
+        for names in crosswalk.values() {
+            for name in names.as_array().unwrap() {
+                let case=name.as_str().unwrap();
+                let source=if case.starts_with("native_edit::") {include_str!("../../native_edit.rs")}
+                    else if case.starts_with("input_process::") {include_str!("../../../tests/input_process.rs")}
+                    else {assert!(case.starts_with("actions_process::"));include_str!("../../../tests/actions_process.rs")};
+                assert!(source.contains(&format!("fn {}(",case.rsplit("::").next().unwrap())),"missing mapped case {case}");
+                cases.insert(case);
+            }
+        }
+        assert_eq!(cases.len(),9);
     }
     #[test]
     fn retired_script_choice_ui_helper_has_no_caller_and_preserves_assertion_crosswalk() {
@@ -6227,7 +6292,7 @@ mod tests {
         assert!(!root.join("Sources/RuycastApp/WindowSearchChecks.swift").exists());
         for gate in SETTINGS {
             if matches!(gate.id, "--check-command-log" | "--check-window-search"
-                | "--check-analytics" | "--check-visual-assets") {
+                | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands") {
                 // Retired helpers retain their original path/hash as historical provenance.
                 assert!(!root.join(gate.original_source).exists());
             } else {
