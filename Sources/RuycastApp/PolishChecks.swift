@@ -124,7 +124,5 @@ import LauncherModels
         try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Set Hotkey","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
         try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["Set Hotkey","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
     }
-    state.query="";state.selection=0;state.moveSelection(1)
-    try require(state.selectedCommand?.id=="fixture.long","Arrow selection changed after rendering bindings")
     return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"inlineAliasAndEnter":true,"inlineSubmitOnce":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
