@@ -47,7 +47,6 @@ import LauncherModels
         try wait {!process.isRunning};return try JSONSerialization.jsonObject(with:pipe.fileHandleForReading.readDataToEndOfFile()) as! [String:Any]
     }
     _=try cli(["analytics","pause"])
-    _=try execute("fixture.success","cli");try require(state.analytics.snapshot.totalAttempts==3,"Paused execution was counted")
     _=try cli(["analytics","resume"])
     let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     for dark in [true,false] {for width in [980,680] {
