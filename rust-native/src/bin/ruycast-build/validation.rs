@@ -163,6 +163,7 @@ clipboard-rich-paste|c|test --manifest-path rust-native/Cargo.toml --features te
 clipboard-preview-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets --locked -- --exact
 clipboard-preview-cancel-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset --locked -- --exact
 clipboard-preview-owner-different-id|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image --locked -- --exact
+clipboard-preview-cancel-before-publish|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::decoded_preview_cancelled_before_poll_is_not_published_and_released --locked -- --exact
 system-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example system-fixture --locked
 system-search-sdk|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test system_search_sdk --locked
 remaining-workspace-sdk-build|c|build --manifest-path rust-native/Cargo.toml --features test-tools --example workspace-fixture --release --locked
@@ -1741,12 +1742,14 @@ fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
             || name == "polish-original-process" && (value["contextThemes"] != 2 || value["filledCaptureFrames"] != 4 || value["healthIconQualified"] != false)
         { return Err("The selected complete example UI route and actual case markers must pass without desktop effects.".into()); }
     }
-    if matches!(name, "clipboard-preview-cancel-original" | "clipboard-preview-owner-different-id") {
+    if matches!(name, "clipboard-preview-cancel-original" | "clipboard-preview-owner-different-id" | "clipboard-preview-cancel-before-publish") {
         let text = std::str::from_utf8(stdout).map_err(error)?;
         let expected = if name == "clipboard-preview-cancel-original" {
             "test clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset ... ok"
-        } else {
+        } else if name == "clipboard-preview-owner-different-id" {
             "test clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image ... ok"
+        } else {
+            "test clipboard_preview::tests::decoded_preview_cancelled_before_poll_is_not_published_and_released ... ok"
         };
         if text.lines().filter(|line| *line == expected).count() != 1
             || text.lines().filter(|line|line.starts_with("test result:")).count() != 1
@@ -3406,7 +3409,7 @@ mod tests {
         assert!(policy.arguments.windows(2).any(|pair|pair==["--test","rust_only_policy"]));
         assert!(!steps.iter().any(|step| step.arguments.iter().any(|arg| arg.ends_with("rust_only_policy.py"))));
         assert_eq!(steps.last().unwrap().name, "release-build");
-        assert_eq!(steps.len(), 151);
+        assert_eq!(steps.len(), 152);
         assert!(steps.iter().all(|step| matches!(
             step.arguments.first().map(String::as_str),
             Some("cargo") | Some(RUST_POLICY_ALIAS)
@@ -3631,6 +3634,7 @@ mod tests {
             "clipboard-preview-original",
             "clipboard-preview-cancel-original",
             "clipboard-preview-owner-different-id",
+            "clipboard-preview-cancel-before-publish",
             "snippet-links-process",
             "snippet-hotkey-process",
             "feedback-actions-process",
@@ -3679,6 +3683,10 @@ mod tests {
         assert_eq!(owner.name,"clipboard-preview-owner-different-id");
         assert!(owner.arguments.contains(&"clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image".into()));
         assert!(owner.arguments.contains(&"--exact".into()));
+        let cancelled_result = &steps[preview+3];
+        assert_eq!(cancelled_result.name,"clipboard-preview-cancel-before-publish");
+        assert!(cancelled_result.arguments.contains(&"clipboard_preview::tests::decoded_preview_cancelled_before_poll_is_not_published_and_released".into()));
+        assert!(cancelled_result.arguments.contains(&"--exact".into()));
         let original = steps.iter().position(|step|step.name=="polish-original-process").unwrap();
         assert!(steps.iter().position(|step|step.name=="private-results-process").unwrap()<original);
         assert_eq!(steps[original].arguments.last().unwrap(),"--polish-original-only");
@@ -3754,6 +3762,8 @@ mod tests {
         assert!(selected_step_output("clipboard-preview-cancel-original",cancel.as_bytes()).is_ok());
         let owner="test clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s\n";
         assert!(selected_step_output("clipboard-preview-owner-different-id",owner.as_bytes()).is_ok());
+        let cancelled_result="test clipboard_preview::tests::decoded_preview_cancelled_before_poll_is_not_published_and_released ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.01s\n";
+        assert!(selected_step_output("clipboard-preview-cancel-before-publish",cancelled_result.as_bytes()).is_ok());
         let pause="test real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume ... ok\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s\n";
         assert!(selected_step_output("clipboard-pause-original",pause.as_bytes()).is_ok());
         for invalid in [pause.replace("real_host_preserves_invalid_pause_and_requires_confirmed_explicit_resume","unrelated"),pause.replace("1 passed; 0 failed; 0 ignored;","0 passed; 0 failed; 1 ignored;"),pause.replace(" ... ok"," ... ignored"),format!("{pause}test result: ok. 0 passed; 0 failed; 0 ignored;\n")] {
@@ -3764,6 +3774,9 @@ mod tests {
         }
         for invalid in [owner.replace("equal_metadata_different_id_replaces_preview_owner_and_releases_old_image","unrelated"),owner.replace("1 passed; 0 failed; 0 ignored;","0 passed; 0 failed; 1 ignored;"),owner.replace(" ... ok"," ... ignored"),format!("{owner}test result: ok. 0 passed; 0 failed; 0 ignored;\n")] {
             assert!(selected_step_output("clipboard-preview-owner-different-id",invalid.as_bytes()).is_err());
+        }
+        for invalid in [cancelled_result.replace("decoded_preview_cancelled_before_poll_is_not_published_and_released","unrelated"),cancelled_result.replace("1 passed; 0 failed; 0 ignored;","0 passed; 0 failed; 1 ignored;"),cancelled_result.replace(" ... ok"," ... ignored"),format!("{cancelled_result}test result: ok. 0 passed; 0 failed; 0 ignored;\n")] {
+            assert!(selected_step_output("clipboard-preview-cancel-before-publish",invalid.as_bytes()).is_err());
         }
         assert!(selected_step_output(
             "clipboard-preview-original",

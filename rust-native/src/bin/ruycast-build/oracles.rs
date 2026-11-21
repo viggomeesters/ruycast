@@ -820,7 +820,7 @@ const SETTINGS: &[SettingsGate] = &[
         "private_results::synchronous_history_failure_log_keeps_message_and_trace",
         "runtime::system::shortcut_budget_tests::system_action_error_log_retains_worker_message_and_response_trace",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-polish", original_source:"Sources/RuycastApp/PolishChecks.swift", required_native_steps:&["unit","polish-original-process","script-advanced-process","task-date-process","polish-bindings-process","remaining-macos-process","clipboard-preview-cancel-original", "clipboard-preview-owner-different-id"], native_cases:&[
+    SettingsGate { id:"--check-polish", original_source:"Sources/RuycastApp/PolishChecks.swift", required_native_steps:&["unit","polish-original-process","script-advanced-process","task-date-process","polish-bindings-process","remaining-macos-process","clipboard-preview-cancel-original", "clipboard-preview-owner-different-id", "clipboard-preview-cancel-before-publish"], native_cases:&[
         "ui_completion::polish_original",
         "ui_completion::script_advanced",
         "ui_completion::task_date",
@@ -830,6 +830,7 @@ const SETTINGS: &[SettingsGate] = &[
         "management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides",
         "clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset",
         "clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image",
+        "clipboard_preview::tests::decoded_preview_cancelled_before_poll_is_not_published_and_released",
         "remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes",
         "task_date::tests::original_natural_date_vectors_and_labels_match",
     ], unproven_invariants:&[] },
@@ -874,7 +875,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/runtime_health.rs", include_bytes!("../../runtime_health.rs"), "ee787b5ccd193c1f1a400ce0da4798132d8dd68d48f85f40b63a776cfccf7d86"),
             ("rust-native/src/native_menu_bar.rs", include_bytes!("../../native_menu_bar.rs"), "6c87e3f883b6f0abfbd96f3df1733a0e889fe347465f27fc55b3b81d3263d9d3"),
             ("rust-native/src/management_commands.rs", include_bytes!("../../management_commands.rs"), "14f68e0678ba748a65fc88a200f3cea59b9c9de8950462c2369ce5c526c75a31"),
-            ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "c178b7196a7c066bd9efc9b2410a15c63f7d210e1d519627c3645d486848b552"),
+            ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "95c9173b9032a0881471fd006f5fd26a9ffb5d854414538d168b2eff0634a08a"),
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
@@ -1029,7 +1030,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "4a450aa2eb6a0eec8e681a67f241c0147726229de742adbd741aa9bdce980367"),
             ("rust-native/src/system_search/native.rs", include_bytes!("../../system_search/native.rs"), "f0d80d646ee5df36906abff98612a02e2dbdfff0d3bbdb13896a85ef39cfdc37"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
-            ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "c178b7196a7c066bd9efc9b2410a15c63f7d210e1d519627c3645d486848b552"),
+            ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "95c9173b9032a0881471fd006f5fd26a9ffb5d854414538d168b2eff0634a08a"),
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "15c93afc3731db2ca870db6d824dcc90bc6f0f367fe9d3ca12497b90f26df97a"),
@@ -1234,7 +1235,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
-            ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "c178b7196a7c066bd9efc9b2410a15c63f7d210e1d519627c3645d486848b552"),
+            ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "95c9173b9032a0881471fd006f5fd26a9ffb5d854414538d168b2eff0634a08a"),
             ("rust-native/src/native_clipboard.rs", include_bytes!("../../native_clipboard.rs"), "6a3db88c4184426dae72431087af17177caa1f7bb3f2cff1bc2c4d7ed621c62f"),
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_ownership.rs", include_bytes!("../../clipboard_ownership.rs"), "b38329314cae144ece5ca7063135db60c9deea8e3df6d3728e0b631c1f0e68b4"),
@@ -6438,8 +6439,8 @@ mod tests {
             ("task_date::tests::", "rust-native/src/task_date.rs"),
         ];
 
-        assert_eq!(gate.required_native_steps, &["unit", "polish-original-process", "script-advanced-process", "task-date-process", "polish-bindings-process", "remaining-macos-process", "clipboard-preview-cancel-original", "clipboard-preview-owner-different-id"]);
-        assert_eq!(gate.native_cases.len(), 11);
+        assert_eq!(gate.required_native_steps, &["unit", "polish-original-process", "script-advanced-process", "task-date-process", "polish-bindings-process", "remaining-macos-process", "clipboard-preview-cancel-original", "clipboard-preview-owner-different-id", "clipboard-preview-cancel-before-publish"]);
+        assert_eq!(gate.native_cases.len(), 12);
         assert!(gate.unproven_invariants.is_empty());
         assert_eq!(inputs.len(), 32);
         assert_eq!(bindings.len(), 33);
@@ -6658,11 +6659,12 @@ mod tests {
             }
         }
         let polish = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert_eq!(polish.required_native_steps, &["unit", "polish-original-process", "script-advanced-process", "task-date-process", "polish-bindings-process", "remaining-macos-process", "clipboard-preview-cancel-original", "clipboard-preview-owner-different-id"]);
+        assert_eq!(polish.required_native_steps, &["unit", "polish-original-process", "script-advanced-process", "task-date-process", "polish-bindings-process", "remaining-macos-process", "clipboard-preview-cancel-original", "clipboard-preview-owner-different-id", "clipboard-preview-cancel-before-publish"]);
         let matrix = include_str!("validation.rs");
         assert!(matrix.contains("polish-original-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --polish-original-only"));
         assert!(matrix.contains("clipboard-preview-cancel-original|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset --locked -- --exact"));
         assert!(matrix.contains("clipboard-preview-owner-different-id|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image --locked -- --exact"));
+        assert!(matrix.contains("clipboard-preview-cancel-before-publish|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::decoded_preview_cancelled_before_poll_is_not_published_and_released --locked -- --exact"));
         assert!(matrix.contains("actions-menu-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --actions-menu-only"));
         assert!(require_complete("settings").is_ok());
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
