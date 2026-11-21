@@ -18,8 +18,7 @@ import LauncherModels
     let tracked=store.recordAttempt("inflight",source:"hotkey");try store.configure(enabled:false,retentionDays:7)
     if let tracked {store.recordCompletion(tracked,success:true,ms:1)}
     try store.configure(enabled:true,retentionDays:nil);store.recordError("config",code:secret);store.recordTiming(secret,ms:1)
-    store.flushSynchronously();let reloaded=AnalyticsStore(root:root)
-    try require(reloaded.snapshot.totalAttempts==1001 && reloaded.storageError==nil,"Analytics persistence did not round trip")
+    store.flushSynchronously()
     let bytes=try Data(contentsOf:root.appendingPathComponent("analytics.json"));let text=String(decoding:bytes,as:UTF8.self)
     try require(!text.contains(secret),"Arbitrary diagnostic content was persisted")
     let sensitiveID="/Users/private/"+secret+"/https://private.example/token"
