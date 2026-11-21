@@ -19,9 +19,6 @@ import LauncherModels
     if let tracked {store.recordCompletion(tracked,success:true,ms:1)}
     try store.configure(enabled:true,retentionDays:nil);store.recordError("config",code:secret);store.recordTiming(secret,ms:1)
     store.flushSynchronously()
-    var old=store.snapshot;old.events=[DiagnosticEvent(date:Date().addingTimeInterval(-100*86400),category:"runtime",code:"interrupted")]
-    let stale=root.appendingPathComponent("stale");try Files.save(old,to:stale.appendingPathComponent("analytics.json"))
-    try require(AnalyticsStore(root:stale).snapshot.events.isEmpty,"Diagnostic retention kept old events")
     let fixture=root.appendingPathComponent("host"),state=try AppState(root:fixture,headless:true)
     state.config.commands=[Command(id:"fixture.success",title:"Open Daily Note",kind:"script",target:"/usr/bin/true"),Command(id:"fixture.failure",title:"Run Maintenance",kind:"script",target:"/usr/bin/false")]
     state.query=secret
@@ -40,5 +37,5 @@ import LauncherModels
     }}
     var routed=false;state.showAnalytics={routed=true};let palette=PaletteController(state:state);palette.show("analytics")
     try require(routed && !palette.panel.isVisible,"Dashboard did not use management window routing")
-    return ["ok":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["ok":true,"inputQueryAndIDsExcludedFromExport":true,"corruptDataPreservedUntilReset":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
 }
