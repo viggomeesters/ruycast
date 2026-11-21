@@ -147,16 +147,41 @@ fn test_atomic_import_dedup_and_external_edit_capture_base() {
 fn test_rich_copy_routes_and_invalid_data_do_not_clear_destination() {
     let _serial = HOST_SCENARIOS.lock().unwrap();
     let h = host(json!({}));
+    use objc2_foundation::{NSString, NSURL};
+    let sources = [
+        h.base.join("synthetic missing a.txt"),
+        h.base.join("synthetic missing b.txt"),
+    ];
+    assert!(sources.iter().all(|source| !source.exists()));
+    let file_urls = sources
+        .iter()
+        .map(|source| {
+            NSURL::fileURLWithPath(&NSString::from_str(source.to_str().unwrap()))
+                .absoluteString()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
     fixture_payload(
         &h,
-        json!({"Files":["file:///synthetic/a.txt", "file:///synthetic/b.txt"]}),
+        json!({"Files":file_urls.clone()}),
     );
     h.wait(|s| s["clipboardCount"] == 1);
     let files = items(&h);
+    assert_eq!(files[0]["fileURLs"], json!(file_urls));
+    assert!(sources.iter().all(|source| !source.exists()));
+    assert_eq!(h.probe("clipboard-fixture", json!({"clearBoard":true}))["cleared"], true);
+    assert_eq!(
+        h.probe("clipboard-fixture", json!({"readCopiedFileURLs":true}))["fileURLs"],
+        json!([])
+    );
     assert_eq!(
         h.cli(&["clipboard", "copy", files[0]["id"].as_str().unwrap()])["ok"],
         true
     );
+    let readback = h.probe("clipboard-fixture", json!({"readCopiedFileURLs":true}));
+    assert_eq!(readback["fileURLs"], json!(file_urls));
+    assert!(sources.iter().all(|source| !source.exists()));
     fixture_payload(&h, json!({"Image":png()}));
     h.wait(|s| s["clipboardCount"] == 2);
     let image = items(&h)[0].clone();
