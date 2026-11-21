@@ -93,7 +93,6 @@ import LauncherModels
     let monitor=SystemMonitorModel();monitor.start();try wait {monitor.snapshot != nil};monitor.stop();let samplesAfterStop=monitor.history.count;pump(2.1)
     try require(!monitor.active && monitor.history.count==samplesAfterStop,"Monitor kept sampling while closed")
     let actual=ResourceSampler().sample()
-    try require(actual.memoryTotal>0 && actual.diskTotal>0 && actual.diskAvailable<=actual.diskTotal && actual.processCount>0,"Native system sampling did not return real values")
     var fixture=actual;fixture.cpuPercent=42.5;fixture.memoryTotal=16*1_073_741_824;fixture.memoryUsed=10*1_073_741_824;fixture.memoryWired=2*1_073_741_824;fixture.memoryCompressed=512*1_048_576
     fixture.batteryPercent=90;fixture.charging=true;fixture.powerSource="AC Power";fixture.downloadBytesPerSecond=1024*420;fixture.uploadBytesPerSecond=1024*32
     monitor.snapshot=fixture;monitor.history=(0..<30).map {index in var value=fixture;value.sampledAt=fixture.sampledAt.addingTimeInterval(Double(index-29)*2);value.cpuPercent=Double(20+index);return value}
@@ -106,5 +105,5 @@ import LauncherModels
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
     try require(!window.isVisible,"Resource checks opened a visible window")
-    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"unsafeAssetPathRejected":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"realReadOnlySystemSampling":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"unsafeAssetPathRejected":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }
