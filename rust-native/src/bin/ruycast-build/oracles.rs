@@ -87,7 +87,7 @@ struct CorePolicyEvidence { artifact: PolicyArtifact, before: PolicyInvocation, 
 #[serde(rename_all="camelCase", deny_unknown_fields)]
 struct PolicyInput { kind:String, sha256:Option<String>, link_target:Option<String> }
 #[derive(Clone, Copy)]
-enum PolicyTree { Legacy, Runtime, Product }
+enum PolicyTree { Legacy, Runtime, Product, Tooling }
 fn policy_input_name(root:&Path,path:&Path)->Result<String> {
     path.strip_prefix(root).map_err(error)?.to_str().map(str::to_owned).ok_or("Unrepresentable policy input path.".into())
 }
@@ -105,9 +105,17 @@ fn policy_input_tree(root:&Path,path:&Path,tree:PolicyTree,values:&mut BTreeMap<
     }
     if metadata.is_dir() {
         record_policy_input(root,path,"directory",false,false,values)?;
-        for entry in fs::read_dir(path).map_err(error)? {policy_input_tree(root,&entry.map_err(error)?.path(),tree,values)?;}
+        for entry in fs::read_dir(path).map_err(error)? {
+            let child=entry.map_err(error)?.path();
+            let metadata=fs::symlink_metadata(&child).map_err(error)?;
+            if matches!(tree,PolicyTree::Tooling)&&metadata.is_dir()&&child.file_name().is_some_and(|name|name=="target")&&path.join("Cargo.toml").is_file() {
+                record_policy_input(root,&child,"pruned-directory",false,false,values)?;
+                continue;
+            }
+            policy_input_tree(root,&child,tree,values)?;
+        }
     } else if metadata.is_file() {
-        let ignored=ignored||(matches!(tree,PolicyTree::Runtime)&&path.file_name().is_some_and(|name|name==".DS_Store"));
+        let ignored=ignored||(matches!(tree,PolicyTree::Runtime|PolicyTree::Tooling)&&path.file_name().is_some_and(|name|name==".DS_Store"));
         record_policy_input(root,path,if ignored{"ignored-file"}else{"file"},!ignored,false,values)?;
     } else if ignored {record_policy_input(root,path,"ignored-nonregular",false,false,values)?;}
     else {return Err("Nonregular policy input cannot qualify a core receipt.".into());}
@@ -138,7 +146,18 @@ fn core_policy_footprint(root:&Path)->Result<BTreeMap<String,PolicyInput>> {
             }
             policy_input_tree(root,&path,PolicyTree::Product,&mut values).map_err(|e|format!("{relative}: {e}"))?;
         }
-    } Ok(values)
+    }
+    // Keep the helper roots and Cargo-output semantics aligned with rust_only_policy.rs.
+    for name in ["Tests","scripts","bench","rust/tests","rust/scripts","rust-native/tests","rust-native/scripts"] {
+        let path=root.join(name);
+        match fs::symlink_metadata(&path) {
+            Err(error) if error.kind()==std::io::ErrorKind::NotFound=>continue,
+            Err(error)=>return Err(error.to_string()),
+            Ok(metadata) if metadata.is_symlink()||!metadata.is_dir()=>return Err("Tooling policy root must be a real directory.".into()),
+            Ok(_)=>policy_input_tree(root,&path,PolicyTree::Tooling,&mut values)?,
+        }
+    }
+    Ok(values)
 }
 fn core_policy_build_command(target: &str) -> Result<Vec<String>> {
     artifact_paths(target)?;
@@ -4644,6 +4663,10 @@ mod tests {
     #[test]
     fn core_build_link_smoke_receipt_requires_current_policy_source_artifact_and_both_gates() {
         let fixture=core_policy_fixture();let root=&fixture.0;
+        let helper=root.join("scripts/helper.rs");
+        fs::create_dir_all(helper.parent().unwrap()).unwrap();
+        let helper_bytes=b"fn main() {}\n";
+        fs::write(&helper,helper_bytes).unwrap();
         let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
         let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
         let before=execute_core_policy(root,&lease,&artifact,"before").unwrap();let after=execute_core_policy(root,&lease,&artifact,"after").unwrap();
@@ -4652,6 +4675,13 @@ mod tests {
         let path=root.join(".build/receipts/pure-core-oracle.json");
         let save=|value:&CoreReceipt|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
         save(&receipt);verify_core(root,&lease).unwrap();
+        fs::write(&helper,b"fn main() { let changed = true; }\n").unwrap();
+        let captured=tool_capture(root,&lease,&core_policy_arguments(&receipt.policy.artifact)).unwrap();
+        assert!(captured.status.success());
+        assert_eq!(validation::rust_policy_result(&captured.stdout).unwrap(),receipt.policy.after.result);
+        assert_eq!(verify_core(root,&lease).unwrap_err(),"Core policy input path/type/content footprint changed.");
+        fs::write(&helper,helper_bytes).unwrap();
+        verify_core(root,&lease).unwrap();
         let good=serde_json::to_value(&receipt).unwrap();
         for mutation in ["command-scratch", "outcome", "scope", "missing-modulemap", "wrong-binary"] {
             let mut changed=good.clone();
@@ -4690,14 +4720,33 @@ mod tests {
         save(&receipt);fs::write(root.join("rust-native/src/main.rs"),b"changed bound runtime fixture").unwrap();assert!(verify_core(root,&lease).is_err());
     }
     #[test]
-    fn core_rust_policy_footprint_keeps_pruning_and_refuses_tooling_links() {
+    fn core_rust_policy_footprint_binds_tooling_and_keeps_cargo_pruning_and_link_refusal() {
         use std::os::unix::fs::symlink;
         let fixture=core_policy_fixture();let root=&fixture.0;
-        fs::create_dir_all(root.join("rust-native/scripts")).unwrap();
+        for name in ["Tests","scripts","bench","rust/tests","rust/scripts","rust-native/tests","rust-native/scripts"] {
+            let path=root.join(name).join("helper.rs");
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path,b"// owned helper source").unwrap();
+            let values=core_policy_footprint(root).unwrap();
+            assert_eq!(values[&format!("{name}/helper.rs")].sha256,Some(digest(&path).unwrap()));
+        }
+        let crate_root=root.join("bench/fixture");
+        fs::create_dir_all(crate_root.join("target")).unwrap();
+        fs::write(crate_root.join("Cargo.toml"),b"# owned crate metadata").unwrap();
+        let ds_store=root.join("scripts/.DS_Store");
+        fs::write(&ds_store,b"owned ignored metadata").unwrap();
         let before=core_policy_footprint(root).unwrap();
-        fs::create_dir_all(root.join("rust-native/scripts/__pycache__")).unwrap();
-        fs::write(root.join("rust-native/scripts/__pycache__/owned.py"),b"// owned ignored tooling data").unwrap();
+        fs::write(crate_root.join("target/owned.py"),b"// owned generated output").unwrap();
+        fs::write(&ds_store,b"changed ignored metadata").unwrap();
         assert_eq!(serde_json::to_value(&before).unwrap(),serde_json::to_value(core_policy_footprint(root).unwrap()).unwrap());
+        // A target directory without Cargo metadata is source, not generated output.
+        let nested=root.join("scripts/target/helper.rs");
+        fs::create_dir_all(nested.parent().unwrap()).unwrap();
+        fs::write(&nested,b"// owned nested source").unwrap();
+        assert!(core_policy_footprint(root).unwrap().contains_key("scripts/target/helper.rs"));
+        symlink(crate_root.join("target"),root.join("scripts/linked-output")).unwrap();
+        assert!(core_policy_footprint(root).is_err());
+        fs::remove_file(root.join("scripts/linked-output")).unwrap();
         fs::remove_dir_all(root.join("rust-native/scripts")).unwrap();
         fs::create_dir(root.join("owned-link-target")).unwrap();
         symlink(root.join("owned-link-target"),root.join("rust-native/scripts")).unwrap();
