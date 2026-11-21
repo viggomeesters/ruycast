@@ -1798,6 +1798,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["Healthy menu icon has template status true.", "Unhealthy menu icon has template status false."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.partialDateValidity"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift Polish partial-date validity assertion retired",
+            "scope": "Only the Swift assertion that `in 3` is invalid is retired. The input, submit/refusal assertion, captures, frozen-date check, and --check-polish route remain active.",
+            "nativeSteps": ["unit", "task-date-process"],
+            "nativeCases": ["task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock", "ui_completion::task_date"],
+            "originalAssertions": ["The partial date `in 3` is invalid.", "Submitting it leaves the command form open and does not execute it."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift default management-command assertion retired",
@@ -7897,6 +7906,22 @@ mod tests {
         assert!(gate.native_cases.contains(&"management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"));
     }
     #[test]
+    fn polish_partial_date_assertion_is_retired_and_crosswalked() {
+        let mapping = inventory("settings").unwrap();
+        let partial_date = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.partialDateValidity"];
+        assert_eq!(partial_date["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(partial_date["status"], "source-qualified-rust-case-crosswalk; duplicate Swift Polish partial-date validity assertion retired");
+        assert_eq!(partial_date["nativeSteps"], serde_json::json!(["unit", "task-date-process"]));
+        assert_eq!(partial_date["nativeCases"], serde_json::json!(["task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock", "ui_completion::task_date"]));
+        assert_eq!(partial_date["productionAccepted"], false);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let polish_source = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
+        assert!(polish_source.contains("state.inlineInput=\"in 3\""));
+        assert!(polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
+        assert!(!polish_source.contains("Partial date accepted"));
+        assert!(polish_source.contains("Invalid date executed or discarded input"));
+    }
+    #[test]
     fn polish_catalog_source_pin_matches_current_catalog_bytes() {
         let (path, bytes, expected) = settings_sources("--check-polish")
             .iter()
@@ -8152,7 +8177,7 @@ mod tests {
             ("native_choice_host_process::", "rust-native/tests/native_choice_host_process.rs"),
         ];
         for (id, count, input_count, complete) in [
-            ("--check-polish", 10, 32, true),
+            ("--check-polish", 14, 32, true),
             ("--check-feedback", 23, 36, true),
             ("--check-actions-menu", 11, 25, true),
             ("--check-interactions", 16, 44, true),
