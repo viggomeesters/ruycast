@@ -487,6 +487,80 @@ mod tests {
     }
 
     #[test]
+    fn failed_reopen_releases_published_preview_and_clears_on_deselect() {
+        use std::{
+            os::unix::fs::DirBuilderExt,
+            sync::Arc,
+            time::{Duration, Instant},
+        };
+
+        let parent = PathBuf::from(
+            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
+                .expect("Owned fixture parent required"),
+        );
+        let root = parent.join(format!(
+            "clipboard-preview-failed-reopen-{}",
+            std::process::id()
+        ));
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&root)
+            .unwrap();
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+
+        let clip = one_pixel_image_clip(&root, "failed-reopen-owner");
+        let asset = root.join(clip.data_file.as_deref().unwrap());
+        let mut worker = Worker::new(false).unwrap();
+        worker.load(&root, Some(&clip));
+        let until = Instant::now() + Duration::from_secs(3);
+        while worker.loading && Instant::now() < until {
+            worker.poll();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            !worker.loading,
+            "Initial preview decode exceeded its deadline"
+        );
+        assert!(worker.error.is_none());
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+        let previous = worker.image.as_ref().expect("Initial preview must publish");
+        assert_eq!((previous.width, previous.height), (1, 1));
+        let previous_weak = Arc::downgrade(previous);
+
+        std::fs::write(&asset, b"invalid owned image").unwrap();
+        worker.load(&root, Some(&clip));
+        assert!(worker.loading);
+        assert!(worker.image.is_none());
+        assert!(worker.error.is_none());
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+        assert!(previous_weak.upgrade().is_none());
+        let until = Instant::now() + Duration::from_secs(3);
+        while worker.loading && Instant::now() < until {
+            worker.poll();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            !worker.loading,
+            "Failed preview decode exceeded its deadline"
+        );
+        assert!(worker.image.is_none());
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+        assert!(worker.error.is_some(), "Decode failure must be surfaced");
+
+        worker.load(&root, None);
+        assert!(!worker.loading);
+        assert!(worker.image.is_none());
+        assert!(worker.id.is_none());
+        assert!(worker.error.is_none());
+    }
+
+    #[test]
     fn decoded_preview_cancelled_before_poll_is_not_published_and_released() {
         use std::{
             os::unix::fs::DirBuilderExt,
