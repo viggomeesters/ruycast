@@ -267,10 +267,16 @@ fn line(
     }
 }
 
+pub(crate) struct Invocation {
+    pub id: String,
+    pub at: String,
+}
+
 pub(crate) fn run(
     path: &Path,
     command: &Command,
     home: &Path,
+    invocation: Option<&Invocation>,
     deadline: Option<Instant>,
     mut cancelled: impl FnMut() -> bool,
 ) -> Result<Outcome, String> {
@@ -297,6 +303,19 @@ pub(crate) fn run(
     let startup = Instant::now() + STARTUP;
     let startup = deadline.map_or(startup, |d| d.min(startup));
     let mut launcher = Process::new(path);
+    const INVOCATION_ID: &str = "VIGGOBSIDIAN_INVOCATION_ID";
+    const INVOCATION_AT: &str = "VIGGOBSIDIAN_INVOCATION_AT";
+    const INVOCATION_LAUNCHER: &str = "VIGGOBSIDIAN_INVOCATION_LAUNCHER";
+    launcher
+        .env_remove(INVOCATION_ID)
+        .env_remove(INVOCATION_AT)
+        .env_remove(INVOCATION_LAUNCHER);
+    if let Some(invocation) = invocation {
+        launcher
+            .env(INVOCATION_ID, &invocation.id)
+            .env(INVOCATION_AT, &invocation.at)
+            .env(INVOCATION_LAUNCHER, "Ruycast");
+    }
     launcher
         .arg("__run-script-supervised")
         .stdin(Stdio::piped())
@@ -406,7 +425,7 @@ pub fn probe(
     deadline: Option<Instant>,
     cancelled: impl FnMut() -> bool,
 ) -> Result<Value, String> {
-    let outcome = run(path, command, home, deadline, cancelled)?;
+    let outcome = run(path, command, home, None, deadline, cancelled)?;
     Ok(json!({"response":outcome.response,"capture":outcome.capture}))
 }
 
