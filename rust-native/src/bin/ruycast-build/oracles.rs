@@ -1843,6 +1843,18 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkSnippetChoiceKeyboard.imeReturn"] = serde_json::json!({
+            "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift IME Return assertion retired",
+            "scope": "Only the checkSnippetChoiceKeyboard assertion that Return is unhandled while editing marked text is retired. The helper, caller, result field, plain Return, Escape, arrow, keypad and repeat assertions remain active.",
+            "nativeSteps": ["native-snippet-choice-process-rust"],
+            "nativeCases": ["native_snippet_choice_process::repeat_modifiers_and_marked_text_do_not_submit"],
+            "originalAssertions": ["Return must remain unhandled when the choice keyboard has marked text and text editing is active."],
+            "compatibilityNotes": ["The existing Rust test uses a marked-text NSTextView, dispatches local Return through performKeyEquivalent:, and verifies handled:false with no submit/cancel effects."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-apple-shortcuts").unwrap();
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AppleShortcutChecks.swift::checkAppleShortcuts"] = serde_json::json!({
             "originalSourceSHA256": APPLE_SHORTCUTS_ORACLE_SHA256,
@@ -5520,6 +5532,11 @@ mod tests {
         assert!(!interactions.contains("panel.performKeyEquivalent(with:event)"));
         assert!(interactions.contains("try checkSnippetChoiceKeyboard()"));
         assert!(interactions.contains("\"snippetChoiceKeyboard\":true"));
+        assert!(!interactions.contains("editingText:true,composing:true"));
+        assert!(interactions.contains("panel.performKeyEquivalent(with:key(36))"));
+        assert!(interactions.contains("panel.sendEvent(key(36));model.submit()"));
+        assert!(interactions.contains("cancelPanel.sendEvent(key(53));cancelPanel.sendEvent(key(36))"));
+        assert!(interactions.contains("key(76,[],repeatKey:true)"));
         assert!(interactions.contains("guard submitted,cancelled else"));
         assert!(interactions.contains("state.query=\"quick note\";state.begin(state.selectedCommand!)"));
         assert!(interactions.contains("func featureFixture"));
@@ -7964,6 +7981,15 @@ mod tests {
         assert_eq!(command_k["nativeCases"], serde_json::json!(["actions_process::actions_keyboard_badges_and_escape_keeps_palette"]));
         assert_eq!(command_k["productionAccepted"], false);
         assert!(std::fs::read_to_string(root.join("rust-native/tests/actions_process.rs")).unwrap().contains("fn actions_keyboard_badges_and_escape_keeps_palette()"));
+        let ime = &crosswalk["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkSnippetChoiceKeyboard.imeReturn"];
+        assert_eq!(ime["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
+        assert_eq!(ime["status"], "source-qualified-rust-case-crosswalk; duplicate Swift IME Return assertion retired");
+        assert_eq!(ime["nativeSteps"], serde_json::json!(["native-snippet-choice-process-rust"]));
+        assert_eq!(ime["nativeCases"], serde_json::json!(["native_snippet_choice_process::repeat_modifiers_and_marked_text_do_not_submit"]));
+        assert_eq!(ime["productionAccepted"], false);
+        assert!(gate.required_native_steps.contains(&"native-snippet-choice-process-rust"));
+        assert!(gate.native_cases.contains(&"native_snippet_choice_process::repeat_modifiers_and_marked_text_do_not_submit"));
+        assert!(std::fs::read_to_string(root.join("rust-native/tests/native_snippet_choice_process.rs")).unwrap().contains("fn repeat_modifiers_and_marked_text_do_not_submit()"));
         assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
