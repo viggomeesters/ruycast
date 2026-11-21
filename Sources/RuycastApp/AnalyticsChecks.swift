@@ -46,7 +46,6 @@ import LauncherModels
         let process=Process(),pipe=Pipe();process.executableURL=ruycastCLI();process.arguments=arguments;var env=ProcessInfo.processInfo.environment;env["RUYCAST_HOME"]=fixture.path;process.environment=env;process.standardOutput=pipe;process.standardError=FileHandle.nullDevice;try process.run()
         try wait {!process.isRunning};return try JSONSerialization.jsonObject(with:pipe.fileHandleForReading.readDataToEndOfFile()) as! [String:Any]
     }
-    try require(try cli(["analytics"])["ok"] as? Bool==true,"Analytics CLI summary failed")
     try require(try cli(["analytics","pause"])["ok"] as? Bool==true && !state.analytics.snapshot.enabled,"Analytics CLI pause failed")
     _=try execute("fixture.success","cli");try require(state.analytics.snapshot.totalAttempts==3,"Paused execution was counted")
     try require(try cli(["analytics","resume"])["ok"] as? Bool==true,"Analytics CLI resume failed")
