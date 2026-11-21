@@ -58,12 +58,14 @@ mod catalog_tests {
         let saved: Vec<Command> = serde_json::from_value(serde_json::json!([
             {"id":"my-dashboard","title":"Mine","kind":"builtin","target":"analytics","enabled":false},
             {"id":"builtin.settings","title":"Overridden ID","kind":"url","target":"https://example.test"},
-            {"id":"custom","title":"First","kind":"builtin","target":"open-config","aliases":["custom-config"]}
+            {"id":"custom","title":"First","kind":"builtin","target":"open-config","aliases":["custom-config"]},
+            {"id":"existing.monitor","title":"My Monitor","kind":"builtin","target":"system-monitor"}
         ])).unwrap();
+        assert!(!system(&saved).iter().any(|command|command.target=="system-monitor"));
         let catalog = catalog(&saved);
         assert_eq!(serde_json::to_value(&catalog[..saved.len()]).unwrap(), serde_json::to_value(&saved).unwrap());
         assert_eq!(catalog.len(), 9);
-        assert!(!catalog.iter().any(|c|c.id=="builtin.dashboard"||c.id=="builtin.open-config"));
+        assert!(!catalog.iter().any(|c|matches!(c.id.as_str(),"builtin.dashboard"|"builtin.open-config"|"builtin.system-monitor")));
         for command in &catalog {
             assert_eq!(catalog.iter().filter(|c|c.id==command.id).count(),1);
         }
