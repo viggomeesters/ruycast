@@ -84,8 +84,7 @@ import LauncherModels
     state.selection=0;pump(0.2)
     let first=capture(host,"clipboard-static-before");pump(1.2);let second=capture(host,"clipboard-static-after")
     try require(first==second,"Clipboard timestamps still animate or update while idle")
-    let monitor=SystemMonitorModel();monitor.start();try wait {monitor.snapshot != nil};monitor.stop();let samplesAfterStop=monitor.history.count;pump(2.1)
-    try require(!monitor.active && monitor.history.count==samplesAfterStop,"Monitor kept sampling while closed")
+    let monitor=SystemMonitorModel()
     let actual=ResourceSampler().sample()
     var fixture=actual;fixture.cpuPercent=42.5;fixture.memoryTotal=16*1_073_741_824;fixture.memoryUsed=10*1_073_741_824;fixture.memoryWired=2*1_073_741_824;fixture.memoryCompressed=512*1_048_576
     fixture.batteryPercent=90;fixture.charging=true;fixture.powerSource="AC Power";fixture.downloadBytesPerSecond=1024*420;fixture.uploadBytesPerSecond=1024*32
@@ -99,5 +98,5 @@ import LauncherModels
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
     try require(!window.isVisible,"Resource checks opened a visible window")
-    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"monitorSeparateWindowRoute":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }

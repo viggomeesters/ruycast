@@ -1910,6 +1910,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.monitorStopsSamplingWhenClosed"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; monitor close stops sampling assertion retired",
+            "scope": "Only the standalone Swift model start/stop, 2.1-second idle-history assertion and monitorStopsSamplingWhenClosed result field are retired. A plain monitor model remains for visual fixture setup; controller/window routing and renders remain. Separate process-query, CLI, real-sampler and clipboard preview retirements retain their own scopes.",
+            "nativeCases": ["remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"],
+            "originalAssertions": ["The Swift monitor becomes inactive after stop.", "The Swift monitor history remains unchanged for 2.1 seconds after stop."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5497,6 +5507,9 @@ mod tests {
         assert!(!rich.contains("state.clipboardStore.preview(image)"));
         assert!(!rich.contains("Image preview lost its actual pixels"));
         assert!(!rich.contains("Image or image-file preview failed"));
+        assert!(rich.contains("let monitor=SystemMonitorModel()"));
+        assert!(!rich.contains("Monitor kept sampling while closed"));
+        assert!(!rich.contains("monitorStopsSamplingWhenClosed"));
         assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
         assert!(!rich.contains("Large process lists were not bounded before target registration"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
@@ -5550,6 +5563,13 @@ mod tests {
         assert_eq!(positive_retired["originalAssertions"], serde_json::json!(["Decoded image and local file previews are 240x140.", "Image alpha at (60,70) exceeds 0.9 and red/blue pixels differ.", "Local-file preview width is 240."]));
         assert_eq!(positive_retired["productionAccepted"], false);
         assert!(gate.native_cases.contains(&"clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"));
+        let monitor_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.monitorStopsSamplingWhenClosed"];
+        assert_eq!(monitor_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(monitor_retired["status"], "source-qualified-rust-case-crosswalk; monitor close stops sampling assertion retired");
+        assert_eq!(monitor_retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"]));
+        assert_eq!(monitor_retired["originalAssertions"], serde_json::json!(["The Swift monitor becomes inactive after stop.", "The Swift monitor history remains unchanged for 2.1 seconds after stop."]));
+        assert_eq!(monitor_retired["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"));
         let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
         assert_eq!(lock["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);
