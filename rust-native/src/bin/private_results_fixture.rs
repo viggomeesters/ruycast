@@ -35,9 +35,11 @@ fn main() {
             let value = &args[1];
             let root = PathBuf::from(&args[2]);
             let mode = &args[3];
-            if mode == "project-part" {
+            if mode == "project-part" || mode == "project-part-stale" {
                 if value.is_empty() {
                     println!("{}", serde_json::json!({"ok":true,"choices":{"title":"Project Koppelen","placeholder":"Zoek project, onderdeel of code…","items":[{"id":"project","title":"Example Project","subtitle":"EX · Projectbreed","value":"pinned-project"},{"id":"part","title":"Planning","subtitle":"EX / PLAN · Example Project","value":"pinned-component"}]}}));
+                } else if mode == "project-part-stale" && root.join("stale").exists() {
+                    println!("{}", serde_json::json!({"ok":false,"error":"Project choices are stale. Reload to try again."}));
                 } else {
                     // Append so a duplicate provider submission cannot overwrite its evidence.
                     let mut selected = std::fs::OpenOptions::new().create(true).append(true)
