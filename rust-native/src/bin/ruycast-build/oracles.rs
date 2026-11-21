@@ -2463,6 +2463,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "contractDifferences": ["Offscreen native host captures do not prove physical desktop input, onscreen presentation, or key-to-screen latency."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.recencyWriteAndArgumentPrivacy"] = serde_json::json!({
+            "originalSourceSHA256": "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Launcher recency write conditions and argument privacy map to the existing Rust process test; no launcher dry-run interface is claimed.",
+            "nativeSource": "rust-native/tests/execution_native_process.rs",
+            "originalScenarios": ["successful CLI execution, launcher failure, and dry-run leave ranking empty", "successful launcher execution records exactly one expected command", "argument sentinel is not retained in the ranking file"],
+            "nativeCases": ["execution_native_process::only_real_launcher_success_writes_recency_without_argument_text"],
+            "contractDifferences": ["The old Swift helper invokes dry-run through AppState.execute for a launcher source. Current Rust uses the public CLI dry-run route; the launcher recording API has no dry-run context or launcher dry-run path."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.enabledTypoCliParity"] = serde_json::json!({
             "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
             "status": "source-qualified-rust-case-crosswalk",
@@ -4105,6 +4115,35 @@ mod tests {
         assert_eq!(mapping["validationSteps"], serde_json::json!(["interaction-trace-process"]));
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 2);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["ui_completion::interaction_trace"]));
+        assert_eq!(mapping["contractDifferences"].as_array().unwrap().len(), 1);
+        assert_eq!(mapping["productionAccepted"], false);
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn interaction_launcher_recency_is_crosswalked_to_rust() {
+        let test = include_str!("../../../tests/execution_native_process.rs");
+        let case = test
+            .split_once("fn only_real_launcher_success_writes_recency_without_argument_text()")
+            .unwrap()
+            .1
+            .split_once("\n#[test]")
+            .unwrap()
+            .0;
+        assert!(case.contains("host.rpc_timeout(&json!({\"op\":\"execute\",\"id\":success_id})"));
+        assert!(case.contains("\"dryRun\":true"));
+        assert!(case.contains("\"source\"] == \"launcher\" && entry[\"success\"] == false"));
+        assert!(case.contains("entries.len(), 1"));
+        assert!(case.contains("contains(&sentinel)"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.recencyWriteAndArgumentPrivacy"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da");
+        assert_eq!(mapping["nativeSource"], "rust-native/tests/execution_native_process.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 3);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["execution_native_process::only_real_launcher_success_writes_recency_without_argument_text"]));
         assert_eq!(mapping["contractDifferences"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["productionAccepted"], false);
         assert_eq!(inventory["productionAccepted"], false);
