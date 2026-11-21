@@ -561,6 +561,140 @@ mod tests {
     }
 
     #[test]
+    fn stale_success_cannot_replace_same_id_reopened_preview() {
+        use std::{
+            os::unix::fs::DirBuilderExt,
+            sync::Arc,
+            time::{Duration, Instant},
+        };
+
+        let fixture_parent = PathBuf::from(
+            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
+                .expect("Owned fixture parent required"),
+        );
+        let fixture = fixture_parent.join(format!(
+            "clipboard-preview-stale-success-{}",
+            std::process::id()
+        ));
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&fixture)
+            .unwrap();
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(fixture.clone());
+        std::fs::write(
+            fixture.join(".ruycast-test-fixture"),
+            b"own-disposable-fixture-v1",
+        )
+        .unwrap();
+        let root = fixture.join("profile");
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&root)
+            .unwrap();
+        let clip = one_pixel_image_clip(&root, "same-id-reopen");
+        let mut worker = Worker::new(true).unwrap();
+
+        worker.load(&root, Some(&clip));
+        let until = Instant::now() + Duration::from_secs(3);
+        let old_result = loop {
+            if let Some(result) = worker
+                .state
+                .result
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .take()
+            {
+                break result;
+            }
+            assert!(
+                Instant::now() < until,
+                "Initial preview decode did not finish before its deadline"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        };
+        let (old_generation, old_image) = match old_result {
+            (generation, Ok(Some(image))) => (generation, image),
+            _ => panic!("Expected the initial successful decoded preview"),
+        };
+        assert_eq!(old_generation, worker.generation);
+
+        worker.load(&root, None);
+        let hold = root.join("clipboard-preview-hold");
+        std::fs::write(&hold, b"hold reopened decode at the test boundary").unwrap();
+        worker.load(&root, Some(&clip));
+        let reopened_generation = worker.generation;
+        assert!(reopened_generation > old_generation);
+        let until = Instant::now() + Duration::from_secs(3);
+        while !root.join("clipboard-preview-entered").exists() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            root.join("clipboard-preview-entered").exists(),
+            "Reopened decode did not reach its held boundary"
+        );
+        assert!(worker.loading);
+        assert!(worker.image.is_none());
+        assert!(worker.error.is_none());
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+
+        *worker
+            .state
+            .result
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+            Some((old_generation, Ok(Some(old_image.clone()))));
+        assert!(!worker.poll(), "Stale successful generation was accepted");
+        assert_eq!(worker.generation, reopened_generation);
+        assert!(worker.loading);
+        assert!(worker.image.is_none());
+        assert!(worker.error.is_none());
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+
+        std::fs::remove_file(hold).unwrap();
+        let until = Instant::now() + Duration::from_secs(3);
+        while worker.loading && Instant::now() < until {
+            worker.poll();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(!worker.loading, "Reopened preview exceeded its deadline");
+        assert!(worker.error.is_none());
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+        let current = worker
+            .image
+            .as_ref()
+            .expect("Reopened successful preview must publish")
+            .clone();
+        assert!(!Arc::ptr_eq(&current, &old_image));
+
+        *worker
+            .state
+            .result
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+            Some((old_generation, Ok(Some(old_image))));
+        assert!(
+            !worker.poll(),
+            "Late stale success replaced the current preview"
+        );
+        assert_eq!(worker.generation, reopened_generation);
+        assert!(!worker.loading);
+        assert_eq!(worker.id.as_deref(), Some(clip.id.as_str()));
+        assert!(worker.error.is_none());
+        assert!(Arc::ptr_eq(worker.image.as_ref().unwrap(), &current));
+
+        worker.load(&root, None);
+        assert!(worker.id.is_none());
+        assert!(worker.image.is_none());
+        assert!(worker.error.is_none());
+    }
+
+    #[test]
     fn decoded_preview_cancelled_before_poll_is_not_published_and_released() {
         use std::{
             os::unix::fs::DirBuilderExt,
