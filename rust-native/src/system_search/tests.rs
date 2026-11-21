@@ -1027,6 +1027,62 @@ fn menu_original_identity_must_match_the_complete_captured_identity() {
 }
 
 #[test]
+fn menu_snapshot_tokens_never_redirect_to_replaced_leaf() {
+    let (fixture, provider) = setup();
+    let app = fixture.previous().unwrap();
+    let first = provider
+        .search(Scope::Menus, "Open", Some(app.clone()), &ticket())
+        .unwrap();
+    let repeated = provider
+        .search(Scope::Menus, "Open", Some(app.clone()), &ticket())
+        .unwrap();
+    assert_eq!(first.commands.len(), 1);
+    assert_eq!(repeated.commands.len(), 1);
+    let first_token = first.commands[0].id.clone();
+    let repeated_token = repeated.commands[0].id.clone();
+    assert_ne!(first_token, repeated_token);
+
+    for token in [&first_token, &repeated_token] {
+        provider
+            .execute(token, Some(app.identity), &ticket(), &fixture.activate())
+            .unwrap();
+        assert_eq!(*fixture.effects.lock().unwrap(), ["activate", "AXPress"]);
+        fixture.effects.lock().unwrap().clear();
+    }
+
+    fixture.edit(Element(7), |node| {
+        node.strings.insert("AXTitle".into(), "Quit".into());
+    });
+    let current = provider
+        .search(Scope::Menus, "Quit", Some(app.clone()), &ticket())
+        .unwrap();
+    assert_eq!(current.commands.len(), 1);
+    let current_token = &current.commands[0].id;
+    assert_ne!(*current_token, first_token);
+    assert_ne!(*current_token, repeated_token);
+
+    for stale in [&first_token, &repeated_token] {
+        assert_eq!(
+            provider
+                .execute(stale, Some(app.identity), &ticket(), &fixture.activate())
+                .unwrap_err(),
+            "This menu item changed or is unavailable. Search its menu again."
+        );
+        assert!(fixture.effects.lock().unwrap().is_empty());
+    }
+
+    provider
+        .execute(
+            current_token,
+            Some(app.identity),
+            &ticket(),
+            &fixture.activate(),
+        )
+        .unwrap();
+    assert_eq!(*fixture.effects.lock().unwrap(), ["activate", "AXPress"]);
+}
+
+#[test]
 fn menu_post_activation_item_ancestor_identity_and_trust_are_revalidated() {
     for change in [
         "enabled",
