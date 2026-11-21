@@ -39,7 +39,6 @@ Sources/RuycastApp/BackgroundWork.swift
 Sources/RuycastApp/BrowserTabChecks.swift
 Sources/RuycastApp/BrowserTabs.swift
 Sources/RuycastApp/CaptureTextEditor.swift
-Sources/RuycastApp/ClipboardChecks.swift
 Sources/RuycastApp/ClipboardPreview.swift
 Sources/RuycastApp/ClipboardPreviewChecks.swift
 Sources/RuycastApp/ClipboardSearch.swift
