@@ -1780,6 +1780,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
                 }
             }
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.keyboardHealth"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift keyboard-health tuples retired",
+            "scope": "Only the combined Swift assertion covering three AppState.keyboardHealth preference/trust/conflict tuples is retired. The healthStates output, menu icon, injected configuration-error result, catalog check, captures, and --check-polish route remain active.",
+            "nativeSteps": ["unit"],
+            "nativeCases": ["runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"],
+            "originalAssertions": ["Hyper enabled with Raycast active reports unhealthy.", "Snippet expansion enabled without Accessibility trust reports unhealthy.", "Both preferences disabled remains healthy despite Raycast active and missing Accessibility trust."],
+            "productionAccepted": false
+        });
     }
     if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
@@ -7820,6 +7829,22 @@ mod tests {
         let inventory = inventory("settings").unwrap();
         assert_eq!(inventory["productionAccepted"], false);
         assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn polish_keyboard_health_swift_tuples_are_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Keyboard health misses conflicts or disabled preferences"));
+        assert!(source.contains("healthStates"));
+        assert!(source.contains("Fixture configuration failure"));
+        let inventory = inventory("settings").unwrap();
+        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.keyboardHealth"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"]));
+        assert_eq!(retired["originalAssertions"].as_array().unwrap().len(), 3);
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.native_cases.contains(&"runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"));
     }
     #[test]
     fn polish_catalog_source_pin_matches_current_catalog_bytes() {
