@@ -115,6 +115,71 @@ fn choices_filter_literal_selection_and_ok_only_closes() {
     );
 }
 #[test]
+fn original_project_part_navigation_and_single_submit() {
+    let host = GracefulBridge(host("project-part"));
+    let initial = open(&host);
+    let token = initial["scriptResult"].get("token").unwrap().clone();
+    assert_eq!(
+        initial["scriptResult"]["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["project", "part"]
+    );
+    assert_eq!(initial["scriptResult"]["selection"], 0);
+    assert!(!host.base.join("selected").exists());
+
+    // These are NSEvents dispatched inside the owned hidden native host.
+    actions::key(&host, 125, 0, "\u{f701}", false);
+    view(&host, |r| r["selection"] == 1);
+    host.probe("query", json!({"query":"EX PLAN"}));
+    let filtered = view(&host, |r| r["query"] == "EX PLAN");
+    assert_eq!(filtered["scriptResult"]["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(filtered["scriptResult"]["rows"][0]["id"], "part");
+    assert_eq!(filtered["scriptResult"]["selection"], 0);
+
+    host.probe("query", json!({"query":"nothing"}));
+    let empty = view(&host, |r| r["query"] == "nothing");
+    assert!(empty["scriptResult"]["rows"].as_array().unwrap().is_empty());
+    assert!(empty["scriptResult"]["selection"].is_null());
+    actions::key(&host, 36, 0, "\r", false);
+    host.settled(|s| s["scriptsRunning"] == 0);
+    let unmatched = view(&host, |r| r["query"] == "nothing");
+    assert_eq!(unmatched["scriptResult"].get("token").unwrap(), &token);
+    assert_eq!(unmatched["scriptResult"]["busy"], false);
+    assert!(!host.base.join("selected").exists());
+    assert!(!host.base.join("ready").exists());
+
+    host.probe("query", json!({"query":"PLAN"}));
+    let plan = view(&host, |r| r["query"] == "PLAN");
+    assert_eq!(plan["scriptResult"]["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(plan["scriptResult"]["rows"][0]["id"], "part");
+    assert_eq!(plan["scriptResult"]["selection"], 0);
+    actions::key(&host, 36, 0, "\r", false);
+    wait_exists(&host.base.join("ready"));
+    view(&host, |r| r["busy"] == true);
+    // Hold the provider response until the second Return crosses the native boundary.
+    actions::key(&host, 36, 0, "\r", false);
+    fs::write(host.base.join("release"), "go").unwrap();
+    host.wait(|s| s["scriptsRunning"] == 0);
+    actions::view(&host, |v| v["scriptResult"].is_null());
+    assert_eq!(
+        fs::read_to_string(host.base.join("selected")).unwrap(),
+        "pinned-component"
+    );
+
+    let fresh = open(&host);
+    assert_ne!(fresh["scriptResult"].get("token").unwrap(), &token);
+    actions::key(&host, 53, 0, "", false);
+    actions::view(&host, |v| v["scriptResult"].is_null());
+    assert_eq!(
+        fs::read_to_string(host.base.join("selected")).unwrap(),
+        "pinned-component"
+    );
+}
+#[test]
 fn reload_replaces_token_and_stale_button_is_detached() {
     let host = host("close");
     let old = open(&host)["scriptResult"].get("token").unwrap().clone();
