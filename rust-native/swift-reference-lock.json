@@ -101,7 +101,6 @@
     "Sources/RuycastApp/WebsiteIcons.swift": "2708e4accf997b102fe831dd271fab41cf40aa6911a00454e6d0a4ad181aadc8",
     "Sources/RuycastApp/WindowManager.swift": "01b6d2951b64698664e175694407e9df84faf8a08adb84966fd4a3db7f58fd87",
     "Sources/RuycastApp/WindowSearch.swift": "1f4d263bfbffb0c323aaa48f24a7a90783f127e2ffb03ed18a79bb924e1218e9",
-    "Sources/RuycastApp/WindowSearchChecks.swift": "cae0f60d635d6aa5af41d8fe8ecc9bc8102c28e49e2aec87a7e53462829ddf7f",
-    "Sources/RuycastApp/main.swift": "d0e1b3f553733c98e0432370f60ddc7ebe089d17ece0283201382cb4b88f9b38"
+    "Sources/RuycastApp/main.swift": "a4d02446433eb1cf7dee9ebaca29b6e6e38a6bf15b1b3392f25a885c8724523f"
   }
 }
