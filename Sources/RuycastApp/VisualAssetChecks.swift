@@ -3,27 +3,6 @@ import SwiftUI
 import LauncherCore
 import LauncherModels
 
-@MainActor func renderVisualAssets(_ directory:String) throws {
-    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
-    let output=URL(fileURLWithPath:directory);try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)
-    for dark in [false,true] {
-        let view=NSHostingView(rootView:VStack(alignment:.leading,spacing:14) {
-            HStack {Text("Left Half");Spacer();ShortcutBadge(value:"ctrl+alt+shift+cmd+left")}
-            HStack {Text("Quick Note");Spacer();ShortcutBadge(value:"ctrl+alt+shift+cmd+n")}
-            HStack {Text("Clipboard History");Spacer();ShortcutBadge(value:"ctrl+alt+shift+cmd+v")}
-            HStack {Text("Force Quit");Spacer();ShortcutBadge(value:"ctrl+alt+delete")}
-            HStack {Text("Dictate Voice");Spacer();ShortcutBadge(value:"ctrl+left-control")}
-            HStack {Text("Safari");Spacer();ShortcutBadge(value:"right-cmd+s")}
-            HStack {Text("Finder");Spacer();ShortcutBadge(value:"left-cmd+f")}
-            HStack {Text("App Settings");Spacer();ShortcutBadge(value:"cmd+,")}
-        }.font(.system(size:13,weight:.medium)).padding(22).frame(width:420,height:340).background(Color(nsColor:.windowBackgroundColor)))
-        view.appearance=NSAppearance(named:dark ? .darkAqua:.aqua);view.frame=NSRect(x:0,y:0,width:420,height:340);view.layoutSubtreeIfNeeded()
-        guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("Could not render shortcut preview.")};view.cacheDisplay(in:view.bounds,to:bitmap)
-        guard let png=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Could not encode shortcut preview.")}
-        try png.write(to:output.appendingPathComponent(dark ? "shortcuts-dark.png":"shortcuts-light.png"))
-    }
-}
-
 @MainActor func renderWebsiteIcons(_ directory:String) throws -> [String:Any] {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let examples=[("GitHub","https://github.com/private?never-sent=1"),("YouTube","https://www.youtube.com/feed/subscriptions"),("Notion","https://www.notion.so/workspace")]

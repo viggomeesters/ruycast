@@ -2630,10 +2630,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["a CLI dry-run returns without execution or analytics side effects"],
             "nativeCases": ["startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback", "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::renderVisualAssets"] = serde_json::json!({
+            "originalSourceSHA256": "e0b3a9b53aa1041019cc10d7214e42727ed0e2f79162c6144afc35be2725ba78",
+            "status": "source-retired; unconsumed development preview",
+            "retiredOutputs": ["shortcuts-dark.png", "shortcuts-light.png"],
+            "scope": "No tracked source, script, documentation or asset references these generated shortcut previews; no Rust renderer replaces this unused output contract."
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::checkVisualAssets"] = serde_json::json!({
             "originalSourceSHA256": "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
             "status": "source-qualified-rust-case-crosswalk; Swift check route retired",
-            "scope": "Only the visual-assets behavior check and its command dispatch are retired. The independent renderVisualAssets and renderWebsiteIcons generators remain active in the Swift source file.",
+            "scope": "Only the visual-assets behavior check and its command dispatch are retired. The unconsumed shortcut-preview renderer is retired separately; renderWebsiteIcons remains active in the Swift source file.",
             "nativeCases": ["presentation::icon_tests::original_compact_keycaps_and_sided_accessibility_labels", "website_icons::tests::origin_and_candidate_privacy", "website_icons::tests::actual_transport_stream_bounds_status_cookies_and_redirects", "website_icons::tests::four_workers_cache_publication_and_cancel_join", "website_icons::tests::two_thousand_origins_bound_admission_and_deduplicate_while_four_workers_wait", "website_icons::tests::cache_special_files_and_close_are_bounded", "website_icons::tests::active_download_close_cancels_and_joins_without_cache_publication", "native_rows::check_cache", "native_process::loaded_config_alias_unicode_disabled_and_native_labels"]
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::file"] = serde_json::json!({
@@ -4561,17 +4567,21 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let source = std::fs::read_to_string(root.join("Sources/RuycastApp/VisualAssetChecks.swift")).unwrap();
         assert!(!source.contains("func checkVisualAssets()"));
-        assert!(source.contains("func renderVisualAssets("));
+        assert!(!source.contains("func renderVisualAssets("));
         assert!(source.contains("func renderWebsiteIcons("));
         let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
         assert!(!main.contains("if args.first==\"--check-visual-assets\""));
-        assert!(main.contains("if args.first==\"--render-visual-assets\""));
+        assert!(!main.contains("if args.first==\"--render-visual-assets\""));
         assert!(main.contains("if args.first==\"--render-website-icons\""));
         let check_inventory = inventory("check").unwrap();
         let retired = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::checkVisualAssets"];
         assert_eq!(retired["originalSourceSHA256"], "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0");
         assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift check route retired");
         assert_eq!(retired["nativeCases"], serde_json::to_value(gate.native_cases).unwrap());
+        let retired_preview = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::renderVisualAssets"];
+        assert_eq!(retired_preview["originalSourceSHA256"], "e0b3a9b53aa1041019cc10d7214e42727ed0e2f79162c6144afc35be2725ba78");
+        assert_eq!(retired_preview["status"], "source-retired; unconsumed development preview");
+        assert_eq!(retired_preview["retiredOutputs"], serde_json::json!(["shortcuts-dark.png", "shortcuts-light.png"]));
         assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
