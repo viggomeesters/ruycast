@@ -7,7 +7,7 @@ pub use ruycast_native::responder_edit::perform;
 use objc2::rc::Retained;
 use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{
-    NSApplication, NSBackingStoreType, NSMenu, NSPanel, NSTextField,
+    NSApplication, NSBackingStoreType, NSMenu, NSPanel, NSPasteboard, NSPasteboardTypeString, NSTextField,
     NSUserInterfaceItemIdentification, NSView, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{ns_string, NSObject, NSPoint, NSRange, NSRect, NSSize, NSString};
@@ -32,6 +32,51 @@ define_class!(
         }
     }
 );
+struct NamedEditState {
+    board: Retained<NSPasteboard>,
+    pastes: Cell<u32>,
+    failed: Cell<bool>,
+}
+define_class!(
+    #[unsafe(super = NSTextView)]
+    #[thread_kind = MainThreadOnly]
+    #[ivars = NamedEditState]
+    struct NamedBoardEditor;
+    impl NamedBoardEditor {
+        #[unsafe(method(paste:))]
+        fn paste_owned(&self, _: Option<&NSObject>) {
+            let Some(text) = self.ivars().board.stringForType(unsafe { NSPasteboardTypeString }) else {
+                self.ivars().failed.set(true);
+                return;
+            };
+            self.ivars().pastes.set(self.ivars().pastes.get() + 1);
+            unsafe { let _: () = msg_send![self, insertText: &*text, replacementRange: self.selectedRange()]; }
+        }
+        #[unsafe(method(copy:))]
+        fn copy_owned(&self, _: Option<&NSObject>) { self.copy_to_owned_board(); }
+        #[unsafe(method(cut:))]
+        fn cut_owned(&self, _: Option<&NSObject>) {
+            if self.copy_to_owned_board() {
+                unsafe { let _: () = msg_send![self, insertText: ns_string!(""), replacementRange: self.selectedRange()]; }
+            }
+        }
+    }
+);
+impl NamedBoardEditor {
+    fn copy_to_owned_board(&self) -> bool {
+        let text = self.string();
+        let range = self.selectedRange();
+        if range.location.checked_add(range.length).is_none_or(|end| end > text.length()) {
+            self.ivars().failed.set(true);
+            return false;
+        }
+        let selected = text.substringWithRange(range);
+        self.ivars().board.clearContents();
+        let ok = self.ivars().board.setString_forType(&selected, unsafe { NSPasteboardTypeString });
+        if !ok { self.ivars().failed.set(true); }
+        ok
+    }
+}
 fn key(panel: &NSWindow, value: &str, shift: bool) -> Result<Retained<NSEvent>, String> {
     key_with_flags(panel, value, Flags::Command | if shift { Flags::Shift } else { Flags::empty() })
 }
@@ -115,6 +160,72 @@ pub fn check(panel: &NSPanel, view: &NSView, mtm: MainThreadMarker) -> Result<()
     check_snippet_replacement(&editor)?;
     panel.makeFirstResponder(None);
     check_menu(mtm, &editor)?;
+    check_owned_text_roundtrip(panel, view, mtm)?;
+    Ok(())
+}
+
+/// Original private-board text assertions; the general pasteboard is never used.
+fn check_owned_text_roundtrip(panel: &NSPanel, view: &NSView, main: MainThreadMarker) -> Result<(), String> {
+    let board = NSPasteboard::pasteboardWithUniqueName();
+    struct Release<'a>(&'a NSPasteboard);
+    impl Drop for Release<'_> {
+        fn drop(&mut self) {
+            self.0.clearContents();
+            unsafe { let _: () = msg_send![self.0, releaseGlobally]; }
+        }
+    }
+    let _release = Release(&board);
+    let expected = "café 🦀\n\nTwo  spaces";
+    board.clearContents();
+    if !board.setString_forType(&NSString::from_str(expected), unsafe { NSPasteboardTypeString }) {
+        return Err("owned editing pasteboard seed failed".into());
+    }
+    let editor: Retained<NamedBoardEditor> = unsafe {
+        let editor = NamedBoardEditor::alloc(main).set_ivars(NamedEditState {
+            board: board.clone(), pastes: Cell::new(0), failed: Cell::new(false),
+        });
+        msg_send![super(editor), initWithFrame: NSRect::new(NSPoint::new(0.,0.), NSSize::new(100.,40.))]
+    };
+    view.addSubview(&editor);
+    struct Remove<'a>(&'a NSPanel, &'a NSTextView);
+    impl Drop for Remove<'_> {
+        fn drop(&mut self) {
+            self.0.makeFirstResponder(None);
+            self.1.removeFromSuperview();
+        }
+    }
+    let _remove = Remove(panel, &editor);
+    editor.setString(ns_string!(""));
+    editor.setSelectedRange(NSRange::new(0, 0));
+    editor.setAllowsUndo(true);
+    if !panel.makeFirstResponder(Some(&editor)) {
+        return Err("owned editing responder failed".into());
+    }
+    for value in ["v", "a", "c", "x"] {
+        if value == "c" || value == "x" { board.clearContents(); }
+        let handled: bool = unsafe { msg_send![panel, performKeyEquivalent: &*key(panel, value, false)?] };
+        if !handled || editor.ivars().failed.get() {
+            return Err(format!("owned text editing {value} failed"));
+        }
+        match value {
+            "v" if editor.string().to_string() != expected || editor.ivars().pastes.get() != 1 =>
+                return Err("owned paste lost exact text or dispatched more than once".into()),
+            "a" if editor.selectedRange() != NSRange::new(0, expected.encode_utf16().count()) =>
+                return Err("owned Select All lost the complete UTF16 range".into()),
+            "c" | "x" => {
+                if board.stringForType(unsafe { NSPasteboardTypeString }).map(|s|s.to_string()).as_deref() != Some(expected) {
+                    return Err(format!("owned {value} lost exact pasteboard text"));
+                }
+                if editor.string().to_string() != if value == "x" { "" } else { expected } {
+                    return Err(format!("owned {value} changed the wrong editor text"));
+                }
+            }
+            _ => {}
+        }
+    }
+    if panel.isVisible() || panel.isKeyWindow() || panel.isMainWindow() {
+        return Err("owned text editing displayed or focused a window".into());
+    }
     Ok(())
 }
 
