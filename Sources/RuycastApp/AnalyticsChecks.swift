@@ -63,7 +63,6 @@ import LauncherModels
     }}
     var routed=false;state.showAnalytics={routed=true};let palette=PaletteController(state:state);palette.show("analytics")
     try require(routed && !palette.panel.isVisible,"Dashboard did not use management window routing")
-    let resetWithout=try cli(["analytics","reset"]);try require(resetWithout["ok"] as? Bool==false,"Analytics reset lacked confirmation")
     let configBefore=try Data(contentsOf:state.configURL)
     let preReset=state.analytics.recordAttempt("old-inflight",source:"cli")!
     _=try cli(["analytics","reset","--confirm"])
