@@ -5030,7 +5030,7 @@ fn native_probe(
                     .ok_or("Wrong inline field editor")?;
                 let marked: bool = unsafe { msg_send![text, hasMarkedText] };
                 return Ok(
-                    serde_json::json!({"ok":true,"result":{"text":text.string().to_string(),"marked":marked,"canUndo":text.undoManager().is_some_and(|u|u.canUndo()),"editorAddress":text as *const _ as usize,"selectedLocation":text.selectedRange().location,"selectedLength":text.selectedRange().length,"pending":state.surface.pending.get().is_some(),"enabled":state.input.isEnabled(),"query":state.session.borrow().query(),"token":state.run_inline_token.get()}}),
+                    serde_json::json!({"ok":true,"result":{"text":text.string().to_string(),"marked":marked,"canUndo":text.undoManager().is_some_and(|u|u.canUndo()),"editorAddress":text as *const _ as usize,"focused":state.panel.firstResponder().is_some_and(|r|std::ptr::eq::<objc2::runtime::AnyObject>(&*r as *const _ as *const _,text as *const _ as *const _)),"selectedLocation":text.selectedRange().location,"selectedLength":text.selectedRange().length,"pending":state.surface.pending.get().is_some(),"enabled":state.input.isEnabled(),"query":state.session.borrow().query(),"token":state.run_inline_token.get()}}),
                 );
             }
             Some("run-inline-type") => {

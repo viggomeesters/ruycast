@@ -29,8 +29,25 @@ fn lower_contains(v: &Value, expected: &str) -> bool {
 fn actions_keyboard_badges_and_escape_keeps_palette() {
     let h = host();
     show(&h, "finder");
-    k(&h, 40, CMD, "k");
+    let original_config=fs::read(&h.config).unwrap();
+    let original_logs=h.rpc(&json!({"op":"logs"}))["result"].clone();
+    let assert_search_focus=|| {
+        let text=probe(&h,"run-inline-read");
+        assert_eq!(text["focused"],true);
+        assert_eq!(text["text"],"finder");
+        assert_eq!(text["query"],"finder");
+        let current=probe(&h,"read");
+        assert_eq!(current["selectedId"],"app.finder");
+        assert_eq!(current["input"],"finder");
+        assert_eq!(current["windowShown"],false);
+    };
+    assert_search_focus();
+    assert_eq!(k(&h,40,CMD,"k")["keyEventHandled"],true);
     let value = view(&h, |v| v["actionsVisible"] == true);
+    assert_eq!(value["selectedId"],"app.finder");
+    assert_eq!(value["input"],"finder");
+    assert_eq!(value["formVisible"],false);
+    assert_eq!(value["windowShown"],false);
     for (label, badge) in [("Set Alias…", "⌥"), ("Set Hotkey…", "⇧")] {
         assert!(value["actionLabels"].as_array().unwrap().iter().any(|v| v
             .as_str()
@@ -45,9 +62,16 @@ fn actions_keyboard_badges_and_escape_keeps_palette() {
         h.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"],
         true
     );
+    assert_search_focus();
     key(&h, 43, CMD | OPT, ",", true);
     assert_eq!(probe(&h, "read")["formVisible"], false);
-    alias(&h);
+    assert_search_focus();
+    let binding=alias(&h);
+    assert_eq!(binding["keyEventHandled"],true);
+    assert_eq!(binding["editorId"],"app.finder");
+    assert_eq!(binding["input"],"finder");
+    assert_eq!(binding["modelQuery"],"finder");
+    assert_eq!(binding["windowShown"],false);
     k(&h, 53, 0, "");
     saved(&h);
     k(&h, 40, CMD, "k");
@@ -60,6 +84,9 @@ fn actions_keyboard_badges_and_escape_keeps_palette() {
     });
     k(&h, 53, 0, "");
     saved(&h);
+    assert_search_focus();
+    assert_eq!(fs::read(&h.config).unwrap(),original_config);
+    assert_eq!(h.rpc(&json!({"op":"logs"}))["result"],original_logs);
 }
 #[test]
 fn alias_save_clear_and_cli_resolution() {
