@@ -1117,6 +1117,7 @@ mod tests {
         c.configure(Some(false), None).unwrap();
         assert!(c.attempt("not recorded", "snippet").is_none());
         c.complete(a, true, 7., "invalid-private-error", None);
+        assert_eq!(c.snapshot().total_attempts, 1);
         assert_eq!(c.snapshot().total_successes, 1);
         c.configure(Some(true), None).unwrap();
         let old = c.attempt("old", "snippet").unwrap();

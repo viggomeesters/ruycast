@@ -1084,7 +1084,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-toolchain.toml", include_bytes!("../../../../rust-toolchain.toml"), "d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "15c93afc3731db2ca870db6d824dcc90bc6f0f367fe9d3ca12497b90f26df97a"),
-            ("rust-native/src/analytics.rs", include_bytes!("../../analytics.rs"), "841110c17a7146d56d8154b5627b54febd68321434b5e6823e612ecd4a9619ba"),
+            ("rust-native/src/analytics.rs", include_bytes!("../../analytics.rs"), "71dc8711ea12fa9f2c3f5457d890bd5dcd24f22b41c815764b6d655b1ab819c5"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
         "--check-window-search" => &[
@@ -1334,7 +1334,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/analytics.rs",
                 include_bytes!("../../analytics.rs"),
-                "841110c17a7146d56d8154b5627b54febd68321434b5e6823e612ecd4a9619ba",
+                "71dc8711ea12fa9f2c3f5457d890bd5dcd24f22b41c815764b6d655b1ab819c5",
             ),
             (
                 "rust-native/src/analytics_dashboard.rs",
