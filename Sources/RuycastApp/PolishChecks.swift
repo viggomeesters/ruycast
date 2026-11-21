@@ -115,7 +115,6 @@ import LauncherModels
     state.inlineDatePreview=frozenDate;state.submitInlineInput();state.submitInlineInput()
     let dateEnd=Date().addingTimeInterval(8);while state.busy,Date()<dateEnd {pump(0.02)}
     try require(!state.busy && state.message.isEmpty && state.counts[dateWriter.id]==1,"Date Enter failed or ran twice")
-    try require(try String(contentsOf:savedDate,encoding:.utf8)==frozenDate.value,"Enter did not send the displayed date")
     state.cancelInlineInput();state.message=""
     state.mode="snippets";state.query="";state.config.commands=[
         Command(id:"fixture.greet",title:"Greeting",kind:"snippet",target:"Hello",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";greetsnippet"),

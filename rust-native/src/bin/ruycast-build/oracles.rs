@@ -1807,6 +1807,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["The partial date `in 3` is invalid.", "Submitting it leaves the command form open and does not execute it."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.frozenDateSubmissionValue"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift frozen-date submission value assertion retired",
+            "scope": "Only the Swift file readback comparison is retired. The dateWriter fixture, frozen preview, double submit, execution count, marker behavior, captures, and --check-polish route remain active.",
+            "nativeSteps": ["task-date-process"],
+            "nativeCases": ["ui_completion::task_date"],
+            "originalAssertions": ["The script receives exactly the frozen date shown to the user."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift default management-command assertion retired",
@@ -7920,6 +7929,22 @@ mod tests {
         assert!(polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
         assert!(!polish_source.contains("Partial date accepted"));
         assert!(polish_source.contains("Invalid date executed or discarded input"));
+    }
+    #[test]
+    fn polish_frozen_date_submission_value_is_retired_and_crosswalked() {
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.frozenDateSubmissionValue"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift frozen-date submission value assertion retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["task-date-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::task_date"]));
+        assert_eq!(retired["productionAccepted"], false);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
+        assert!(!polish.contains("Enter did not send the displayed date"));
+        assert!(polish.contains("dateWriter.arguments") && polish.contains("date-preview") && polish.contains("{input}") && polish.contains("savedDate.path"));
+        assert!(polish.contains("state.inlineDatePreview=frozenDate;state.submitInlineInput();state.submitInlineInput()"));
+        assert!(polish.contains("state.counts[dateWriter.id]==1"));
     }
     #[test]
     fn polish_catalog_source_pin_matches_current_catalog_bytes() {
