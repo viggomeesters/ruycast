@@ -82,7 +82,6 @@ Sources/RuycastApp/ResourceSampler.swift
 Sources/RuycastApp/RichResourceChecks.swift
 Sources/RuycastApp/ScriptChoiceChecks.swift
 Sources/RuycastApp/ScriptChoiceView.swift
-Sources/RuycastApp/SearchChecks.swift
 Sources/RuycastApp/SettingsChecks.swift
 Sources/RuycastApp/ShortcutBadge.swift
 Sources/RuycastApp/ShortcutRecorder.swift

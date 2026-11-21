@@ -1726,7 +1726,7 @@ fn search_crosswalk(mappings: &serde_json::Value) -> Result<serde_json::Value> {
     }
     Ok(serde_json::json!({
         "status": "source-qualified-rust-case-crosswalk",
-        "scope": "Aggregate search acceptance is owned by the current Rust cases; SwiftPM RuycastApp is compile/link smoke only. SearchChecks.swift retains only searchFixture and benchmarkSearch for --benchmark-search; checkSearch and the --check-search CLI route are retired.",
+        "scope": "Aggregate search acceptance is owned by the current Rust cases; SwiftPM RuycastApp is compile/link smoke only. The former Swift search fixture and --benchmark-search route are retired; the distinct Rust --benchmark-model route remains and is not an AppState timing equivalent. Historical checkSearch mappings and the --check-search retirement are retained.",
         "scenarioIDs": scenario_ids,
         "nativeCases": native_cases,
         "qualifiedCaseSourceBindings": bindings,
