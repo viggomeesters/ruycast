@@ -143,6 +143,27 @@ impl Clipboard {
     pub fn fixture(&self,value:&serde_json::Value,port:&ruycast_native::clipboard_history::CapturePort,events:&mpsc::SyncSender<ruycast_native::control::HostEvent>)->Result<serde_json::Value,String>{
         if !self.fixture||std::env::var("RUYCAST_NATIVE_TEST_CLIPBOARD").as_deref()!=Ok("named")||!ruycast_native::workspace::fixture_installed(&self.home){return Err("Owned clipboard fixture boundary required.".into())}
         if value["checkPerformancePoll"]==true{check_owned_poll(&self.home)?;return Ok(serde_json::json!({"ok":true,"ownedPerformancePoll":true}))}
+        if value["clearBoard"]==true {
+            let board=shared_fixture_board().ok_or("Owned named clipboard board unavailable.")?;
+            board.clearContents();
+            return Ok(serde_json::json!({"cleared":true}));
+        }
+        if value["readCopiedFileURLs"]==true {
+            use objc2::{ClassType,runtime::AnyObject};
+            use objc2_foundation::{NSArray,NSDictionary,NSNumber,NSURL};
+            let board=shared_fixture_board().ok_or("Owned named copy board unavailable.")?;
+            let classes=NSArray::from_slice(&[NSURL::class()]);
+            let only_files=NSNumber::numberWithBool(true);
+            let options=NSDictionary::<objc2_foundation::NSString,AnyObject>::from_slices(&[unsafe{objc2_app_kit::NSPasteboardURLReadingFileURLsOnlyKey}],&[only_files.as_ref()]);
+            let mut urls=vec![];
+            if let Some(values)=unsafe{board.readObjectsForClasses_options(&classes,Some(&options))} {
+                for value in values {
+                    let url=value.downcast::<NSURL>().map_err(|_|"Invalid copied file URL.")?;
+                    urls.push(url.absoluteString().ok_or("Copied file URL has no absolute string.")?.to_string());
+                }
+            }
+            return Ok(serde_json::json!({"fileURLs":urls}));
+        }
         if let Some(operation)=value["creationBoard"].as_str(){
             if std::env::var("RUYCAST_NATIVE_TEST_CREATION_BOARD").as_deref()!=Ok("shared"){return Err("Explicit shared creation board fixture required.".into())}
             if !["read","clear","nontext"].contains(&operation){return Err("Unknown owned creation board operation.".into())}
