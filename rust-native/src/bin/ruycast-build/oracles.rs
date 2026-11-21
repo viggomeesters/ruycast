@@ -7146,6 +7146,32 @@ mod tests {
         );
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
+
+    #[test]
+    fn retired_menu_action_check_has_no_caller_and_preserves_crosswalk() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/MenuActionChecks.swift";
+        assert!(!root.join(retired).exists());
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(!main.contains("--check-menu-actions"));
+        assert!(!main.contains("checkMenuActions"));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"], format!("{:x}", Sha256::digest(main.as_bytes())));
+        assert_eq!(MENU_ACTIONS_ORACLE_SHA256, "41d224340e00d1970fb953aad90c3c4a539e6af84634b1aa04b90972c166f1ed");
+        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        assert_eq!(public["schema"], "ruycast.public-source.v2");
+        assert!(public["files"].get(retired).is_none());
+        for path in ["Sources/RuycastApp/main.swift", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json"] {
+            assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-menu-actions").unwrap();
+        assert_eq!(gate.native_cases.len(), 22);
+        assert_eq!(gate.required_native_steps, &["unit", "system-search-cli-process", "system-search-sdk"]);
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
+    }
     #[test]
     fn clipboard_history_crosswalk_binds_current_rust_consumer_and_existing_steps() {
         let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
