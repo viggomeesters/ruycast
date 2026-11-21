@@ -1789,6 +1789,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["Hyper enabled with Raycast active reports unhealthy.", "Snippet expansion enabled without Accessibility trust reports unhealthy.", "Both preferences disabled remains healthy despite Raycast active and missing Accessibility trust."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.menuIconTemplateState"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift menu-icon template assertion retired",
+            "scope": "Only the local assertion that the healthy AppBrand menu image is a template and the unhealthy image is not is retired. Production Swift menu-icon code and all other Polish checks remain active.",
+            "nativeSteps": ["unit"],
+            "nativeCases": ["native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description"],
+            "originalAssertions": ["Healthy menu icon has template status true.", "Unhealthy menu icon has template status false."],
+            "productionAccepted": false
+        });
     }
     if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
@@ -7845,6 +7854,21 @@ mod tests {
         assert_eq!(retired["productionAccepted"], false);
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
         assert!(gate.native_cases.contains(&"runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"));
+    }
+    #[test]
+    fn polish_menu_icon_template_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Health glyph states are missing"));
+        assert!(source.contains("Fixture configuration failure"));
+        let inventory = inventory("settings").unwrap();
+        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.menuIconTemplateState"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description"]));
+        assert_eq!(retired["originalAssertions"].as_array().unwrap().len(), 2);
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.native_cases.contains(&"native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description"));
     }
     #[test]
     fn polish_catalog_source_pin_matches_current_catalog_bytes() {

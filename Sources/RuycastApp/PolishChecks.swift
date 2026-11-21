@@ -94,7 +94,6 @@ import LauncherModels
     try capture(Palette(state:state),"clipboard-cleared",NSSize(width:1080,height:700),required:["Select an item"],absent:["Readable clipboard text"])
     let screen=NSRect(x:-1920,y:0,width:1920,height:1080),normal=PaletteGeometry.frame(in:screen),clip=PaletteGeometry.frame(in:screen,mode:"clipboard")
     try require(clip.width>normal.width && clip.height>normal.height && screen.contains(clip),"Clipboard geometry did not grow safely")
-    try require(AppBrand.menuIcon().isTemplate && !AppBrand.menuIcon(healthy:false).isTemplate,"Health glyph states are missing")
     state.configError="Fixture configuration failure";try require(!state.runtimeHealthy,"Runtime health ignored config failure");state.configError=nil
     try require(["builtin.settings","builtin.open-config","builtin.reload-config","builtin.system-monitor"].allSatisfy{id in state.systemCommands.contains{$0.id==id}},"Launcher management actions missing")
     var catalog=state.config;catalog.commands.append(Command(id:"existing.monitor",title:"My Monitor",kind:"builtin",target:"system-monitor"));state.config=catalog
