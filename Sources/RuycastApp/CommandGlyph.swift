@@ -47,13 +47,3 @@ struct CommandGlyph:View {
         }.frame(width:24,height:24)
     }
 }
-struct CommandIconSheet:View {
-    let examples=Configuration.layouts.map { ("window",$0) } + [("url","Quicklink"),("path","Folder"),("script","Script"),("builtin","Clipboard"),("app","Missing app")]
-    var body:some View {
-        LazyVGrid(columns:Array(repeating:GridItem(.fixed(145)),count:4),spacing:22) {
-            ForEach(examples.indices,id:\.self) {i in
-                VStack(spacing:10) {CommandGlyph(kind:examples[i].0,target:examples[i].1);Text(examples[i].1).font(.system(size:11)).lineLimit(1)}.frame(height:55)
-            }
-        }.padding(24).frame(width:660,height:350).background(Color(nsColor:.windowBackgroundColor))
-    }
-}

@@ -2848,6 +2848,11 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "retiredOutputs": ["shortcuts-dark.png", "shortcuts-light.png"],
             "scope": "No tracked source, script, documentation or asset references these generated shortcut previews; no Rust renderer replaces this unused output contract."
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/CommandGlyph.swift::CommandIconSheet"] = serde_json::json!({
+            "originalSourceSHA256": "f9b6b16cf6e3ee41c58835ba71cdea0270a4adb7d528498e6865e2dfc8eb9feb",
+            "status": "source-retired; unconsumed development preview",
+            "scope": "The --render-icons developer route and its standalone sheet have no tracked consumers. The shared CommandGlyph remains for palette validation and WebsiteIcons."
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::checkVisualAssets"] = serde_json::json!({
             "originalSourceSHA256": "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
             "status": "source-qualified-rust-case-crosswalk; Swift check route retired",
@@ -5384,6 +5389,46 @@ mod tests {
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
         assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn retired_command_icon_sheet_preview_keeps_shared_glyph_callers() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        let glyph = std::fs::read_to_string(root.join("Sources/RuycastApp/CommandGlyph.swift")).unwrap();
+        assert!(!main.contains("--render-icons"));
+        assert!(!main.contains("CommandIconSheet"));
+        assert!(main.contains("--check-palette"));
+        assert!(main.contains("CommandGlyph(kind:\"window\""));
+        assert!(!glyph.contains("CommandIconSheet"));
+        assert!(glyph.contains("struct CommandGlyph:View"));
+        let website_icons = std::fs::read_to_string(root.join("Sources/RuycastApp/WebsiteIcons.swift")).unwrap();
+        assert!(website_icons.contains("CommandGlyph(kind:command.kind,target:command.target)"));
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        for (path, source) in [("Sources/RuycastApp/main.swift", &main), ("Sources/RuycastApp/CommandGlyph.swift", &glyph)] {
+            assert_eq!(lock["files"][path], format!("{:x}", Sha256::digest(source.as_bytes())));
+        }
+        let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
+        let main_rows = roster.lines().filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/main.swift\"")).collect::<Vec<_>>();
+        assert_eq!(main_rows.len(), 12);
+        let current_hash = format!("{:x}", Sha256::digest(main.as_bytes()));
+        for row in main_rows {
+            let encoded = row.trim().trim_end_matches(',').trim_start_matches('(').trim_end_matches(')');
+            let fields: Vec<String> = serde_json::from_str(&format!("[{encoded}]")).unwrap();
+            assert_eq!(fields[0], "frozen-current/Sources/RuycastApp/main.swift");
+            assert_eq!(fields[1], current_hash);
+            let (line, expected) = fields[2].strip_prefix("line ").unwrap().split_once(": ").unwrap();
+            let line = line.parse::<usize>().unwrap();
+            assert_eq!(main.lines().nth(line - 1).unwrap().trim(), expected, "roster callsite line {line}");
+        }
+        assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/main.swift"));
+        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/CommandGlyph.swift"] {
+            assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())));
+        }
+        let inventory = inventory("check").unwrap();
+        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/CommandGlyph.swift::CommandIconSheet"];
+        assert_eq!(retired["originalSourceSHA256"], "f9b6b16cf6e3ee41c58835ba71cdea0270a4adb7d528498e6865e2dfc8eb9feb");
+        assert_eq!(retired["status"], "source-retired; unconsumed development preview");
     }
     #[test]
     fn owned_shortcut_child_fixture_is_bound_to_every_system_search_test_consumer() {
