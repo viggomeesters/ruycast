@@ -303,6 +303,32 @@ fn test_capture_text_files_image_and_private_own_activation_filters() {
 }
 
 #[test]
+fn test_cli_text_copy_roundtrips_to_owned_named_board() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
+    let h = host(json!({}));
+    fixture(&h, "Synthetic clipboard text Å");
+    h.wait(|s| s["clipboardCount"] == 1);
+    let item = items(&h)[0].clone();
+    assert_eq!(item["text"], "Synthetic clipboard text Å");
+    assert_eq!(
+        h.probe("clipboard-fixture", json!({"clearBoard":true}))["cleared"],
+        true
+    );
+    assert_eq!(
+        h.probe("clipboard-fixture", json!({"readCopiedText":true}))["text"],
+        Value::Null
+    );
+    assert_eq!(
+        h.cli(&["clipboard", "copy", item["id"].as_str().unwrap()])["ok"],
+        true
+    );
+    assert_eq!(
+        h.probe("clipboard-fixture", json!({"readCopiedText":true}))["text"],
+        "Synthetic clipboard text Å"
+    );
+}
+
+#[test]
 fn test_cli_import_export_search_copy_paste_delete_clear() {
     let _serial = HOST_SCENARIOS.lock().unwrap();
     let h = host(json!({}));

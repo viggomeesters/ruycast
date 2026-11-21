@@ -169,6 +169,13 @@ impl Clipboard {
             let png = board.dataForType(&objc2_foundation::NSString::from_str("public.png"));
             return Ok(serde_json::json!({"png": png.map(|data| data.to_vec())}));
         }
+        if value["readCopiedText"] == true {
+            let board = shared_fixture_board().ok_or("Owned named copy board unavailable.")?;
+            let text = board
+                .stringForType(unsafe { NSPasteboardTypeString })
+                .map(|value| ruycast_native::native_text::repaired(&value));
+            return Ok(serde_json::json!({"text": text}));
+        }
         if let Some(operation)=value["creationBoard"].as_str(){
             if std::env::var("RUYCAST_NATIVE_TEST_CREATION_BOARD").as_deref()!=Ok("shared"){return Err("Explicit shared creation board fixture required.".into())}
             if !["read","clear","nontext"].contains(&operation){return Err("Unknown owned creation board operation.".into())}
