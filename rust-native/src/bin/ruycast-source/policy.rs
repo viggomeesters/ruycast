@@ -52,7 +52,6 @@ Sources/RuycastApp/FeatureState.swift
 Sources/RuycastApp/Hotkeys.swift
 Sources/RuycastApp/HyperKey.swift
 Sources/RuycastApp/InteractionChecks.swift
-Sources/RuycastApp/InteractionPerformanceChecks.swift
 Sources/RuycastApp/LauncherResults.swift
 Sources/RuycastApp/LockedValue.swift
 Sources/RuycastApp/MainRunLoop.swift

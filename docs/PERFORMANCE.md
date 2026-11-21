@@ -153,11 +153,11 @@ The historical Swift-host comparison used the pre-migration Python runner. That 
 - `hotkey.handler`: handler delivery to callback return; excludes hardware/OS delivery before the handler.
 - `open.ready`: show request through the queued native focus request; excludes compositor/display presentation. Closing or superseding an open cancels the interval.
 - `input.model`: native text-field delegate through synchronous model publication.
-- `search.model`: the shared Rust index call and Swift result conversion/filtering.
-- `host.drawCallback`: optional palette hosting-view draw override. Layer-backed SwiftUI display may not invoke it; zero is not evidence that no display occurred. Offscreen cacheDisplay fixtures invoke this hook.
-- `input.reconcile`: latest native input through application of its current binding in that same field's NSViewRepresentable.updateNSView. Other fields cannot complete it; superseding input, hide or field teardown cancels it. This is field reconciliation, not result drawing, compositor work or physical presentation.
+- `search.model`: the shared Rust catalog/index search and local result projection.
+- `host.drawCallback`: native palette hosting-view draw hook. Offscreen `cacheDisplay` fixtures invoke it; zero means this sample observed no callback, not that no presentation occurred.
+- `input.reconcile`: latest input applied by its owning Rust native field. Another field cannot complete it; superseding input, hide or field teardown cancels it. This is field reconciliation, not result drawing, compositor work or physical presentation.
 
-`RuycastApp --benchmark-interactions` drives100 hidden updates through the actual retained search field and its production delegate. Each update must reconcile through SwiftUI before any explicit cacheDisplay. Separate capture checks invoke host.drawCallback. It checks owner identity, teardown, privacy, cancellation, reset identities and bounded retention. It never makes a window visible or emits desktop input. Rendering software stages is distinct from physical key-to-screen latency; a controlled visible acceptance slot is still needed for that claim. The existing model and lifecycle gates remain unchanged.
+The Rust `interaction-trace-process` route in `rust-native/examples/ui_completion.rs` drives 100 updates through a retained native search field, requires reconciliation before each offscreen capture, and checks a real host draw per cycle. It also checks hidden-window state, trace privacy, and cancellation after the palette closes. `rust-native/src/performance_trace.rs` tests bounded samples, field ownership, cancellation, reset identity, and active-span limits. These are software and offscreen-host checks; they do not prove physical desktop input, visible presentation, or key-to-screen latency. Launcher recency and argument privacy are checked by `execution_native_process::only_real_launcher_success_writes_recency_without_argument_text`.
 
 
 ## 0.7.14: typed search transfer

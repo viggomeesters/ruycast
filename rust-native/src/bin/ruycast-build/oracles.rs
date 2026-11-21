@@ -2437,7 +2437,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.rankedFilterAfterReload"] = serde_json::json!({
             "originalSourceSHA256": "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the disabled and removed ranked-command filtering assertions move to the real Rust host test. The interaction benchmark helper, its route, and remaining trace/field assertions stay active.",
+            "scope": "Only the disabled and removed ranked-command filtering assertions move to the real Rust host test; other interaction benchmark scenarios have separate Rust crosswalks.",
             "nativeSource": "rust-native/tests/execution_native_process.rs",
             "originalScenarios": ["a successful launcher choice is ranked and remains in ranking after disabling; config reload omits the command from alias search", "after removing the disabled command and reloading again, alias search still omits it while stale ranking remains"],
             "nativeCases": ["execution_native_process::ranked_command_is_filtered_after_disable_and_removal"],
@@ -2446,7 +2446,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.traceStateBoundsAndIdentity"] = serde_json::json!({
             "originalSourceSHA256": "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the five pure trace-state assertions move to the existing Rust test. The interaction benchmark helper, its route, and native field/capture assertions stay active.",
+            "scope": "Only the five pure trace-state assertions move to the existing Rust test; native field/capture scenarios have separate Rust crosswalks.",
             "nativeSource": "rust-native/src/performance_trace.rs",
             "originalScenarios": ["350 search-model samples retain at most 256", "a different field owner cannot complete or cancel pending reconciliation", "superseding input and explicit cancellation count as two cancelled and zero completed reconciliations", "reset prevents an old span from completing a new span", "100 in-flight spans remain bounded at 32 and reset leaves no active spans"],
             "nativeCases": ["performance_trace::tests::original_retention_field_ownership_cancellation_reset_and_overflow_contract"],
@@ -2967,6 +2967,94 @@ mod tests {
                 assert!(inputs.iter().any(|(_, source, _)| std::str::from_utf8(source).unwrap().contains(&format!("fn {name}("))), "missing historical system case: {case}");
             }
         }
+    }
+
+    #[test]
+    fn retired_interaction_benchmark_has_no_caller_and_preserves_all_crosswalks() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/InteractionPerformanceChecks.swift";
+        assert!(!root.join(retired).exists());
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(!main.contains("--benchmark-interactions"));
+        assert!(!main.contains("checkInteractionPerformance"));
+        assert!(!include_str!("../ruycast-source/policy.rs")
+            .lines()
+            .any(|line| line == retired));
+        let lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert_eq!(
+            lock["files"]["Sources/RuycastApp/main.swift"],
+            format!("{:x}", Sha256::digest(main.as_bytes()))
+        );
+        let docs = std::fs::read_to_string(root.join("docs/PERFORMANCE.md")).unwrap();
+        assert!(!docs.contains("--benchmark-interactions"));
+        assert!(docs.contains("interaction-trace-process"));
+        assert!(docs.contains("physical desktop input"));
+        assert!(!docs.contains("NSViewRepresentable.updateNSView"));
+        assert!(!docs.contains("Swift result conversion"));
+        assert!(root.join("Sources/RuycastApp/PerformanceTrace.swift").exists());
+        let public: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(public["schema"], "ruycast.public-source.v2");
+        assert!(public["files"].get(retired).is_none());
+        for path in [
+            "Sources/RuycastApp/main.swift",
+            "docs/PERFORMANCE.md",
+            "rust-native/src/bin/ruycast-build/oracles.rs",
+            "rust-native/src/bin/ruycast-source/policy.rs",
+            "rust-native/swift-reference-lock.json",
+        ] {
+            assert_eq!(
+                public["files"][path],
+                format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())),
+                "stale public source hash: {path}"
+            );
+        }
+
+        let inventory = inventory("check").unwrap();
+        let mappings = &inventory["retiredSwiftChecks"];
+        let expected = [
+            (
+                "checkInteractionPerformance.rankedFilterAfterReload",
+                "rust-native/tests/execution_native_process.rs",
+                "execution_native_process::ranked_command_is_filtered_after_disable_and_removal",
+            ),
+            (
+                "checkInteractionPerformance.traceStateBoundsAndIdentity",
+                "rust-native/src/performance_trace.rs",
+                "performance_trace::tests::original_retention_field_ownership_cancellation_reset_and_overflow_contract",
+            ),
+            (
+                "checkInteractionPerformance.nativeFieldCycles",
+                "rust-native/examples/ui_completion.rs",
+                "ui_completion::interaction_trace",
+            ),
+            (
+                "checkInteractionPerformance.recencyWriteAndArgumentPrivacy",
+                "rust-native/tests/execution_native_process.rs",
+                "execution_native_process::only_real_launcher_success_writes_recency_without_argument_text",
+            ),
+            (
+                "checkInteractionPerformance.closedFieldCancellation",
+                "rust-native/examples/ui_completion.rs",
+                "ui_completion::interaction_trace",
+            ),
+        ];
+        for (scenario, source, case) in expected {
+            let key = format!("{retired}::{scenario}");
+            let mapping = &mappings[&key];
+            assert_eq!(mapping["originalSourceSHA256"], "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da");
+            assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+            assert_eq!(mapping["nativeSource"], source);
+            assert!(mapping["nativeCases"].as_array().unwrap().contains(&serde_json::json!(case)));
+            assert_eq!(mapping["productionAccepted"], false);
+        }
+        assert_eq!(inventory["productionAccepted"], false);
     }
 
     #[test]
