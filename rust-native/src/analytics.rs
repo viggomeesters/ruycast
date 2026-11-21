@@ -1127,8 +1127,13 @@ mod tests {
         assert_eq!(c.snapshot().total_attempts, 1);
         assert_eq!(c.snapshot().total_successes, 1);
         c.configure(Some(true), None).unwrap();
+        let sentinel = "PRIVATE_DIAGNOSTIC_SENTINEL_1595";
+        c.error("config", sentinel);
+        c.timing(sentinel, 1.);
         c.flush();
         assert!(c.storage_error().is_none());
+        let bytes = std::fs::read_to_string(t.0.join("analytics.json")).unwrap();
+        assert!(!bytes.contains(sentinel));
         let persisted = read(&t.0.join("analytics.json")).unwrap().unwrap();
         assert_eq!(persisted.total_attempts, 1);
         assert_eq!(persisted.total_successes, 1);
