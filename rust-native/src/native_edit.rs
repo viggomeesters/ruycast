@@ -418,6 +418,67 @@ fn check_menu(main: MainThreadMarker, editor: &ProbeEditor) -> Result<(), String
     if editor.ivars().get() != 15 || editor.selectedRange().length != 6 {
         return Err("ordinary window Edit selectors/selection differ".into());
     }
+    // Prove actual text/board effects through this ordinary-window menu caller too.
+    {
+        let board = NSPasteboard::pasteboardWithUniqueName();
+        struct Release<'a>(&'a NSPasteboard);
+        impl Drop for Release<'_> {
+            fn drop(&mut self) {
+                self.0.clearContents();
+                unsafe { let _: () = msg_send![self.0, releaseGlobally]; }
+            }
+        }
+        let _release = Release(&board);
+        let expected = "Ordinary form 🦀";
+        board.clearContents();
+        if !board.setString_forType(&NSString::from_str(expected), unsafe { NSPasteboardTypeString }) {
+            return Err("ordinary window owned board seed failed".into());
+        }
+        let named: Retained<NamedBoardEditor> = unsafe {
+            let editor = NamedBoardEditor::alloc(main).set_ivars(NamedEditState {
+                board: board.clone(), pastes: Cell::new(0), failed: Cell::new(false),
+            });
+            msg_send![super(editor), initWithFrame: NSRect::new(NSPoint::new(0.,0.), NSSize::new(100.,40.))]
+        };
+        window.setContentView(Some(&named));
+        struct Restore<'a>(&'a NSWindow, &'a ProbeEditor);
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.0.makeFirstResponder(None);
+                self.0.setContentView(Some(self.1));
+            }
+        }
+        let _restore = Restore(&window, editor);
+        named.setString(ns_string!(""));
+        named.setSelectedRange(NSRange::new(0, 0));
+        if !window.makeFirstResponder(Some(&named)) {
+            return Err("ordinary window owned text focus failed".into());
+        }
+        for value in ["v", "a", "c", "x"] {
+            if value == "c" || value == "x" { board.clearContents(); }
+            if !menu.perform(&*key(&window, value, false)?) || named.ivars().failed.get() {
+                return Err(format!("ordinary window owned menu {value} failed"));
+            }
+            match value {
+                "v" if named.string().to_string() != expected || named.ivars().pastes.get() != 1 =>
+                    return Err("ordinary window paste lost exact text or ran more than once".into()),
+                "a" if named.selectedRange() != NSRange::new(0, expected.encode_utf16().count()) =>
+                    return Err("ordinary window Select All lost the complete UTF16 range".into()),
+                "c" | "x" => {
+                    if board.stringForType(unsafe { NSPasteboardTypeString }).map(|s|s.to_string()).as_deref() != Some(expected) {
+                        return Err(format!("ordinary window {value} lost exact board text"));
+                    }
+                    if named.string().to_string() != if value == "x" { "" } else { expected } {
+                        return Err(format!("ordinary window {value} changed the wrong text"));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    if !window.makeFirstResponder(Some(editor)) {
+        return Err("ordinary window previous responder was not restored".into());
+    }
     editor.setString(ns_string!("a"));
     let undo = editor
         .undoManager()
