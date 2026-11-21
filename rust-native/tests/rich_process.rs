@@ -115,6 +115,78 @@ fn choices_filter_literal_selection_and_ok_only_closes() {
     );
 }
 #[test]
+fn original_project_part_choices_capture_at_760_and_480_pixels() {
+    // Native width/label coverage only; this is not pixel-for-pixel Swift parity.
+    for (width, pixels) in [("760", 760_u32), ("480", 480_u32)] {
+        let host = host_width("project-part", Some(width));
+        open(&host);
+        let captured = capture(&host, &format!("project-part-{width}"));
+        let png = fs::read(host.profile.join("native-probe.png")).unwrap();
+        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+        assert!(png.len() >= 24, "PNG header missing at {width}px");
+        assert_eq!(&png[12..16], b"IHDR");
+        let dimensions = (
+            u32::from_be_bytes(png[16..20].try_into().unwrap()),
+            u32::from_be_bytes(png[20..24].try_into().unwrap()),
+        );
+        // AppKit may capture at 1x or Retina 2x; both axes must share that scale.
+        assert!(
+            dimensions == (pixels, 490) || dimensions == (pixels * 2, 980),
+            "wrong native content dimensions at {width}px: {dimensions:?}"
+        );
+        assert_eq!(captured["scriptResult"]["title"], "Project Koppelen");
+        assert_eq!(captured["scriptResult"]["selection"], 0);
+        assert_eq!(
+            captured["scriptResult"]["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| row["id"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["project", "part"]
+        );
+        for label in [
+            "Project Koppelen",
+            "Example Project",
+            "EX · Projectbreed",
+            "Planning",
+            "EX / PLAN · Example Project",
+            "Zoek project, onderdeel of code…",
+            "Back",
+            "Choose ↵",
+            "Reload ⌘R",
+        ] {
+            assert!(
+                captured["screenText"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|text| text == label),
+                "missing choice label at {width}px: {label}"
+            );
+        }
+        for label in [
+            "Project Koppelen",
+            "Example Project",
+            "Planning",
+            "Zoek project, onderdeel of code…",
+            "Back",
+            "Choose ↵",
+            "Reload ⌘R",
+        ] {
+            assert!(
+                captured["accessibilityText"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|text| text == label),
+                "missing accessibility label at {width}px: {label}"
+            );
+        }
+        assert!(!host.base.join("selected").exists());
+    }
+}
+#[test]
 fn original_project_part_navigation_and_single_submit() {
     let host = GracefulBridge(host("project-part"));
     let initial = open(&host);

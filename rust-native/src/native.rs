@@ -1212,7 +1212,7 @@ impl Controller {
         let state=self.ivars();let hidden=!state.panel.ivars().ordering_allowed;
         let compact=!hidden&&self.should_compact_search_bar();
         let visible=if let Some(frame)=injected{Some(frame)}else if hidden{
-            let width=std::env::var("RUYCAST_NATIVE_TEST_WIDTH").ok().and_then(|s|s.parse::<f64>().ok()).filter(|w|(600.0..=1200.0).contains(w));
+            let width=std::env::var("RUYCAST_NATIVE_TEST_WIDTH").ok().and_then(|s|s.parse::<f64>().ok()).filter(|w|(480.0..=1200.0).contains(w));
             Some(rect(-20000.,-20000.,width.map_or(1440.,|w|w+48.),900.))
         }else{
             let mouse=NSEvent::mouseLocation();NSScreen::screens(self.mtm()).iter().find(|s|objc2_foundation::NSPointInRect(mouse,s.frame())).or_else(||NSScreen::mainScreen(self.mtm())).map(|s|s.visibleFrame())
@@ -2685,7 +2685,7 @@ fn run_graph(
             std::env::var("RUYCAST_NATIVE_TEST_WIDTH")
                 .ok()
                 .and_then(|s| s.parse::<f64>().ok())
-                .filter(|w| [600., 760.].contains(w))
+                .filter(|w| [480., 600., 760.].contains(w))
                 .unwrap_or(width)
         } else {
             width
