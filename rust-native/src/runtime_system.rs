@@ -1488,6 +1488,62 @@ mod shortcut_budget_tests {
     }
 
     #[test]
+    fn cli_direct_title_typo_outranks_higher_recency_subsequence() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::os::unix::net::UnixStream;
+
+        let mut case = BrowserCase::new();
+        case.state.system.main_tabs_enabled = false;
+        case.state.applications.clear();
+        let mut config = serde_json::to_value(case.state.configuration.current()).unwrap();
+        config["commands"] = json!([
+            {"id":"typo.finder","title":"Finder","kind":"url","target":"https://example.com"},
+            {"id":"typo.distractor","title":"Find Reminders","kind":"url","target":"https://example.com"}
+        ]);
+        case.state.configuration.save(&config).unwrap();
+        case.state.ranking.record_success("typo.distractor", 10_000.).unwrap();
+        case.window.sync(&case.state);
+        case.window.session.set_query("fnider");
+        let expected = ["typo.finder", "typo.distractor"];
+        assert_eq!(case.window.session.rows().map(|row| row.id.as_str()).collect::<Vec<_>>(), expected);
+
+        let (events, requests) = mpsc::sync_channel(8);
+        let server = crate::control::ControlServer::start(
+            &case.state.configuration.paths.root,
+            events,
+            crate::control::Limits::default(),
+        )
+        .unwrap();
+        let socket = case.state.configuration.paths.root.join("control.sock");
+        let client = std::thread::spawn(move || {
+            let mut stream = UnixStream::connect(socket).unwrap();
+            stream.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+            serde_json::to_writer(&mut stream, &json!({"op":"search","mode":"commands","query":"fnider"})).unwrap();
+            stream.write_all(b"\n").unwrap();
+            let mut reader = BufReader::new(stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            let response: Value = serde_json::from_str(&line).unwrap();
+            line.clear();
+            let extra = reader.read_line(&mut line).unwrap();
+            (response, extra)
+        });
+        let request = match requests.recv_timeout(Duration::from_secs(1)).unwrap() {
+            HostEvent::Request(request) => request,
+            _ => panic!("expected owned CLI search request"),
+        };
+        assert!(cli_search(&mut case.state, request));
+        let (response, extra) = client.join().unwrap();
+        drop(server);
+
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["result"].as_array().unwrap().iter().map(|row| row["id"].as_str().unwrap()).collect::<Vec<_>>(), expected);
+        assert_eq!(extra, 0, "direct title typo search must send one response");
+        assert_eq!(case.window.session.query, "fnider");
+        assert_eq!(case.window.session.rows().map(|row| row.id.as_str()).collect::<Vec<_>>(), expected);
+    }
+
+    #[test]
     fn cli_snippet_mode_returns_all_matching_rows_from_mixed_catalog() {
         let mut case = BrowserCase::new();
         let mut config = serde_json::to_value(case.state.configuration.current()).unwrap();
