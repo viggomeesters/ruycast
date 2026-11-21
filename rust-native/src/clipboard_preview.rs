@@ -374,4 +374,110 @@ mod tests {
         assert!(worker.image.is_none());
         assert!(worker.id.is_none());
     }
+
+    #[test]
+    fn equal_metadata_different_id_replaces_preview_owner_and_releases_old_image() {
+        use objc2::AnyThread;
+        use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSDeviceRGBColorSpace};
+        use objc2_foundation::NSDictionary;
+        use std::{
+            os::unix::fs::DirBuilderExt,
+            sync::Arc,
+            time::{Duration, Instant},
+        };
+
+        let parent = PathBuf::from(
+            std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
+                .expect("Owned fixture parent required"),
+        );
+        let root = parent.join(format!("clipboard-preview-owner-{}", std::process::id()));
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&root)
+            .unwrap();
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+
+        let bitmap = unsafe {
+            NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+                NSBitmapImageRep::alloc(), std::ptr::null_mut(), 1, 1, 8, 4, true, false,
+                NSDeviceRGBColorSpace, 4, 32,
+            )
+        }
+        .unwrap();
+        let pointer = bitmap.bitmapData();
+        assert!(!pointer.is_null());
+        unsafe { std::slice::from_raw_parts_mut(pointer, 4).copy_from_slice(&[120, 60, 30, 255]) };
+        let png = unsafe {
+            bitmap.representationUsingType_properties(
+                NSBitmapImageFileType::PNG,
+                &NSDictionary::new(),
+            )
+        }
+        .unwrap()
+        .to_vec();
+        let asset = "clipboard-assets/11111111-1111-4111-8111-111111111111.png";
+        crate::private_storage::secure_directory(&root.join("clipboard-assets")).unwrap();
+        crate::private_storage::write(&root.join(asset), &png, false).unwrap();
+
+        let first = Clip {
+            id: "preview-first-owner".into(),
+            text: "Image".into(),
+            date: crate::clipboard_history::now(),
+            source: "fixture".into(),
+            content_type: Some("image".into()),
+            data_file: Some(asset.into()),
+            file_urls: None,
+        };
+        let mut second = first.clone();
+        second.id = "preview-second-owner".into();
+        assert_ne!(first.id, second.id);
+        assert_eq!(first.content_type, second.content_type);
+        assert_eq!(first.data_file, second.data_file);
+        assert_eq!(first.text, second.text);
+
+        fn settle(worker: &mut Worker) {
+            let until = Instant::now() + Duration::from_secs(3);
+            while worker.loading && Instant::now() < until {
+                worker.poll();
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            assert!(
+                !worker.loading,
+                "Preview decode did not finish before its deadline"
+            );
+            assert!(worker.error.is_none());
+            assert!(worker.image.is_some());
+        }
+
+        let mut worker = Worker::new(false).unwrap();
+        worker.load(&root, Some(&first));
+        settle(&mut worker);
+        assert_eq!(worker.id.as_deref(), Some(first.id.as_str()));
+        let previous = worker.image.as_ref().unwrap().clone();
+        let previous_weak = Arc::downgrade(&previous);
+        assert_eq!((previous.width, previous.height), (1, 1));
+
+        worker.load(&root, Some(&second));
+        assert_eq!(worker.id.as_deref(), Some(second.id.as_str()));
+        assert!(worker.loading);
+        assert!(worker.image.is_none());
+        settle(&mut worker);
+        let current = worker.image.as_ref().unwrap().clone();
+        assert_eq!(worker.id.as_deref(), Some(second.id.as_str()));
+        assert_eq!(
+            (current.width, current.height),
+            (previous.width, previous.height)
+        );
+        assert_eq!(current.bytes, previous.bytes);
+        assert_eq!(current.png, previous.png);
+        assert!(!Arc::ptr_eq(&current, &previous));
+        drop(previous);
+        assert!(previous_weak.upgrade().is_none());
+    }
 }
