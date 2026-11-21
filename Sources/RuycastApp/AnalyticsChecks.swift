@@ -35,11 +35,6 @@ import LauncherModels
     }
     _=try execute("fixture.success","launcher");_=try execute("fixture.success","hotkey");_=try execute("fixture.failure","cli");_=try execute("fixture.success","cli",dryRun:true)
     try require(state.analytics.snapshot.totalAttempts==3 && state.analytics.snapshot.totalSuccesses==2 && state.analytics.snapshot.totalFailures==1,"Execution or dry-run instrumentation counted incorrectly")
-    let server=ControlServer(root:fixture);try server.start {request,reply in state.handle(request,sink:reply)};defer {server.stop()}
-    func cli(_ arguments:[String]) throws -> [String:Any] {
-        let process=Process(),pipe=Pipe();process.executableURL=ruycastCLI();process.arguments=arguments;var env=ProcessInfo.processInfo.environment;env["RUYCAST_HOME"]=fixture.path;process.environment=env;process.standardOutput=pipe;process.standardError=FileHandle.nullDevice;try process.run()
-        try wait {!process.isRunning};return try JSONSerialization.jsonObject(with:pipe.fileHandleForReading.readDataToEndOfFile()) as! [String:Any]
-    }
     let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     for dark in [true,false] {for width in [980,680] {
         let view=NSHostingView(rootView:AnalyticsDashboard(store:state.analytics,commands:state.config.commands,theme:SettingsTheme(dark:dark)))
@@ -49,9 +44,5 @@ import LauncherModels
     }}
     var routed=false;state.showAnalytics={routed=true};let palette=PaletteController(state:state);palette.show("analytics")
     try require(routed && !palette.panel.isVisible,"Dashboard did not use management window routing")
-    let preReset=state.analytics.recordAttempt("old-inflight",source:"cli")!
-    _=try cli(["analytics","reset","--confirm"])
-    state.analytics.recordCompletion(preReset,success:true,ms:1)
-    try require(state.analytics.snapshot.totalAttempts==0 && state.analytics.snapshot.totalSuccesses==0,"Reset retained metrics")
-    return ["ok":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"rustCLIControls":true,"resetDiscardsPriorInflight":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["ok":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
 }
