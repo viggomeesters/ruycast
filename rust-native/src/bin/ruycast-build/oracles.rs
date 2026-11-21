@@ -2406,6 +2406,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["with New App queried and discovered.test visible, write replacement with the same app target to configuration, reload from disk, preserve the query, and return exactly replacement"],
             "nativeCases": ["runtime::inline_tests::configuration_reload_deduplicates_discovered_app_in_active_palette"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.selectiveResultObservation"] = serde_json::json!({
+            "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the palette-result observation assertions move to Rust presentation-boundary checks. Full View revisions may change for visible configuration errors; query rows and results revision stay stable, and explicit selection is published independently.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["clipboard pause and configuration error preserve active query results; selecting another result updates selection without rebuilding the catalog"],
+            "retiredAssertions": ["Swift withObservationTracking callback counts are wrapper implementation details; Rust View.revision can advance when the user-visible Config message changes", "expansionStatus has no independent mutable Rust field; keyboard status is owned by the keyboard client"],
+            "nativeCases": ["runtime::inline_tests::palette_status_changes_preserve_rows_and_selection_updates_publish"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3846,6 +3855,39 @@ mod tests {
         assert_eq!(mapping["originalSourceSHA256"], "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add");
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::configuration_reload_deduplicates_discovered_app_in_active_palette"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_palette_status_observation_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_private_tests.rs");
+        let scenario = rust
+            .split_once("fn palette_status_changes_preserve_rows_and_selection_updates_publish()")
+            .unwrap()
+            .1
+            .split_once("\n#[test]")
+            .unwrap()
+            .0;
+        let scope = scenario.find("window.session.launcher_scope = Some(crate::session::LauncherScope::Quicklinks);").unwrap();
+        let query = scenario.find("window.session.set_query(\"Owned private\");").unwrap();
+        assert!(scope < query);
+        assert!(scenario.contains("state.clipboard.as_mut().unwrap().pause(true, || true).unwrap();"));
+        assert!(scenario.contains("state.configuration.last_error = Some(\"Fixture configuration error\".into());"));
+        assert!(scenario.contains("assert_eq!(error_status.message, \"Config: Fixture configuration error\");"));
+        assert!(scenario.contains("assert_eq!(error_status.selection, baseline.selection);"));
+        assert!(scenario.contains("assert_eq!(selected.selection, Some(1));"));
+        assert!(scenario.contains("assert!(selected.revision > error_status.revision);"));
+        assert!(scenario.contains("assert_eq!(selected.rows_revision, baseline.rows_revision);"));
+        assert!(scenario.contains("assert_eq!(crate::catalog::preparation_work(), preparation);"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.selectiveResultObservation"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["retiredAssertions"].as_array().unwrap().len(), 2);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::palette_status_changes_preserve_rows_and_selection_updates_publish"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
