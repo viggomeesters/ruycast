@@ -1890,6 +1890,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.unsafeAssetPathRejected"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; unsafe clipboard asset path assertion retired",
+            "scope": "Only the ../outside.png preview rejection and unsafeAssetPathRejected result field are retired. Positive Swift image/file preview checks and captures remain; process-query, CLI and real-sampler retirements remain separately recorded.",
+            "nativeCases": ["clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"],
+            "originalAssertions": ["Preview rejects image dataFile ../outside.png.", "The Swift resource check reports unsafeAssetPathRejected=true."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5469,6 +5479,10 @@ mod tests {
         assert!(rich.contains("var fixture=actual;"));
         assert!(!rich.contains("Native system sampling did not return real values"));
         assert!(!rich.contains("realReadOnlySystemSampling"));
+        assert!(rich.contains("let decoded=try state.clipboardStore.preview(image),decodedFile=try state.clipboardStore.preview(fileClip)"));
+        assert!(!rich.contains("../outside.png"));
+        assert!(!rich.contains("Clipboard preview accepted an unsafe owned-asset path"));
+        assert!(!rich.contains("unsafeAssetPathRejected"));
         assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
         assert!(!rich.contains("Large process lists were not bounded before target registration"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
@@ -5508,6 +5522,13 @@ mod tests {
         assert_eq!(sampler_retired["originalAssertions"], serde_json::json!(["memoryTotal > 0", "diskTotal > 0", "diskAvailable <= diskTotal", "processCount > 0"]));
         assert_eq!(sampler_retired["productionAccepted"], false);
         assert!(gate.native_cases.contains(&"remaining_macos_process::real_read_only_resource_sample_satisfies_original_bounds_without_serializing_metadata"));
+        let asset_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.unsafeAssetPathRejected"];
+        assert_eq!(asset_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(asset_retired["status"], "source-qualified-rust-case-crosswalk; unsafe clipboard asset path assertion retired");
+        assert_eq!(asset_retired["nativeCases"], serde_json::json!(["clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"]));
+        assert_eq!(asset_retired["originalAssertions"], serde_json::json!(["Preview rejects image dataFile ../outside.png.", "The Swift resource check reports unsafeAssetPathRejected=true."]));
+        assert_eq!(asset_retired["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"clipboard_preview::tests::original_two_color_image_and_local_file_previews_preserve_pixels_and_refuse_bad_assets"));
         let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
         assert_eq!(lock["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);

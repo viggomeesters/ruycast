@@ -84,9 +84,6 @@ import LauncherModels
     state.selection=0;pump(0.2)
     let first=capture(host,"clipboard-static-before");pump(1.2);let second=capture(host,"clipboard-static-after")
     try require(first==second,"Clipboard timestamps still animate or update while idle")
-    var forged=image;forged.dataFile="../outside.png"
-    var rejected=false;do {_=try state.clipboardStore.preview(forged)} catch {rejected=true}
-    try require(rejected,"Clipboard preview accepted an unsafe owned-asset path")
     let decoded=try state.clipboardStore.preview(image),decodedFile=try state.clipboardStore.preview(fileClip)
     if let decoded {let pixels=NSBitmapImageRep(cgImage:decoded.image);try require((pixels.colorAt(x:60,y:70)?.alphaComponent ?? 0)>0.9 && pixels.colorAt(x:decoded.image.width/4,y:decoded.image.height/2) != pixels.colorAt(x:decoded.image.width*3/4,y:decoded.image.height/2),"Image preview lost its actual pixels")}
     try require(decoded?.width==240 && decoded?.height==140 && decodedFile?.width==240,"Image or image-file preview failed")
@@ -105,5 +102,5 @@ import LauncherModels
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
     try require(!window.isVisible,"Resource checks opened a visible window")
-    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"unsafeAssetPathRejected":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }
