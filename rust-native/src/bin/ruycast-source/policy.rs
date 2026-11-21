@@ -48,7 +48,6 @@ Sources/RuycastApp/CommandIcons.swift
 Sources/RuycastApp/CommandLog.swift
 Sources/RuycastApp/ConfigurationLocation.swift
 Sources/RuycastApp/ControlServer.swift
-Sources/RuycastApp/EditCommandChecks.swift
 Sources/RuycastApp/FeatureState.swift
 Sources/RuycastApp/FeedbackChecks.swift
 Sources/RuycastApp/Hotkeys.swift
