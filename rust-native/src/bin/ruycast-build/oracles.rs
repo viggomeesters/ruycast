@@ -1685,7 +1685,7 @@ const SEARCH_CASES: &[(&str, &str, &str)] = &[
 fn search_source_bindings() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
         ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "00feb5e6befffefed0d19de776a13708727763b3b55bc42a45bf14ceb1bc29c3"),
-        ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "053343c7b6d333c801767002535ffe8f505a0f5f192a7ca0b88fd3432e06a0a3"),
+        ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "728b5f4699981950771e1ada21ef9354d77fe273f53df49c4e61b1dcd0107ef6"),
         ("rust/src/lib.rs", include_str!("../../../../rust/src/lib.rs"), "291731f83d4278ad4b1f892558a6b155de3288e8478cf64caed9489b9fa61d49"),
         ("rust-native/src/session.rs", include_str!("../../session.rs"), "c23e3d163e5cc8b87e6cdd11c80ed5380980885281499e5472065a169aac6d61"),
     ]
