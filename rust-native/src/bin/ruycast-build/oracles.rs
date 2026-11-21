@@ -1807,6 +1807,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["The partial date `in 3` is invalid.", "Submitting it leaves the command form open and does not execute it."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet-alias search assertion retired",
+            "scope": "Only the `salutation` query result-set assertion is retired. Snippet fixtures/captures, `longsnippet` search, arrow selection, result summary, and --check-polish remain active.",
+            "nativeSteps": ["polish-bindings-process"],
+            "nativeCases": ["ui_completion::polish_bindings"],
+            "originalAssertions": ["The alias query `salutation` returns exactly `fixture.greet`."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift natural-date validity assertion retired",
@@ -7938,6 +7947,24 @@ mod tests {
         assert!(polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
         assert!(!polish_source.contains("Partial date accepted"));
         assert!(polish_source.contains("Invalid date executed or discarded input"));
+    }
+    #[test]
+    fn polish_snippet_alias_search_is_retired_and_crosswalked() {
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift snippet-alias search assertion retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
+        assert_eq!(retired["productionAccepted"], false);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
+        assert!(!polish.contains("Alias search lost the snippet"));
+        assert!(!polish.contains("state.query=\"salutation\""));
+        assert!(polish.contains("state.query=\"longsnippet\""));
+        assert!(polish.contains("Keyword search lost the snippet"));
+        assert!(polish.contains("Arrow selection changed after rendering bindings"));
+        assert!(polish.contains("snippetAliasesAndKeywordSearch"));
     }
     #[test]
     fn polish_natural_date_preview_validity_is_retired_and_crosswalked() {
