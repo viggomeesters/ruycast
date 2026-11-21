@@ -1888,6 +1888,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["Enter executes the inline alias exactly once; a repeated Enter while busy does not duplicate execution."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift expanded inline-input assertion retired",
+            "scope": "Only the duplicate Swift expanded-inline-input fixture/assertion and its result-summary field are retired. Alias/input, inline-query capture, Escape restoration, editor captures, and --check-polish remain active.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["Expanding the echo-inline input preserves `First line` in the form without replacing the editor token."],
+            "productionAccepted": false
+        });
     }
     if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
@@ -8005,7 +8014,7 @@ mod tests {
         assert!(source.contains("Alias argument did not enter inline mode"));
         assert!(source.contains("inline-query"));
         assert!(source.contains("Escape did not restore search"));
-        assert!(source.contains("Expanded input lost text"));
+        assert!(source.contains("editor-expanded"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8019,6 +8028,31 @@ mod tests {
         let native = include_str!("../../../examples/ui_completion.rs");
         assert!(native.contains("echo-inline Café & spaces"));
         assert!(native.contains("h.rpc(json!({\"op\":\"usage\"}))[\"script.fixture\"],1"));
+    }
+    #[test]
+    fn polish_expanded_inline_input_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Expanded input lost text"));
+        assert!(!source.contains("expandedInputPreserved"));
+        assert!(!source.contains("state.expandInlineInput()"));
+        assert!(source.contains("Alias argument did not enter inline mode"));
+        assert!(source.contains("inline-query"));
+        assert!(source.contains("Escape did not restore search"));
+        assert!(source.contains("editor-expanded"));
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Expanding the echo-inline input preserves `First line` in the form without replacing the editor token."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+        let native = include_str!("../../../examples/ui_completion.rs");
+        assert!(native.contains(r#"h.probe(false,"run-inline-type",json!({"text":"First line"}));"#));
+        assert!(native.contains(r#"assert_eq!(h.probe(false,"run-input-read",json!({}))["text"],"First line");"#));
+        assert!(native.contains(r#"assert_eq!(h.probe(false,"read",json!({}))["editorToken"],token);"#));
     }
     #[test]
     fn polish_partial_date_assertion_is_retired_and_crosswalked() {

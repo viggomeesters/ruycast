@@ -78,8 +78,6 @@ import LauncherModels
     try require(state.inlineCommand?.id=="fixture.inline" && state.inlineInput=="Café & spaces" && state.form==nil && state.inlineSource=="launcher" && state.selection==0,"Alias argument did not enter inline mode")
     try capture(Palette(state:state),"inline-query",NSSize(width:760,height:490),required:["Inline Input","Café"])
     state.cancelPaletteInput();try require(state.inlineCommand==nil && state.query=="echo-inline","Escape did not restore search")
-    state.begin(state.config.resolve("echo-inline")!);state.inlineInput="First line";state.expandInlineInput()
-    try require(state.inlineCommand==nil && state.form?.values["input"]=="First line","Expanded input lost text")
     state.form=nil;state.query=""
     let script=Command(id:"fixture.edit",title:"Example Action",kind:"script",target:"/bin/sh",aliases:["example"],arguments:["-c","printf sample"])
     try capture(CommandEditor(state:state,form:CommandForm(command:script,isRun:false)),"editor-closed",NSSize(width:760,height:490),required:["Name","Advanced"],absent:["Arguments","Timeout","Executable"])
@@ -117,5 +115,5 @@ import LauncherModels
         try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Set Hotkey","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
         try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["Set Hotkey","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
     }
-    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
