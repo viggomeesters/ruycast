@@ -35,6 +35,25 @@ fn main() {
             let value = &args[1];
             let root = PathBuf::from(&args[2]);
             let mode = &args[3];
+            if mode == "project-part" {
+                if value.is_empty() {
+                    println!("{}", serde_json::json!({"ok":true,"choices":{"title":"Project Koppelen","placeholder":"Zoek project, onderdeel of code…","items":[{"id":"project","title":"Example Project","subtitle":"EX · Projectbreed","value":"pinned-project"},{"id":"part","title":"Planning","subtitle":"EX / PLAN · Example Project","value":"pinned-component"}]}}));
+                } else {
+                    // Append so a duplicate provider submission cannot overwrite its evidence.
+                    let mut selected = std::fs::OpenOptions::new().create(true).append(true)
+                        .open(root.join("selected")).unwrap();
+                    selected.write_all(value.as_bytes()).unwrap();
+                    drop(selected);
+                    std::fs::write(root.join("ready"), "ready").unwrap();
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+                    while !root.join("release").exists() {
+                        assert!(std::time::Instant::now() < deadline, "rich gate timed out");
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    println!("{}", serde_json::json!({"ok":true}));
+                }
+                return;
+            }
             if value.is_empty() {
                 let phase = root.join("phase");
                 let n = std::fs::read_to_string(&phase).ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(0) + 1;
