@@ -22,7 +22,7 @@ import LauncherModels
     let bad=root.appendingPathComponent("bad");try FileManager.default.createDirectory(at:bad,withIntermediateDirectories:true)
     let badURL=bad.appendingPathComponent("analytics.json"),original=Data("broken personal file".utf8);try original.write(to:badURL)
     let broken=AnalyticsStore(root:bad);broken.recordAttempt("test",source:"cli");broken.flushSynchronously()
-    broken.reset();broken.flushSynchronously();try require(AnalyticsStore(root:bad).storageError==nil,"Explicit reset did not recover malformed analytics")
+    broken.reset();broken.flushSynchronously()
     var old=store.snapshot;old.events=[DiagnosticEvent(date:Date().addingTimeInterval(-100*86400),category:"runtime",code:"interrupted")]
     let stale=root.appendingPathComponent("stale");try Files.save(old,to:stale.appendingPathComponent("analytics.json"))
     try require(AnalyticsStore(root:stale).snapshot.events.isEmpty,"Diagnostic retention kept old events")

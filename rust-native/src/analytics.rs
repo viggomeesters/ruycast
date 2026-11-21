@@ -1486,6 +1486,8 @@ mod tests {
         c.flush();
         assert!(c.storage_error().is_none());
         assert!(read(&path).unwrap().unwrap().legacy_imported);
+        let reopened = Writer::open(&t.0, None).unwrap();
+        assert!(reopened.client().storage_error().is_none());
 
         let invalid_hour_root = t.0.join("invalid-hour");
         crate::private_storage::secure_directory(&invalid_hour_root).unwrap();
