@@ -1857,6 +1857,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.processQueries"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift process assertions retired",
+            "scope": "Only the two process-query assertions for concurrent metadata isolation and the 2,100-row cap are retired. The rich-resource helper, readonly CLI checks and all other assertions remain active.",
+            "nativeCases": ["system_search::providers::gate_tests::concurrent_process_queries_keep_each_result_and_metadata_snapshot", "system_search::providers::gate_tests::process_result_cap_bounds_opaque_target_registration"],
+            "originalAssertions": ["Concurrent Syncthing and Safari queries retain their own result metadata.", "2,100 process rows produce exactly 1,000 registered results with CPU 2099 first."],
+            "compatibilityNotes": ["The Swift fixture observed callback FIFO from its serial worker; no cross-request FIFO API contract was found. Rust preserves query-to-result metadata association under concurrent provider calls, without asserting completion order."],
+            "requiredNativeSteps": gate.required_native_steps,
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5419,6 +5432,59 @@ mod tests {
         for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/InteractionChecks.swift"] {
             assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())));
         }
+    }
+    #[test]
+    fn retired_rich_resource_process_assertions_keep_exact_rust_cases_and_live_helper() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let rich = std::fs::read_to_string(root.join("Sources/RuycastApp/RichResourceChecks.swift")).unwrap();
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(main.contains("if args.first==\"--check-rich-resources\" {"));
+        assert!(main.contains("output(try checkRichResources(args[1]))"));
+        assert!(rich.contains("func checkRichResources"));
+        assert!(rich.contains("Read-only resource CLI failed"));
+        assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
+        assert!(!rich.contains("Large process lists were not bounded before target registration"));
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
+        assert_eq!(gate.required_native_steps.len(), 5);
+        assert_eq!(gate.native_cases.len(), 16);
+        let inputs = settings_sources(gate.id);
+        assert_eq!(inputs.len(), 39);
+        for case in [
+            "system_search::providers::gate_tests::concurrent_process_queries_keep_each_result_and_metadata_snapshot",
+            "system_search::providers::gate_tests::process_result_cap_bounds_opaque_target_registration",
+        ] {
+            assert!(gate.native_cases.contains(&case), "missing Rust case {case}");
+        }
+        let inventory = inventory("check").unwrap();
+        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.processQueries"];
+        assert_eq!(retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift process assertions retired");
+        assert_eq!(retired["nativeCases"], serde_json::json!([
+            "system_search::providers::gate_tests::concurrent_process_queries_keep_each_result_and_metadata_snapshot",
+            "system_search::providers::gate_tests::process_result_cap_bounds_opaque_target_registration"
+        ]));
+        assert_eq!(retired["compatibilityNotes"], serde_json::json!([
+            "The Swift fixture observed callback FIFO from its serial worker; no cross-request FIFO API contract was found. Rust preserves query-to-result metadata association under concurrent provider calls, without asserting completion order."
+        ]));
+        assert_eq!(retired["productionAccepted"], false);
+        let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert_eq!(lock["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);
+        let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
+        let current_rows = roster.lines().filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/RichResourceChecks.swift\"")).collect::<Vec<_>>();
+        assert_eq!(current_rows.len(), 2);
+        for row in current_rows {
+            let encoded = row.trim().trim_end_matches(',').trim_start_matches('(').trim_end_matches(')');
+            let fields: Vec<String> = serde_json::from_str(&format!("[{encoded}]")).unwrap();
+            assert_eq!(fields[1], hash);
+            let (line, expected) = fields[2].strip_prefix("line ").unwrap().split_once(": ").unwrap();
+            assert_eq!(rich.lines().nth(line.parse::<usize>().unwrap() - 1).unwrap().trim(), expected);
+        }
+        let historical_rows = roster.lines().filter(|line| line.contains("\"reference-0.8.26/Sources/RuycastApp/RichResourceChecks.swift\"")).collect::<Vec<_>>();
+        assert_eq!(historical_rows.len(), 2);
+        assert!(historical_rows.iter().all(|row| row.contains(RICH_RESOURCES_ORACLE_SHA256)));
+        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        assert_eq!(public["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);
     }
     #[test]
     fn window_search_provenance_keeps_current_inputs_and_gate_status() {
