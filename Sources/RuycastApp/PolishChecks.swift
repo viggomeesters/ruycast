@@ -93,8 +93,6 @@ import LauncherModels
     state.clips=[]
     try capture(Palette(state:state),"clipboard-cleared",NSSize(width:1080,height:700),required:["Select an item"],absent:["Readable clipboard text"])
     state.configError="Fixture configuration failure";try require(!state.runtimeHealthy,"Runtime health ignored config failure");state.configError=nil
-    var catalog=state.config;catalog.commands.append(Command(id:"existing.monitor",title:"My Monitor",kind:"builtin",target:"system-monitor"));state.config=catalog
-    try require(!state.systemCommands.contains {$0.target=="system-monitor"},"Duplicate built-in target in catalog")
     state.mode="commands";state.query=""
     let dateCommand=Command(id:"fixture.date",title:"Task Deadline",kind:"script",target:"/bin/echo",arguments:["{input}"],inputPrompt:"Deadline (YYYY-MM-DD of clear)")
     state.config.commands.append(dateCommand);state.begin(dateCommand);state.inlineInput="morgen"

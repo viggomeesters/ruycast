@@ -857,7 +857,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/task_date.rs", include_bytes!("../../task_date.rs"), "ebc3df3a84c149af7f6fd6bcabea58073ea1209204e01b3a14571c3f393db856"),
             ("rust-native/src/runtime_health.rs", include_bytes!("../../runtime_health.rs"), "ee787b5ccd193c1f1a400ce0da4798132d8dd68d48f85f40b63a776cfccf7d86"),
             ("rust-native/src/native_menu_bar.rs", include_bytes!("../../native_menu_bar.rs"), "6c87e3f883b6f0abfbd96f3df1733a0e889fe347465f27fc55b3b81d3263d9d3"),
-            ("rust-native/src/management_commands.rs", include_bytes!("../../management_commands.rs"), "14f68e0678ba748a65fc88a200f3cea59b9c9de8950462c2369ce5c526c75a31"),
+            ("rust-native/src/management_commands.rs", include_bytes!("../../management_commands.rs"), "5c329310641d600d1c0f86687e003fe0dbf93a1099237411eb946a34c4dad5bb"),
             ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "1406185c311781ff5be404caaa0d92ac76746a68f44fb54e3eedff5419241738"),
             ("rust-native/src/clipboard_image.rs", include_bytes!("../../clipboard_image.rs"), "37bc43506344b20c0334bc4737e29e5769d10384a908abd891134293ca1625db"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
@@ -1336,7 +1336,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/management_commands.rs",
                 include_bytes!("../../management_commands.rs"),
-                "14f68e0678ba748a65fc88a200f3cea59b9c9de8950462c2369ce5c526c75a31",
+                "5c329310641d600d1c0f86687e003fe0dbf93a1099237411eb946a34c4dad5bb",
             ),
             (
                 "rust-native/tests/startup_process.rs",
@@ -1864,11 +1864,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift default management-command assertion retired",
-            "scope": "Only the Swift assertion that the default systemCommands contain four built-in IDs is retired. The adjacent custom system-monitor override assertion, managementBuiltins output, configuration-health checks, captures, and --check-polish route remain active.",
+            "scope": "Only the Swift assertion that the default systemCommands contain four built-in IDs is retired. The custom system-monitor override assertion has its own retirement crosswalk. The managementBuiltins output, configuration-health checks, captures, and --check-polish route remain active.",
             "nativeSteps": ["unit"],
             "nativeCases": ["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"],
             "originalAssertions": ["Default system commands include builtin.settings.", "Default system commands include builtin.open-config.", "Default system commands include builtin.reload-config.", "Default system commands include builtin.system-monitor."],
-            "compatibilityNotes": ["The Swift custom system-monitor target override check remains active; it is a separate scenario from the default command list."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.customSystemMonitorOverride"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift system-monitor override assertion retired",
+            "scope": "Only the Swift custom system-monitor target override fixture/assertion is retired. The Rust catalog test now covers this exact target collision; default command ordering, managementBuiltins output, configuration-health checks, captures, and --check-polish remain active.",
+            "nativeSteps": ["unit"],
+            "nativeCases": ["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"],
+            "originalAssertions": ["A custom builtin targeting system-monitor suppresses the default builtin.system-monitor entry."],
             "productionAccepted": false
         });
     }
@@ -7947,7 +7955,8 @@ mod tests {
     fn polish_default_management_commands_assertion_is_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Launcher management actions missing"));
-        assert!(source.contains("Duplicate built-in target in catalog"));
+        assert!(!source.contains("Duplicate built-in target in catalog"));
+        assert!(!source.contains("existing.monitor"));
         assert!(source.contains("managementBuiltins"));
         let inventory = inventory("settings").unwrap();
         let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"];
@@ -7955,6 +7964,25 @@ mod tests {
         assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
         assert_eq!(retired["nativeCases"], serde_json::json!(["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"]));
         assert_eq!(retired["originalAssertions"].as_array().unwrap().len(), 4);
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.native_cases.contains(&"management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"));
+    }
+    #[test]
+    fn polish_system_monitor_override_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Duplicate built-in target in catalog"));
+        assert!(!source.contains("existing.monitor"));
+        assert!(source.contains("Fixture configuration failure"));
+        assert!(source.contains("managementBuiltins"));
+        let native = include_str!("../../management_commands.rs");
+        assert!(native.contains("assert!(!system(&saved).iter().any(|command|command.target==\"system-monitor\"));"));
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.customSystemMonitorOverride"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["A custom builtin targeting system-monitor suppresses the default builtin.system-monitor entry."]));
         assert_eq!(retired["productionAccepted"], false);
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
         assert!(gate.native_cases.contains(&"management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"));
