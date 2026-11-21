@@ -36,7 +36,7 @@ The diagnostic export omits command IDs, titles, dates of individual events, pro
 
 ## Development checks
 
-`RuycastApp --check-analytics OUTPUT` exercises successful, failed and dry-run commands in an isolated headless profile, then writes four SwiftUI dashboard renders (dark and light at 980 and 680 pixels). Rust unit and process tests verify the analytics storage, import, retention, privacy, reset and command-instrumentation behavior. This check sends no desktop input.
+`RuycastApp --check-analytics OUTPUT` exercises successful and failed commands in an isolated headless profile, then writes four SwiftUI dashboard renders (dark and light at 980 and 680 pixels). Rust unit and process tests verify the analytics storage, import, retention, privacy, reset, dry-run exclusion and command-instrumentation behavior. This check sends no desktop input.
 
 ## Hourly activity
 
