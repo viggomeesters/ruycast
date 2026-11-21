@@ -1633,6 +1633,7 @@ mod shortcut_budget_tests {
     type BrowserHold = (mpsc::SyncSender<()>, mpsc::Receiver<()>);
     struct HeldConsent {
         browser_hold: Mutex<Option<BrowserHold>>,
+        browser_threads: Mutex<Vec<std::thread::ThreadId>>,
         denied:bool,
         fixture:Arc<os::fixture::Fixture>,
         entered:mpsc::SyncSender<()>,
@@ -1654,6 +1655,7 @@ mod shortcut_budget_tests {
         fn action(&self,n:os::Element,a:&str,t:&Ticket)->Result<(),String>{self.fixture.action(n,a,t)}
         fn safari(&self,t:&Ticket)->Result<os::Identity,String>{self.fixture.safari(t)}
         fn safari_windows(&self,b:os::Identity,t:&Ticket)->Result<Vec<i32>,String>{
+            self.browser_threads.lock().unwrap().push(std::thread::current().id());
             let held=self.browser_hold.lock().unwrap().take();
             if let Some((entered,release))=held {
                 entered.send(()).map_err(|_|"owned browser entry disconnected")?;
@@ -1682,7 +1684,7 @@ mod shortcut_budget_tests {
         fixture.safari_denied.store(true,Ordering::Release);
         fixture.tabs.lock().unwrap().push(os::Tab{window:51,index:2,title:"Owned replacement Tab".into(),url:"https://example.invalid/replacement".into()});
         let (entered,wait)=mpsc::sync_channel(1);let (release,hold)=mpsc::sync_channel(1);
-        state.system.service=os::service::Service::new(Arc::new(HeldConsent{browser_hold:Default::default(),denied:change=="denied",fixture:fixture.clone(),entered,release:Mutex::new(hold)}));
+        state.system.service=os::service::Service::new(Arc::new(HeldConsent{browser_hold:Default::default(),browser_threads:Default::default(),denied:change=="denied",fixture:fixture.clone(),entered,release:Mutex::new(hold)}));
         state.system.fixture=Some(fixture.clone());
         state.system.main_tabs_enabled=true;
         let (events,completed)=mpsc::sync_channel(8);state.events=events;
@@ -1916,7 +1918,7 @@ mod shortcut_budget_tests {
             let fixture=Arc::new(os::fixture::Fixture::default());
             fixture.tabs.lock().unwrap().push(os::Tab{window:51,index:2,title:"Owned Other Tab".into(),url:"https://example.invalid/other".into()});
             let (entered,_)=mpsc::sync_channel(1);let (_,release)=mpsc::sync_channel(1);
-            let platform=Arc::new(HeldConsent{browser_hold:Default::default(),denied:false,fixture:fixture.clone(),entered,release:Mutex::new(release)});
+            let platform=Arc::new(HeldConsent{browser_hold:Default::default(),browser_threads:Default::default(),denied:false,fixture:fixture.clone(),entered,release:Mutex::new(release)});
             state.system.service=os::service::Service::new(platform.clone());
             state.system.fixture=Some(fixture.clone());state.system.main_tabs_enabled=true;
             let (tx,_)=mpsc::sync_channel(8);let ui=Connection::new(tx,true);
@@ -1941,6 +1943,58 @@ mod shortcut_budget_tests {
                 assert!(Instant::now()<deadline,"owned main browser request did not settle");
                 std::thread::sleep(Duration::from_millis(1));
             }
+        }
+    }
+    #[test]
+    fn system_search_worker_completion_requires_current_owner_adoption_before_publication() {
+        for superseded in [false, true] {
+            let owner = std::thread::current().id();
+            let mut case = BrowserCase::new();
+            let (events, completed) = mpsc::sync_channel(8);
+            case.state.events = events;
+            let (entered, release) = case.hold();
+            case.query("Owned");
+            entered.recv_timeout(Duration::from_secs(1)).unwrap();
+            assert_ne!(case.platform.browser_threads.lock().unwrap()[0], owner);
+            case.window.publish(&case.state, &case.ui);
+            let rows = serde_json::to_value(case.window.session.rows().cloned().collect::<Vec<_>>()).unwrap();
+            let revision = case.window.session.results_revision();
+            let view = case.ui.view();
+            assert!(case.window.system.snapshot.commands.is_empty());
+            release.send(()).unwrap();
+            // This is Service's real wake, sent after its result channel write.
+            // Completion alone must not adopt rows or publish a new view.
+            assert!(matches!(completed.recv_timeout(Duration::from_secs(1)).unwrap(), HostEvent::UiWake));
+            assert_eq!(serde_json::to_value(case.window.session.rows().cloned().collect::<Vec<_>>()).unwrap(), rows);
+            assert_eq!(case.window.session.results_revision(), revision);
+            assert!(case.window.system.snapshot.commands.is_empty());
+            assert_eq!(case.ui.view(), view);
+            if superseded {
+                let epoch = case.window.epoch;
+                case.ui.query("Other");
+                assert!(!process_inputs(&mut case.state, &mut case.window, &case.ui));
+                assert_ne!(case.window.epoch, epoch);
+                // The old successful completion is already queued. The real
+                // owner must discard it instead of publishing its two tabs.
+                case.window.publish(&case.state, &case.ui);
+                assert!(case.window.system.snapshot.commands.is_empty());
+                assert!(!case.ui.view().rows.iter().any(|row| row.id.starts_with("system.tab:")));
+                case.settle();
+            }
+            assert_eq!(std::thread::current().id(), owner);
+            case.window.publish(&case.state, &case.ui);
+            let expected = if superseded { 1 } else { 2 };
+            assert_eq!(case.window.system.snapshot.commands.len(), expected);
+            let published = case.ui.view();
+            assert_eq!(published.epoch, case.window.epoch);
+            assert_eq!(published.query, if superseded { "Other" } else { "Owned" });
+            let tabs = published.rows.iter().filter(|row| row.id.starts_with("system.tab:")).collect::<Vec<_>>();
+            assert_eq!(tabs.len(), expected);
+            assert!(tabs.iter().all(|row| case.window.system.snapshot.commands.iter().any(|command| command.id == row.id)));
+            if superseded {
+                assert_eq!(case.window.system.snapshot.commands[0].title, "Owned Other Tab");
+            }
+            assert!(case.fixture.effects.lock().unwrap().is_empty());
         }
     }
     #[test]
