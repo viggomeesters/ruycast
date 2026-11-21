@@ -1941,6 +1941,17 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.sortAndRefreshPreserveProcessIdentity"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift sort/refresh selection assertions retired",
+            "scope": "Only the Swift memory-sort/selected-ID assertion, synthetic CPU update with direct result replacement, refresh selected-ID assertion and sortAndRefreshPreserveProcessIdentity result field are retired. The process fixture, following Obsidian direct-kill flow/restoration, captures and active selector remain.",
+            "nativeCases": ["remaining_macos_process::native_process_sort_refresh_keeps_identity_and_kill_keeps_palette_open", "processes::tests::owned_table_sort_and_immutable_kill_identity"],
+            "originalAssertions": ["Memory sorting places Obsidian first and retains the selected command ID.", "A synthetic CPU refresh retains the same selected command ID."],
+            "compatibilityNotes": ["The Rust unit test checks memory ordering. The native process test uses production sort/refresh routes and the normal provider TTL rather than direct result replacement."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5534,11 +5545,13 @@ mod tests {
         assert!(rich.contains("capture(host,\"clipboard-static-before\");pump(1.2);capture(host,\"clipboard-static-after\")"));
         assert!(!rich.contains("Clipboard timestamps still animate or update while idle"));
         assert!(!rich.contains("clipboardStaticWhileIdle"));
-        assert!(rich.contains("state.setProcessSort(.memory)"));
         assert!(rich.contains("state.query=\"Obsidian\";try wait {state.results.count==1}"));
         assert!(rich.contains("killed==[123411] && state.confirmationCommand==nil"));
         assert!(!rich.contains("Disappearing selection activated another process"));
         assert!(!rich.contains("vanishedSelectionCannotKillNext"));
+        assert!(!rich.contains("Sorting changed selected identity or memory order"));
+        assert!(!rich.contains("Refresh moved process selection"));
+        assert!(!rich.contains("sortAndRefreshPreserveProcessIdentity"));
         assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
         assert!(!rich.contains("Large process lists were not bounded before target registration"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
@@ -5614,6 +5627,15 @@ mod tests {
         assert_eq!(vanished_retired["compatibilityNotes"], serde_json::json!(["The Rust fixture records the explicit removal as one baseline termination effect, then verifies Return adds no further termination effect."]));
         assert_eq!(vanished_retired["productionAccepted"], false);
         assert!(gate.native_cases.contains(&"remaining_macos_process::vanished_native_process_selection_cannot_kill_the_remaining_owned_row"));
+        let sort_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.sortAndRefreshPreserveProcessIdentity"];
+        assert_eq!(sort_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(sort_retired["status"], "source-qualified-rust-case-crosswalk; Swift sort/refresh selection assertions retired");
+        assert_eq!(sort_retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_sort_refresh_keeps_identity_and_kill_keeps_palette_open", "processes::tests::owned_table_sort_and_immutable_kill_identity"]));
+        assert_eq!(sort_retired["originalAssertions"], serde_json::json!(["Memory sorting places Obsidian first and retains the selected command ID.", "A synthetic CPU refresh retains the same selected command ID."]));
+        assert_eq!(sort_retired["compatibilityNotes"], serde_json::json!(["The Rust unit test checks memory ordering. The native process test uses production sort/refresh routes and the normal provider TTL rather than direct result replacement."]));
+        assert_eq!(sort_retired["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"remaining_macos_process::native_process_sort_refresh_keeps_identity_and_kill_keeps_palette_open"));
+        assert!(gate.native_cases.contains(&"processes::tests::owned_table_sort_and_immutable_kill_identity"));
         let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
         assert_eq!(lock["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);

@@ -18,13 +18,6 @@ import LauncherModels
     effects.processes={samplesBox.read {$0}};effects.identity={pid in samplesBox.read {$0.first {$0.id==pid}?.identity}};effects.terminate={pid in killed.append(pid);samples.removeAll {$0.id==pid};return 0}
     let service=SystemServices(effects:effects),state=try AppState(root:root,headless:true,systemServices:service)
     state.mode="processes";try wait {state.results.count==3}
-    let original=state.selectedCommand!.id
-    state.setProcessSort(.memory);try require(state.selectedCommand?.id==original && state.visibleCommands.first?.title=="Obsidian","Sorting changed selected identity or memory order")
-    var metrics=state.processResources
-    let current=metrics[original]!
-    metrics[original]=ProcessResource(identity:current.identity,name:current.name,path:current.path,cpuPercent:0.1,memoryBytes:current.memoryBytes)
-    state.applySystemResults(state.results,resources:metrics,preserveSelection:true)
-    try require(state.selectedCommand?.id==original,"Refresh moved process selection")
     state.query="Obsidian";try wait {state.results.count==1}
     try require(state.actionItems.first?.title=="Kill" && !state.actionItems.contains(where:{$0.id=="set-alias" || $0.id=="set-hotkey" || $0.id=="disable"}),"Process actions are mislabeled or persist ephemeral targets")
     state.activateSelection();try wait {!state.busy && state.results.isEmpty}
@@ -94,5 +87,5 @@ import LauncherModels
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
     try require(!window.isVisible,"Resource checks opened a visible window")
-    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"monitorSeparateWindowRoute":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"monitorSeparateWindowRoute":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }
