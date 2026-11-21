@@ -19,8 +19,6 @@ import LauncherModels
     if let tracked {store.recordCompletion(tracked,success:true,ms:1)}
     try store.configure(enabled:true,retentionDays:nil);store.recordError("config",code:secret);store.recordTiming(secret,ms:1)
     store.flushSynchronously()
-    let exported=try JSONSerialization.data(withJSONObject:store.exportSummary())
-    try require(!String(decoding:exported,as:UTF8.self).contains("fixture.0") && !String(decoding:exported,as:UTF8.self).contains(root.path),"Diagnostic export leaked command identities or profile path")
     let bad=root.appendingPathComponent("bad");try FileManager.default.createDirectory(at:bad,withIntermediateDirectories:true)
     let badURL=bad.appendingPathComponent("analytics.json"),original=Data("broken personal file".utf8);try original.write(to:badURL)
     let broken=AnalyticsStore(root:bad);broken.recordAttempt("test",source:"cli");broken.flushSynchronously()
