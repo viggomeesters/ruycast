@@ -232,7 +232,7 @@
     "rust-native/resources/parity-families.json": "801b3836d74ef7e16142fc0ba8b5ad590e48926cd523e69da5abafd6605e01f6",
     "rust-native/src/actions.rs": "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2",
     "rust-native/src/activity.rs": "15c93afc3731db2ca870db6d824dcc90bc6f0f367fe9d3ca12497b90f26df97a",
-    "rust-native/src/analytics.rs": "920a995c14978bcd86ff22a3cdd6ba9dcd1f83d3540748f14d7f79e5c2761852",
+    "rust-native/src/analytics.rs": "841110c17a7146d56d8154b5627b54febd68321434b5e6823e612ecd4a9619ba",
     "rust-native/src/analytics_dashboard.rs": "df90b83a49b965a6eeea0ee7c7810eace54a825d226a35f892d4d518d57e6e28",
     "rust-native/src/app_choice.rs": "9a76a00fe41c8f834b3608d7e9972188e06ace4ed33e420c1eda94bb41534293",
     "rust-native/src/applications.rs": "81940dcc93d40bcd013d9df036ecb6f5eab99f8d00348edea1f3131d22cab738",
