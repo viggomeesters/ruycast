@@ -1284,7 +1284,10 @@ pub(super) fn fixture(state: &SharedState, request: &Value) -> Value {
             };
             row.cpu_percent=cpu;
         }
-        "clear-effects" => f.effects.lock().unwrap().clear(),
+        "clear-effects" => {
+            f.effects.lock().unwrap().clear();
+            f.element_effects.lock().unwrap().clear();
+        }
         "trust" => {
             let Some(v) = request["value"].as_bool() else {
                 return json!({"ok":false});
@@ -1424,7 +1427,7 @@ pub(super) fn fixture(state: &SharedState, request: &Value) -> Value {
         "empty-tabs" => f.tabs.lock().unwrap().clear(),
         _ => return json!({"ok":false,"error":"Unknown owned fixture action."}),
     }
-    json!({"ok":true,"result":{"reads":f.reads.load(Ordering::Acquire),"effects":f.effects.lock().unwrap().clone()}})
+    json!({"ok":true,"result":{"reads":f.reads.load(Ordering::Acquire),"effects":f.effects.lock().unwrap().clone(),"elementEffects":f.element_effects.lock().unwrap().clone()}})
 }
 
 #[cfg(test)]

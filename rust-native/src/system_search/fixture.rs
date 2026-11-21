@@ -33,6 +33,7 @@ pub struct Fixture {
     pub safari_denied: AtomicBool,
     pub reads: AtomicUsize,
     pub effects: Mutex<Vec<String>>,
+    pub element_effects: Mutex<Vec<String>>,
     pub delay_ms: AtomicUsize,
     pub before_identity: Mutex<Option<SafariEffectHook>>,
     pub selected: Mutex<Option<Tab>>,
@@ -98,7 +99,7 @@ impl Default for Fixture {
         open.ints.insert("AXMenuItemCmdModifiers".into(), 0);
         let mut unavailable = node("Unavailable Owned", "AXMenuItem");
         unavailable.bools.insert("AXEnabled".into(), false);
-        Self{file_paths:Mutex::new(vec!["/owned/Fixture Document.txt".into(),"/owned/Fixture Folder".into()]),process_fixture:Default::default(),nodes:Mutex::new([(Element(1),application),(Element(2),first),(Element(3),second),(Element(4),bar),(Element(5),file),(Element(6),menu),(Element(7),open),(Element(8),unavailable)].into()),apps:Mutex::new(vec![app]),application_roots:Mutex::new([(id.pid,Element(1))].into()),application_reads:Default::default(),list_requests:Default::default(),trace_read_requests:AtomicBool::new(false),tabs:Mutex::new(vec![Tab{window:51,index:1,title:"Owned Tab".into(),url:"https://example.invalid/owned".into()}]),shortcuts:Mutex::new(apple_shortcuts::parse(b"Owned Shortcut (aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee)\nOwned Shortcut (11111111-2222-3333-4444-555555555555)\n").unwrap()),shortcuts_failure:AtomicBool::new(false),trusted:AtomicBool::new(true),safari_denied:AtomicBool::new(false),reads:AtomicUsize::new(0),effects:Default::default(),delay_ms:AtomicUsize::new(0),before_identity:Default::default(),selected:Default::default(),after_safari_select:Default::default(),after_safari_front:Default::default(),restore_failure:AtomicBool::new(false),raise_failure:AtomicBool::new(false),after_window_restore:Default::default()}
+        Self{file_paths:Mutex::new(vec!["/owned/Fixture Document.txt".into(),"/owned/Fixture Folder".into()]),process_fixture:Default::default(),nodes:Mutex::new([(Element(1),application),(Element(2),first),(Element(3),second),(Element(4),bar),(Element(5),file),(Element(6),menu),(Element(7),open),(Element(8),unavailable)].into()),apps:Mutex::new(vec![app]),application_roots:Mutex::new([(id.pid,Element(1))].into()),application_reads:Default::default(),list_requests:Default::default(),trace_read_requests:AtomicBool::new(false),tabs:Mutex::new(vec![Tab{window:51,index:1,title:"Owned Tab".into(),url:"https://example.invalid/owned".into()}]),shortcuts:Mutex::new(apple_shortcuts::parse(b"Owned Shortcut (aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee)\nOwned Shortcut (11111111-2222-3333-4444-555555555555)\n").unwrap()),shortcuts_failure:AtomicBool::new(false),trusted:AtomicBool::new(true),safari_denied:AtomicBool::new(false),reads:AtomicUsize::new(0),effects:Default::default(),element_effects:Default::default(),delay_ms:AtomicUsize::new(0),before_identity:Default::default(),selected:Default::default(),after_safari_select:Default::default(),after_safari_front:Default::default(),restore_failure:AtomicBool::new(false),raise_failure:AtomicBool::new(false),after_window_restore:Default::default()}
     }
 }
 impl Fixture {
@@ -122,6 +123,7 @@ impl Fixture {
                 return Err(EXPIRED.into());
             }
             f.effects.lock().unwrap().push("activate".into());
+            f.element_effects.lock().unwrap().push(format!("activate:{}", id.pid));
             Ok(())
         })
     }
@@ -282,6 +284,7 @@ impl Platform for Fixture {
     }
     fn restore(&self, e: Element, t: &Ticket) -> Result<(), String> {
         self.read(t)?;
+        self.element_effects.lock().unwrap().push(format!("restore:{}", e.0));
         if self.restore_failure.load(Ordering::Acquire) {
             self.effects.lock().unwrap().push("restore".into());
             return Err("Owned AX fixture restore failed".into());
@@ -296,8 +299,9 @@ impl Platform for Fixture {
         }
         Ok(())
     }
-    fn action(&self, _: Element, a: &str, t: &Ticket) -> Result<(), String> {
+    fn action(&self, e: Element, a: &str, t: &Ticket) -> Result<(), String> {
         self.read(t)?;
+        self.element_effects.lock().unwrap().push(format!("{a}:{}", e.0));
         self.effects.lock().unwrap().push(a.into());
         if a == "AXRaise" && self.raise_failure.load(Ordering::Acquire) {
             return Err("Owned AX fixture raise failed".into());

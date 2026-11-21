@@ -771,6 +771,7 @@ fn source_export_omits_duplicate_benchmark_reference_tree() {
     );
     assert!(paths.contains("Package.swift"));
     assert!(paths.contains("Sources/LauncherCore/Files.swift"));
+    assert!(!paths.contains("Sources/RuycastApp/WindowSearchChecks.swift"));
     assert!(!paths.contains("Tests/LauncherCoreTests/CoreTests.swift"));
     let historical = role("Sources/LauncherCore/Files.swift");
     for path in [
@@ -793,4 +794,10 @@ fn source_export_omits_duplicate_benchmark_reference_tree() {
         manifest.historical_references,
         ["Package.swift", "Sources/",]
     );
+}
+#[test]
+fn source_export_omits_retired_window_search_check() {
+    assert!(!policy()
+        .unwrap()
+        .contains("Sources/RuycastApp/WindowSearchChecks.swift"));
 }

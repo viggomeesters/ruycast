@@ -129,6 +129,9 @@ fn native_return_and_refresh_permission_recovery() {
         h.probe("key-event", json!({"code":36,"chars":"\r","flags":0}));
         h.wait(|s| s["nativeUI"]["visible"] == false && s["nativeUI"]["systemSearchBusy"] == false);
         assert_eq!(effects(&h), expected);
+        if scope == "windows" {
+            assert_eq!(element_effects(&h), json!(["activate:730001", "AXRaise:2"]));
+        }
         assert_eq!(h.probe("read", json!({}))["windowShown"], false);
     }
     fixture(&h, "trust", json!({"value":false}));
@@ -213,6 +216,9 @@ fn fixture(h: &Host, action: &str, mut fields: Value) -> Value {
 fn effects(h: &Host) -> Value {
     fixture(h, "read", json!({}))["effects"].clone()
 }
+fn element_effects(h: &Host) -> Value {
+    fixture(h, "read", json!({}))["elementEffects"].clone()
+}
 #[test]
 fn cli_real_provider_routes_metadata_order_and_exact_effects() {
     let h = host();
@@ -242,6 +248,7 @@ fn cli_real_provider_routes_metadata_order_and_exact_effects() {
         true
     );
     assert_eq!(effects(&h), json!(["activate", "restore", "AXRaise"]));
+    assert_eq!(element_effects(&h), json!(["activate:730001", "restore:3", "AXRaise:3"]));
     fixture(&h, "clear-effects", json!({}));
     let menus = search(&h, "menus", "");
     let row = &menus["result"][0];

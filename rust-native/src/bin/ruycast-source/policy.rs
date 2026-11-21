@@ -100,7 +100,6 @@ Sources/RuycastApp/VisualAssetChecks.swift
 Sources/RuycastApp/WebsiteIcons.swift
 Sources/RuycastApp/WindowManager.swift
 Sources/RuycastApp/WindowSearch.swift
-Sources/RuycastApp/WindowSearchChecks.swift
 Sources/RuycastApp/main.swift
 Tests/fixtures/architecture_boundary_positive.rs
 Tests/fixtures/architecture_boundary_main_state_on_worker.rs

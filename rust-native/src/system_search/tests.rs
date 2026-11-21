@@ -39,7 +39,12 @@ fn window_identity_duplicate_titles_and_minimized_restore_are_exact() {
         *f.effects.lock().unwrap(),
         ["activate", "restore", "AXRaise"]
     );
+    assert_eq!(
+        *f.element_effects.lock().unwrap(),
+        ["activate:730001", "restore:3", "AXRaise:3"]
+    );
     f.effects.lock().unwrap().clear();
+    f.element_effects.lock().unwrap().clear();
     f.edit(Element(1), |n| {
         n.lists.insert("AXWindows".into(), vec![Element(3)]);
     });
@@ -47,6 +52,7 @@ fn window_identity_duplicate_titles_and_minimized_restore_are_exact() {
         .execute(&rows.commands[0].id, None, &ticket(), &f.activate())
         .is_err());
     assert!(f.effects.lock().unwrap().is_empty());
+    assert!(f.element_effects.lock().unwrap().is_empty());
 }
 #[test]
 fn window_post_activation_pid_role_title_membership_and_restore_state_are_rechecked() {
@@ -812,6 +818,10 @@ fn window_unknown_minimized_untitled_and_old_snapshot_metadata_are_preserved() {
     p.execute(&command.id, None, &ticket(), &f.activate())
         .unwrap();
     assert_eq!(*f.effects.lock().unwrap(), ["activate", "AXRaise"]);
+    assert_eq!(
+        *f.element_effects.lock().unwrap(),
+        ["activate:730001", "AXRaise:2"]
+    );
 }
 
 #[test]
@@ -916,11 +926,20 @@ fn window_restore_status_readback_and_membership_are_verified_before_raise() {
                 *f.effects.lock().unwrap(),
                 ["activate", "restore", "AXRaise"]
             );
+            assert_eq!(
+                *f.element_effects.lock().unwrap(),
+                ["activate:730001", "restore:3", "AXRaise:3"]
+            );
         } else {
             assert!(result.is_err(), "{change}");
             assert_eq!(
                 *f.effects.lock().unwrap(),
                 ["activate", "restore"],
+                "{change}"
+            );
+            assert_eq!(
+                *f.element_effects.lock().unwrap(),
+                ["activate:730001", "restore:3"],
                 "{change}"
             );
         }
@@ -939,6 +958,10 @@ fn window_raise_error_is_not_reported_as_success() {
         .execute(&rows.commands[0].id, None, &ticket(), &f.activate())
         .is_err());
     assert_eq!(*f.effects.lock().unwrap(), ["activate", "AXRaise"]);
+    assert_eq!(
+        *f.element_effects.lock().unwrap(),
+        ["activate:730001", "AXRaise:2"]
+    );
 }
 
 #[test]

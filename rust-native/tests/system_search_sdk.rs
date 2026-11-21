@@ -594,11 +594,18 @@ fn owned_system_ui_matrix(mode: &str) {
         assert_eq!(host.call(json!({"op":"status"}))["nativeUI"]["visible"],true,"CLI must not hide an already-open palette");
         let expected_cli=if mode=="windows"{json!(["activate","AXRaise"])}else{json!(["shortcut:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"])};
         assert_eq!(host.call(json!({"op":"system.fixture"}))["effects"],expected_cli);
+        if mode=="windows" {
+            assert_eq!(host.call(json!({"op":"system.fixture"}))["elementEffects"],json!(["activate:730001","AXRaise:2"]));
+            host.call(json!({"op":"system.fixture","action":"clear-effects"}));
+            assert_eq!(host.cli(&["run",rows[1]["id"].as_str().unwrap()])["ok"],true);
+            assert_eq!(host.call(json!({"op":"system.fixture"}))["elementEffects"],json!(["activate:730001","AXRaise:31"]));
+        }
         assert_eq!(fs::read(host.profile.join("search-ranking.json")).unwrap(),ranking,"CLI must not change launcher ranking");
         if mode=="windows" {
             host.call(json!({"op":"system.fixture","action":"clear-effects"}));
             assert_eq!(host.cli(&["run",rows[2]["id"].as_str().unwrap()])["ok"],true);
             assert_eq!(host.call(json!({"op":"system.fixture"}))["effects"],json!(["activate","restore","AXRaise"]));
+            assert_eq!(host.call(json!({"op":"system.fixture"}))["elementEffects"],json!(["activate:730001","restore:3","AXRaise:3"]));
             assert_eq!(host.call(json!({"op":"usage"})),json!({"fixture.persisted":7}));
             assert_eq!(fs::read(host.profile.join("usage.json")).unwrap(),usage);
         }
@@ -608,6 +615,9 @@ fn owned_system_ui_matrix(mode: &str) {
         host.select_row(launcher_row);host.call(json!({"op":"system.fixture","action":"clear-effects"}));
         host.key(36,0,"\r");host.wait(|s|s["nativeUI"]["visible"]==false&&s["nativeUI"]["systemSearchBusy"]==false);
         assert_eq!(host.call(json!({"op":"system.fixture"}))["effects"],if mode=="windows"{json!(["activate","restore","AXRaise"])}else{json!(["shortcut:11111111-2222-3333-4444-555555555555"])});
+        if mode=="windows" {
+            assert_eq!(host.call(json!({"op":"system.fixture"}))["elementEffects"],json!(["activate:730001","restore:3","AXRaise:3"]));
+        }
         host.hidden();
         if mode=="windows" {
             assert_eq!(host.call(json!({"op":"usage"})),json!({"fixture.persisted":7}));
