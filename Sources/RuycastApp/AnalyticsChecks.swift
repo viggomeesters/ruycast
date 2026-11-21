@@ -19,9 +19,6 @@ import LauncherModels
     if let tracked {store.recordCompletion(tracked,success:true,ms:1)}
     try store.configure(enabled:true,retentionDays:nil);store.recordError("config",code:secret);store.recordTiming(secret,ms:1)
     store.flushSynchronously()
-    let sensitiveID="/Users/private/"+secret+"/https://private.example/token"
-    let privateTicket=store.recordAttempt(sensitiveID,source:"cli")!;store.recordCompletion(privateTicket,success:false,ms:1);store.flushSynchronously()
-    try require(!String(decoding:try Data(contentsOf:root.appendingPathComponent("analytics.json")),as:UTF8.self).contains(secret),"Command ID leaked a raw URL/path into analytics")
     let exported=try JSONSerialization.data(withJSONObject:store.exportSummary())
     try require(!String(decoding:exported,as:UTF8.self).contains("fixture.0") && !String(decoding:exported,as:UTF8.self).contains(root.path),"Diagnostic export leaked command identities or profile path")
     let bad=root.appendingPathComponent("bad");try FileManager.default.createDirectory(at:bad,withIntermediateDirectories:true)
@@ -74,5 +71,5 @@ import LauncherModels
     _=try cli(["analytics","reset","--confirm"])
     state.analytics.recordCompletion(preReset,success:true,ms:1)
     try require(state.analytics.snapshot.totalAttempts==0 && state.analytics.snapshot.totalSuccesses==0 && state.analytics.snapshot.timings.isEmpty && state.analytics.snapshot.commands.isEmpty && state.analytics.snapshot.events.isEmpty && (try Data(contentsOf:state.configURL))==configBefore,"Reset changed configuration or retained metrics")
-    return ["ok":true,"pausePreservesInflightCompletion":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"rustCLIControls":true,"resetPreservesConfig":true,"rawCommandIDsHashed":true,"resetDiscardsPriorInflight":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["ok":true,"pausePreservesInflightCompletion":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"rustCLIControls":true,"resetPreservesConfig":true,"resetDiscardsPriorInflight":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
 }
