@@ -5314,6 +5314,47 @@ fn native_probe(
             Some("record") => unsafe {
                 state.surface.record.performClick(None);
             },
+            Some("recorder-priority-prepare") | Some("recorder-priority-read") | Some("recorder-priority-release") => {
+                let content=state.panel.contentView().ok_or("Missing owned recorder panel content")?;
+                let existing=content.subviews().iter().find_map(|view| {
+                    view.downcast::<NSTextView>().ok().filter(|text|text.identifier().is_some_and(|id|id.to_string()=="owned-recorder-priority"))
+                });
+                if request["action"]=="recorder-priority-prepare" {
+                    if existing.is_some() || !state.surface.record.recording() {
+                        return Err("An active recorder without an old priority fixture is required".into());
+                    }
+                    let text=NSTextView::initWithFrame(NSTextView::alloc(controller.mtm()),rect(0.,0.,200.,40.));
+                    text.setIdentifier(Some(ns_string!("owned-recorder-priority")));
+                    content.addSubview(&text);
+                    text.setString(ns_string!("Recorder text"));
+                    text.setAllowsUndo(true);
+                    if !state.panel.makeFirstResponder(Some(&text)) {
+                        text.removeFromSuperview();
+                        return Err("Owned recorder text responder did not acquire focus".into());
+                    }
+                    let undo=text.undoManager().ok_or("Owned recorder text has no undo manager")?;
+                    undo.removeAllActions();undo.setGroupsByEvent(false);undo.beginUndoGrouping();
+                    unsafe{let _:()=msg_send![&*text,insertText:ns_string!(" Ω"),replacementRange:objc2_foundation::NSRange::new(13,0)];}
+                    undo.endUndoGrouping();
+                    text.setSelectedRange(objc2_foundation::NSRange::new(2,3));
+                    let text_focused=state.panel.firstResponder().is_some_and(|r|std::ptr::eq::<objc2::runtime::AnyObject>(&*r as *const _ as *const _,&*text as *const _ as *const _));
+                    if !text_focused || state.surface.record.recording() || !undo.canUndo() {
+                        state.panel.makeFirstResponder(None);text.removeFromSuperview();
+                        return Err("Owned text focus did not retire recording or establish undo".into());
+                    }
+                    // Follow the real button/focus transfer; never force simultaneous text focus.
+                    unsafe{state.surface.record.performClick(None);}
+                    let recorder_focused=state.panel.firstResponder().is_some_and(|r|std::ptr::eq::<objc2::runtime::AnyObject>(&*r as *const _ as *const _,&*state.surface.record as *const _ as *const _));
+                    return Ok(serde_json::json!({"ok":true,"result":{"textFocusedBefore":text_focused,"recorderFocusedAfter":recorder_focused,"text":text.string().to_string(),"selection":[text.selectedRange().location,text.selectedRange().length],"canUndo":undo.canUndo()}}));
+                }
+                let text=existing.ok_or("Owned recorder priority text is absent")?;
+                let value=serde_json::json!({"text":text.string().to_string(),"selection":[text.selectedRange().location,text.selectedRange().length],"canUndo":text.undoManager().is_some_and(|u|u.canUndo()),"textFocused":state.panel.firstResponder().is_some_and(|r|std::ptr::eq::<objc2::runtime::AnyObject>(&*r as *const _ as *const _,&*text as *const _ as *const _)),"recorderFocused":state.panel.firstResponder().is_some_and(|r|std::ptr::eq::<objc2::runtime::AnyObject>(&*r as *const _ as *const _,&*state.surface.record as *const _ as *const _)),"recording":state.surface.record.recording()});
+                if request["action"]=="recorder-priority-release" {
+                    if value["textFocused"]==true {state.panel.makeFirstResponder(None);}
+                    text.removeFromSuperview();
+                }
+                return Ok(serde_json::json!({"ok":true,"result":value}));
+            }
             Some("recorder-menu") => {
                 let record = match request["record"].as_str() {
                     Some("launcher") => state.settings.records[0].clone(),

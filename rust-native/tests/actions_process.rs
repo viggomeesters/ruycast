@@ -217,6 +217,27 @@ fn hotkey_sides_hyper_delete_and_repeat() {
     k(&h, 9, CMD, "v");
     saved(&h);
     assert_eq!(command(&h, "app.finder")["hotkey"], "cmd+v");
+    for (code, chars, expected) in [(0, "a", "cmd+a"), (6, "z", "cmd+z")] {
+        hotkey(&h);
+        let before=probe(&h,"recorder-priority-prepare");
+        assert_eq!(before["textFocusedBefore"],true);
+        assert_eq!(before["recorderFocusedAfter"],true);
+        assert_eq!(before["text"],"Recorder text Ω");
+        assert_eq!(before["selection"],json!([2,3]));
+        assert_eq!(before["canUndo"],true);
+        view(&h,|v|v["recording"]==true);
+        let focused=probe(&h,"recorder-priority-read");
+        assert_eq!(focused["recorderFocused"],true);
+        assert_eq!(focused["textFocused"],false);
+        k(&h,code,CMD,chars);
+        saved(&h);
+        assert_eq!(command(&h,"app.finder")["hotkey"],expected);
+        let after=probe(&h,"recorder-priority-release");
+        for field in ["text","selection"] {
+            assert_eq!(after[field],before[field],"{expected} changed the old responder's {field}");
+        }
+        assert_eq!(after["textFocused"],false);
+    }
 }
 #[test]
 fn hotkey_conflict_and_solo_modifiers() {
