@@ -35,7 +35,5 @@ import LauncherModels
         let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds)!;view.cacheDisplay(in:view.bounds,to:bitmap)
         try bitmap.representation(using:.png,properties:[:])!.write(to:directory.appendingPathComponent("analytics-\(dark ? "dark":"light")-\(width).png"))
     }}
-    var routed=false;state.showAnalytics={routed=true};let palette=PaletteController(state:state);palette.show("analytics")
-    try require(routed && !palette.panel.isVisible,"Dashboard did not use management window routing")
     return ["ok":true,"inputQueryAndIDsExcludedFromExport":true,"corruptDataPreservedUntilReset":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
 }

@@ -331,6 +331,9 @@ fn builtin_input_validation_and_native_prompt_do_not_log_private_values() {
 fn management_routing_controls_custom_retention_and_reset() {
     let h = host();
     let v = open(&h);
+    let palette = h.rpc(&json!({"op":"native.test","action":"read"}));
+    assert_eq!(palette["ok"], true, "{palette}");
+    assert_eq!(palette["result"]["windowShown"], false);
     assert_eq!(v["visible"], true);
     assert_eq!(v["surface"]["hours"].as_array().unwrap().len(), 24);
     assert!(v["text"].as_array().unwrap().contains(&json!("Dashboard")));
