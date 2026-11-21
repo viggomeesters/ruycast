@@ -2434,6 +2434,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["with Calendar enabled and Finder disabled, searching fnider returns no disabled Finder result"],
             "nativeCases": ["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.rankedFilterAfterReload"] = serde_json::json!({
+            "originalSourceSHA256": "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the disabled and removed ranked-command filtering assertions move to the real Rust host test. The interaction benchmark helper, its route, and remaining trace/field assertions stay active.",
+            "nativeSource": "rust-native/tests/execution_native_process.rs",
+            "originalScenarios": ["a successful launcher choice is ranked and remains in ranking after disabling; config reload omits the command from alias search", "after removing the disabled command and reloading again, alias search still omits it while stale ranking remains"],
+            "nativeCases": ["execution_native_process::ranked_command_is_filtered_after_disable_and_removal"],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.enabledTypoCliParity"] = serde_json::json!({
             "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3982,6 +3991,34 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn interaction_rank_filter_after_reload_is_crosswalked_to_rust() {
+        let test = include_str!("../../../tests/execution_native_process.rs");
+        let case = test
+            .split_once("fn ranked_command_is_filtered_after_disable_and_removal()")
+            .unwrap()
+            .1
+            .split_once("\n#[test]")
+            .unwrap()
+            .0;
+        assert!(case.contains("search_has_command(true)"));
+        assert!(case.contains("[\"enabled\"] = json!(false)"));
+        assert!(case.contains("host.rpc(&json!({\"op\":\"reload\"}))"));
+        assert!(case.contains("removed[\"commands\"]"));
+        assert!(case.contains("assert_eq!(fs::read(&ranking_path).unwrap(), ranking_bytes)"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/InteractionPerformanceChecks.swift::checkInteractionPerformance.rankedFilterAfterReload"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "7d755a7b89046aff2f7325c0c24625b49cd187deb5c4dd7e2992bd7d96bb35da");
+        assert_eq!(mapping["nativeSource"], "rust-native/tests/execution_native_process.rs");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 2);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["execution_native_process::ranked_command_is_filtered_after_disable_and_removal"]));
+        assert_eq!(mapping["productionAccepted"], false);
         assert_eq!(inventory["productionAccepted"], false);
     }
 
