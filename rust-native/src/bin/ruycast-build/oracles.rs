@@ -1855,6 +1855,18 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.quicklinkEditor"] = serde_json::json!({
+            "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate New Quicklink editor smoke retired",
+            "scope": "Only the local state.newCommand URL fixture, isNew/kind guard, and quicklinkEditor result field are retired. The Quick Note form reset, snippet/quicklink navigation, alias lookup, later save/reload assertions, and other active interaction checks remain.",
+            "nativeSteps": ["creation-process", "feedback-actions-process"],
+            "nativeCases": ["creation_process::quicklinks_normalize_domain_and_file_path_without_hidden_general_clipboard", "ui_completion::feedback_actions"],
+            "originalAssertions": ["Starting a new URL command presents a fresh URL editor.", "The editor is marked new and has kind url."],
+            "compatibilityNotes": ["The creation process test opens the named New Quicklink editor, edits its draft and saves without executing it; the existing feedback-actions route verifies new URL draft identity and kind before save."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-apple-shortcuts").unwrap();
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AppleShortcutChecks.swift::checkAppleShortcuts"] = serde_json::json!({
             "originalSourceSHA256": APPLE_SHORTCUTS_ORACLE_SHA256,
@@ -5539,6 +5551,12 @@ mod tests {
         assert!(interactions.contains("key(76,[],repeatKey:true)"));
         assert!(interactions.contains("guard submitted,cancelled else"));
         assert!(interactions.contains("state.query=\"quick note\";state.begin(state.selectedCommand!)"));
+        assert!(!interactions.contains("state.newCommand(\"url\""));
+        assert!(!interactions.contains("Quicklink editor did not open"));
+        assert!(!interactions.contains("\"quicklinkEditor\":true"));
+        assert!(interactions.contains("state.form=nil;state.mode=\"snippets\""));
+        assert!(interactions.contains("guard state.selectedCommand?.id==\"link.search\""));
+        assert!(interactions.contains("let created=Command(id:\"saved.link\""));
         assert!(interactions.contains("func featureFixture"));
         assert!(!interactions.contains("func renderFeatures"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
@@ -7990,6 +8008,16 @@ mod tests {
         assert!(gate.required_native_steps.contains(&"native-snippet-choice-process-rust"));
         assert!(gate.native_cases.contains(&"native_snippet_choice_process::repeat_modifiers_and_marked_text_do_not_submit"));
         assert!(std::fs::read_to_string(root.join("rust-native/tests/native_snippet_choice_process.rs")).unwrap().contains("fn repeat_modifiers_and_marked_text_do_not_submit()"));
+        let quicklink = &crosswalk["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.quicklinkEditor"];
+        assert_eq!(quicklink["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
+        assert_eq!(quicklink["status"], "source-qualified-rust-case-crosswalk; duplicate New Quicklink editor smoke retired");
+        assert_eq!(quicklink["nativeSteps"], serde_json::json!(["creation-process", "feedback-actions-process"]));
+        assert_eq!(quicklink["nativeCases"], serde_json::json!(["creation_process::quicklinks_normalize_domain_and_file_path_without_hidden_general_clipboard", "ui_completion::feedback_actions"]));
+        assert_eq!(quicklink["productionAccepted"], false);
+        assert!(gate.required_native_steps.contains(&"creation-process"));
+        assert!(gate.required_native_steps.contains(&"feedback-actions-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::feedback_actions"));
+        assert!(std::fs::read_to_string(root.join("rust-native/tests/creation_process.rs")).unwrap().contains("fn quicklinks_normalize_domain_and_file_path_without_hidden_general_clipboard()"));
         assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
