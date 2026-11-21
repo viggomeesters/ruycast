@@ -329,6 +329,29 @@ fn test_cli_text_copy_roundtrips_to_owned_named_board() {
 }
 
 #[test]
+fn test_native_capture_skips_text_above_max_text_bytes_without_changing_history() {
+    let _serial = HOST_SCENARIOS.lock().unwrap();
+    let h = host(json!({"maxTextBytes": 1}));
+    fixture(&h, "x");
+    h.wait(|s| s["clipboardCount"] == 1);
+    let before_items = items(&h);
+    assert_eq!(before_items[0]["text"], "x");
+    let history = h.profile.join("clipboard.json");
+    let before_bytes = fs::read(&history).unwrap();
+    let assets = h.profile.join("clipboard-assets");
+    assert!(!assets.exists());
+
+    fixture(&h, "Synthetic clipboard text Å");
+    let input = h.probe("clipboard-fixture", json!({"readHistoryText":true}));
+    assert_eq!(input["namedBoard"], true);
+    assert_eq!(input["text"], "Synthetic clipboard text Å");
+    h.wait(|s| s["clipboardCount"] == 1);
+    assert_eq!(items(&h), before_items);
+    assert_eq!(fs::read(&history).unwrap(), before_bytes);
+    assert!(!assets.exists());
+}
+
+#[test]
 fn test_cli_import_export_search_copy_paste_delete_clear() {
     let _serial = HOST_SCENARIOS.lock().unwrap();
     let h = host(json!({}));
