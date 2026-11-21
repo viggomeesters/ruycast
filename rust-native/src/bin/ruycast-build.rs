@@ -505,6 +505,9 @@ fn run() -> Result<()> {
     run_with_args(std::env::args().skip(1).collect())
 }
 fn run_with_args(mut args: Vec<String>) -> Result<()> {
+    if args.first().is_some_and(|value| matches!(value.as_str(), "pre-main-oracles" | "verify-pre-main-oracles")) {
+        return Err("pre-main-oracles is retired; use pure-core-oracle or verify-pure-core-oracle for the current Core build/link smoke".into());
+    }
     if args.first().is_some_and(|value| value == "release-receipt") {
         args.remove(0);
         candidate::release_receipt(&args)?;
@@ -605,8 +608,6 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
             args[0].as_str(),
             "pure-core-oracle"
                 | "verify-pure-core-oracle"
-                | "pre-main-oracles"
-                | "verify-pre-main-oracles"
         )
     {
         if !Path::new(&args[2]).is_absolute() {
@@ -616,9 +617,7 @@ fn run_with_args(mut args: Vec<String>) -> Result<()> {
         let lease = BuildLock::acquire(&root)?;
         let value = match args[0].as_str() {
             "pure-core-oracle" => oracles::core(&root, &lease)?,
-            "verify-pure-core-oracle" => oracles::verify_core(&root, &lease)?,
-            "pre-main-oracles" => oracles::headless(&root, &lease)?,
-            _ => oracles::verify_headless(&root, &lease)?,
+            _ => oracles::verify_core(&root, &lease)?,
         };
         println!("{value}");
         return Ok(());
@@ -740,6 +739,20 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
+    #[test]
+    fn retired_pre_main_oracles_refuse_before_repo_or_receipt_access() {
+        for command in ["pre-main-oracles", "verify-pre-main-oracles"] {
+            for args in [
+                vec![command],
+                vec![command, "--help"],
+                vec![command, "--repo", "relative"],
+                vec![command, "--repo", "/missing-repository"],
+            ] {
+                let error = run_with_args(args.into_iter().map(str::to_owned).collect()).unwrap_err();
+                assert_eq!(error, "pre-main-oracles is retired; use pure-core-oracle or verify-pure-core-oracle for the current Core build/link smoke");
+            }
+        }
+    }
     #[test]
     fn retired_parity_inventory_refuses_before_parsing_or_help() {
         let cases = [

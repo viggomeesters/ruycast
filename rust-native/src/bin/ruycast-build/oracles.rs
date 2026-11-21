@@ -5,8 +5,6 @@ use std::collections::BTreeSet;
 #[path = "../../../tests/support/hid_state_goldens.rs"]
 mod hid_state_goldens;
 
-const HEADLESS_SMOKE_SCOPE: &str = "SwiftPM RuycastApp compile/link smoke only; no Swift host execution, search behavior, startup, AppKit or desktop acceptance";
-
 const CORE_SMOKE_SCOPE: &str = "Rust static library and SwiftPM RuycastApp compile/link smoke only; no behavior, ABI-call, startup, AppKit or desktop acceptance";
 
 #[derive(Serialize, Deserialize)]
@@ -166,20 +164,11 @@ fn check_core_policy_artifact(root: &Path, artifact: &PolicyArtifact) -> Result<
     } Ok(())
 }
 fn core_policy_arguments(artifact: &PolicyArtifact)->Vec<String> {vec![artifact.path.clone(),"--root".into(),".".into()]}
-#[derive(Clone, Copy)]
-enum PolicyLane { Core, Headless }
-impl PolicyLane { fn prefix(self)->&'static str {match self{Self::Core=>"pure-core",Self::Headless=>"pure-headless"}} }
 fn execute_core_policy(root:&Path,lease:&BuildLock,artifact:&PolicyArtifact,phase:&str)->Result<PolicyInvocation> {
-    execute_oracle_policy(root,lease,artifact,PolicyLane::Core,phase)
-}
-fn check_core_policy_evidence(root:&Path,policy:&CorePolicyEvidence)->Result<()> {
-    check_oracle_policy_evidence(root,policy,PolicyLane::Core)
-}
-fn execute_oracle_policy(root:&Path,lease:&BuildLock,artifact:&PolicyArtifact,lane:PolicyLane,phase:&str)->Result<PolicyInvocation> {
     if !matches!(phase,"before"|"after") {return Err("Unknown core policy phase.".into());}
     check_core_policy_artifact(root,artifact)?;
     let arguments=core_policy_arguments(artifact);let value=tool_capture(root,lease,&arguments)?;
-    let prefix=root.join(format!(".build/receipts/{}-policy-{phase}",lane.prefix()));
+    let prefix=root.join(format!(".build/receipts/pure-core-policy-{phase}"));
     ruycast_native::private_storage::write(&prefix.with_extension("stdout"),&value.stdout,true)?;
     ruycast_native::private_storage::write(&prefix.with_extension("stderr"),&value.stderr,true)?;
     check_core_policy_artifact(root,artifact)?;
@@ -187,13 +176,14 @@ fn execute_oracle_policy(root:&Path,lease:&BuildLock,artifact:&PolicyArtifact,la
     let result=validation::rust_policy_result(&value.stdout)?;
     Ok(PolicyInvocation{arguments,result})
 }
-fn check_oracle_policy_evidence(root:&Path,policy:&CorePolicyEvidence,lane:PolicyLane)->Result<()> {
+fn check_core_policy_evidence(root:&Path,policy:&CorePolicyEvidence)->Result<()> {
+    let lane_prefix="pure-core";
     if policy.inputs!=core_policy_footprint(root)? {return Err("Core policy input path/type/content footprint changed.".into());}
     check_core_policy_artifact(root,&policy.artifact)?;
     for (phase, invocation) in [("before",&policy.before),("after",&policy.after)] {
         if invocation.arguments!=core_policy_arguments(&policy.artifact) {return Err("Pure core policy caller changed.".into());}
         validation::rust_policy_result(&serde_json::to_vec(&invocation.result).map_err(error)?)?;
-        let logged:serde_json::Value=serde_json::from_slice(&regular_bytes(&root.join(format!(".build/receipts/{}-policy-{phase}.stdout",lane.prefix())))?).map_err(error)?;
+        let logged:serde_json::Value=serde_json::from_slice(&regular_bytes(&root.join(format!(".build/receipts/{lane_prefix}-policy-{phase}.stdout")))?).map_err(error)?;
         if logged!=invocation.result {return Err("Pure core policy log differs from its receipt.".into());}
     }
     if policy.before.result!=policy.after.result || policy.before.result["lockSHA256"]!=digest(&root.join("rust-native/swift-reference-lock.json"))? {
@@ -2603,134 +2593,6 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     }
     Ok(inventory)
 }
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct HeadlessReceipt {
-    schema: String,
-    policy: CorePolicyEvidence,
-    core_receipt_sha256: String,
-    sources: BTreeMap<String, String>,
-    artifacts: BTreeMap<String, String>,
-    outcome: String,
-    commands: Vec<Vec<String>>,
-    scope: String,
-    production_accepted: bool,
-}
-fn headless_sources(root: &Path) -> Result<BTreeMap<String, String>> {
-    let mut values = core_sources(root)?;
-    validation::source_folder(root, &root.join("Sources"), &mut values)?;
-    Ok(values)
-}
-fn headless_build_commands(archive_sha256: &str) -> Vec<Vec<String>> {
-    let scratch = format!(".build/oracle-swift/{archive_sha256}");
-    vec![
-        vec!["swift".into(), "build".into(), "--scratch-path".into(), scratch.clone(), "--configuration".into(), "debug".into(), "--product".into(), "RuycastApp".into()],
-        vec!["swift".into(), "build".into(), "--scratch-path".into(), scratch, "--configuration".into(), "debug".into(), "--show-bin-path".into()],
-    ]
-}
-pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
-    let core=verify_core(root, lease)?;
-    let core_receipt_sha256=digest(&root.join(".build/receipts/pure-core-oracle.json"))?;
-    let before = headless_sources(root)?;
-    let policy_inputs=core_policy_footprint(root)?;
-    let target=host_target(root)?;
-    if core["policy"]["artifact"]["target"]!=target {return Err("Headless policy requires its current host core build/link-smoke receipt.".into());}
-    tool(root,lease,&core_policy_build_command(&target)?)?;
-    let policy_artifact=bind_core_policy_artifact(root,&target)?;
-    let policy_before=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"before")?;
-    let archive = root.join(".build/rust/release/librustcast_core.a");
-    let archive_hash = digest(&archive)?;
-    let commands = headless_build_commands(&archive_hash);
-    tool(root, lease, &commands[0])?;
-    let bin_path = tool(root, lease, &commands[1])?;
-    let bin_path = PathBuf::from(bin_path.trim());
-    if !bin_path.starts_with(root.join(".build/oracle-swift"))
-        || bin_path.components().any(|part| {
-            !matches!(
-                part,
-                std::path::Component::RootDir | std::path::Component::Normal(_)
-            )
-        })
-    {
-        return Err("Unexpected frozen host oracle path.".into());
-    }
-    let binary = bin_path.join("RuycastApp");
-    let binary_hash = digest(&binary)?;
-    let policy_after=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"after")?;
-    let policy=CorePolicyEvidence{artifact:policy_artifact,before:policy_before,after:policy_after,inputs:policy_inputs};
-    check_oracle_policy_evidence(root,&policy,PolicyLane::Headless)?;
-    if headless_sources(root)? != before || digest(&archive)? != archive_hash || digest(&binary)? != binary_hash {
-        return Err("Swift host build/link smoke inputs changed during compilation.".into());
-    }
-    verify_core(root, lease)?;
-    if digest(&root.join(".build/receipts/pure-core-oracle.json"))?!=core_receipt_sha256 {return Err("Core receipt changed during headless checks.".into());}
-    let mut artifacts = BTreeMap::new();
-    for path in [&archive, &binary] {
-        artifacts.insert(
-            path.strip_prefix(root)
-                .map_err(error)?
-                .to_str()
-                .ok_or("Invalid oracle artifact path.")?
-                .into(),
-            digest(path)?,
-        );
-    }
-    artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-    let receipt=HeadlessReceipt{schema:"ruycast.swift-host-build-link-smoke.v1".into(),policy,core_receipt_sha256,sources:before,artifacts,outcome:"Swift host build/link smoke passed".into(),commands,scope:HEADLESS_SMOKE_SCOPE.into(),production_accepted:false};
-    lease.validate()?;
-    ruycast_native::private_storage::write(
-        &root.join(".build/receipts/pre-main-headless-oracles.json"),
-        &serde_json::to_vec_pretty(&receipt).map_err(error)?,
-        true,
-    )?;
-    verify_headless(root, lease)
-}
-pub(super) fn verify_headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
-    lease.validate()?;
-    let core=verify_core(root,lease)?;
-    let core_sha=digest(&root.join(".build/receipts/pure-core-oracle.json"))?;
-    let receipt: HeadlessReceipt = serde_json::from_slice(&regular_bytes(
-        &root.join(".build/receipts/pre-main-headless-oracles.json"),
-    )?)
-    .map_err(error)?;
-    if receipt.schema != "ruycast.swift-host-build-link-smoke.v1"
-        || receipt.core_receipt_sha256!=core_sha
-        || receipt.policy.artifact.target!=core["policy"]["artifact"]["target"]
-        || receipt.production_accepted
-        || receipt.sources != headless_sources(root)?
-        || receipt.artifacts.len() != 3
-        || receipt.outcome != "Swift host build/link smoke passed"
-        || receipt.scope != HEADLESS_SMOKE_SCOPE
-    {
-        return Err("Swift host build/link smoke receipt is invalid or stale.".into());
-    }
-    let archive = ".build/rust/release/librustcast_core.a";
-    let archive_sha = receipt.artifacts.get(archive).ok_or("Missing Swift host smoke archive.")?;
-    let architecture = match receipt.policy.artifact.target.as_str() {
-        "aarch64-apple-darwin" => "arm64-apple-macosx",
-        "x86_64-apple-darwin" => "x86_64-apple-macosx",
-        _ => return Err("Unexpected Swift host smoke target.".into()),
-    };
-    let binary = format!(".build/oracle-swift/{archive_sha}/{architecture}/debug/RuycastApp");
-    if receipt.commands != headless_build_commands(archive_sha) || !receipt.artifacts.contains_key(&binary) {
-        return Err("Invalid Swift host build/link smoke binding.".into());
-    }
-    check_oracle_policy_evidence(root,&receipt.policy,PolicyLane::Headless)?;
-    if receipt.artifacts.get(&receipt.policy.artifact.path)!=Some(&receipt.policy.artifact.sha256) {return Err("Headless policy snapshot artifact role changed.".into());}
-    for (name, expected) in &receipt.artifacts {
-        if Path::new(name).is_absolute()
-            || Path::new(name)
-                .components()
-                .any(|part| !matches!(part, std::path::Component::Normal(_)))
-            || digest(&root.join(name))? != *expected
-        {
-            return Err("Swift host build/link smoke artifact changed.".into());
-        }
-    }
-    verify_core(root, lease)?;
-    if digest(&root.join(".build/receipts/pure-core-oracle.json"))?!=receipt.core_receipt_sha256 {return Err("Headless core dependency changed during verification.".into());}
-    serde_json::to_value(receipt).map_err(error)
-}
 pub(super) fn require_complete(kind: &str) -> Result<()> {
     let inventory = inventory(kind)?;
     if inventory["unmappedGateIDs"]
@@ -3535,10 +3397,6 @@ mod tests {
                 assert!(search_crosswalk(&mappings).is_err(), "{id}: {field}");
             }
         }
-        let source = include_str!("oracles.rs");
-        let producer = source.split_once("pub(super) fn headless(").unwrap().1.split_once("pub(super) fn require_complete").unwrap().0;
-        assert!(!producer.contains("--check-search"));
-        assert!(!producer.contains("Command::new(&binary)"));
     }
 
     #[test]
@@ -4486,71 +4344,6 @@ mod tests {
         artifacts.insert(archive.clone(),archive_sha256.clone());
         artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
         CoreReceipt{schema:"ruycast.core-build-link-smoke.v2".into(),scope:CORE_SMOKE_SCOPE.into(),sources:core_sources(root).unwrap(),artifacts,commands:core_build_commands(target,&archive_sha256).unwrap(),outcome:"Core build/link smoke passed".into(),production_accepted:false,swift_compatibility:SwiftCompatibility{modulemap:compatibility_modulemap.into(),architecture:architecture.into(),alias_target:None},policy}
-    }
-    fn owned_headless_policy_receipt(root:&Path,lease:&BuildLock)->HeadlessReceipt {
-        let artifact=bind_core_policy_artifact(root,"aarch64-apple-darwin").unwrap();
-        let before=execute_core_policy(root,lease,&artifact,"before").unwrap();let after=execute_core_policy(root,lease,&artifact,"after").unwrap();
-        let core_policy=CorePolicyEvidence{artifact:artifact.clone(),before,after,inputs:core_policy_footprint(root).unwrap()};
-        let core_logs=["before","after"].map(|phase|fs::read(root.join(format!(".build/receipts/pure-core-policy-{phase}.stdout"))).unwrap());
-        let core=core_smoke_receipt(root,core_policy);
-        fs::write(root.join(".build/receipts/pure-core-oracle.json"),serde_json::to_vec(&core).unwrap()).unwrap();verify_core(root,lease).unwrap();
-        let before=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"before").unwrap();
-        let after=execute_oracle_policy(root,lease,&artifact,PolicyLane::Headless,"after").unwrap();
-        for (index,phase) in ["before","after"].into_iter().enumerate(){assert_eq!(fs::read(root.join(format!(".build/receipts/pure-core-policy-{phase}.stdout"))).unwrap(),core_logs[index]);}
-        verify_core(root,lease).unwrap();
-        let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};
-        let mut artifacts=BTreeMap::new();
-        let archive_sha=digest(&root.join(".build/rust/release/librustcast_core.a")).unwrap();
-        let host=format!(".build/oracle-swift/{archive_sha}/arm64-apple-macosx/debug/RuycastApp");fs::write(root.join(&host),b"owned nonexecutable receipt fixture").unwrap();
-        for path in [".build/rust/release/librustcast_core.a",host.as_str()] {artifacts.insert(path.into(),digest(&root.join(path)).unwrap());}
-        artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-        HeadlessReceipt{schema:"ruycast.swift-host-build-link-smoke.v1".into(),core_receipt_sha256:digest(&root.join(".build/receipts/pure-core-oracle.json")).unwrap(),policy,sources:headless_sources(root).unwrap(),artifacts,outcome:"Swift host build/link smoke passed".into(),commands:headless_build_commands(&archive_sha),scope:HEADLESS_SMOKE_SCOPE.into(),production_accepted:false}
-    }
-    #[test]
-    fn headless_rust_policy_logs_and_exact_core_smoke_dependency_remain_separate() {
-        let fixture=core_policy_fixture();let root=&fixture.0;let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
-        let receipt=owned_headless_policy_receipt(root,&lease);let path=root.join(".build/receipts/pre-main-headless-oracles.json");
-        fs::write(&path,serde_json::to_vec(&receipt).unwrap()).unwrap();verify_headless(root,&lease).unwrap();
-        let core=root.join(".build/receipts/pure-core-oracle.json");let original=fs::read(&core).unwrap();let mut changed=original.clone();changed.push(b'\n');fs::write(&core,&changed).unwrap();
-        verify_core(root,&lease).unwrap();assert_eq!(verify_headless(root,&lease).unwrap_err(), "Swift host build/link smoke receipt is invalid or stale.");
-        fs::write(&core,&original).unwrap();verify_headless(root,&lease).unwrap();
-        fs::remove_file(&core).unwrap();assert!(verify_headless(root,&lease).is_err());assert!(headless(root,&lease).is_err());
-        assert!(root.join(".build/oracle-swift").is_dir());
-    }
-    #[test]
-    fn headless_compile_link_smoke_rejects_old_behavior_receipts_and_stale_bindings() {
-        let fixture=core_policy_fixture();let root=&fixture.0;let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
-        let receipt=owned_headless_policy_receipt(root,&lease);let good=serde_json::to_value(&receipt).unwrap();let path=root.join(".build/receipts/pre-main-headless-oracles.json");
-        let save=|value:&serde_json::Value|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
-        save(&good);verify_headless(root,&lease).unwrap();
-        for mutation in ["old-schema","old-behavior-outcomes","missing-policy","core-digest","mutable-artifact","different-after-caller","bad-result","missing-footprint","scope","outcome","command","host-role","missing-host"] {
-            let mut changed=good.clone();match mutation {
-                "old-schema"=>changed["schema"]=serde_json::json!("ruycast.pre-main-headless-oracles.v2"),
-                "old-behavior-outcomes"=>{changed["outcomes"]=serde_json::json!({"--check-search":{"ok":true}});},
-                "missing-policy"=>{changed.as_object_mut().unwrap().remove("policy");},
-                "core-digest"=>changed["coreReceiptSha256"]=serde_json::json!("0".repeat(64)),
-                "mutable-artifact"=>changed["policy"]["artifact"]["path"]=changed["policy"]["artifact"]["buildSource"].clone(),
-                "different-after-caller"=>changed["policy"]["after"]["arguments"][0]=changed["policy"]["artifact"]["buildSource"].clone(),
-                "bad-result"=>changed["policy"]["after"]["result"]["productionReady"]=serde_json::json!(true),
-                "scope"=>changed["scope"]=serde_json::json!("search behavior acceptance"),
-                "outcome"=>changed["outcome"]=serde_json::json!("Search behavior passed"),
-                "command"=>changed["commands"][0].as_array_mut().unwrap().push(serde_json::json!("--check-search")),
-                "host-role"|"missing-host"=>{let artifacts=changed["artifacts"].as_object_mut().unwrap();let host=artifacts.keys().find(|path|path.ends_with("/RuycastApp")).unwrap().clone();let hash=artifacts.remove(&host).unwrap();if mutation=="host-role"{artifacts.insert(".build/other-host".into(),hash);}},
-                _=>changed["policy"]["inputs"]=serde_json::json!({}),
-            }
-            save(&changed);assert!(verify_headless(root,&lease).is_err(),"{mutation}");
-        }
-        save(&good);verify_headless(root,&lease).unwrap();
-        let host=receipt.artifacts.keys().find(|path|path.ends_with("/RuycastApp")).unwrap();
-        let host_path=root.join(host);let host_bytes=fs::read(&host_path).unwrap();
-        fs::write(&host_path,b"tampered compiled host").unwrap();assert!(verify_headless(root,&lease).is_err());
-        fs::write(&host_path,&host_bytes).unwrap();verify_headless(root,&lease).unwrap();
-        let log_path=root.join(".build/receipts/pure-headless-policy-after.stdout");
-        let log_bytes=fs::read(&log_path).unwrap();fs::remove_file(&log_path).unwrap();
-        assert!(verify_headless(root,&lease).is_err());fs::write(&log_path,&log_bytes).unwrap();
-        verify_headless(root,&lease).unwrap();
-        fs::write(root.join("Sources/Legacy.swift"),b"stale Swift source").unwrap();
-        assert!(verify_headless(root,&lease).is_err());
     }
     #[test]
     fn core_rust_policy_snapshot_preserves_actual_calls_after_rebuild_and_fails_closed() {
