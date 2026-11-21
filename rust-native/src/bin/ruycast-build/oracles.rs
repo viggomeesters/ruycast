@@ -2341,6 +2341,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["with Find Reminders ranked higher, query fnider orders the direct Finder title before the weak subsequence distractor"],
             "nativeCases": ["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoCliOrder"] = serde_json::json!({
+            "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the CLI reply assertion that preserves direct title typo order over a higher-recency weak subsequence moves to the Rust local control-socket runtime test; palette ordering remains bound to its existing core test.",
+            "nativeSource": "rust-native/src/runtime_system.rs",
+            "originalScenarios": ["with Find Reminders ranked higher, the fnider CLI reply orders direct Finder before the weak subsequence distractor"],
+            "nativeCases": ["runtime::system::shortcut_budget_tests::cli_direct_title_typo_outranks_higher_recency_subsequence"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.appearancePreservesCatalog"] = serde_json::json!({
             "originalSourceSHA256": "a3c7038a6a68b8ccbc5cebc38ef5dbfae358eb3079e2424c79337906c8704d22",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3622,6 +3630,33 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust/src/lib.rs");
         assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 1);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_direct_title_typo_cli_order_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_system.rs");
+        let scenario = rust
+            .split_once("fn cli_direct_title_typo_outranks_higher_recency_subsequence()")
+            .unwrap()
+            .1
+            .split_once("\n    #[test]")
+            .unwrap()
+            .0;
+        assert!(scenario.contains("case.state.ranking.record_success(\"typo.distractor\", 10_000.).unwrap();"));
+        assert!(scenario.contains("case.window.session.set_query(\"fnider\");"));
+        assert!(scenario.contains("let expected = [\"typo.finder\", \"typo.distractor\"]"));
+        assert!(scenario.contains("\"op\":\"search\",\"mode\":\"commands\",\"query\":\"fnider\""));
+        assert!(scenario.contains("let request = match requests.recv_timeout"));
+        assert!(scenario.contains("assert_eq!(extra, 0, \"direct title typo search must send one response\");"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoCliOrder"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_system.rs");
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::system::shortcut_budget_tests::cli_direct_title_typo_outranks_higher_recency_subsequence"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 
