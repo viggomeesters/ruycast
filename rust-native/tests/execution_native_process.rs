@@ -147,6 +147,87 @@ fn return_runs_script_and_records_launcher_ranking() {
     assert_eq!(actions::probe(&host, "read")["windowShown"], false);
 }
 #[test]
+fn only_real_launcher_success_writes_recency_without_argument_text() {
+    let mut host = Bridge::new(Config::current(), false);
+    let sentinel = format!(
+        "PRIVATE_RECENCY_ARGUMENT_{}",
+        host.base.file_name().unwrap().to_str().unwrap()
+    );
+    let marker = host.base.join("recency-success");
+    let success_id = "recency.success";
+    let failure_id = "recency.failure";
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().extend([
+        json!({"id":success_id,"title":"Recency Success Fixture","aliases":["recencysuccess"],
+            "kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),
+            "arguments":["execution-write",marker,sentinel],"timeout":3}),
+        json!({"id":failure_id,"title":"Recency Failure Fixture","aliases":["recencyfailure"],
+            "kind":"script","target":env!("CARGO_BIN_EXE_private-results-fixture"),
+            "arguments":["rich-special","exit",sentinel],"timeout":3}),
+    ]);
+    host.replace(&config, None);
+    host.start();
+    host.settled(|_| true);
+    let reset = host.rpc(&json!({"op":"search-ranking.reset","confirmed":true}));
+    assert_eq!(reset["ok"], true);
+    assert_eq!(reset["result"]["entries"], 0);
+    let ranking_path = host.profile.join("search-ranking.json");
+    let empty_bytes = fs::read(&ranking_path).unwrap();
+    let assert_empty = || {
+        assert_eq!(fs::read(&ranking_path).unwrap(), empty_bytes);
+        let ranking: Value = serde_json::from_slice(&empty_bytes).unwrap();
+        assert_eq!(ranking["entries"], json!({}));
+        assert_eq!(host.rpc(&json!({"op":"search-ranking"}))["result"]["entries"], 0);
+    };
+    assert_empty();
+
+    let cli = host.rpc_timeout(&json!({"op":"execute","id":success_id}), Duration::from_secs(6));
+    assert_eq!(cli["ok"], true);
+    wait_marker(&marker, &sentinel);
+    assert_empty();
+    fs::remove_file(&marker).unwrap();
+
+    // Dry-run is the public CLI control route; there is no native launcher
+    // dry-run interface. Its returned command preserves the same argument.
+    let dry_run = host.rpc(&json!({"op":"execute","id":success_id,"dryRun":true}));
+    assert_eq!(dry_run["ok"], true);
+    assert_eq!(dry_run["dryRun"], true);
+    assert_eq!(dry_run["result"]["arguments"][2], sentinel);
+    assert!(!marker.exists());
+    assert_empty();
+
+    actions::show(&host, "recencyfailure");
+    actions::key(&host, 36, 0, "\r", false);
+    host.wait(|status| {
+        status["scriptsRunning"] == 0
+            && host.rpc(&json!({"op":"logs","commandID":failure_id}))["result"]
+                .as_array().unwrap().iter().any(|entry| {
+                    entry["source"] == "launcher" && entry["success"] == false
+                })
+    });
+    assert_empty();
+
+    actions::show(&host, "recencysuccess");
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&marker, &sentinel);
+    host.wait(|status| {
+        status["scriptsRunning"] == 0
+            && status["nativeUI"]["visible"] == false
+            && host.rpc(&json!({"op":"logs","commandID":success_id}))["result"]
+                .as_array().unwrap().iter().any(|entry| {
+                    entry["source"] == "launcher" && entry["success"] == true
+                })
+    });
+    let bytes = fs::read(&ranking_path).unwrap();
+    let ranking: Value = serde_json::from_slice(&bytes).unwrap();
+    let entries = ranking["entries"].as_object().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert!(entries.get(success_id).unwrap().as_f64().unwrap().is_finite());
+    assert_eq!(host.rpc(&json!({"op":"search-ranking"}))["result"]["entries"], 1);
+    assert!(!String::from_utf8(bytes).unwrap().contains(&sentinel));
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+}
+#[test]
 fn actions_open_runs_script() {
     let host = host("actions");
     actions::action(&host, "Run");
