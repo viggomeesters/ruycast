@@ -2,8 +2,6 @@ import AppKit
 import SwiftUI
 import LauncherCore
 import LauncherModels
-import Vision
-
 func featureFixture()->[Command] {
     [Command(id:"app.finder",title:"Finder",kind:"app",target:"com.apple.finder",aliases:["finder"]),
      Command(id:"app.obsidian",title:"Obsidian",kind:"app",target:"md.obsidian",aliases:["obsidian"]),
@@ -140,82 +138,6 @@ func featureFixture()->[Command] {
     view.cacheDisplay(in:view.bounds,to:bitmap)
     guard let data=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Could not encode features.")}
     try data.write(to:URL(fileURLWithPath:path))
-}
-
-// Exercise one retained hosting tree, not only the model or a fresh screenshot.
-// Vision reads actual rendered labels; no production window or desktop input is used.
-@MainActor func checkRenderedUpdates(_ outputPath:String) throws -> [String:Any] {
-    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
-    let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rc-render-"+String(UUID().uuidString.prefix(8)))
-    defer {try? FileManager.default.removeItem(at:sandbox)}
-    let state=try AppState(root:sandbox,headless:true);state.config.commands=featureFixture()
-    let host=NSHostingView(rootView:Palette(state:state));host.appearance=NSAppearance(named:.darkAqua)
-    let panel=NSPanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)
-    panel.isReleasedWhenClosed=false;panel.contentView=host
-    host.frame=NSRect(x:0,y:0,width:760,height:490)
-    defer {panel.close()}
-    var capturedHost:NSView=host
-    let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
-    func capture(_ name:String) throws -> [String] {
-        let deadline=Date().addingTimeInterval(0.15)
-        while Date()<deadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
-        capturedHost.layoutSubtreeIfNeeded()
-        guard let bitmap=capturedHost.bitmapImageRepForCachingDisplay(in:capturedHost.bounds) else {throw LauncherError("No render bitmap.")}
-        capturedHost.cacheDisplay(in:capturedHost.bounds,to:bitmap)
-        guard let data=bitmap.representation(using:.png,properties:[:]),let cg=bitmap.cgImage else {throw LauncherError("No render image.")}
-        try data.write(to:directory.appendingPathComponent(name+".png"))
-        let request=VNRecognizeTextRequest();request.recognitionLevel = .accurate
-        try VNImageRequestHandler(cgImage:cg).perform([request])
-        return (request.results ?? []).compactMap {$0.topCandidates(1).first?.string}
-    }
-    let initial=try capture("initial")
-    guard initial.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Initial view did not render rows: \(initial)")}
-    func searchField(_ view:NSView)->SearchInput? {if let field=view as? SearchInput {return field};return view.subviews.lazy.compactMap {searchField($0)}.first}
-    guard let input=searchField(host) else {throw LauncherError("Rendered search field missing.")}
-    for query in ["o","ob","obs","obsidian"] {
-        input.stringValue=query
-        input.delegate?.controlTextDidChange?(Notification(name:NSControl.textDidChangeNotification,object:input))
-    }
-    guard state.query=="obsidian" else {throw LauncherError("Hosting field delegate did not write binding.")}
-    let filtered=try capture("filtered")
-    guard filtered.contains(where:{$0.contains("Obsidian")}),!filtered.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Rendered search rows are stale: \(filtered)")}
-    state.query="missing zzxx"
-    let empty=try capture("empty")
-    guard empty.contains(where:{$0.contains("No commands found")}),!empty.contains(where:{$0.contains("Obsidian")}) else {throw LauncherError("Rendered empty search is stale: \(empty)")}
-    state.query="";state.mode="snippets"
-    let snippets=try capture("snippets")
-    guard snippets.contains(where:{$0.contains("Greeting")}),!snippets.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Rendered snippets are stale: \(snippets)")}
-    state.mode="commands"
-    let restored=try capture("restored")
-    guard restored.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Clearing search did not restore rows.")}
-    let beforeMove=try Data(contentsOf:directory.appendingPathComponent("restored.png"))
-    state.moveSelection(1);_=try capture("arrow-selection")
-    guard try Data(contentsOf:directory.appendingPathComponent("arrow-selection.png")) != beforeMove else {throw LauncherError("Arrow selection did not redraw.")}
-    let controller=ManagementController(state:state)
-    guard !controller.window.isVisible,let management=controller.window.contentView else {throw LauncherError("Management opened automatically.")}
-    defer {controller.window.close()}
-    capturedHost=management
-    controller.window.appearance=NSAppearance(named:.darkAqua);management.appearance=NSAppearance(named:.darkAqua)
-    state.query="obsidian"
-    let settings=try capture("settings-dark")
-    guard settings.contains(where:{$0.contains("General")}),settings.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Settings did not render: \(settings)")}
-    controller.navigation.query="gmaps"
-    let managedSearch=try capture("settings-search")
-    guard managedSearch.contains(where:{$0.contains("Search Google Maps")}),!managedSearch.contains(where:{$0.contains("Finder")}),state.query=="obsidian" else {throw LauncherError("Management search stale or changed launcher query: \(managedSearch)")}
-    controller.navigation.query="";controller.navigation.kind="snippets"
-    let managedSnippets=try capture("settings-snippets")
-    guard managedSnippets.contains(where:{$0.contains("Greeting")}),!managedSnippets.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Management library stale: \(managedSnippets)")}
-    controller.navigation.form=CommandForm(command:state.config.commands.last!,isRun:false)
-    let editor=try capture("settings-editor")
-    guard editor.contains(where:{$0.contains("Keyword")}) else {throw LauncherError("Management editor missing: \(editor)")}
-    controller.navigation.form=nil;controller.window.appearance=NSAppearance(named:.aqua);management.appearance=NSAppearance(named:.aqua)
-    controller.window.setContentSize(NSSize(width:680,height:480))
-    _=try capture("settings-light-small")
-    panel.contentView=host;capturedHost=host;host.appearance=NSAppearance(named:.aqua)
-    state.query="obsidian";panel.setContentSize(NSSize(width:640,height:400))
-    let small=try capture("launcher-light-small")
-    guard small.contains(where:{$0.contains("Obsidian")}),!small.contains(where:{$0.contains("Finder")}) else {throw LauncherError("Small launcher results stale.")}
-    return ["ok":true,"persistentHostingView":true,"renderedTextChecks":12,"nativeHostingFieldDelegate":true,"separateManagementNavigation":true,"managementDoesNotOpenAutomatically":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
 
 // Route real AppKit key events through the same hidden panel as production.

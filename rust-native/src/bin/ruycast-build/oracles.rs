@@ -1822,6 +1822,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
+            "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift check route retired",
+            "scope": "Only the --check-render-updates caller and checkRenderedUpdates helper are retired. The shared InteractionChecks.swift file, --check-interactions and --render-features routes remain active.",
+            "nativeSource": "rust-native/examples/ui_completion.rs",
+            "nativeSteps": ["render-updates-process"],
+            "nativeCases": ["ui_completion::render_updates"],
+            "swiftOriginalCaptures": 12,
+            "rustRenderedCaptures": 26,
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5316,6 +5329,66 @@ mod tests {
         let value = inventory("settings").unwrap();
         assert_eq!(value["productionAccepted"], false);
         assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+    }
+    #[test]
+    fn retired_render_updates_swift_route_keeps_shared_interaction_routes() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        let interactions = std::fs::read_to_string(root.join("Sources/RuycastApp/InteractionChecks.swift")).unwrap();
+        assert!(!main.contains("--check-render-updates"));
+        assert!(!interactions.contains("checkRenderedUpdates"));
+        assert!(main.contains("--check-interactions"));
+        assert!(main.contains("output(try checkInteractions())"));
+        assert!(main.contains("--render-features"));
+        assert!(main.contains("try renderFeatures("));
+        assert!(interactions.contains("func checkInteractions"));
+        assert!(interactions.contains("func renderFeatures"));
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
+        assert_eq!(gate.required_native_steps, &["render-updates-process"]);
+        assert_eq!(gate.native_cases, &["ui_completion::render_updates"]);
+        let inventory = inventory("check").unwrap();
+        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"];
+        assert_eq!(retired["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift check route retired");
+        assert_eq!(retired["scope"], "Only the --check-render-updates caller and checkRenderedUpdates helper are retired. The shared InteractionChecks.swift file, --check-interactions and --render-features routes remain active.");
+        assert_eq!(retired["nativeSource"], "rust-native/examples/ui_completion.rs");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["render-updates-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::render_updates"]));
+        assert_eq!(retired["swiftOriginalCaptures"], 12);
+        assert_eq!(retired["rustRenderedCaptures"], 26);
+        assert_eq!(retired["productionAccepted"], false);
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        for (path, source) in [("Sources/RuycastApp/main.swift", &main), ("Sources/RuycastApp/InteractionChecks.swift", &interactions)] {
+            assert_eq!(lock["files"][path], format!("{:x}", Sha256::digest(source.as_bytes())));
+        }
+        let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
+        let interaction_rows = roster.lines().filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/InteractionChecks.swift\"")).collect::<Vec<_>>();
+        assert_eq!(interaction_rows.len(), 2);
+        let current_hash = format!("{:x}", Sha256::digest(interactions.as_bytes()));
+        let mut current_lines = Vec::new();
+        for row in interaction_rows {
+            let encoded = row.trim().trim_end_matches(',').trim_start_matches('(').trim_end_matches(')');
+            let fields: Vec<String> = serde_json::from_str(&format!("[{encoded}]")).unwrap();
+            assert_eq!(fields[1], current_hash);
+            let (line, expected) = fields[2].strip_prefix("line ").unwrap().split_once(": ").unwrap();
+            let line = line.parse::<usize>().unwrap();
+            current_lines.push(line);
+            assert_eq!(interactions.lines().nth(line - 1).unwrap().trim(), expected);
+        }
+        current_lines.sort_unstable();
+        assert_eq!(current_lines, [14, 124]);
+        let reference_rows = roster.lines().filter(|line| line.contains("\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\"")).collect::<Vec<_>>();
+        assert_eq!(reference_rows, [
+            "(\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\",\"7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858\",\"line 16: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)\"),",
+            "(\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\",\"7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858\",\"line 126: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)\"),",
+            "(\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\",\"7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858\",\"line 148: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)\"),",
+            "(\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\",\"7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858\",\"line 153: let panel=NSPanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)\"),"
+        ]);
+        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/InteractionChecks.swift"] {
+            assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())));
+        }
     }
     #[test]
     fn window_search_provenance_keeps_current_inputs_and_gate_status() {
