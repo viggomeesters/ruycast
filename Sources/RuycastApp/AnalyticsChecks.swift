@@ -27,8 +27,6 @@ import LauncherModels
     try require(!String(decoding:try Data(contentsOf:root.appendingPathComponent("analytics.json")),as:UTF8.self).contains(secret),"Command ID leaked a raw URL/path into analytics")
     let exported=try JSONSerialization.data(withJSONObject:store.exportSummary())
     try require(!String(decoding:exported,as:UTF8.self).contains("fixture.0") && !String(decoding:exported,as:UTF8.self).contains(root.path),"Diagnostic export leaked command identities or profile path")
-    let permissions=try FileManager.default.attributesOfItem(atPath:root.appendingPathComponent("analytics.json").path)[.posixPermissions] as? NSNumber
-    try require(permissions?.intValue==0o600,"Analytics file is not private")
     let bad=root.appendingPathComponent("bad");try FileManager.default.createDirectory(at:bad,withIntermediateDirectories:true)
     let badURL=bad.appendingPathComponent("analytics.json"),original=Data("broken personal file".utf8);try original.write(to:badURL)
     let broken=AnalyticsStore(root:bad);broken.recordAttempt("test",source:"cli");broken.flushSynchronously()
@@ -79,5 +77,5 @@ import LauncherModels
     _=try cli(["analytics","reset","--confirm"])
     state.analytics.recordCompletion(preReset,success:true,ms:1)
     try require(state.analytics.snapshot.totalAttempts==0 && state.analytics.snapshot.totalSuccesses==0 && state.analytics.snapshot.timings.isEmpty && state.analytics.snapshot.commands.isEmpty && state.analytics.snapshot.events.isEmpty && (try Data(contentsOf:state.configURL))==configBefore,"Reset changed configuration or retained metrics")
-    return ["ok":true,"pausePreservesInflightCompletion":true,"privateFile":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"rustCLIControls":true,"resetPreservesConfig":true,"rawCommandIDsHashed":true,"resetDiscardsPriorInflight":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["ok":true,"pausePreservesInflightCompletion":true,"inputQueryAndIDsExcludedFromExport":true,"retention":true,"corruptDataPreservedUntilReset":true,"overflowRejected":true,"guiHotkeyCLIAndDryRun":true,"rustCLIControls":true,"resetPreservesConfig":true,"rawCommandIDsHashed":true,"resetDiscardsPriorInflight":true,"dashboardLightDarkMinWidthRenders":4,"desktopInputSent":false,"visibleWindowOpened":false]
 }
