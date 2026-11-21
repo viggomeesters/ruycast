@@ -1111,7 +1111,14 @@ mod tests {
     #[test]
     fn completion_survives_pause_but_reset_retires_old_ticket_and_private_export() {
         let t = root();
-        let writer = Writer::open(&t.0, None).unwrap();
+        let writer = Writer::open_with(
+            &t.0,
+            None,
+            Arc::new(crate::activity::now),
+            Calendar::default(),
+            Duration::from_secs(60),
+        )
+        .unwrap();
         let c = writer.client();
         let a = c.attempt("secret own command", "snippet").unwrap();
         c.configure(Some(false), None).unwrap();
@@ -1120,6 +1127,11 @@ mod tests {
         assert_eq!(c.snapshot().total_attempts, 1);
         assert_eq!(c.snapshot().total_successes, 1);
         c.configure(Some(true), None).unwrap();
+        c.flush();
+        assert!(c.storage_error().is_none());
+        let persisted = read(&t.0.join("analytics.json")).unwrap().unwrap();
+        assert_eq!(persisted.total_attempts, 1);
+        assert_eq!(persisted.total_successes, 1);
         let old = c.attempt("old", "snippet").unwrap();
         c.reset();
         c.complete(old, false, 99., "io", None);
