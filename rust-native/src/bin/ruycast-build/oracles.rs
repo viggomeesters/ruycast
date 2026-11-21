@@ -6743,12 +6743,17 @@ mod tests {
         );
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(!main.contains("--check-browser-tabs"));
         assert!(!main.contains("--check-window-search"));
+        assert!(!root.join("Sources/RuycastApp/BrowserTabChecks.swift").exists());
         assert!(!root.join("Sources/RuycastApp/WindowSearchChecks.swift").exists());
+        let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
+        assert!(!roster.contains("frozen-current/Sources/RuycastApp/BrowserTabChecks.swift"));
+        assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/BrowserTabChecks.swift"));
         for gate in SETTINGS {
             if matches!(gate.id, "--check-command-log" | "--check-window-search"
                 | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands" | "--check-feedback"
-                | "--check-actions-menu" | "--check-menu-actions") {
+                | "--check-actions-menu" | "--check-menu-actions" | "--check-browser-tabs") {
                 // Retired helpers retain their original path/hash as historical provenance.
                 assert!(!root.join(gate.original_source).exists());
             } else {

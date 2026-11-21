@@ -35,7 +35,6 @@ Sources/RuycastApp/Appearance.swift
 Sources/RuycastApp/AppleShortcutChecks.swift
 Sources/RuycastApp/AppleShortcuts.swift
 Sources/RuycastApp/BackgroundWork.swift
-Sources/RuycastApp/BrowserTabChecks.swift
 Sources/RuycastApp/BrowserTabs.swift
 Sources/RuycastApp/CaptureTextEditor.swift
 Sources/RuycastApp/ClipboardPreview.swift

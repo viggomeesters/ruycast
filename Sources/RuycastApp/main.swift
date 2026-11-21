@@ -32,9 +32,6 @@ if args.first=="--check-rich-resources" {
 if args.first=="--check-settings" {
     do {guard args.count==2 else {throw LauncherError("Expected output directory")};output(try checkSettings(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if args.first=="--check-browser-tabs" {
-    do {output(try checkBrowserTabs(args.count>1 ? args[1]:nil));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
 if args.first=="--check-apple-shortcuts" {
     do {output(try checkAppleShortcuts(args.count>1 ? args[1]:nil));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
