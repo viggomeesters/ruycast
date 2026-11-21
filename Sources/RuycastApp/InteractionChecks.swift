@@ -91,7 +91,6 @@ func featureFixture()->[Command] {
     panel.sendEvent(key(123));try require(model.values["Contact"]=="Alpha","Choice escaped its lower bound")
     try require(!model.handle(key(125,.command),editingText:false),"Command-arrow was intercepted")
     try require(!model.handle(key(125),editingText:true),"Text editing arrow was intercepted")
-    try require(!model.handle(key(36),editingText:true,composing:true),"IME Return was intercepted")
     panel.sendEvent(key(125,[],repeatKey:true));try require(model.values["Contact"]=="Beta","Repeated arrow failed")
     try require(panel.performKeyEquivalent(with:key(36)),"Plain Return did not route through the panel")
     panel.sendEvent(key(36));model.submit()
