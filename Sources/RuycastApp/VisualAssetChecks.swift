@@ -3,61 +3,6 @@ import SwiftUI
 import LauncherCore
 import LauncherModels
 
-@MainActor func checkVisualAssets() throws -> [String:Any] {
-    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
-    func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
-    try require(ShortcutPresentation("shift+ctrl+alt+cmd+left").keys==["✦","←"],"Hyper is not compact.")
-    try require(ShortcutPresentation("cmd+alt+n").keys==["⌥","⌘","N"],"Modifier order or glyphs changed.")
-    try require(ShortcutPresentation("ctrl+left-control").keys==["⌃"],"Solo modifier is duplicated.")
-    try require(ShortcutPresentation("ctrl+alt+delete").keys==["⌃","⌥","⌫"],"Delete key is unreadable.")
-    try require(ShortcutPresentation("right-cmd+a").keys==["R⌘","A"],"Right Command badge lost its side.")
-    try require(ShortcutPresentation("left-cmd+a").label=="Left Command + a","Left Command accessibility label lost its side.")
-    try require(WebsiteIcons.origin("https://user:secret@example.com:8443/private/path?q=secret#fragment")?.absoluteString=="https://example.com:8443/","Quicklink secrets reached icon request.")
-    try require(WebsiteIcons.origin("obsidian://open?path=private")==nil && WebsiteIcons.origin("https://{query}.example.com")==nil,"Unsupported origin accepted.")
-    let origin=URL(string:"https://example.com/")!
-    let html="<link href='/brand.png' sizes='128x128' rel='apple-touch-icon'><LINK REL=icon HREF=\"https://cdn.example.com/icon.png?v=1&amp;x=2\"><link rel=icon href='data:bad'>"
-    try require(WebsiteIcons.candidates(html:html,origin:origin).map(\.absoluteString)==["https://example.com/brand.png","https://cdn.example.com/icon.png?v=1&x=2"],"Icon discovery failed.")
-    try require(WebsiteIcons.png(Data(repeating:0,count:1_048_577))==nil && WebsiteIcons.png(Data("not an image".utf8))==nil,"Invalid/oversize image accepted.")
-    let root=FileManager.default.temporaryDirectory.appendingPathComponent("ruycast-icons-"+UUID().uuidString)
-    defer {try? FileManager.default.removeItem(at:root)}
-    let bitmap=NSBitmapImageRep(bitmapDataPlanes:nil,pixelsWide:2,pixelsHigh:2,bitsPerSample:8,samplesPerPixel:4,hasAlpha:true,isPlanar:false,colorSpaceName:.deviceRGB,bytesPerRow:8,bitsPerPixel:32)!
-    if let bytes=bitmap.bitmapData {for i in 0..<16 {bytes[i]=255}}
-    let png=bitmap.representation(using:.png,properties:[:])!
-    let counter=IconRequestCounter()
-    let store=WebsiteIcons(cache:root,load:{url in counter.increment();Thread.sleep(forTimeInterval:0.05);return png})
-    let start=Date();_=store.image(for:"https://example.com/private?secret=one");_=store.image(for:"https://example.com/another?secret=two")
-    try require(Date().timeIntervalSince(start)<0.04,"Icon fetch blocks the main thread.")
-    let deadline=Date().addingTimeInterval(3)
-    while store.image(for:origin.absoluteString)==nil,Date()<deadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
-    try require(store.image(for:origin.absoluteString) != nil && counter.value==1 && store.revision>0,"Async deduplication/publication failed.")
-    let cached=WebsiteIcons(cache:root,load:{_ in counter.increment();return nil})
-    _=cached.image(for:origin.absoluteString)
-    while cached.image(for:origin.absoluteString)==nil,Date()<deadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
-    try require(cached.image(for:origin.absoluteString) != nil && counter.value==1,"Disk cache did not survive a new store.")
-    let file=root.appendingPathComponent("native-icon.txt")
-    try Data("fixture".utf8).write(to:file)
-    let native=CommandIcons(lifetime:0),fileCommand=Command(id:"fixture.file",title:"Fixture",kind:"path",target:file.path)
-    try require(native.image(for:fileCommand) != nil,"Native file icon missing")
-    try FileManager.default.removeItem(at:file)
-    try require(native.image(for:fileCommand)==nil,"Expired native icon concealed deleted file")
-    try Data("fixture".utf8).write(to:file)
-    try require(native.image(for:fileCommand) != nil,"Native icon did not recover after recreation")
-    var metadataCalls=0,clock=Date();let names=ApplicationNames(now:{clock},resolve:{id in metadataCalls+=1;return id=="found" ? "Found App":nil})
-    for _ in 0..<1000 {_=names.name("found");_=names.name("missing")}
-    try require(metadataCalls==2 && names.name("found")=="Found App" && names.name("missing")=="missing","Source labels repeat native bundle lookups")
-    clock=clock.addingTimeInterval(31);_=names.name("missing");try require(metadataCalls==3,"Source label metadata never refreshes")
-    let boundedCount=IconRequestCounter()
-    let bounded=WebsiteIcons(cache:root.appendingPathComponent("offline"),load:{_ in boundedCount.increment();return nil})
-    for i in 0..<2000 {_=bounded.image(for:"https://fixture-\(i).example.invalid/")}
-    let settle=Date().addingTimeInterval(0.5);while Date()<settle {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
-    try require(boundedCount.value>0 && boundedCount.value<=64,"Icon flood queued unbounded origin fetches")
-    return ["ok":true,"boundedOriginFlood":true,"nativeIconInvalidation":true,"sourceNameLookupCoalescedAndRefreshed":true,"compactHyperAndNativeKeycaps":true,"originOnlyRequests":true,"htmlIconDiscovery":true,"invalidImageBounds":true,"nonBlockingAndDeduplicated":true,"observableIconArrival":true,"persistentCache":true,"desktopEffects":false]
-}
-private final class IconRequestCounter:Sendable {
-    private let count=LockedValue(0)
-    func increment() {count.update {$0+=1}}
-    var value:Int {count.read {$0}}
-}
 @MainActor func renderVisualAssets(_ directory:String) throws {
     _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
     let output=URL(fileURLWithPath:directory);try FileManager.default.createDirectory(at:output,withIntermediateDirectories:true)

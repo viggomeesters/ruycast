@@ -96,10 +96,10 @@
     "Sources/RuycastApp/SystemSearchSession.swift": "4c1436a05e36c4f61a9d0a50cb08c49545a9d50741d38c8daaf2607608bee14b",
     "Sources/RuycastApp/SystemServices.swift": "c2ffbb73cc7723234992b1883bb582e68b175982a6a5991757cf47397e9935ad",
     "Sources/RuycastApp/Utilities.swift": "f41a861d759567171b184b49e20e70dad6a1fb6a653e7f0c161114cbab1cf49f",
-    "Sources/RuycastApp/VisualAssetChecks.swift": "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
+    "Sources/RuycastApp/VisualAssetChecks.swift": "e0b3a9b53aa1041019cc10d7214e42727ed0e2f79162c6144afc35be2725ba78",
     "Sources/RuycastApp/WebsiteIcons.swift": "2708e4accf997b102fe831dd271fab41cf40aa6911a00454e6d0a4ad181aadc8",
     "Sources/RuycastApp/WindowManager.swift": "01b6d2951b64698664e175694407e9df84faf8a08adb84966fd4a3db7f58fd87",
     "Sources/RuycastApp/WindowSearch.swift": "1f4d263bfbffb0c323aaa48f24a7a90783f127e2ffb03ed18a79bb924e1218e9",
-    "Sources/RuycastApp/main.swift": "ad714aa15eff2db23c8f05e4e55900d7b1496d04db772c3349b4d1e1447e6bbb"
+    "Sources/RuycastApp/main.swift": "dda4deb214e02e02f50ca5e3ae8f01186c7df5ae3edb9b2c12eb93985edbb4d4"
   }
 }
