@@ -83,7 +83,7 @@ fn bind_policy(root: &Path, allowlist: std::collections::BTreeSet<String>) -> Re
         || manifest.version != version::read(root)?
         || manifest.version_authority != "rust/src/product_version.rs"
         || manifest.historical_references
-            != ["Package.swift", "Sources/", "Tests/LauncherCoreTests/"]
+            != ["Package.swift", "Sources/"]
         || manifest.publication != "export-only; not published, installed or production-accepted"
         || bytes != canonical
     {
@@ -155,7 +155,6 @@ mod tests {
             historical_references: vec![
                 "Package.swift".into(),
                 "Sources/".into(),
-                "Tests/LauncherCoreTests/".into(),
             ],
             publication: "export-only; not published, installed or production-accepted".into(),
         };
