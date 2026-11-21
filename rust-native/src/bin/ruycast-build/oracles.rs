@@ -1726,7 +1726,7 @@ fn search_crosswalk(mappings: &serde_json::Value) -> Result<serde_json::Value> {
     }
     Ok(serde_json::json!({
         "status": "source-qualified-rust-case-crosswalk",
-        "scope": "Aggregate search acceptance is owned by the current Rust cases; SwiftPM RuycastApp is compile/link smoke only. SearchChecks.swift and its CLI helper remain because benchmarkSearch shares the file.",
+        "scope": "Aggregate search acceptance is owned by the current Rust cases; SwiftPM RuycastApp is compile/link smoke only. SearchChecks.swift retains only searchFixture and benchmarkSearch for --benchmark-search; checkSearch and the --check-search CLI route are retired.",
         "scenarioIDs": scenario_ids,
         "nativeCases": native_cases,
         "qualifiedCaseSourceBindings": bindings,
@@ -2348,7 +2348,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.unchangedRankingReuse"] = serde_json::json!({
             "originalSourceSHA256": "7c9174e4d63490a1a7962b60c8621d3ab51d67568f23413809c54a2564f87ccf",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the unchanged-ranking-reuse assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the unchanged-ranking-reuse assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["1000 identical searches do not rebuild the catalog index or prepare ranking again"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2356,7 +2356,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingChangeReprepare"] = serde_json::json!({
             "originalSourceSHA256": "7823f355133f4084ad263b919fb1a970a42d04e284a55eb146a689a4a676cc03",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the successful-ranking result and one-repreparation assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the successful-ranking result and one-repreparation assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["successful ranking change moves cached.b first and triggers exactly one ranking preparation"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2364,7 +2364,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingResetReprepare"] = serde_json::json!({
             "originalSourceSHA256": "c06de8ddfc1f33428f64d4d01c73bf351cf0a86db39a14ca986a4e261fe1f5b1",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the reset-order and one-repreparation assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the reset-order and one-repreparation assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["reset restores cached.a first and triggers exactly one ranking preparation"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2372,7 +2372,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankedDisabledItem"] = serde_json::json!({
             "originalSourceSHA256": "485ba7145885bf21409dc40d99cbf69ecd5861a93e517f4e89482a9532a023b7",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the assertion that a recently ranked item disappears after being disabled moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the assertion that a recently ranked item disappears after being disabled moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["rank cached.b first among two identical titles, disable it without resetting ranking, then return only cached.a for identical"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2380,7 +2380,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.preparedCatalogReplacement"] = serde_json::json!({
             "originalSourceSHA256": "21fe6af7bffa87228e8101d368f4cad7f2bd3e33880556a4615dada2ca377213",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the exact one-entry prepared-catalog replacement result moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the exact one-entry prepared-catalog replacement result moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["replace the previous catalog with only cached.replacement and return exactly that ID for identical"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2388,7 +2388,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.disabledTypoItem"] = serde_json::json!({
             "originalSourceSHA256": "f1e627323033abfcea7068439bae41a22246f8045ddc6f47788f5132d350618d",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the assertion that disabled Finder is absent from the fnider typo search moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the assertion that disabled Finder is absent from the fnider typo search moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["with Calendar enabled and Finder disabled, searching fnider returns no disabled Finder result"],
             "nativeCases": ["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]
@@ -2404,7 +2404,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoPaletteOrder"] = serde_json::json!({
             "originalSourceSHA256": "69997e74e26bc8029be2630175124c7a7dcb2276767024d61534c1e34f17a6ef",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the Swift palette-result ordering for a direct title typo over a higher-recency weak subsequence moves to the Rust core test. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the Swift palette-result ordering for a direct title typo over a higher-recency weak subsequence moves to the Rust core test. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust/src/lib.rs",
             "originalScenarios": ["with Find Reminders ranked higher, query fnider orders the direct Finder title before the weak subsequence distractor"],
             "nativeCases": ["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]
@@ -2420,7 +2420,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.appearancePreservesCatalog"] = serde_json::json!({
             "originalSourceSHA256": "a3c7038a6a68b8ccbc5cebc38ef5dbfae358eb3079e2424c79337906c8704d22",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the assertion that changing the appearance theme does not rebuild or reevaluate the command catalog moves to the existing Rust runtime test. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the assertion that changing the appearance theme does not rebuild or reevaluate the command catalog moves to the existing Rust runtime test. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["changing theme to graphite and syncing leaves catalog preparation work, results revision and selection unchanged; a following title change does rebuild the catalog"],
             "nativeCases": ["runtime::inline_tests::prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate"]
@@ -2428,7 +2428,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.usageRankingRefreshes"] = serde_json::json!({
             "originalSourceSHA256": "4ed29d77d3c72b1ee1e7489ddad15bfc30f7bb2bb9864b91650f6ae4a6d0be0b",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the empty-query usage-ranking result assertion moves to the existing Rust runtime test. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the empty-query usage-ranking result assertion moves to the existing Rust runtime test. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["after usage count increases for one catalog item, the empty query returns that item first while non-empty catalog order remains unchanged"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2436,7 +2436,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.cachedReads"] = serde_json::json!({
             "originalSourceSHA256": "5e1d2ddaffc976900b0c72b60fee701b3484dbbfb7b61a013acb23c522d441f5",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "The complete 1,000-read prepared-results scenario moves to the existing Rust Session test, including an explicit catalog-search work counter. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "The complete 1,000-read prepared-results scenario moves to the existing Rust Session test, including an explicit catalog-search work counter. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust-native/src/session.rs",
             "originalScenarios": ["after preparing a non-empty result set, 1,000 result reads retain identical rows without reevaluating the search or changing query, selection or results revision"],
             "nativeCases": ["session::tests::repeated_result_reads_preserve_prepared_rows_and_session_state"]
@@ -2444,7 +2444,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.indexDispatchABIParity"] = serde_json::json!({
             "originalSourceSHA256": "ce5f4ed8c8cac22da5cfca994c948725930cd3a63946b29a9d266c4643f2baa7",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the duplicate 256-command, ten-query SearchIndex versus AppState dispatch parity loop is retired. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
+            "scope": "Only the duplicate 256-command, ten-query SearchIndex versus AppState dispatch parity loop is retired. The aggregate --check-search Rust crosswalk now owns acceptance; the Swift search helper and CLI route are retired; only its synthetic benchmark fixture remains.",
             "nativeSource": "rust/src/lib.rs",
             "originalScenarios": ["for the 256-command fixture and all ten queries including Unicode and embedded NUL, compare full SearchIndex and dispatch outputs and verify ranked C ABI count and order"],
             "nativeCases": ["tests::original_256_command_ten_query_index_dispatch_and_abi_parity"]
