@@ -1263,6 +1263,33 @@ mod tests {
             serde_json::to_value(pruned).unwrap()
         );
     }
+    #[test]
+    fn opening_prunes_events_outside_configured_retention() {
+        use std::sync::atomic::AtomicU64;
+        let t = root();
+        let now = 1_792_890_900_f64;
+        let clock = Arc::new(AtomicU64::new(now.to_bits()));
+        let mut document = Document::new(now);
+        document.retention_days = 7;
+        document.events.push(Diagnostic {
+            id: "stale-event".into(),
+            date: now - 100. * 86400.,
+            category: "runtime".into(),
+            command_id: None,
+            code: "interrupted".into(),
+            exit_status: None,
+        });
+        std::fs::write(
+            t.0.join("analytics.json"),
+            serde_json::to_vec(&document).unwrap(),
+        )
+        .unwrap();
+
+        let writer = controlled(&t.0, &clock, "Europe/Amsterdam");
+        let client = writer.client();
+        assert!(client.storage_error().is_none());
+        assert!(client.snapshot().events.is_empty());
+    }
     fn controlled(root: &Path, clock: &Arc<std::sync::atomic::AtomicU64>, zone: &str) -> Writer {
         let time = clock.clone();
         Writer::open_with(

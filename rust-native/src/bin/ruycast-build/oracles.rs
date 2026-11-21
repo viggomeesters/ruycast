@@ -752,6 +752,7 @@ const SETTINGS: &[SettingsGate] = &[
     ], unproven_invariants:&[] },
     SettingsGate { id:"--check-analytics", original_source:"Sources/RuycastApp/AnalyticsChecks.swift", required_native_steps:&["unit","analytics-runtime-process","analytics-cast-reference","dashboard-presentation-process","native-dashboard-dialog-process","dashboard-export-process","startup-process"], native_cases:&[
         "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention",
+        "analytics::tests::opening_prunes_events_outside_configured_retention",
         "analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export",
         "analytics::tests::invalid_known_file_is_not_overwritten_until_explicit_reset",
         "analytics::tests::populated_schema_one_upgrade_preserves_every_legacy_field_and_reload",
@@ -1084,7 +1085,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-toolchain.toml", include_bytes!("../../../../rust-toolchain.toml"), "d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "15c93afc3731db2ca870db6d824dcc90bc6f0f367fe9d3ca12497b90f26df97a"),
-            ("rust-native/src/analytics.rs", include_bytes!("../../analytics.rs"), "9fd1206fea7dabb1592c639bcd406bb9c8badff2e1754d97492a4f3c09b0d87b"),
+            ("rust-native/src/analytics.rs", include_bytes!("../../analytics.rs"), "da2b82369139cbdf6bb843136f24094daa0bbf083daacc51d99ec502b7e67736"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
         "--check-window-search" => &[
@@ -1334,7 +1335,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/analytics.rs",
                 include_bytes!("../../analytics.rs"),
-                "9fd1206fea7dabb1592c639bcd406bb9c8badff2e1754d97492a4f3c09b0d87b",
+                "da2b82369139cbdf6bb843136f24094daa0bbf083daacc51d99ec502b7e67736",
             ),
             (
                 "rust-native/src/analytics_dashboard.rs",
@@ -2589,6 +2590,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.staleLoadRetention"] = serde_json::json!({
+            "originalSourceSHA256": "80a8968e86e157a262368fe98484335d7022e6fc61591edb6b4be5e7eabedecd",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the stale-event pruning-on-open fixture and assertion are retired. The remaining analytics helper, dashboard rendering, management routing and other analytics assertions stay active.",
+            "nativeSource": "rust-native/src/analytics.rs",
+            "originalScenarios": ["opening a valid analytics document removes a runtime event older than the configured seven-day retention"],
+            "nativeCases": ["analytics::tests::opening_prunes_events_outside_configured_retention"]
+        });
         inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
     }
     Ok(inventory)
@@ -4591,7 +4600,7 @@ mod tests {
         use sha2::Digest;
         let gate = super::SETTINGS.iter().find(|gate|gate.id=="--check-analytics").unwrap();
         assert_eq!(gate.required_native_steps, &["unit", "analytics-runtime-process", "analytics-cast-reference", "dashboard-presentation-process", "native-dashboard-dialog-process", "dashboard-export-process", "startup-process"]);
-        assert_eq!(gate.native_cases.len(), 25);
+        assert_eq!(gate.native_cases.len(), 26);
         let entries=super::settings_sources(gate.id);
         assert_eq!(entries.len(), 26);
         assert!(entries.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
@@ -4623,6 +4632,10 @@ mod tests {
             assert!(dialog_source.contains(&format!("fn {name}()")));
         }
         assert!(!entries.iter().any(|entry|entry.0=="rust-native/tests/dashboard_export_process.py"));
+        let check_inventory = super::inventory("check").unwrap();
+        let retired = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.staleLoadRetention"];
+        assert_eq!(retired["originalSourceSHA256"], "80a8968e86e157a262368fe98484335d7022e6fc61591edb6b4be5e7eabedecd");
+        assert_eq!(retired["nativeCases"], serde_json::json!(["analytics::tests::opening_prunes_events_outside_configured_retention"]));
         let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();
         assert_eq!(sources.len(),1);
         assert_eq!(format!("{:x}",sha2::Sha256::digest(sources[0].1)),sources[0].2);
