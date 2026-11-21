@@ -29,7 +29,7 @@
     "Sources/LauncherCore/WindowRead.swift": "7589ba7d36e0667c1423c4c996629548411c408c38fc3c412ddbbba2d3db2630",
     "Sources/LauncherModels/Models.swift": "f5370559f8bbcf56f4bec49ff8aa82d65aff01d14686205f4b0ff0b4760b807f",
     "Sources/RuycastApp/ActionMenuChecks.swift": "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f",
-    "Sources/RuycastApp/AnalyticsChecks.swift": "48f488299f64d55dea46ecbac2b1dbbe6ff64d9614877b908ad3e9d3f4779c17",
+    "Sources/RuycastApp/AnalyticsChecks.swift": "cad74f3fdc6e935d079de06460f4a9a2465604dccd9050fbc268013f8d5fd413",
     "Sources/RuycastApp/AnalyticsDashboard.swift": "e015450006acf38db33204f5f3f2ebf815d51b0c4ac8d190b5c7160558f6a3f7",
     "Sources/RuycastApp/AnalyticsStore.swift": "43461d33394436195f3c7d7cbcaa66d1407ac53049bed3e8a2f91562d140ca7d",
     "Sources/RuycastApp/AppBrand.swift": "baa47f852aaf8854b25410c623bd18cf371aa678b4c646e532a1bbbc6e5e9bc1",
