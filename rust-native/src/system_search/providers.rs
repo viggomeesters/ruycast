@@ -878,12 +878,21 @@ mod gate_tests {
     #[test]
     fn shortcut_discovery_cache_hit_thirty_one_second_expiry_and_explicit_refresh() {
         let fixture=Arc::new(crate::system_search::fixture::Fixture::default());
+        let unicode=crate::system_search::apple_shortcuts::parse("Focus (11111111-1111-4111-8111-111111111111)\nCafé 🌿 (33333333-3333-4333-8333-333333333333)\n".as_bytes()).unwrap();
+        *fixture.shortcuts.lock().unwrap()=unicode;
         let provider=Provider::new(fixture.clone(),false);
         let first=provider.search(Scope::Shortcuts,"",None,&ticket()).unwrap();
         assert_eq!(first.commands.len(),2);
         let reads=fixture.reads.load(Ordering::Acquire);
         let replacement=crate::system_search::apple_shortcuts::parse(b"Owned replacement (33333333-3333-4333-8333-333333333333)\n").unwrap();
         *fixture.shortcuts.lock().unwrap()=replacement.clone();
+        let accented_results=provider.search(Scope::Shortcuts,"café",None,&ticket()).unwrap();
+        assert_eq!(fixture.reads.load(Ordering::Acquire),reads,"accented query reread discovery cache");
+        assert_eq!(reads,1,"initial unfiltered search should read discovery exactly once");
+        let accented=crate::system_search::apple_shortcuts::merged(&accented_results.commands,&[],"café");
+        assert_eq!(accented.len(),1);
+        assert_eq!(accented[0].title,"Café 🌿");
+        assert_eq!(accented[0].id,"apple-shortcut.33333333-3333-4333-8333-333333333333");
         let cached=provider.search(Scope::Shortcuts,"",None,&ticket()).unwrap();
         assert_eq!(serde_json::to_value(&cached.commands).unwrap(),serde_json::to_value(&first.commands).unwrap());
         assert_eq!(fixture.reads.load(Ordering::Acquire),reads,"cache hit performed discovery");
