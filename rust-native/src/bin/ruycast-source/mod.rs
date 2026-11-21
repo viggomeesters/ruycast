@@ -796,8 +796,8 @@ fn source_export_omits_duplicate_benchmark_reference_tree() {
     );
 }
 #[test]
-fn source_export_omits_retired_window_search_check() {
-    assert!(!policy()
-        .unwrap()
-        .contains("Sources/RuycastApp/WindowSearchChecks.swift"));
+fn source_export_omits_retired_check_helpers() {
+    let paths = policy().unwrap();
+    assert!(!paths.contains("Sources/RuycastApp/WindowSearchChecks.swift"));
+    assert!(!paths.contains("Sources/RuycastApp/BrowserTabChecks.swift"));
 }
