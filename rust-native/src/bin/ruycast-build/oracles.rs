@@ -5,6 +5,8 @@ use std::collections::BTreeSet;
 #[path = "../../../tests/support/hid_state_goldens.rs"]
 mod hid_state_goldens;
 
+const HEADLESS_SMOKE_SCOPE: &str = "SwiftPM RuycastApp compile/link smoke only; no Swift host execution, search behavior, startup, AppKit or desktop acceptance";
+
 const CORE_SMOKE_SCOPE: &str = "Rust static library and SwiftPM LauncherCoreChecks compile/link smoke only; no behavior, ABI-call, startup, AppKit, RuycastApp or desktop acceptance";
 
 #[derive(Serialize, Deserialize)]
@@ -1671,6 +1673,72 @@ pub(super) fn require_compiled_source_root(root: &Path) -> Result<()> {
     }
     Ok(())
 }
+const SEARCH_CASES: &[(&str, &str, &str)] = &[
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.unchangedRankingReuse", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingChangeReprepare", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingResetReprepare", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.rankedDisabledItem", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.preparedCatalogReplacement", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.disabledTypoItem", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.enabledTypoCliParity", "rust-native/src/runtime_system.rs", "runtime::system::shortcut_budget_tests::typo_fallback_matches_palette_and_local_cli_without_disabled_items"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoPaletteOrder", "rust/src/lib.rs", "tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoCliOrder", "rust-native/src/runtime_system.rs", "runtime::system::shortcut_budget_tests::cli_direct_title_typo_outranks_higher_recency_subsequence"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.appearancePreservesCatalog", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.usageRankingRefreshes", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.cachedReads", "rust-native/src/session.rs", "session::tests::repeated_result_reads_preserve_prepared_rows_and_session_state"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.indexDispatchABIParity", "rust/src/lib.rs", "tests::original_256_command_ten_query_index_dispatch_and_abi_parity"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.cliSearchLeavesPaletteUntouched", "rust-native/src/runtime_system.rs", "runtime::system::shortcut_budget_tests::browser_busy_main_cli_preserves_local_results_and_exactly_one_response"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.discoveredAppsRefresh", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::discovered_application_refreshes_an_existing_palette_query"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.reloadDeduplicatesDiscoveredApp", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::configuration_reload_deduplicates_discovered_app_in_active_palette"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.selectiveResultObservation", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::palette_status_changes_preserve_rows_and_selection_updates_publish"),
+    ("Sources/RuycastApp/SearchChecks.swift::checkSearch.settingsSurfaceIsolation", "rust-native/src/runtime_private_tests.rs", "runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"),
+];
+fn search_source_bindings() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "00feb5e6befffefed0d19de776a13708727763b3b55bc42a45bf14ceb1bc29c3"),
+        ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "053343c7b6d333c801767002535ffe8f505a0f5f192a7ca0b88fd3432e06a0a3"),
+        ("rust/src/lib.rs", include_str!("../../../../rust/src/lib.rs"), "291731f83d4278ad4b1f892558a6b155de3288e8478cf64caed9489b9fa61d49"),
+        ("rust-native/src/session.rs", include_str!("../../session.rs"), "c23e3d163e5cc8b87e6cdd11c80ed5380980885281499e5472065a169aac6d61"),
+    ]
+}
+fn search_crosswalk(mappings: &serde_json::Value) -> Result<serde_json::Value> {
+    let sources = search_source_bindings();
+    let mut native_cases = BTreeSet::new();
+    let mut bindings = BTreeMap::new();
+    let mut scenario_ids = Vec::new();
+    for (id, path, case) in SEARCH_CASES {
+        let mapping = &mappings[*id];
+        let (_, source, pin) = sources.iter().find(|(name, _, _)| name == path)
+            .ok_or("Search crosswalk source is not qualified.")?;
+        let function = case.rsplit("::").next().ok_or("Missing Rust search case.")?;
+        if mapping["status"] != "source-qualified-rust-case-crosswalk"
+            || mapping["nativeSource"] != *path
+            || mapping["nativeCases"] != serde_json::json!([case])
+            || mapping["originalScenarios"].as_array().is_none_or(|cases| cases.is_empty())
+            || format!("{:x}", Sha256::digest(source.as_bytes())) != *pin
+            || !source.contains(&format!("fn {function}()"))
+        {
+            return Err(format!("Search scenario {id} has no current qualified Rust case."));
+        }
+        bindings.insert(*path, *pin);
+        native_cases.insert(*case);
+        scenario_ids.push(*id);
+    }
+    Ok(serde_json::json!({
+        "status": "source-qualified-rust-case-crosswalk",
+        "scope": "Aggregate search acceptance is owned by the current Rust cases; SwiftPM RuycastApp is compile/link smoke only. SearchChecks.swift and its CLI helper remain because benchmarkSearch shares the file.",
+        "scenarioIDs": scenario_ids,
+        "nativeCases": native_cases,
+        "qualifiedCaseSourceBindings": bindings,
+        "retiredAssertions": [
+            "Swift CLI/JSON wrapper and withObservationTracking callback counts are excluded; actual Rust socket responses, query/rows/selection/results revisions and Settings surface values are checked instead.",
+            "expansionStatus has no independently mutable Rust counterpart; keyboard status belongs to the keyboard client.",
+            "No Swift host startup, AppKit, desktop, performance benchmark or hardware acceptance is inferred from compile/link smoke."
+        ],
+        "requiresCurrentCompleteNativeValidation": true,
+        "productionAccepted": false
+    }))
+}
 pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     let (python_modules, python_packages) = if kind == "check" {
         discover_python_tests(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap())?
@@ -1680,7 +1748,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     let gates: Vec<(&str, &str)> = match kind {
         "check" => vec![
             ("LauncherCoreChecks", "source-qualified-pure-oracle"),
-            ("--check-search", "source-qualified-pre-main-oracle"),
+            ("--check-search", "source-qualified-rust-case-crosswalk"),
             ("--check-concurrency", "source-qualified-rust-case-crosswalk"),
             (
                 "python-unittest-discover-Tests-test_*.py",
@@ -2280,7 +2348,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.unchangedRankingReuse"] = serde_json::json!({
             "originalSourceSHA256": "7c9174e4d63490a1a7962b60c8621d3ab51d67568f23413809c54a2564f87ccf",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the unchanged-ranking-reuse assertion moves to Rust. The baseline, 1000-query loop, remaining search/ranking assertions and --check-search route stay active.",
+            "scope": "Only the unchanged-ranking-reuse assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["1000 identical searches do not rebuild the catalog index or prepare ranking again"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2288,7 +2356,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingChangeReprepare"] = serde_json::json!({
             "originalSourceSHA256": "7823f355133f4084ad263b919fb1a970a42d04e284a55eb146a689a4a676cc03",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the successful-ranking result and one-repreparation assertion moves to Rust. The ranking update, baseline, follow-up reset search, remaining scenarios and --check-search route stay active; reset behavior is crosswalked separately.",
+            "scope": "Only the successful-ranking result and one-repreparation assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["successful ranking change moves cached.b first and triggers exactly one ranking preparation"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2296,7 +2364,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankingResetReprepare"] = serde_json::json!({
             "originalSourceSHA256": "c06de8ddfc1f33428f64d4d01c73bf351cf0a86db39a14ca986a4e261fe1f5b1",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the reset-order and one-repreparation assertion moves to Rust. The reset, follow-up search, second ranking update, remaining scenarios and --check-search route stay active.",
+            "scope": "Only the reset-order and one-repreparation assertion moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["reset restores cached.a first and triggers exactly one ranking preparation"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2304,7 +2372,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.rankedDisabledItem"] = serde_json::json!({
             "originalSourceSHA256": "485ba7145885bf21409dc40d99cbf69ecd5861a93e517f4e89482a9532a023b7",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the assertion that a recently ranked item disappears after being disabled moves to Rust. The remaining --check-search route and catalog scenarios stay active.",
+            "scope": "Only the assertion that a recently ranked item disappears after being disabled moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["rank cached.b first among two identical titles, disable it without resetting ranking, then return only cached.a for identical"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2312,7 +2380,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.preparedCatalogReplacement"] = serde_json::json!({
             "originalSourceSHA256": "21fe6af7bffa87228e8101d368f4cad7f2bd3e33880556a4615dada2ca377213",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the exact one-entry prepared-catalog replacement result moves to Rust. The remaining --check-search route and catalog scenarios stay active.",
+            "scope": "Only the exact one-entry prepared-catalog replacement result moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["replace the previous catalog with only cached.replacement and return exactly that ID for identical"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2320,7 +2388,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.disabledTypoItem"] = serde_json::json!({
             "originalSourceSHA256": "f1e627323033abfcea7068439bae41a22246f8045ddc6f47788f5132d350618d",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the assertion that disabled Finder is absent from the fnider typo search moves to Rust. Calendar palette/CLI and other headless guards stay active.",
+            "scope": "Only the assertion that disabled Finder is absent from the fnider typo search moves to Rust. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["with Calendar enabled and Finder disabled, searching fnider returns no disabled Finder result"],
             "nativeCases": ["runtime::inline_tests::disabled_catalog_item_is_filtered_from_typo_fallback"]
@@ -2336,7 +2404,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.directTitleTypoPaletteOrder"] = serde_json::json!({
             "originalSourceSHA256": "69997e74e26bc8029be2630175124c7a7dcb2276767024d61534c1e34f17a6ef",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the Swift palette-result ordering for a direct title typo over a higher-recency weak subsequence moves to the Rust core test. The CLI reply assertion and complete --check-search route stay active.",
+            "scope": "Only the Swift palette-result ordering for a direct title typo over a higher-recency weak subsequence moves to the Rust core test. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust/src/lib.rs",
             "originalScenarios": ["with Find Reminders ranked higher, query fnider orders the direct Finder title before the weak subsequence distractor"],
             "nativeCases": ["tests::direct_title_typo_outranks_weak_subsequence_with_higher_recency"]
@@ -2352,7 +2420,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.appearancePreservesCatalog"] = serde_json::json!({
             "originalSourceSHA256": "a3c7038a6a68b8ccbc5cebc38ef5dbfae358eb3079e2424c79337906c8704d22",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the assertion that changing the appearance theme does not rebuild or reevaluate the command catalog moves to the existing Rust runtime test. The theme mutation, remaining search checks and complete --check-search route stay active.",
+            "scope": "Only the assertion that changing the appearance theme does not rebuild or reevaluate the command catalog moves to the existing Rust runtime test. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["changing theme to graphite and syncing leaves catalog preparation work, results revision and selection unchanged; a following title change does rebuild the catalog"],
             "nativeCases": ["runtime::inline_tests::prepared_palette_theme_does_not_reindex_reprepare_or_reevaluate"]
@@ -2360,7 +2428,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.usageRankingRefreshes"] = serde_json::json!({
             "originalSourceSHA256": "4ed29d77d3c72b1ee1e7489ddad15bfc30f7bb2bb9864b91650f6ae4a6d0be0b",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the empty-query usage-ranking result assertion moves to the existing Rust runtime test. The result field and remaining search checks and --check-search route stay active.",
+            "scope": "Only the empty-query usage-ranking result assertion moves to the existing Rust runtime test. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/runtime_private_tests.rs",
             "originalScenarios": ["after usage count increases for one catalog item, the empty query returns that item first while non-empty catalog order remains unchanged"],
             "nativeCases": ["runtime::inline_tests::prepared_local_catalog_reuses_index_and_separates_ranking_usage_and_projection"]
@@ -2368,7 +2436,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.cachedReads"] = serde_json::json!({
             "originalSourceSHA256": "5e1d2ddaffc976900b0c72b60fee701b3484dbbfb7b61a013acb23c522d441f5",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "The complete 1,000-read prepared-results scenario moves to the existing Rust Session test, including an explicit catalog-search work counter. The query setup used by the following CLI observation check and the rest of --check-search stay active.",
+            "scope": "The complete 1,000-read prepared-results scenario moves to the existing Rust Session test, including an explicit catalog-search work counter. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust-native/src/session.rs",
             "originalScenarios": ["after preparing a non-empty result set, 1,000 result reads retain identical rows without reevaluating the search or changing query, selection or results revision"],
             "nativeCases": ["session::tests::repeated_result_reads_preserve_prepared_rows_and_session_state"]
@@ -2376,7 +2444,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.indexDispatchABIParity"] = serde_json::json!({
             "originalSourceSHA256": "ce5f4ed8c8cac22da5cfca994c948725930cd3a63946b29a9d266c4643f2baa7",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the duplicate 256-command, ten-query SearchIndex versus AppState dispatch parity loop is retired. The query list and fixture remain for the active --check-search route.",
+            "scope": "Only the duplicate 256-command, ten-query SearchIndex versus AppState dispatch parity loop is retired. The aggregate --check-search Rust crosswalk now owns acceptance; the retained Swift helper is compile/link and benchmark support only.",
             "nativeSource": "rust/src/lib.rs",
             "originalScenarios": ["for the 256-command fixture and all ten queries including Unicode and embedded NUL, compare full SearchIndex and dispatch outputs and verify ranked C ABI count and order"],
             "nativeCases": ["tests::original_256_command_ten_query_index_dispatch_and_abi_parity"]
@@ -2531,6 +2599,9 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "remainingPythonCases": 0
         });
     }
+    if kind == "check" {
+        inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
+    }
     Ok(inventory)
 }
 #[derive(Serialize, Deserialize)]
@@ -2541,7 +2612,7 @@ struct HeadlessReceipt {
     core_receipt_sha256: String,
     sources: BTreeMap<String, String>,
     artifacts: BTreeMap<String, String>,
-    outcomes: BTreeMap<String, serde_json::Value>,
+    outcome: String,
     commands: Vec<Vec<String>>,
     scope: String,
     production_accepted: bool,
@@ -2550,6 +2621,13 @@ fn headless_sources(root: &Path) -> Result<BTreeMap<String, String>> {
     let mut values = core_sources(root)?;
     validation::source_folder(root, &root.join("Sources"), &mut values)?;
     Ok(values)
+}
+fn headless_build_commands(archive_sha256: &str) -> Vec<Vec<String>> {
+    let scratch = format!(".build/oracle-swift/{archive_sha256}");
+    vec![
+        vec!["swift".into(), "build".into(), "--scratch-path".into(), scratch.clone(), "--configuration".into(), "debug".into(), "--product".into(), "RuycastApp".into()],
+        vec!["swift".into(), "build".into(), "--scratch-path".into(), scratch, "--configuration".into(), "debug".into(), "--show-bin-path".into()],
+    ]
 }
 pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
     let core=verify_core(root, lease)?;
@@ -2563,31 +2641,9 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
     let policy_before=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"before")?;
     let archive = root.join(".build/rust/release/librustcast_core.a");
     let archive_hash = digest(&archive)?;
-    let scratch = format!(".build/oracle-swift/{archive_hash}");
-    let compile = vec![
-        "swift".into(),
-        "build".into(),
-        "--scratch-path".into(),
-        scratch.clone(),
-        "--configuration".into(),
-        "debug".into(),
-        "--product".into(),
-        "RuycastApp".into(),
-    ];
-    tool(root, lease, &compile)?;
-    let bin_path = tool(
-        root,
-        lease,
-        &[
-            "swift".into(),
-            "build".into(),
-            "--scratch-path".into(),
-            scratch,
-            "--configuration".into(),
-            "debug".into(),
-            "--show-bin-path".into(),
-        ],
-    )?;
+    let commands = headless_build_commands(&archive_hash);
+    tool(root, lease, &commands[0])?;
+    let bin_path = tool(root, lease, &commands[1])?;
     let bin_path = PathBuf::from(bin_path.trim());
     if !bin_path.starts_with(root.join(".build/oracle-swift"))
         || bin_path.components().any(|part| {
@@ -2604,69 +2660,8 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
     let policy_after=execute_oracle_policy(root,lease,&policy_artifact,PolicyLane::Headless,"after")?;
     let policy=CorePolicyEvidence{artifact:policy_artifact,before:policy_before,after:policy_after,inputs:policy_inputs};
     check_oracle_policy_evidence(root,&policy,PolicyLane::Headless)?;
-    if headless_sources(root)? != before || digest(&archive)? != archive_hash {
-        return Err("Frozen oracle source or static library changed before entry.".into());
-    }
-    let parent = std::env::var_os("RUYCAST_NATIVE_TEST_FIXTURE_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| root.join(".build/oracle-fixtures"));
-    if !parent.is_absolute() {
-        return Err("Oracle fixture parent must be absolute.".into());
-    }
-    let fixture = preparation::Stage::in_parent(&parent, "h")?;
-    use std::os::unix::ffi::OsStrExt;
-    if fixture.path().as_os_str().as_bytes().len() + 32 >= 104 {
-        return Err(
-            "Use a shorter explicit RUYCAST_NATIVE_TEST_FIXTURE_DIR for the frozen socket oracle."
-                .into(),
-        );
-    }
-    let mut outcomes = BTreeMap::new();
-    let mut commands = vec![compile];
-    // This closed selector list is the exact audited pre-AppDelegate scope.
-    // It is deliberately not an arbitrary host/check flag dispatcher.
-    {
-        let flag = "--check-search";
-        let mut command = Command::new(&binary);
-        command
-            .arg(flag)
-            .current_dir(root)
-            .env_clear()
-            .env("HOME", fixture.path())
-            .env("TMPDIR", fixture.path())
-            .env("RUYCAST_HOME", fixture.path());
-        lease.apply_to_child(&mut command)?;
-        let value = process::capture(command, std::time::Duration::from_secs(30), 2 * 1024 * 1024)?;
-        let name = flag.trim_start_matches('-');
-        ruycast_native::private_storage::write(
-            &root
-                .join(".build/receipts")
-                .join(format!("pure-{name}.stdout")),
-            &value.stdout,
-            true,
-        )?;
-        ruycast_native::private_storage::write(
-            &root
-                .join(".build/receipts")
-                .join(format!("pure-{name}.stderr")),
-            &value.stderr,
-            true,
-        )?;
-        let outcome: serde_json::Value = serde_json::from_slice(&value.stdout).map_err(error)?;
-        if !value.status.success() || outcome["ok"] != true {
-            return Err(format!("Frozen {flag} oracle failed."));
-        }
-        outcomes.insert(flag.into(), outcome);
-        commands.push(vec![
-            binary.to_str().ok_or("Invalid oracle binary path.")?.into(),
-            flag.into(),
-        ]);
-    }
-    if headless_sources(root)? != before
-        || digest(&archive)? != archive_hash
-        || digest(&binary)? != binary_hash
-    {
-        return Err("Frozen oracle inputs changed during branch checks.".into());
+    if headless_sources(root)? != before || digest(&archive)? != archive_hash || digest(&binary)? != binary_hash {
+        return Err("Swift host build/link smoke inputs changed during compilation.".into());
     }
     verify_core(root, lease)?;
     if digest(&root.join(".build/receipts/pure-core-oracle.json"))?!=core_receipt_sha256 {return Err("Core receipt changed during headless checks.".into());}
@@ -2682,7 +2677,7 @@ pub(super) fn headless(root: &Path, lease: &BuildLock) -> Result<serde_json::Val
         );
     }
     artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-    let receipt=HeadlessReceipt{schema:"ruycast.pre-main-headless-oracles.v3".into(),policy,core_receipt_sha256,sources:before,artifacts,outcomes,commands,scope:"Exact frozen --check-search branch before AppDelegate; fresh owned HOME/TMPDIR/RUYCAST_HOME; no other flags, normal startup, status, UI, global SDK or account-lookup acceptance".into(),production_accepted:false};
+    let receipt=HeadlessReceipt{schema:"ruycast.swift-host-build-link-smoke.v1".into(),policy,core_receipt_sha256,sources:before,artifacts,outcome:"Swift host build/link smoke passed".into(),commands,scope:HEADLESS_SMOKE_SCOPE.into(),production_accepted:false};
     lease.validate()?;
     ruycast_native::private_storage::write(
         &root.join(".build/receipts/pre-main-headless-oracles.json"),
@@ -2699,23 +2694,27 @@ pub(super) fn verify_headless(root: &Path, lease: &BuildLock) -> Result<serde_js
         &root.join(".build/receipts/pre-main-headless-oracles.json"),
     )?)
     .map_err(error)?;
-    if receipt.schema != "ruycast.pre-main-headless-oracles.v3"
+    if receipt.schema != "ruycast.swift-host-build-link-smoke.v1"
         || receipt.core_receipt_sha256!=core_sha
         || receipt.policy.artifact.target!=core["policy"]["artifact"]["target"]
         || receipt.production_accepted
         || receipt.sources != headless_sources(root)?
         || receipt.artifacts.len() != 3
-        || receipt.outcomes.len() != 1
-        || ["--check-search"]
-            .iter()
-            .any(|flag| {
-                receipt
-                    .outcomes
-                    .get(*flag)
-                    .is_none_or(|value| value["ok"] != true)
-            })
+        || receipt.outcome != "Swift host build/link smoke passed"
+        || receipt.scope != HEADLESS_SMOKE_SCOPE
     {
-        return Err("Frozen pre-main branch receipt is invalid or stale.".into());
+        return Err("Swift host build/link smoke receipt is invalid or stale.".into());
+    }
+    let archive = ".build/rust/release/librustcast_core.a";
+    let archive_sha = receipt.artifacts.get(archive).ok_or("Missing Swift host smoke archive.")?;
+    let architecture = match receipt.policy.artifact.target.as_str() {
+        "aarch64-apple-darwin" => "arm64-apple-macosx",
+        "x86_64-apple-darwin" => "x86_64-apple-macosx",
+        _ => return Err("Unexpected Swift host smoke target.".into()),
+    };
+    let binary = format!(".build/oracle-swift/{archive_sha}/{architecture}/debug/RuycastApp");
+    if receipt.commands != headless_build_commands(archive_sha) || !receipt.artifacts.contains_key(&binary) {
+        return Err("Invalid Swift host build/link smoke binding.".into());
     }
     check_oracle_policy_evidence(root,&receipt.policy,PolicyLane::Headless)?;
     if receipt.artifacts.get(&receipt.policy.artifact.path)!=Some(&receipt.policy.artifact.sha256) {return Err("Headless policy snapshot artifact role changed.".into());}
@@ -2726,7 +2725,7 @@ pub(super) fn verify_headless(root: &Path, lease: &BuildLock) -> Result<serde_js
                 .any(|part| !matches!(part, std::path::Component::Normal(_)))
             || digest(&root.join(name))? != *expected
         {
-            return Err("Frozen pre-main branch artifact changed.".into());
+            return Err("Swift host build/link smoke artifact changed.".into());
         }
     }
     verify_core(root, lease)?;
@@ -3520,6 +3519,27 @@ mod tests {
         ]
         .concat();
         assert!(!assertion.contains(&swift_include));
+    }
+
+    #[test]
+    fn aggregate_search_crosswalk_requires_every_current_rust_case_and_wrapper_exclusions() {
+        let inventory = super::inventory("check").unwrap();
+        assert!(inventory["gates"].as_array().unwrap().contains(&serde_json::json!(["--check-search", "source-qualified-rust-case-crosswalk"])));
+        let aggregate = &inventory["retiredSwiftChecks"]["--check-search"];
+        assert_eq!(aggregate["scenarioIDs"].as_array().unwrap().len(), SEARCH_CASES.len());
+        assert_eq!(aggregate["qualifiedCaseSourceBindings"].as_object().unwrap().len(), 4);
+        assert_eq!(aggregate["retiredAssertions"].as_array().unwrap().len(), 3);
+        for (id, _, _) in SEARCH_CASES {
+            for field in ["status", "nativeSource", "nativeCases", "originalScenarios"] {
+                let mut mappings = inventory["retiredSwiftChecks"].clone();
+                mappings[*id].as_object_mut().unwrap().remove(field);
+                assert!(search_crosswalk(&mappings).is_err(), "{id}: {field}");
+            }
+        }
+        let source = include_str!("oracles.rs");
+        let producer = source.split_once("pub(super) fn headless(").unwrap().1.split_once("pub(super) fn require_complete").unwrap().0;
+        assert!(!producer.contains("--check-search"));
+        assert!(!producer.contains("Command::new(&binary)"));
     }
 
     #[test]
@@ -4465,10 +4485,11 @@ mod tests {
         verify_core(root,lease).unwrap();
         let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};
         let mut artifacts=BTreeMap::new();
-        let host=".build/metadata-headless-host";fs::write(root.join(host),b"owned nonexecutable receipt fixture").unwrap();
-        for path in [".build/rust/release/librustcast_core.a",host] {artifacts.insert(path.into(),digest(&root.join(path)).unwrap());}
+        let archive_sha=digest(&root.join(".build/rust/release/librustcast_core.a")).unwrap();
+        let host=format!(".build/oracle-swift/{archive_sha}/arm64-apple-macosx/debug/RuycastApp");fs::write(root.join(&host),b"owned nonexecutable receipt fixture").unwrap();
+        for path in [".build/rust/release/librustcast_core.a",host.as_str()] {artifacts.insert(path.into(),digest(&root.join(path)).unwrap());}
         artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-        HeadlessReceipt{schema:"ruycast.pre-main-headless-oracles.v3".into(),core_receipt_sha256:digest(&root.join(".build/receipts/pure-core-oracle.json")).unwrap(),policy,sources:headless_sources(root).unwrap(),artifacts,outcomes:BTreeMap::from([("--check-search".into(),serde_json::json!({"ok":true}))]),commands:vec![],scope:"owned metadata fixture only; no genuine Swift branch execution".into(),production_accepted:false}
+        HeadlessReceipt{schema:"ruycast.swift-host-build-link-smoke.v1".into(),core_receipt_sha256:digest(&root.join(".build/receipts/pure-core-oracle.json")).unwrap(),policy,sources:headless_sources(root).unwrap(),artifacts,outcome:"Swift host build/link smoke passed".into(),commands:headless_build_commands(&archive_sha),scope:HEADLESS_SMOKE_SCOPE.into(),production_accepted:false}
     }
     #[test]
     fn headless_rust_policy_logs_and_exact_core_smoke_dependency_remain_separate() {
@@ -4476,31 +4497,45 @@ mod tests {
         let receipt=owned_headless_policy_receipt(root,&lease);let path=root.join(".build/receipts/pre-main-headless-oracles.json");
         fs::write(&path,serde_json::to_vec(&receipt).unwrap()).unwrap();verify_headless(root,&lease).unwrap();
         let core=root.join(".build/receipts/pure-core-oracle.json");let original=fs::read(&core).unwrap();let mut changed=original.clone();changed.push(b'\n');fs::write(&core,&changed).unwrap();
-        verify_core(root,&lease).unwrap();assert_eq!(verify_headless(root,&lease).unwrap_err(), "Frozen pre-main branch receipt is invalid or stale.");
+        verify_core(root,&lease).unwrap();assert_eq!(verify_headless(root,&lease).unwrap_err(), "Swift host build/link smoke receipt is invalid or stale.");
         fs::write(&core,&original).unwrap();verify_headless(root,&lease).unwrap();
         fs::remove_file(&core).unwrap();assert!(verify_headless(root,&lease).is_err());assert!(headless(root,&lease).is_err());
         assert!(root.join(".build/oracle-swift").is_dir());
     }
     #[test]
-    fn headless_rust_policy_v3_rejects_old_receipts_missing_gates_and_stale_footprints() {
+    fn headless_compile_link_smoke_rejects_old_behavior_receipts_and_stale_bindings() {
         let fixture=core_policy_fixture();let root=&fixture.0;let lease=BuildLock::acquire_from_environment(root,&BTreeMap::new()).unwrap();
         let receipt=owned_headless_policy_receipt(root,&lease);let good=serde_json::to_value(&receipt).unwrap();let path=root.join(".build/receipts/pre-main-headless-oracles.json");
         let save=|value:&serde_json::Value|fs::write(&path,serde_json::to_vec(value).unwrap()).unwrap();
         save(&good);verify_headless(root,&lease).unwrap();
-        for mutation in ["old-schema","old-two-gate-outcomes","missing-policy","core-digest","mutable-artifact","different-after-caller","bad-result","missing-footprint"] {
+        for mutation in ["old-schema","old-behavior-outcomes","missing-policy","core-digest","mutable-artifact","different-after-caller","bad-result","missing-footprint","scope","outcome","command","host-role","missing-host"] {
             let mut changed=good.clone();match mutation {
                 "old-schema"=>changed["schema"]=serde_json::json!("ruycast.pre-main-headless-oracles.v2"),
-                "old-two-gate-outcomes"=>{changed["outcomes"]["--check-concurrency"]=serde_json::json!({"ok":true});},
+                "old-behavior-outcomes"=>{changed["outcomes"]=serde_json::json!({"--check-search":{"ok":true}});},
                 "missing-policy"=>{changed.as_object_mut().unwrap().remove("policy");},
                 "core-digest"=>changed["coreReceiptSha256"]=serde_json::json!("0".repeat(64)),
                 "mutable-artifact"=>changed["policy"]["artifact"]["path"]=changed["policy"]["artifact"]["buildSource"].clone(),
                 "different-after-caller"=>changed["policy"]["after"]["arguments"][0]=changed["policy"]["artifact"]["buildSource"].clone(),
                 "bad-result"=>changed["policy"]["after"]["result"]["productionReady"]=serde_json::json!(true),
+                "scope"=>changed["scope"]=serde_json::json!("search behavior acceptance"),
+                "outcome"=>changed["outcome"]=serde_json::json!("Search behavior passed"),
+                "command"=>changed["commands"][0].as_array_mut().unwrap().push(serde_json::json!("--check-search")),
+                "host-role"|"missing-host"=>{let artifacts=changed["artifacts"].as_object_mut().unwrap();let host=artifacts.keys().find(|path|path.ends_with("/RuycastApp")).unwrap().clone();let hash=artifacts.remove(&host).unwrap();if mutation=="host-role"{artifacts.insert(".build/other-host".into(),hash);}},
                 _=>changed["policy"]["inputs"]=serde_json::json!({}),
             }
             save(&changed);assert!(verify_headless(root,&lease).is_err(),"{mutation}");
         }
         save(&good);verify_headless(root,&lease).unwrap();
+        let host=receipt.artifacts.keys().find(|path|path.ends_with("/RuycastApp")).unwrap();
+        let host_path=root.join(host);let host_bytes=fs::read(&host_path).unwrap();
+        fs::write(&host_path,b"tampered compiled host").unwrap();assert!(verify_headless(root,&lease).is_err());
+        fs::write(&host_path,&host_bytes).unwrap();verify_headless(root,&lease).unwrap();
+        let log_path=root.join(".build/receipts/pure-headless-policy-after.stdout");
+        let log_bytes=fs::read(&log_path).unwrap();fs::remove_file(&log_path).unwrap();
+        assert!(verify_headless(root,&lease).is_err());fs::write(&log_path,&log_bytes).unwrap();
+        verify_headless(root,&lease).unwrap();
+        fs::write(root.join("Sources/Legacy.swift"),b"stale Swift source").unwrap();
+        assert!(verify_headless(root,&lease).is_err());
     }
     #[test]
     fn core_rust_policy_snapshot_preserves_actual_calls_after_rebuild_and_fails_closed() {
