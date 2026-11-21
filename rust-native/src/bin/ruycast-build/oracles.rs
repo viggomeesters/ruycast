@@ -1810,10 +1810,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet-alias search assertion retired",
-            "scope": "Only the `salutation` query result-set assertion is retired. Snippet fixtures/captures, `longsnippet` search, arrow selection, result summary, and --check-polish remain active.",
+            "scope": "Only the Swift `salutation` query result-set assertion is retired. The Rust native bindings process covers alias and keyword search; Swift snippet fixtures/captures, arrow selection, result summary, and --check-polish remain active.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["The alias query `salutation` returns exactly `fixture.greet`."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetKeywordSearch"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet-keyword search assertion retired",
+            "scope": "Only the Swift `longsnippet` keyword-result assertion is retired. The Rust native bindings process covers alias and keyword search; Swift snippet fixtures/captures, arrow selection, result summary, and --check-polish remain active.",
+            "nativeSteps": ["polish-bindings-process"],
+            "nativeCases": ["ui_completion::polish_bindings"],
+            "originalAssertions": ["Typing `longsnippet` selects exactly the `fixture.long` snippet by its `;longsnippet` keyword."],
             "productionAccepted": false
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"] = serde_json::json!({
@@ -7956,13 +7965,33 @@ mod tests {
         assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift snippet-alias search assertion retired");
         assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
         assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
+        assert!(retired["scope"].as_str().unwrap().contains("Rust native bindings process covers alias and keyword search"));
         assert_eq!(retired["productionAccepted"], false);
         let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
         assert!(!polish.contains("Alias search lost the snippet"));
         assert!(!polish.contains("state.query=\"salutation\""));
-        assert!(polish.contains("state.query=\"longsnippet\""));
-        assert!(polish.contains("Keyword search lost the snippet"));
+        assert!(!polish.contains("state.query=\"longsnippet\""));
+        assert!(!polish.contains("Keyword search lost the snippet"));
+        assert!(polish.contains("Arrow selection changed after rendering bindings"));
+        assert!(polish.contains("snippetAliasesAndKeywordSearch"));
+    }
+    #[test]
+    fn polish_snippet_keyword_search_is_retired_and_crosswalked() {
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetKeywordSearch"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift snippet-keyword search assertion retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
+        assert!(retired["scope"].as_str().unwrap().contains("Rust native bindings process covers alias and keyword search"));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Typing `longsnippet` selects exactly the `fixture.long` snippet by its `;longsnippet` keyword."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
+        assert!(!polish.contains("Keyword search lost the snippet"));
+        assert!(!polish.contains("state.query=\"longsnippet\""));
+        assert!(polish.contains("state.moveSelection(1)"));
         assert!(polish.contains("Arrow selection changed after rendering bindings"));
         assert!(polish.contains("snippetAliasesAndKeywordSearch"));
     }
