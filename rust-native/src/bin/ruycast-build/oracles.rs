@@ -2630,6 +2630,11 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["a CLI dry-run returns without execution or analytics side effects"],
             "nativeCases": ["startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback", "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::file"] = serde_json::json!({
+            "originalSourceSHA256": "e86146a3b3d15a10c652d34d9158b93efce730157b175407f7a0852bcce93f55",
+            "status": "source-retired; development-only SwiftUI PNG contract retired",
+            "nativeCases": ["analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention", "analytics::tests::opening_prunes_events_outside_configured_retention", "native_dashboard_dialog_process::management_routing_controls_custom_retention_and_reset", "native_dashboard_dialog_process::actual_dashboard_renders_themes_widths_and_preserves_scroll", "native_dashboard_dialog_process::populated_paused_errors_confirmation_roles_values_and_local_key_loop", "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch"]
+        });
         inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
     }
     Ok(inventory)
@@ -4678,13 +4683,22 @@ mod tests {
         assert_eq!(detached_store["originalSourceSHA256"], "24e8731e4bf1da3622e28ef982f3ad085b374a5135bb0ac3fa16b6348c5671ab");
         assert_eq!(detached_store["nativeCases"], serde_json::json!(["analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export", "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]));
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let swift_analytics = std::fs::read_to_string(root.join("Sources/RuycastApp/AnalyticsChecks.swift")).unwrap();
-        assert!(!swift_analytics.contains("let store=AnalyticsStore"));
-        assert!(!swift_analytics.contains("store."));
+        assert!(!root.join("Sources/RuycastApp/AnalyticsChecks.swift").exists());
+        let swift_main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(!swift_main.contains("if args.first==\"--check-analytics\""));
+        let source_policy = std::fs::read_to_string(root.join("rust-native/src/bin/ruycast-source/policy.rs")).unwrap();
+        assert!(!source_policy.contains("Sources/RuycastApp/AnalyticsChecks.swift"));
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get("Sources/RuycastApp/AnalyticsChecks.swift").is_none());
+        let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
+        assert!(!roster.contains("frozen-current/Sources/RuycastApp/AnalyticsChecks.swift"));
+        let whole_file = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::file"];
+        assert_eq!(whole_file["originalSourceSHA256"], "e86146a3b3d15a10c652d34d9158b93efce730157b175407f7a0852bcce93f55");
+        assert_eq!(whole_file["status"], "source-retired; development-only SwiftUI PNG contract retired");
+        assert_eq!(whole_file["nativeCases"].as_array().unwrap().len(), 6);
         let dry_run = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.dryRunFixture"];
         assert_eq!(dry_run["originalSourceSHA256"], "189f08d3eda7409b3f5487c3c7d2cb84d66c56b7c1e753e825511b951f4ad25f");
         assert_eq!(dry_run["nativeCases"], serde_json::json!(["startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback", "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch"]));
-        assert!(!swift_analytics.contains("dryRun:true"));
         assert!(dialog_source.contains("let palette = h.rpc(&json!({\"op\":\"native.test\",\"action\":\"read\"}));"));
         assert!(dialog_source.contains("assert_eq!(palette[\"result\"][\"windowShown\"], false);"));
         let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();
