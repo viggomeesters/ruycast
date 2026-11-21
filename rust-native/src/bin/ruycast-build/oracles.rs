@@ -1952,6 +1952,17 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.directKillNoConfirmation"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift direct-kill smoke retired",
+            "scope": "Only the synthetic Swift process termination, its confirmation/effect assertions and directKillNoConfirmation/fakeTerminationOnly result fields are retired. The three process fixtures, visual captures, sort/selector behavior and all other resource checks remain.",
+            "nativeCases": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes", "processes::tests::owned_table_sort_and_immutable_kill_identity"],
+            "originalAssertions": ["Direct Kill terminates the verified fixture exactly once without confirmation.", "Fixture termination never targets a real process."],
+            "compatibilityNotes": ["The Rust native case executes the owned process action in both themes and observes exactly one owned-termination effect; the Rust unit test preserves process identity checks."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
             "test_clipboard_import_keeps_file_metadata_and_replays_without_duplicates": "clipboard_history_host_process::test_live_import_retains_file_metadata_deduplicates_and_rejects_unsafe_data_file",
@@ -5545,8 +5556,11 @@ mod tests {
         assert!(rich.contains("capture(host,\"clipboard-static-before\");pump(1.2);capture(host,\"clipboard-static-after\")"));
         assert!(!rich.contains("Clipboard timestamps still animate or update while idle"));
         assert!(!rich.contains("clipboardStaticWhileIdle"));
-        assert!(rich.contains("state.query=\"Obsidian\";try wait {state.results.count==1}"));
-        assert!(rich.contains("killed==[123411] && state.confirmationCommand==nil"));
+        assert!(rich.contains("effects.processes={samples}"));
+        assert!(!rich.contains("state.query=\"Obsidian\";try wait {state.results.count==1}"));
+        assert!(!rich.contains("killed==[123411] && state.confirmationCommand==nil"));
+        assert!(!rich.contains("directKillNoConfirmation"));
+        assert!(!rich.contains("fakeTerminationOnly"));
         assert!(!rich.contains("Disappearing selection activated another process"));
         assert!(!rich.contains("vanishedSelectionCannotKillNext"));
         assert!(!rich.contains("Sorting changed selected identity or memory order"));
@@ -5635,6 +5649,14 @@ mod tests {
         assert_eq!(sort_retired["compatibilityNotes"], serde_json::json!(["The Rust unit test checks memory ordering. The native process test uses production sort/refresh routes and the normal provider TTL rather than direct result replacement."]));
         assert_eq!(sort_retired["productionAccepted"], false);
         assert!(gate.native_cases.contains(&"remaining_macos_process::native_process_sort_refresh_keeps_identity_and_kill_keeps_palette_open"));
+        assert!(gate.native_cases.contains(&"processes::tests::owned_table_sort_and_immutable_kill_identity"));
+        let kill_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.directKillNoConfirmation"];
+        assert_eq!(kill_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(kill_retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift direct-kill smoke retired");
+        assert_eq!(kill_retired["productionAccepted"], false);
+        assert_eq!(kill_retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes", "processes::tests::owned_table_sort_and_immutable_kill_identity"]));
+        assert_eq!(kill_retired["originalAssertions"], serde_json::json!(["Direct Kill terminates the verified fixture exactly once without confirmation.", "Fixture termination never targets a real process."]));
+        assert!(gate.native_cases.contains(&"remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"));
         assert!(gate.native_cases.contains(&"processes::tests::owned_table_sort_and_immutable_kill_identity"));
         let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();

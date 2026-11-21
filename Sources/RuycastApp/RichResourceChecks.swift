@@ -12,19 +12,12 @@ import LauncherModels
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     func pump(_ duration:Double=0.12) {let end=Date().addingTimeInterval(duration);while Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}}
     func wait(_ condition:()->Bool) throws {let end=Date().addingTimeInterval(5);while !condition(),Date()<end {pump(0.01)};try require(condition(),"Native resource fixture timed out")}
-    let samplesBox=LockedValue([ProcessResource(identity:.init(pid:123410,uid:getuid(),seconds:10,micros:0),name:"Syncthing",path:"/usr/bin/true",cpuPercent:49.5,memoryBytes:163*1_048_576),ProcessResource(identity:.init(pid:123411,uid:getuid(),seconds:11,micros:0),name:"Obsidian",path:"/Applications/Obsidian.app/Contents/MacOS/Obsidian",cpuPercent:23.9,memoryBytes:370*1_048_576),ProcessResource(identity:.init(pid:123412,uid:getuid(),seconds:12,micros:0),name:"Safari",path:"/System/Applications/Safari.app/Contents/MacOS/Safari",cpuPercent:9.8,memoryBytes:64*1_048_576)])
-    var samples:[ProcessResource] {get {samplesBox.read {$0}} set {samplesBox.update {$0=newValue}}}
-    var killed=[pid_t]();var effects=SystemServices.Effects()
-    effects.processes={samplesBox.read {$0}};effects.identity={pid in samplesBox.read {$0.first {$0.id==pid}?.identity}};effects.terminate={pid in killed.append(pid);samples.removeAll {$0.id==pid};return 0}
+    let samples=[ProcessResource(identity:.init(pid:123410,uid:getuid(),seconds:10,micros:0),name:"Syncthing",path:"/usr/bin/true",cpuPercent:49.5,memoryBytes:163*1_048_576),ProcessResource(identity:.init(pid:123411,uid:getuid(),seconds:11,micros:0),name:"Obsidian",path:"/Applications/Obsidian.app/Contents/MacOS/Obsidian",cpuPercent:23.9,memoryBytes:370*1_048_576),ProcessResource(identity:.init(pid:123412,uid:getuid(),seconds:12,micros:0),name:"Safari",path:"/System/Applications/Safari.app/Contents/MacOS/Safari",cpuPercent:9.8,memoryBytes:64*1_048_576)]
+    var effects=SystemServices.Effects()
+    effects.processes={samples}
     let service=SystemServices(effects:effects),state=try AppState(root:root,headless:true,systemServices:service)
     state.mode="processes";try wait {state.results.count==3}
-    state.query="Obsidian";try wait {state.results.count==1}
-    try require(state.actionItems.first?.title=="Kill" && !state.actionItems.contains(where:{$0.id=="set-alias" || $0.id=="set-hotkey" || $0.id=="disable"}),"Process actions are mislabeled or persist ephemeral targets")
-    state.activateSelection();try wait {!state.busy && state.results.isEmpty}
-    try require(killed==[123411] && state.confirmationCommand==nil,"Direct Kill did not execute once without a confirmation")
-    // Restore samples for visual checks, never an actual PID.
-    samples.append(ProcessResource(identity:.init(pid:123411,uid:getuid(),seconds:11,micros:0),name:"Obsidian",path:"/Applications/Obsidian.app/Contents/MacOS/Obsidian",cpuPercent:23.9,memoryBytes:370*1_048_576))
-    service.invalidateProcessCache();state.query="";state.setProcessSort(.cpu);try wait {state.results.count==3};state.selection=0
+    state.setProcessSort(.cpu);try wait {state.results.count==3};state.selection=0
     let directory=URL(fileURLWithPath:outputPath);try FileManager.default.createDirectory(at:directory,withIntermediateDirectories:true)
     let window=NSWindow(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:.borderless,backing:.buffered,defer:false);window.isReleasedWhenClosed=false;defer {window.close()}
     let host=NSHostingView(rootView:Palette(state:state));window.contentView=host;host.frame=NSRect(x:0,y:0,width:760,height:490)
@@ -87,5 +80,5 @@ import LauncherModels
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
     try require(!window.isVisible,"Resource checks opened a visible window")
-    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"monitorSeparateWindowRoute":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"monitorSeparateWindowRoute":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }
