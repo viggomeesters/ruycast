@@ -33,7 +33,10 @@ define_class!(
     }
 );
 fn key(panel: &NSWindow, value: &str, shift: bool) -> Result<Retained<NSEvent>, String> {
-    let characters = if shift {
+    key_with_flags(panel, value, Flags::Command | if shift { Flags::Shift } else { Flags::empty() })
+}
+fn key_with_flags(panel: &NSWindow, value: &str, flags: Flags) -> Result<Retained<NSEvent>, String> {
+    let characters = if flags.contains(Flags::Shift) {
         value.to_uppercase()
     } else {
         value.to_owned()
@@ -48,7 +51,7 @@ fn key(panel: &NSWindow, value: &str, shift: bool) -> Result<Retained<NSEvent>, 
         _ => 0,
     };
     NSEvent::keyEventWithType_location_modifierFlags_timestamp_windowNumber_context_characters_charactersIgnoringModifiers_isARepeat_keyCode(
-        NSEventType::KeyDown, NSPoint::new(0.,0.), Flags::Command | if shift {Flags::Shift} else {Flags::empty()},
+        NSEventType::KeyDown, NSPoint::new(0.,0.), flags,
         0., panel.windowNumber(), None, &string, &string, false, code).ok_or("local key event allocation failed".into())
 }
 pub fn check(panel: &NSPanel, view: &NSView, mtm: MainThreadMarker) -> Result<(), String> {
@@ -79,6 +82,7 @@ pub fn check(panel: &NSPanel, view: &NSView, mtm: MainThreadMarker) -> Result<()
     if editor.ivars().get() != 15 || editor.selectedRange().length != 6 {
         return Err("native editing selectors/Select All failed".into());
     }
+    check_modified_paste(panel, &editor)?;
     editor.setEditable(false);
     for value in ["v", "x", "z"] {
         if perform(&*key(panel, value, false)?, Some(&editor)) {
@@ -111,6 +115,31 @@ pub fn check(panel: &NSPanel, view: &NSView, mtm: MainThreadMarker) -> Result<()
     check_snippet_replacement(&editor)?;
     panel.makeFirstResponder(None);
     check_menu(mtm, &editor)?;
+    Ok(())
+}
+
+/// Original EditCommandChecks modifier assertions through the actual hidden panel.
+fn check_modified_paste(panel: &NSPanel, editor: &ProbeEditor) -> Result<(), String> {
+    for (flags, expected_handled, expected_actions) in [
+        (Flags::Command | Flags::CapsLock, true, 1),
+        (Flags::Command | Flags::Option, false, 0),
+    ] {
+        editor.ivars().set(0);
+        let before_text = editor.string();
+        let before_selection = editor.selectedRange();
+        let event = key_with_flags(panel, "v", flags)?;
+        if event.modifierFlags() != flags || event.keyCode() != 9 {
+            return Err("modified paste event lost its actual flags or key code".into());
+        }
+        let handled: bool = unsafe { msg_send![panel, performKeyEquivalent: &*event] };
+        if handled != expected_handled || editor.ivars().get() != expected_actions {
+            return Err(format!("modified paste routing differs: flags={flags:?}, handled={handled}, actions={}", editor.ivars().get()));
+        }
+        // The owned selector only records dispatch; rejected events must not edit either.
+        if editor.string() != before_text || editor.selectedRange() != before_selection {
+            return Err("modified paste changed the owned probe text or selection".into());
+        }
+    }
     Ok(())
 }
 
