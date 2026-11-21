@@ -1867,6 +1867,18 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.settingsCommandRouting"] = serde_json::json!({
+            "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift Settings routing smoke retired",
+            "scope": "Only the local PaletteController Settings callback, its routing guard, and settingsCommandRouting result field are retired. Settings save/reload checks and the subsequent concurrent-config-edit guard remain active.",
+            "nativeSteps": ["library-navigation-process", "remaining-macos-process"],
+            "nativeCases": ["library_navigation_process::cli_settings_is_separate_and_reusable_without_showing_a_window", "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"],
+            "originalAssertions": ["The settings command opened the management view without showing the launcher panel.", "The settings alias resolved to the built-in Settings command."],
+            "compatibilityNotes": ["The Rust CLI process test exercises show settings and verifies the management view opens while the launcher and physical window stay hidden.", "The Rust headless process test verifies search settings returns builtin.settings; the existing catalog maps it to target settings."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-apple-shortcuts").unwrap();
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AppleShortcutChecks.swift::checkAppleShortcuts"] = serde_json::json!({
             "originalSourceSHA256": APPLE_SHORTCUTS_ORACLE_SHA256,
@@ -8018,6 +8030,16 @@ mod tests {
         assert!(gate.required_native_steps.contains(&"feedback-actions-process"));
         assert!(gate.native_cases.contains(&"ui_completion::feedback_actions"));
         assert!(std::fs::read_to_string(root.join("rust-native/tests/creation_process.rs")).unwrap().contains("fn quicklinks_normalize_domain_and_file_path_without_hidden_general_clipboard()"));
+        let settings_routing = &crosswalk["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.settingsCommandRouting"];
+        assert_eq!(settings_routing["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
+        assert_eq!(settings_routing["status"], "source-qualified-rust-case-crosswalk; duplicate Swift Settings routing smoke retired");
+        assert_eq!(settings_routing["nativeSteps"], serde_json::json!(["library-navigation-process", "remaining-macos-process"]));
+        assert_eq!(settings_routing["nativeCases"], serde_json::json!(["library_navigation_process::cli_settings_is_separate_and_reusable_without_showing_a_window", "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"]));
+        assert_eq!(settings_routing["productionAccepted"], false);
+        let interactions = std::fs::read_to_string(root.join("Sources/RuycastApp/InteractionChecks.swift")).unwrap();
+        assert!(!interactions.contains("settingsCommandRouting"));
+        assert!(!interactions.contains("Settings routing failed."));
+        assert!(interactions.contains("concurrentConfigEditPreserved"));
         assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
