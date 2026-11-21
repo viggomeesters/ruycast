@@ -1,4 +1,4 @@
-//! Read-only legacy freeze and Rust product-source policy. No lock generation.
+//! Read-only legacy freeze and Rust product/test/helper-source policy. No lock generation.
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
@@ -10,6 +10,15 @@ use std::{
 
 const LOCK: &str = "rust-native/swift-reference-lock.json";
 const RUNTIME: [&str; 2] = ["rust/src", "rust-native/src"];
+const TOOLING: [&str; 7] = [
+    "Tests",
+    "scripts",
+    "bench",
+    "rust/tests",
+    "rust/scripts",
+    "rust-native/tests",
+    "rust-native/scripts",
+];
 const METADATA: [&str; 8] = [
     "Cargo.toml",
     "Cargo.lock",
@@ -203,6 +212,38 @@ fn scan_product(
     }
     Ok(())
 }
+fn scan_tooling(root: &Path, folder: &Path, errors: &mut Vec<String>) -> Result<(), String> {
+    for path in children(folder)? {
+        let name = relative(root, &path)?;
+        let metadata = fs::symlink_metadata(&path).map_err(|e| e.to_string())?;
+        if metadata.is_symlink() {
+            errors.push(format!("tooling source symlink: {name}"));
+        } else if metadata.is_dir() {
+            // Cargo output is not source. Only prune the crate's own output directory.
+            if path.file_name().unwrap() != "target" || !folder.join("Cargo.toml").is_file() {
+                scan_tooling(root, &path, errors)?;
+            }
+        } else if metadata.is_file() {
+            let filename = path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .ok_or("filesystem path is not UTF-8")?;
+            // JSON fixtures and Markdown documentation are data, not executable source.
+            if filename != ".DS_Store"
+                && !path.extension().is_some_and(|extension| {
+                    extension == "rs" || extension == "json" || extension == "md"
+                })
+                && !METADATA.contains(&filename)
+            {
+                errors.push(format!("non-Rust/unknown tooling input: {name}"));
+            }
+        } else {
+            errors.push(format!("nonregular tooling input: {name}"));
+        }
+    }
+    Ok(())
+}
 fn checked(root: &Path) -> Result<Value, String> {
     root.to_str().ok_or("filesystem path is not UTF-8")?;
     let lock_path = root.join(LOCK);
@@ -279,6 +320,30 @@ fn checked(root: &Path) -> Result<Value, String> {
             continue;
         }
         scan_product(root, &folder, &folder, &mut errors)?;
+    }
+    for name in TOOLING {
+        let folder = root.join(name);
+        match fs::symlink_metadata(&folder) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.to_string()),
+            Ok(metadata) if metadata.is_symlink() || !metadata.is_dir() => {
+                // Product-root tooling links already have the original policy errors.
+                if ![
+                    "rust/tests",
+                    "rust/scripts",
+                    "rust-native/tests",
+                    "rust-native/scripts",
+                ]
+                .contains(&name)
+                    || !metadata.is_symlink()
+                {
+                    errors.push(format!(
+                        "tooling source root must be a real directory: {name}"
+                    ));
+                }
+            }
+            Ok(_) => scan_tooling(root, &folder, &mut errors)?,
+        }
     }
     Ok(
         json!({"ok":errors.is_empty(), "policy":"Rust-only new product code", "frozenLegacyFiles":expected.len(), "rustRuntimeFiles":count,

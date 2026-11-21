@@ -97,16 +97,26 @@ fn test_rust_changes_and_new_rust_files_remain_allowed() {
     assert_eq!(verify(&fixture.0)["ok"], true);
 }
 #[test]
-fn test_test_oracles_and_build_tools_are_not_product_logic() {
-    let fixture = Fixture::new();
+fn test_non_rust_test_and_helper_sources_fail() {
     for path in [
         "rust-native/tests/oracle.swift",
         "rust-native/tests/sdk.m",
         "rust-native/scripts/check.py",
+        "rust/tests/oracle.swift",
+        "rust/scripts/check.py",
+        "Tests/fixtures/oracle.swift",
+        "scripts/check.py",
+        "bench/f1-runner/examples/helper.sh",
     ] {
-        fixture.write(path, "// own test fixture\n");
+        let fixture = Fixture::new();
+        fixture.write(path, "// forbidden executable source fixture\n");
+        let result = verify(&fixture.0);
+        assert_eq!(result["ok"], false, "{path}: {result}");
+        assert_eq!(
+            result["errors"],
+            json!([format!("non-Rust/unknown tooling input: {path}")])
+        );
     }
-    assert_eq!(verify(&fixture.0)["ok"], true);
 }
 
 #[test]
