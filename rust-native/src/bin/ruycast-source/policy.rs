@@ -81,7 +81,6 @@ Sources/RuycastApp/ShortcutBadge.swift
 Sources/RuycastApp/ShortcutRecorder.swift
 Sources/RuycastApp/SnippetChoice.swift
 Sources/RuycastApp/SnippetClipboard.swift
-Sources/RuycastApp/SnippetEditingChecks.swift
 Sources/RuycastApp/SnippetExpander.swift
 Sources/RuycastApp/SnippetTextEditor.swift
 Sources/RuycastApp/SystemAccessibility.swift

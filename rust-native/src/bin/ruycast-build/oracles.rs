@@ -519,7 +519,7 @@ const SETTINGS: &[SettingsGate] = &[
         "feedback-actions-process", "snippet-links-process", "snippet-process", "snippet-board-process",
         "keyword-rich-process-rust", "clipboard-rich-paste", "settings-ui-process", "snippet-html-import",
     ], native_cases:&[
-        "ui_completion::settings_parity", "ui_completion::use_either_command",
+        "ui_completion::settings_parity", "ui_completion::use_either_command", "ui_completion::snippet_links",
         "snippet_probe::check_html_import", "rustcast_core::tests::command_sides_are_independent",
         "hotkeys::tests::plan_preserves_carbon_flags_sided_policy_modifier_taps_and_disabled_items",
         "recorder::tests::physical_keys_sides_hyper_and_clear_match_shipped_contract",
@@ -880,7 +880,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
     match id {
         "--check-polish" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "fb6e3a1b9d32485241d2f219155d4d21b5923fe1d64c61edba085d2f18b00cfb"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
@@ -892,7 +892,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_clipboard.rs", include_bytes!("../../native_clipboard.rs"), "6a3db88c4184426dae72431087af17177caa1f7bb3f2cff1bc2c4d7ed621c62f"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
             ("rust-native/src/native_settings.rs", include_bytes!("../../native_settings.rs"), "5d662f5ad70e3be4407acf74babbf97345ac0b05079fcdd88069181d63a23041"),
-            ("rust-native/src/native_snippet_editor.rs", include_bytes!("../../native_snippet_editor.rs"), "554be26da4356ff39640a2d4af5b6b4758062dcc782d5da129bfb6b85fb12671"),
+            ("rust-native/src/native_snippet_editor.rs", include_bytes!("../../native_snippet_editor.rs"), "c047b34e4abf31b111d804f9bc1e5a9efe75a002e5e0ac612c0cb48fe71d6150"),
             ("rust-native/src/script_result.rs", include_bytes!("../../script_result.rs"), "6e311e6045f6f3e5d3bf8998e7e34d23323ad324d449dcac3be1ecb1e9547cbf"),
             ("rust-native/src/task_date.rs", include_bytes!("../../task_date.rs"), "ebc3df3a84c149af7f6fd6bcabea58073ea1209204e01b3a14571c3f393db856"),
             ("rust-native/src/runtime_health.rs", include_bytes!("../../runtime_health.rs"), "ee787b5ccd193c1f1a400ce0da4798132d8dd68d48f85f40b63a776cfccf7d86"),
@@ -929,7 +929,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "fb6e3a1b9d32485241d2f219155d4d21b5923fe1d64c61edba085d2f18b00cfb"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -972,7 +972,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "fb6e3a1b9d32485241d2f219155d4d21b5923fe1d64c61edba085d2f18b00cfb"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -996,7 +996,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "254065ccb0e2529da82b85792f16965f051b7a101aa74fea78d6641905881280"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "fb6e3a1b9d32485241d2f219155d4d21b5923fe1d64c61edba085d2f18b00cfb"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -1211,7 +1211,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "fb6e3a1b9d32485241d2f219155d4d21b5923fe1d64c61edba085d2f18b00cfb"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -1287,7 +1287,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "edc5a5afc8f4bde9ecdbade803b054f977d951323bc82fa57d78e772969676ce"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "fb6e3a1b9d32485241d2f219155d4d21b5923fe1d64c61edba085d2f18b00cfb"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -1301,7 +1301,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
             ("rust-native/src/native_settings.rs", include_bytes!("../../native_settings.rs"), "5d662f5ad70e3be4407acf74babbf97345ac0b05079fcdd88069181d63a23041"),
-            ("rust-native/src/native_snippet_editor.rs", include_bytes!("../../native_snippet_editor.rs"), "554be26da4356ff39640a2d4af5b6b4758062dcc782d5da129bfb6b85fb12671"),
+            ("rust-native/src/native_snippet_editor.rs", include_bytes!("../../native_snippet_editor.rs"), "c047b34e4abf31b111d804f9bc1e5a9efe75a002e5e0ac612c0cb48fe71d6150"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
@@ -1796,6 +1796,31 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     }
     let mut inventory =
         serde_json::json!({"schema":"ruycast.original-gate-inventory.v1","pipeline":kind,"gates":gates,"unmappedGateIDs":unresolved,"settingsCaseCrosswalk":if kind=="settings"{serde_json::to_value(SETTINGS).map_err(error)?}else{serde_json::Value::Null},"qualifiedCaseSourceBindings":if kind=="settings"{serde_json::to_value(qualified).map_err(error)?}else{serde_json::Value::Null},"requiresCurrentCompleteNativeValidation":true,"pythonModuleInventory":python_modules,"pythonPackageInitializers":python_packages,"rustRootTestCrosswalk":if kind=="check"{serde_json::json!({"Tests/test_config_activation.py":{"scope":"both original activation rollback scenarios ported using actual Rust CLI and owned Unix socket; no live host","originalMethods":["test_rejected_candidate_restores_previous_bytes_and_runtime","test_newer_external_edit_is_never_rolled_back"],"nativeTarget":"startup_config_repair","nativeCases":["rejected_candidate_restores_previous_bytes_and_runtime","newer_external_edit_is_never_rolled_back"],"remainingPythonCases":0},"Tests/test_product_version.py":{"authority":"rust/src/product_version.rs","scope":"retired historical Swift-authority test consumer; five scenario intents now covered against actual Rust authority","originalMethods":["test_reader_and_actual_swift_compiler_agree_after_one_version_edit","test_missing_linked_ambiguous_or_nonliteral_version_is_rejected","test_export_follows_changed_compiled_version","test_invalid_version_creates_no_export_or_archive","test_nonregular_source_is_rejected_without_waiting_for_a_writer"],"nativeCases":["version::tests::owned_literal_matches_the_rust_compiler_and_rejects_link_fifo_directory_or_missing","version::tests::owned_rust_literal_tokens_preserve_whitespace_and_reject_ambiguity","version::tests::changed_compiled_version_exports_and_invalid_source_leaves_no_outputs"]},"Tests/test_config_directory.py":{"scope":"all fourteen scenarios ported, including qualified current-Rust manual-selector contract and actual Rust Raycast importer","originalMethods":["test_offline_relocation_preserves_bytes_and_runtime_files","test_existing_destination_is_not_overwritten","test_busy_writer_cannot_be_relocated","test_environment_pinned_directory_cannot_be_relocated","test_default_remains_compatible","test_invalid_selector_never_falls_back_to_stale_config","test_unavailable_persisted_config_is_not_initialized","test_persisted_directory_is_shared_and_survives_cli_restart","test_host_restart_uses_relocated_configuration","test_parent_component_after_symlink_is_rejected_by_cli_and_host","test_live_relocation_keeps_host_and_observer_on_new_file","test_manual_selector_change_does_not_silently_activate_wrong_file","test_environment_overrides_persisted_location","test_raycast_import_defaults_to_active_cli_config"],"currentContractDifferences":{"test_manual_selector_change_does_not_silently_activate_wrong_file":"Current Rust host automatically rebinds valid selectors; historical immediate CLI refusal and old host path are not guaranteed. Actual stale ConfigStore write refusal and unchanged copies are preserved; subsequent actual CLI edits target only the rebound selected file."},"additionalNativeTargets":{"runtime_process":["persisted_directory_is_shared_between_cli_and_owned_host_startup","owned_host_restart_uses_relocated_configuration","relocate_keeps_original_then_cli_edits_new_target","external_selector_rebinds_observation_to_portable_directory"]},"nativeTarget":"startup_config_repair","nativeCases":["offline_cli_relocation_retains_source_and_refuses_existing_target","offline_cli_busy_writer_and_environment_pin_refuse_relocation","offline_cli_default_path_and_invalid_selectors_never_use_stale_config","offline_cli_and_host_initializer_refuse_unavailable_persisted_config","offline_cli_and_host_initializer_refuse_parent_component_after_symlink","offline_cli_and_host_initializer_override_persisted_location_without_overwrite","raycast_import_defaults_to_active_cli_config"],"remainingPythonCases":0},"Tests/test_install_migration.py":{"scope":"all sixteen original scenarios ported; Python module and unused helper retired","originalMethods":["test_failed_bootstrap_restores_old_app_cli_and_registration","test_wrong_running_version_restores_old_app_and_registration","test_installer_migrates_single_service_and_both_cli_names","test_other_rustcast_app_cli_and_profile_are_preserved","test_existing_compatibility_alias_does_not_own_other_rustcast_app","test_signing_failure_keeps_existing_host_and_profile_untouched","test_installer_pins_explicit_configuration_for_login_startup","test_receipt_failure_never_stops_installed_app","test_invalid_canonical_version_never_stages_or_stops_current_app","test_profile_preserves_bytes_and_idempotent_alias","test_custom_config_is_backed_up_and_checked_separately_from_runtime","test_conflicting_profiles_and_links_are_preserved","test_unrelated_cli_symlink_is_not_hijacked","test_external_local_adapter_stages_without_entering_public_source","test_public_source_update_preserves_existing_local_adapter","test_wrong_bundle_identity_refused"],"authority":"rust/src/product_version.rs","buildAuthorityCases":["tests::genuine_owned_cargo_pair_emits_v4_and_rejects_stale_or_tampered_authority"],"nativeBinary":"ruycast-install","nativeCases":["installer::tests::installer_owned_failures_rollback_or_fail_before_stopping_without_config_changes","installer::tests::installer_owned_legacy_migration_preserves_authored_state_and_both_cli_names","installer::tests::installer_owned_unrelated_product_and_unknown_stage_are_preserved","installer::tests::installer_owned_explicit_app_profile_config_and_relative_legacy_alias","installer::tests::installer_owned_tampered_receipts_links_bundles_and_config_fail_before_stop","installer::tests::installer_owned_profile_filesystem_preserves_bytes_and_idempotent_alias","installer::tests::installer_owned_profile_filesystem_selected_config_hash_is_separate_from_runtime","installer::tests::installer_owned_profile_filesystem_conflicts_and_unrelated_cli_are_preserved","installer::tests::installer_owned_personal_adapter_external_stages_without_public_source_copy","installer::tests::installer_owned_personal_adapter_installed_bytes_preserved_and_link_refused","installer::tests::installer_owned_bundle_identity_refuses_unrelated_app_without_mutation"],"faults":["bootstrap","version","sign"],"remainingPythonFlowConsumers":0,"remainingPythonFilesystemCases":0}})}else{serde_json::Value::Null},"pythonDiscovery":"The original Tests/test_*.py unittest discovery is source-qualified from the actual package-aware Tests tree; any discovered module remains unresolved until its cases are transported and mapped","retiredSwiftChecks":if kind=="check"{serde_json::json!({"Tests/LauncherCoreTests/ScriptChoiceChecks.swift":{"status":"source-qualified-rust-case-crosswalk","scope":"The data-only helper is retired; the exact two original choices and all five search/validation scenarios remain explicit in one Rust test. The separate RuycastApp UI helper is now retired under its own assertion crosswalk; the no-op LauncherCoreChecks target is retired.","nativeSource":"rust-native/src/script_result.rs","originalScenarios":["accent-insensitive multi-term title/subtitle search","unmatched query returns no rows","empty query preserves all original rows in order","exact duplicate choice is rejected","empty choices validate"],"nativeCases":["script_result::tests::original_script_choice_search_and_validation_scenarios"]},"Tests/LauncherCoreTests/TaskDateInputChecks.swift":{"status":"source-qualified-rust-case-crosswalk","scope":"The data-only Swift helper is retired; all fourteen valid inputs, seven invalid inputs, three calendar boundaries, Dutch label and both prompt-support assertions remain in the existing Rust tests. The separate RuycastApp compile/link smoke remains active.","nativeSource":"rust-native/src/task_date.rs","nativeCases":["task_date::tests::original_natural_date_vectors_and_labels_match","task_date::tests::calendar_month_year_and_amsterdam_dst_boundaries_are_not_fixed_seconds","task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock","task_date::tests::only_script_prompts_with_the_original_case_sensitive_hint_opt_in"]},"--check-concurrency":{"status":"source-qualified-rust-case-crosswalk","scope":"The Swift helper and its pre-main entry point are retired after mapping current Rust behavior. The Swift LockedValue stress assertion tested a Swift-only primitive, not a shared product contract. The old one-pending/latest/fair-order assertion has no exact Rust equivalent: Rust bounds the lane and returns busy for a second request. Synchronous-main ReplySink timing also differs; Rust uses asynchronous owner replies.","retiredAssertions":["Swift LockedValue 1000-update primitive stress test; the helper-only assertion is retired with its Swift primitive.","One queued latest request and fair [0,2000,1000] ordering; Rust uses busy-error admission and cancellation/revision fencing instead.","Synchronous-main intent reply; Rust completion is asynchronous through the owner queue."],"nativeCases":["control::tests::failed_start_retains_nonsocket_then_retry_releases_profile_lock","control::tests::failed_directory_bind_preserves_path_and_releases_profile_lock","control::tests::active_owner_and_replacement_paths_are_preserved","control::tests::large_wire_reply_roundtrips_without_truncation","system_search::service::tests::held_worker_bounds_admission_and_dropped_receipt_revokes_late_work","runtime::system::shortcut_budget_tests::browser_superseded_query_and_old_deadline_cannot_cancel_or_republish_latest_rows","runtime::system::shortcut_budget_tests::browser_busy_main_cli_preserves_local_results_and_exactly_one_response","system_search::tests::empty_files_query_returns_successful_empty_results_without_effects"]}})}else{serde_json::Value::Null},"unmappedIsFailure":true,"productionAccepted":false});
+    if kind == "settings" {
+        inventory["retiredSwiftChecks"] = serde_json::json!({
+            "Sources/RuycastApp/SnippetEditingChecks.swift::checkSnippetEditing": {
+                "originalSourceSHA256": SNIPPET_EDITING_ORACLE_SHA256,
+                "status": "source-qualified-rust-case-crosswalk; Swift helper retired",
+                "scope": "Only the snippet-specific Swift check helper/caller is retired. The broader SettingsChecks helper and product snippet editor remain active; the --check-settings mapping stays source-qualified and productionAccepted=false.",
+                "productionAccepted": false,
+                "contractDifferences": [
+                    "The Rust native view records its actual ruler/text geometry; it does not reproduce the old SwiftUI screenshot widths or pixel captures.",
+                    "The test host uses an owned hidden synthetic profile and local events; it does not prove physical desktop input or general-clipboard behavior.",
+                    "Existing owned named-board, frozen corpus, rich keyword and HTML import tests remain their own Rust routes; this crosswalk does not claim live provider or personal-vault writes."
+                ],
+                "assertionCrosswalk": {
+                    "Original six logical lines, trailing empty line, visible gutter, and minimum 44-point ruler": ["ui_completion::snippet_links"],
+                    "Long wrapped first line and actual second-line layout below the original threshold": ["ui_completion::snippet_links"],
+                    "Seventy logical lines scroll to visible markers above 50 while marker 1 leaves view": ["ui_completion::snippet_links"],
+                    "Native text insertion followed by undo restores the exact original snippet": ["ui_completion::snippet_links"],
+                    "Selection-bound link creation/edit, stale-source refusal, unsafe URL refusal and link undo/redo": ["ui_completion::snippet_links"],
+                    "Rich/Teams serialization and private-board output": ["snippet_process::teams_paragraphs_html_breaks_and_safe_escaping", "snippet_process::native_named_board_contains_one_complete_plain_or_rich_item"],
+                    "HTML hyperlink import, preserved blank paragraphs and no table blocks": ["snippet_probe::check_html_import"],
+                    "Rich keyword one-paste path and legacy plain-text clipboard behavior": ["keyword_rich_process::html_and_teams_prepare_item_then_erase_and_command_v", "keyword_rich_process::plain_leaves_existing_clipboard_intact"]
+                }
+            }
+        });
+    }
     if kind == "check" {
         inventory["rustRootTestCrosswalk"]["Tests/test_cli.py"]["supplementalCurrentMethodByMethod"] = serde_json::json!({
             "test_existing_quick_note_provider_in_fixture_vault": "runtime_process::existing_quick_note_provider_writes_only_into_its_owned_fixture_vault",
@@ -5214,6 +5239,60 @@ mod tests {
         for case in cases {assert!(source.contains(&format!("fn {case}()")));}
     }
     #[test]
+    fn retired_snippet_editing_helper_preserves_rust_crosswalk_and_provenance() {
+        use sha2::Digest;
+        let root=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired="Sources/RuycastApp/SnippetEditingChecks.swift";
+        assert!(!root.join(retired).exists());
+        let caller=include_str!("../../../../Sources/RuycastApp/SettingsChecks.swift");
+        assert!(!caller.contains("checkSnippetEditing"));
+        assert!(!caller.contains("snippetEditing"));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line|line==retired));
+        let lock:serde_json::Value=serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert_eq!(lock["files"]["Sources/RuycastApp/SettingsChecks.swift"],format!("{:x}",Sha256::digest(caller.as_bytes())));
+
+        let gate=super::SETTINGS.iter().find(|gate|gate.id=="--check-settings").unwrap();
+        assert!(gate.native_cases.contains(&"ui_completion::snippet_links"));
+        let historical=("Sources/RuycastApp/SnippetEditingChecks.swift",super::SNIPPET_EDITING_ORACLE_SHA256);
+        assert_eq!(super::settings_additional_provenance_sources(gate.id),&[historical]);
+        assert!(super::settings_source_bindings(gate.id).contains(&historical));
+        assert!(super::settings_source_bindings(gate.id).contains(&(gate.original_source,super::SETTINGS_ORACLE_SHA256)));
+        let inventory=super::inventory("settings").unwrap();
+        assert_eq!(inventory["productionAccepted"],false);
+        let mapping=&inventory["retiredSwiftChecks"]["Sources/RuycastApp/SnippetEditingChecks.swift::checkSnippetEditing"];
+        assert_eq!(mapping["originalSourceSHA256"],"adfae471c755454375ff7af2b1c99108ab08bd4a9c2a50556809e2dad5f0b99e");
+        assert_eq!(mapping["status"],"source-qualified-rust-case-crosswalk; Swift helper retired");
+        assert_eq!(mapping["productionAccepted"],false);
+        let crosswalk=mapping["assertionCrosswalk"].as_object().unwrap();
+        assert_eq!(crosswalk.len(),8);
+        let sources=[
+            ("ui_completion::","rust-native/examples/ui_completion.rs",include_str!("../../../examples/ui_completion.rs")),
+            ("snippet_probe::","rust-native/src/bin/snippet_probe.rs",include_str!("../snippet_probe.rs")),
+            ("snippet_process::","rust-native/tests/snippet_process.rs",include_str!("../../../tests/snippet_process.rs")),
+            ("keyword_rich_process::","rust-native/tests/keyword_rich_process.rs",include_str!("../../../tests/keyword_rich_process.rs")),
+        ];
+        let mut cases=std::collections::BTreeSet::new();
+        for names in crosswalk.values() {
+            for name in names.as_array().unwrap() {
+                let case=name.as_str().unwrap();
+                assert!(gate.native_cases.contains(&case),"retired snippet case not in settings crosswalk: {case}");
+                let (prefix,path,source)=sources.iter().find(|(prefix,_,_)|case.starts_with(prefix)).unwrap();
+                let function=case.strip_prefix(prefix).unwrap().rsplit("::").next().unwrap();
+                let present=if *prefix=="snippet_process::" {
+                    source.lines().any(|line|line.trim()==format!("method!({function});"))
+                } else {
+                    source.contains(&format!("fn {function}("))
+                };
+                assert!(present,"missing current snippet assertion: {case}");
+                assert!(super::settings_sources(gate.id).iter().any(|(input,_,_)|input==path),"unbound snippet assertion source: {path}");
+                cases.insert(case);
+            }
+        }
+        assert_eq!(cases.len(),6);
+    }
+
+    #[test]
     fn settings_preferences_crosswalk_uses_four_current_rust_cases() {
         use sha2::Digest;
         let gate = super::SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
@@ -5237,7 +5316,7 @@ mod tests {
         let additional = super::settings_additional_provenance_sources(gate.id);
         let bindings = super::settings_source_bindings(gate.id);
 
-        assert_eq!(gate.native_cases.len(), 97);
+        assert_eq!(gate.native_cases.len(), 98);
         assert_eq!(gate.required_native_steps.len(), 26);
         assert_eq!(inputs.len(), 47);
         assert_eq!(bindings.len(), 49);
@@ -5329,6 +5408,8 @@ mod tests {
     fn settings_snippet_crosswalk_names_the_eleven_compiled_rust_tests() {
         let gate = super::SETTINGS.iter().find(|gate| gate.id == "--check-settings").unwrap();
         assert!(gate.required_native_steps.contains(&"snippet-process"));
+        assert!(gate.required_native_steps.contains(&"snippet-links-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::snippet_links"));
         assert!(!gate.native_cases.iter().any(|case| case.starts_with("snippet_process.")));
         let source = include_str!("../../../tests/snippet_process.rs");
         let names = gate.native_cases.iter().filter_map(|case| case.strip_prefix("snippet_process::"))
