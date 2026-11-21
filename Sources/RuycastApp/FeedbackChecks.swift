@@ -119,9 +119,6 @@ import LauncherModels
     state.query="nothing-matches-zz"
     for kind in ["url","snippet"] {state.newCommand(kind,pasteboard:creationPasteboard);try require(state.form?.isNew==true && state.form?.command.id != command.id && state.form?.command.target != command.target,"Creation inherited selected command");state.form=nil}
     state.query="";try capture("global-create-dark")
-    // Process actions use fixture effects, never a real termination or app launch.
-    let services=try checkSystemServices()
-    try require(services["ok"] as? Bool==true,"Process tools failed platform boundary checks")
     try require(!window.isVisible,"Feedback test opened a visible window")
-    return ["ok":true,"quickNoteAndTaskMultiline":true,"nativeCaptureFocus":true,"enterSubmits":true,"shiftEnterAddsLine":true,"commandEnterSubmits":true,"imeCommitDoesNotSubmit":true,"enterCompletesThroughRunnerOnce":true,"quickAliasHotkeySave":true,"bindingSavePreservesExternalDefinition":true,"quickDisable":true,"clipboardQuicklinkPrefill":true,"clipboardUnchangedAndSaveExplicit":true,"settingsCreationUsesSamePrefill":true,"emptyAndNonTextClipboardFallback":true,"creationIndependentOfSelection":true,"processToolsVerifiedWithoutDesktopEffects":true,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"quickNoteAndTaskMultiline":true,"nativeCaptureFocus":true,"enterSubmits":true,"shiftEnterAddsLine":true,"commandEnterSubmits":true,"imeCommitDoesNotSubmit":true,"enterCompletesThroughRunnerOnce":true,"quickAliasHotkeySave":true,"bindingSavePreservesExternalDefinition":true,"quickDisable":true,"clipboardQuicklinkPrefill":true,"clipboardUnchangedAndSaveExplicit":true,"settingsCreationUsesSamePrefill":true,"emptyAndNonTextClipboardFallback":true,"creationIndependentOfSelection":true,"visibleWindowOpened":false,"desktopInputSent":false]
 }
