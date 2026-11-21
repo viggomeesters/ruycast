@@ -90,7 +90,6 @@ import LauncherModels
     state.clips=[Clip(text:String(repeating:"Readable clipboard text. ",count:80),source:"Fixture")];state.mode="clipboard"
     try capture(Palette(state:state),"clipboard-large",NSSize(width:1080,height:700),required:["Readable clipboard text"])
     try capture(Palette(state:state),"clipboard-small",NSSize(width:600,height:400))
-    let cancellation=try checkClipboardPreviewCancellation(state.clipboardStore)
     state.clips=[]
     try capture(Palette(state:state),"clipboard-cleared",NSSize(width:1080,height:700),required:["Select an item"],absent:["Readable clipboard text"])
     let screen=NSRect(x:-1920,y:0,width:1920,height:1080),normal=PaletteGeometry.frame(in:screen),clip=PaletteGeometry.frame(in:screen,mode:"clipboard")
@@ -136,5 +135,5 @@ import LauncherModels
     try require(state.selectedCommand?.id=="fixture.long","Keyword search lost the snippet")
     state.query="";state.selection=0;state.moveSelection(1)
     try require(state.selectedCommand?.id=="fixture.long","Arrow selection changed after rendering bindings")
-    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"inlineAliasAndEnter":true,"inlineSubmitOnce":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"previewCancellation":cancellation,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"inlineAliasAndEnter":true,"inlineSubmitOnce":true,"expandedInputPreserved":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }

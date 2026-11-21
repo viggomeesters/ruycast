@@ -850,7 +850,7 @@ const MENU_ACTIONS_ORACLE_SHA256: &str = "41d224340e00d1970fb953aad90c3c4a539e6a
 const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f";
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
-const POLISH_ORACLE_SHA256: &str = "87377916433de1fd22fea0ee92b586e741f635213d2b2472368f1a8ae62111a2";
+const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "1f91b690d51f82c2c2d6ea653c0f0ec4c06747dc21603472302c30c098cfaa04";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -2694,6 +2694,28 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             ],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/ClipboardPreviewChecks.swift::checkClipboardPreviewCancellation"] = serde_json::json!({
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Retire only the development preview check helper and its result field. ClipboardPreview.swift and the production clipboard preview runtime remain in place; this does not claim complete clipboard product parity.",
+            "originalSourceSHA256": "369905c6a65da6ef8995b570466b0d1d3fcd54d3dfeda96d21b940128f3292a6",
+            "originalScenarios": [
+                "a stale successful same-ID decode cannot overwrite the reopened preview",
+                "the latest successful same-ID preview publishes",
+                "same-metadata selection with a different clip ID replaces the image owner",
+                "deselection rejects a decoded but unpublished preview and releases its image",
+                "a failed reopen clears a previously published image and surfaces the error"
+            ],
+            "nativeCases": [
+                "clipboard_preview::tests::stale_success_cannot_replace_same_id_reopened_preview",
+                "clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image",
+                "clipboard_preview::tests::decoded_preview_cancelled_before_poll_is_not_published_and_released",
+                "clipboard_preview::tests::failed_reopen_releases_published_preview_and_clears_on_deselect"
+            ],
+            "qualifiedCaseSourceBindings": {
+                "rust-native/src/clipboard_preview.rs": "1406185c311781ff5be404caaa0d92ac76746a68f44fb54e3eedff5419241738"
+            },
+            "productionAccepted": false
+        });
     }
     Ok(inventory)
 }
@@ -2746,6 +2768,53 @@ mod tests {
         let history_hash = format!("{:x}", Sha256::digest(history.as_bytes()));
         assert_eq!(mapping["qualifiedCaseSourceBindings"]["rust-native/tests/clipboard_history_host_process.rs"], host_hash);
         assert_eq!(mapping["qualifiedCaseSourceBindings"]["rust-native/src/clipboard_history.rs"], history_hash);
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn retired_clipboard_preview_helper_is_absent_and_scenarios_are_crosswalked() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/ClipboardPreviewChecks.swift";
+        assert!(!root.join(retired).exists());
+        let polish = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!polish.contains("checkClipboardPreviewCancellation"));
+        assert!(!polish.contains("previewCancellation"));
+        assert!(polish.contains("clipboardLargeAndSmall"));
+        assert!(polish.contains("clearedPreviewContentRemoved"));
+
+        let policy = include_str!("../ruycast-source/policy.rs");
+        assert!(!policy.lines().any(|line| line == retired));
+        assert!(policy.lines().any(|line| line == "Sources/RuycastApp/ClipboardPreview.swift"));
+        let lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert!(lock["files"]["Sources/RuycastApp/ClipboardPreview.swift"].is_string());
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap(),
+        )
+        .unwrap();
+        assert!(manifest["files"].get(retired).is_none());
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/ClipboardPreviewChecks.swift::checkClipboardPreviewCancellation"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "369905c6a65da6ef8995b570466b0d1d3fcd54d3dfeda96d21b940128f3292a6");
+        assert_eq!(mapping["originalScenarios"].as_array().unwrap().len(), 5);
+        assert_eq!(mapping["productionAccepted"], false);
+        let cases = mapping["nativeCases"].as_array().unwrap();
+        assert_eq!(cases.len(), 4);
+        let source_path = "rust-native/src/clipboard_preview.rs";
+        let source = std::fs::read(root.join(source_path)).unwrap();
+        let source_text = std::str::from_utf8(&source).unwrap();
+        let source_hash = format!("{:x}", Sha256::digest(&source));
+        assert_eq!(mapping["qualifiedCaseSourceBindings"][source_path], source_hash);
+        for case in cases {
+            let function = case.as_str().unwrap().rsplit("::").next().unwrap();
+            assert!(source_text.contains(&format!("fn {function}(")), "missing Rust case {case}");
+        }
         assert_eq!(inventory["productionAccepted"], false);
     }
 
