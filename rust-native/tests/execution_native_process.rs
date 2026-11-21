@@ -228,6 +228,84 @@ fn only_real_launcher_success_writes_recency_without_argument_text() {
     assert_eq!(actions::probe(&host, "read")["windowShown"], false);
 }
 #[test]
+fn ranked_command_is_filtered_after_disable_and_removal() {
+    let mut host = Bridge::new(Config::current(), false);
+    let suffix = host
+        .base
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .replace('-', "");
+    let command_id = format!("recency.filter.{suffix}");
+    let alias = format!("rankedfilter{suffix}");
+    let marker = host.base.join("recency-filter-executed");
+    let sentinel = format!("PRIVATE_RECENCY_FILTER_ARGUMENT_{suffix}");
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().push(json!({
+        "id":command_id,
+        "title":"Recency Filter Fixture",
+        "aliases":[alias],
+        "kind":"script",
+        "target":env!("CARGO_BIN_EXE_private-results-fixture"),
+        "arguments":["execution-write",marker,sentinel],
+        "timeout":3
+    }));
+    host.replace(&config, None);
+    host.start();
+    host.settled(|_| true);
+    let reset = host.rpc(&json!({"op":"search-ranking.reset","confirmed":true}));
+    assert_eq!(reset["ok"], true);
+    assert_eq!(reset["result"]["entries"], 0);
+
+    let search_has_command = |expected: bool| {
+        let result = host.rpc(&json!({"op":"search","mode":"commands","query":alias}));
+        assert_eq!(result["ok"], true, "{result}");
+        let found = result["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["id"] == command_id);
+        assert_eq!(found, expected, "{result}");
+    };
+
+    actions::show(&host, &alias);
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&marker, &sentinel);
+    host.wait(|status| {
+        status["scriptsRunning"] == 0 && status["nativeUI"]["visible"] == false
+    });
+    search_has_command(true);
+    let ranking_path = host.profile.join("search-ranking.json");
+    let ranking_bytes = fs::read(&ranking_path).unwrap();
+    let ranking: Value = serde_json::from_slice(&ranking_bytes).unwrap();
+    assert_eq!(ranking["entries"].as_object().unwrap().len(), 1);
+    assert!(ranking["entries"].get(&command_id).is_some());
+
+    let mut disabled = config.clone();
+    disabled["commands"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|command| command["id"] == command_id)
+        .unwrap()["enabled"] = json!(false);
+    host.replace(&disabled, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    search_has_command(false);
+    assert_eq!(fs::read(&ranking_path).unwrap(), ranking_bytes);
+
+    let mut removed = disabled;
+    removed["commands"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|command| command["id"] != command_id);
+    host.replace(&removed, None);
+    assert_eq!(host.rpc(&json!({"op":"reload"}))["ok"], true);
+    search_has_command(false);
+    assert_eq!(fs::read(&ranking_path).unwrap(), ranking_bytes);
+    assert_eq!(actions::probe(&host, "read")["windowShown"], false);
+}
+#[test]
 fn actions_open_runs_script() {
     let host = host("actions");
     actions::action(&host, "Run");
