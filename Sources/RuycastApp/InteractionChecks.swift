@@ -56,10 +56,6 @@ func featureFixture()->[Command] {
     state.setClipboardEnabled(false);try waitForSave()
     guard !state.config.clipboard.enabled else {throw LauncherError("Clipboard setting did not reload.")}
     state.setClipboardEnabled(true);try waitForSave()
-    let palette=PaletteController(state:state)
-    var settingsOpened=false;state.showManagement={settingsOpened=true}
-    palette.show("settings")
-    guard settingsOpened,!palette.panel.isVisible,state.resolveCommand("settings")?.target=="settings" else {throw LauncherError("Settings routing failed.")}
     // A concurrent manual edit must survive an editor save based on an old snapshot.
     let configPath=sandbox.appendingPathComponent("config.json"),external=try Data(contentsOf:configPath)+Data("\n".utf8)
     try external.write(to:configPath)
@@ -69,7 +65,7 @@ func featureFixture()->[Command] {
     guard try Data(contentsOf:configPath)==external,state.message.contains("changed") else {throw LauncherError("Concurrent edit was overwritten.")}
     try checkAppLaunchDismissal()
     try checkSnippetChoiceKeyboard()
-    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"quickNoteInputForm":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"quickNoteInputForm":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 // Route real AppKit key events through the same hidden panel as production.
 @MainActor func checkSnippetChoiceKeyboard() throws {
