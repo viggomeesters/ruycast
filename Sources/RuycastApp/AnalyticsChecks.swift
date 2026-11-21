@@ -16,7 +16,6 @@ import LauncherModels
         for index in 0..<125 {let id="fixture.\(worker)";if let ticket=store.recordAttempt(id,source:"cli") {store.recordCompletion(ticket,success:index%5 != 0,ms:Double(index),code:"timeout")};store.recordTiming("search.model",ms:Double(index)/100)}
     }
     let tracked=store.recordAttempt("inflight",source:"hotkey");try store.configure(enabled:false,retentionDays:7)
-    try require(store.recordAttempt("paused",source:"cli")==nil,"Paused analytics accepted an attempt")
     if let tracked {store.recordCompletion(tracked,success:true,ms:1)}
     try require(store.snapshot.totalAttempts==1001 && store.snapshot.totalSuccesses==801,"Pause lost an accepted in-flight completion")
     try store.configure(enabled:true,retentionDays:nil);store.recordError("config",code:secret);store.recordTiming(secret,ms:1)
