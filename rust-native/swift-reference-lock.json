@@ -10,7 +10,7 @@
   "baseline": "Actual current legacy source at Viggo Rust-only refinement, 1 November 2026; pre-existing worktree changes preserved.",
   "legacy_receipt_sha256": "cfcd5e36513df17c5277c3b4763af2dcea6c503cb4120e11da72ff3cec63a8b9",
   "files": {
-    "Package.swift": "b961e8312d4a73bda92d93d628069cd35bc86365ae6826a2d66bbfb18622a16b",
+    "Package.swift": "69fc9c258a7b24ea84514dd8dd66226f0d6b07a96fca2a761522e69eddf875f4",
     "Sources/CRuycastCore/abi.c": "319b41ec9b238ea9b7d7d2f39b8ca6ea564904b6231fe68ec245b892cb534f9c",
     "Sources/CRuycastCore/include/ruycast_core.h": "ddeb465a9fc8a01be9929778e79f42b1ee695865dff9949ba749fc025f49bcee",
     "Sources/LauncherCore/CommandProjection.swift": "3b0baa4c247811b659cac96b6458b70026a65a9837752220919390bb477e0de9",
