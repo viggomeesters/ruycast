@@ -2593,7 +2593,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.staleLoadRetention"] = serde_json::json!({
             "originalSourceSHA256": "80a8968e86e157a262368fe98484335d7022e6fc61591edb6b4be5e7eabedecd",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only the stale-event pruning-on-open fixture and assertion are retired. The remaining analytics helper, dashboard rendering, management routing and other analytics assertions stay active.",
+            "scope": "Only the stale-event pruning-on-open fixture and assertion are retired. The remaining analytics helper, dashboard rendering, command execution and other checks remain active.",
             "nativeSource": "rust-native/src/analytics.rs",
             "originalScenarios": ["opening a valid analytics document removes a runtime event older than the configured seven-day retention"],
             "nativeCases": ["analytics::tests::opening_prunes_events_outside_configured_retention"]
@@ -2601,7 +2601,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.managementRouting"] = serde_json::json!({
             "originalSourceSHA256": "926b61901b45c6623d0c68a60379ec3926f71275aadae47ce5978fb6b36ad65b",
             "status": "source-qualified-rust-case-crosswalk",
-            "scope": "Only opening Analytics through management routing and confirming the main launcher panel stays hidden are retired. Remaining analytics fixture, rendering, CLI and reset checks remain active.",
+            "scope": "Only opening Analytics through management routing and confirming the main launcher panel stays hidden are retired. Remaining analytics fixture, command execution and rendering work remains active.",
             "nativeSource": "rust-native/tests/native_dashboard_dialog_process.rs",
             "originalScenarios": ["opening analytics routes to the management dashboard and leaves the main palette hidden"],
             "nativeCases": ["native_dashboard_dialog_process::management_routing_controls_custom_retention_and_reset"]
@@ -2613,6 +2613,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeSource": "rust-native/src/analytics.rs",
             "originalScenarios": ["eight workers each record 125 attempts, completions and timings with exact aggregate and per-command counts"],
             "nativeCases": ["analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.detachedStoreFixture"] = serde_json::json!({
+            "originalSourceSHA256": "24e8731e4bf1da3622e28ef982f3ad085b374a5135bb0ac3fa16b6348c5671ab",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The detached local Swift store had no remaining assertions or consumer and is removed. Its historical constant result keys are retained for output compatibility and are not evidence. Existing Rust analytics tests cover the asserted storage, import and pause behavior.",
+            "nativeSource": "rust-native/src/analytics.rs",
+            "originalScenarios": ["import a legacy successful count once", "complete an in-flight command while collection is paused", "omit unknown diagnostic and timing names from persisted analytics", "flush the writer before later execution and rendering fixtures"],
+            "nativeCases": ["analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export", "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]
         });
         inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
     }
@@ -4658,6 +4666,13 @@ mod tests {
         let workload = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.concurrentWorkload"];
         assert_eq!(workload["originalSourceSHA256"], "64fca861ac1a01105517d4e4c16546deccc9bf054f16bf29b1e62af34f2c62c9");
         assert_eq!(workload["nativeCases"], serde_json::json!(["analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]));
+        let detached_store = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.detachedStoreFixture"];
+        assert_eq!(detached_store["originalSourceSHA256"], "24e8731e4bf1da3622e28ef982f3ad085b374a5135bb0ac3fa16b6348c5671ab");
+        assert_eq!(detached_store["nativeCases"], serde_json::json!(["analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export", "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]));
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let swift_analytics = std::fs::read_to_string(root.join("Sources/RuycastApp/AnalyticsChecks.swift")).unwrap();
+        assert!(!swift_analytics.contains("let store=AnalyticsStore"));
+        assert!(!swift_analytics.contains("store."));
         assert!(dialog_source.contains("let palette = h.rpc(&json!({\"op\":\"native.test\",\"action\":\"read\"}));"));
         assert!(dialog_source.contains("assert_eq!(palette[\"result\"][\"windowShown\"], false);"));
         let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();

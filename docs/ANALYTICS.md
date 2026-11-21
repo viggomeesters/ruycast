@@ -36,7 +36,7 @@ The diagnostic export omits command IDs, titles, dates of individual events, pro
 
 ## Development checks
 
-`RuycastApp --check-analytics OUTPUT` checks concurrent aggregation, import-once, limits, pause/in-flight behavior, retention, corrupt/overflow files, private file permissions, real script/CLI instrumentation, payload exclusion, reset isolation and four native light/dark/minimum-width renders. It uses an isolated profile and never injects desktop input.
+`RuycastApp --check-analytics OUTPUT` exercises successful, failed and dry-run commands in an isolated headless profile, then writes four SwiftUI dashboard renders (dark and light at 980 and 680 pixels). Rust unit and process tests verify the analytics storage, import, retention, privacy, reset and command-instrumentation behavior. This check sends no desktop input.
 
 ## Hourly activity
 

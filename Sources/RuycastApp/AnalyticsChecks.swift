@@ -10,12 +10,7 @@ import LauncherModels
     func require(_ value:Bool,_ message:String) throws {if !value {throw LauncherError(message)}}
     func pump() {let end=Date().addingTimeInterval(0.05);while Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}}
     func wait(_ condition:()->Bool) throws {let end=Date().addingTimeInterval(8);while !condition(),Date()<end {pump()};try require(condition(),"Analytics fixture timed out")}
-    let store=AnalyticsStore(root:root,saveDelay:60);store.importLegacy(["legacy":5]);store.importLegacy(["legacy":5])
     let secret="PRIVATE_INPUT_SENTINEL_DONT_LOG"
-    let tracked=store.recordAttempt("inflight",source:"hotkey");try store.configure(enabled:false,retentionDays:7)
-    if let tracked {store.recordCompletion(tracked,success:true,ms:1)}
-    try store.configure(enabled:true,retentionDays:nil);store.recordError("config",code:secret);store.recordTiming(secret,ms:1)
-    store.flushSynchronously()
     let fixture=root.appendingPathComponent("host"),state=try AppState(root:fixture,headless:true)
     state.config.commands=[Command(id:"fixture.success",title:"Open Daily Note",kind:"script",target:"/usr/bin/true"),Command(id:"fixture.failure",title:"Run Maintenance",kind:"script",target:"/usr/bin/false")]
     state.query=secret
