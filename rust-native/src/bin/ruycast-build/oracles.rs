@@ -1798,6 +1798,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["Healthy menu icon has template status true.", "Unhealthy menu icon has template status false."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift default management-command assertion retired",
+            "scope": "Only the Swift assertion that the default systemCommands contain four built-in IDs is retired. The adjacent custom system-monitor override assertion, managementBuiltins output, configuration-health checks, captures, and --check-polish route remain active.",
+            "nativeSteps": ["unit"],
+            "nativeCases": ["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"],
+            "originalAssertions": ["Default system commands include builtin.settings.", "Default system commands include builtin.open-config.", "Default system commands include builtin.reload-config.", "Default system commands include builtin.system-monitor."],
+            "compatibilityNotes": ["The Swift custom system-monitor target override check remains active; it is a separate scenario from the default command list."],
+            "productionAccepted": false
+        });
     }
     if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
@@ -7869,6 +7879,22 @@ mod tests {
         assert_eq!(retired["productionAccepted"], false);
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
         assert!(gate.native_cases.contains(&"native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description"));
+    }
+    #[test]
+    fn polish_default_management_commands_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Launcher management actions missing"));
+        assert!(source.contains("Duplicate built-in target in catalog"));
+        assert!(source.contains("managementBuiltins"));
+        let inventory = inventory("settings").unwrap();
+        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"]));
+        assert_eq!(retired["originalAssertions"].as_array().unwrap().len(), 4);
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.native_cases.contains(&"management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"));
     }
     #[test]
     fn polish_catalog_source_pin_matches_current_catalog_bytes() {
