@@ -32,7 +32,6 @@ Sources/RuycastApp/AnalyticsStore.swift
 Sources/RuycastApp/AppBrand.swift
 Sources/RuycastApp/AppState.swift
 Sources/RuycastApp/Appearance.swift
-Sources/RuycastApp/AppleShortcutChecks.swift
 Sources/RuycastApp/AppleShortcuts.swift
 Sources/RuycastApp/BackgroundWork.swift
 Sources/RuycastApp/BrowserTabs.swift
