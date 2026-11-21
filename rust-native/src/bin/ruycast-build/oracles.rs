@@ -2415,6 +2415,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "retiredAssertions": ["Swift withObservationTracking callback counts are wrapper implementation details; Rust View.revision can advance when the user-visible Config message changes", "expansionStatus has no independent mutable Rust field; keyboard status is owned by the keyboard client"],
             "nativeCases": ["runtime::inline_tests::palette_status_changes_preserve_rows_and_selection_updates_publish"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/SearchChecks.swift::checkSearch.settingsSurfaceIsolation"] = serde_json::json!({
+            "originalSourceSHA256": "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "Only the final Settings-observation assertion moves to a Rust-owned Settings surface comparison: palette query/clipboard navigation leaves the surface intact, and clearing last_error publishes the recovered message without changing config revision or path.",
+            "nativeSource": "rust-native/src/runtime_private_tests.rs",
+            "originalScenarios": ["after establishing a settings error, palette query and clipboard selection do not change the Settings surface; clearing the error publishes recovery"],
+            "retiredAssertions": ["Swift withObservationTracking callback counts are wrapper details; Rust validates the complete value-based Settings surface and the actual View revision when visible feedback clears", "The original check reads but does not mutate configDirectory; relocation remains covered by its existing integration test"],
+            "nativeCases": ["runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"]
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"] = serde_json::json!({
             "originalSourceSHA256": "a62950d4e891b79c3d311da4db2ec831bea1f4eca0744709a25be63db05bacc2",
             "status": "source-qualified-rust-case-crosswalk",
@@ -3888,6 +3897,36 @@ mod tests {
         assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
         assert_eq!(mapping["retiredAssertions"].as_array().unwrap().len(), 2);
         assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::palette_status_changes_preserve_rows_and_selection_updates_publish"]));
+        assert_eq!(inventory["productionAccepted"], false);
+    }
+
+    #[test]
+    fn search_settings_surface_observation_is_crosswalked_to_rust() {
+        let rust = include_str!("../../runtime_private_tests.rs");
+        let scenario = rust
+            .split_once("fn settings_presentation_ignores_palette_navigation_and_clears_configuration_error()")
+            .unwrap()
+            .1
+            .split_once("\n#[test]")
+            .unwrap()
+            .0;
+        assert!(scenario.contains("settings.session.navigate(\"tab\", \"advanced\").unwrap();"));
+        assert!(scenario.contains("state.configuration.last_error = Some(\"Fixture configuration error\".into());"));
+        assert!(scenario.contains("palette.session.set_query(\"changed query\");"));
+        assert!(scenario.contains("palette.clipboard_selection = 2;"));
+        assert!(scenario.contains("assert_eq!(navigated.settings.as_ref(), Some(&initial_surface));"));
+        assert!(scenario.contains("state.configuration.last_error = None;"));
+        assert!(scenario.contains("assert!(recovered.revision > navigated.revision);"));
+        assert!(scenario.contains("assert_eq!(state.configuration.revision, revision);"));
+
+        let inventory = super::inventory("check").unwrap();
+        let mapping = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/SearchChecks.swift::checkSearch.settingsSurfaceIsolation"];
+        assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
+        assert_eq!(mapping["originalSourceSHA256"], "30ed7b6fe358db743c16f8a17ed6fb574226834fbeeb19420694f0826cda0add");
+        assert_eq!(mapping["nativeSource"], "rust-native/src/runtime_private_tests.rs");
+        assert_eq!(mapping["retiredAssertions"].as_array().unwrap().len(), 2);
+        assert_eq!(mapping["nativeCases"], serde_json::json!(["runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"]));
         assert_eq!(inventory["productionAccepted"], false);
     }
 

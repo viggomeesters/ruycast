@@ -346,6 +346,57 @@ fn palette_status_changes_preserve_rows_and_selection_updates_publish() {
 }
 
 #[test]
+fn settings_presentation_ignores_palette_navigation_and_clears_configuration_error() {
+    let (_temp, mut state, mut palette, palette_ui, _) = private_fixture("settings.palette", false);
+    palette.session.set_query("fixture");
+    palette.session.select_row(Some(0));
+    palette.publish(&state, &palette_ui);
+
+    let (events, _) = mpsc::sync_channel(8);
+    let settings_ui = Connection::new_management(events, true);
+    let mut settings = WindowRuntime::new(
+        crate::session::Session::management(state.configuration.current().commands.clone()),
+        Default::default(),
+        &state,
+    );
+    settings.session.visible = true;
+    settings.session.navigate("tab", "advanced").unwrap();
+    let revision = state.configuration.revision;
+    state.configuration.last_error = Some("Fixture configuration error".into());
+    settings.publish(&state, &settings_ui);
+
+    let initial_view = settings_ui.view();
+    let initial_surface = initial_view.settings.clone().unwrap();
+    assert_eq!(initial_surface.tab, "advanced");
+    assert_eq!(initial_surface.message, "Config: Fixture configuration error");
+    assert_eq!(initial_surface.directory, state.configuration.file.parent().unwrap().display().to_string());
+    assert_eq!(initial_surface.path, state.configuration.file.display().to_string());
+    let nav_revision = initial_surface.navigation_revision;
+
+    palette.session.set_query("changed query");
+    palette.clipboard_selection = 2;
+    palette.publish(&state, &palette_ui);
+    settings.publish(&state, &settings_ui);
+    let navigated = settings_ui.view();
+    assert_eq!(navigated.settings.as_ref(), Some(&initial_surface));
+    assert_eq!(navigated.settings.as_ref().unwrap().navigation_revision, nav_revision);
+    assert_eq!(state.configuration.revision, revision);
+
+    state.configuration.last_error = None;
+    settings.publish(&state, &settings_ui);
+    let recovered = settings_ui.view();
+    let recovered_surface = recovered.settings.as_ref().unwrap();
+    assert!(recovered_surface.message.is_empty());
+    assert!(recovered.message.is_empty());
+    assert!(recovered.revision > navigated.revision);
+    assert_eq!(recovered_surface.tab, "advanced");
+    assert_eq!(recovered_surface.directory, initial_surface.directory);
+    assert_eq!(recovered_surface.path, initial_surface.path);
+    assert_eq!(recovered_surface.navigation_revision, nav_revision);
+    assert_eq!(state.configuration.revision, revision);
+}
+
+#[test]
 fn clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_real_owner() {
     let (_temp, mut state, mut window, ui, _) = private_fixture("script.fixture", false);
     let mut config = serde_json::to_value(state.configuration.current()).unwrap();
