@@ -1364,6 +1364,15 @@ mod tests {
         assert_eq!(fs::metadata(&assets).unwrap().mode() & 0o777, 0o700);
         assert_extended_acl_entries(&assets, false);
         assert_extended_acl_entries(&dir.0.join(path), false);
+        let outside = dir.0.join("outside.png");
+        fs::write(&outside, b"outside fixture").unwrap();
+        let mut malicious = clip.clone();
+        malicious.data_file = Some("clipboard-assets/../outside.png".into());
+        store.items.push(malicious);
+        store.prune().unwrap();
+        assert!(dir.0.join(path).exists());
+        assert_eq!(fs::read(&outside).unwrap(), b"outside fixture");
+        store.items.pop();
         settings.max_asset_bytes = Some(1);
         assert!(store
             .capture(
