@@ -1861,11 +1861,21 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.processQueries"] = serde_json::json!({
             "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift process assertions retired",
-            "scope": "Only the two process-query assertions for concurrent metadata isolation and the 2,100-row cap are retired. The rich-resource helper, readonly CLI checks and all other assertions remain active.",
+            "scope": "This retirement covers only the concurrent process-query metadata assertion and the 2,100-row cap assertion. The separate read-only CLI smoke retirement is recorded independently; the rich-resource helper and all other assertions remain active.",
             "nativeCases": ["system_search::providers::gate_tests::concurrent_process_queries_keep_each_result_and_metadata_snapshot", "system_search::providers::gate_tests::process_result_cap_bounds_opaque_target_registration"],
             "originalAssertions": ["Concurrent Syncthing and Safari queries retain their own result metadata.", "2,100 process rows produce exactly 1,000 registered results with CPU 2099 first."],
             "compatibilityNotes": ["The Swift fixture observed callback FIFO from its serial worker; no cross-request FIFO API contract was found. Rust preserves query-to-result metadata association under concurrent provider calls, without asserting completion order."],
             "requiredNativeSteps": gate.required_native_steps,
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.monitorAndProcessCLI"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; read-only CLI smoke retired",
+            "scope": "Only the Swift monitor and processes Syncthing CLI smoke and its result field are retired. The visible-window assertion, active selector, shared ControlServer/CLI helpers and all other resource checks remain.",
+            "nativeCases": ["remaining_macos_process::actual_cli_monitor_and_process_query_use_the_owned_running_host"],
+            "originalAssertions": ["The actual monitor CLI returns JSON with ok=true.", "The actual processes Syncthing CLI returns JSON with ok=true."],
             "productionAccepted": false
         });
     }
@@ -5441,7 +5451,10 @@ mod tests {
         assert!(main.contains("if args.first==\"--check-rich-resources\" {"));
         assert!(main.contains("output(try checkRichResources(args[1]))"));
         assert!(rich.contains("func checkRichResources"));
-        assert!(rich.contains("Read-only resource CLI failed"));
+        assert!(rich.contains("try require(!window.isVisible,\"Resource checks opened a visible window\")"));
+        assert!(!rich.contains("Read-only resource CLI failed"));
+        assert!(!rich.contains("monitorAndProcessCLI"));
+        assert!(!rich.contains("func cli(_ arguments:[String])"));
         assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
         assert!(!rich.contains("Large process lists were not bounded before target registration"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
@@ -5467,6 +5480,13 @@ mod tests {
             "The Swift fixture observed callback FIFO from its serial worker; no cross-request FIFO API contract was found. Rust preserves query-to-result metadata association under concurrent provider calls, without asserting completion order."
         ]));
         assert_eq!(retired["productionAccepted"], false);
+        let cli_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.monitorAndProcessCLI"];
+        assert_eq!(cli_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(cli_retired["status"], "source-qualified-rust-case-crosswalk; read-only CLI smoke retired");
+        assert_eq!(cli_retired["nativeCases"], serde_json::json!(["remaining_macos_process::actual_cli_monitor_and_process_query_use_the_owned_running_host"]));
+        assert_eq!(cli_retired["originalAssertions"], serde_json::json!(["The actual monitor CLI returns JSON with ok=true.", "The actual processes Syncthing CLI returns JSON with ok=true."]));
+        assert_eq!(cli_retired["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"remaining_macos_process::actual_cli_monitor_and_process_query_use_the_owned_running_host"));
         let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
         assert_eq!(lock["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);

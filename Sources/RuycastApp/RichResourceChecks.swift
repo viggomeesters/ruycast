@@ -105,16 +105,6 @@ import LauncherModels
     try require(!controller.window.isVisible && !controller.model.active,"Monitor window opened or sampled automatically")
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
-    let server=ControlServer(root:root);try server.start {request,reply in state.handle(request,sink:reply)};defer {server.stop()}
-    func cli(_ arguments:[String]) throws -> [String:Any] {
-        let process=Process(),pipe=Pipe();process.executableURL=ruycastCLI();process.arguments=arguments;var env=ProcessInfo.processInfo.environment;env["RUYCAST_HOME"]=root.path;process.environment=env
-        process.standardOutput=pipe;process.standardError=FileHandle.nullDevice;try process.run()
-        let end=Date().addingTimeInterval(5);while process.isRunning,Date()<end {pump(0.01)}
-        guard !process.isRunning else {process.terminate();throw LauncherError("CLI resource check timed out")}
-        return try JSONSerialization.jsonObject(with:pipe.fileHandleForReading.readDataToEndOfFile()) as! [String:Any]
-    }
-    let monitorReply=try cli(["monitor"]),processReply=try cli(["processes","Syncthing"])
-    try require(monitorReply["ok"] as? Bool==true && processReply["ok"] as? Bool==true,"Read-only resource CLI failed")
     try require(!window.isVisible,"Resource checks opened a visible window")
-    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"unsafeAssetPathRejected":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"realReadOnlySystemSampling":true,"monitorAndProcessCLI":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
+    return ["ok":true,"directKillNoConfirmation":true,"fakeTerminationOnly":true,"sortAndRefreshPreserveProcessIdentity":true,"vanishedSelectionCannotKillNext":true,"cpuRamPidAndIcons":true,"clipboardTextImageAndImageFilePreview":true,"clipboardStaticWhileIdle":true,"unsafeAssetPathRejected":true,"monitorSeparateWindowRoute":true,"monitorStopsSamplingWhenClosed":true,"realReadOnlySystemSampling":true,"lightDarkRenders":renders,"visibleWindowOpened":false,"desktopInputSent":false]
 }
