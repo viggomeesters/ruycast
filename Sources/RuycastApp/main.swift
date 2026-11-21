@@ -83,9 +83,6 @@ if args.first=="--benchmark-monitor" {do {output(try benchmarkMonitor(activeSeco
 if args.first=="--benchmark-lifecycle" {do {output(try benchmarkLifecycle(blocks:args.count>1 ? max(1,min(100,Int(args[1]) ?? 10)):10,render:!args.contains("model"),component:["search","preview","label"].first(where:args.contains) ?? "palette"));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--check-performance-pipeline" {do {output(try checkPerformancePipeline());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}}
 if args.first=="--benchmark-performance" {let result=benchmarkPerformance();output(result);exit(result["ok"] as? Bool==true ? 0:1)}
-if args.first=="--benchmark-search" {
-    do {output(try benchmarkSearch(root:root));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
 if args.first=="--check-render-updates" {
     do {guard args.count==2 else {throw LauncherError("Expected render output directory.")};output(try checkRenderedUpdates(args[1]));exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
