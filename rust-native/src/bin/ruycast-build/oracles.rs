@@ -2622,6 +2622,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["import a legacy successful count once", "complete an in-flight command while collection is paused", "omit unknown diagnostic and timing names from persisted analytics", "flush the writer before later execution and rendering fixtures"],
             "nativeCases": ["analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export", "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.dryRunFixture"] = serde_json::json!({
+            "originalSourceSHA256": "189f08d3eda7409b3f5487c3c7d2cb84d66c56b7c1e753e825511b951f4ad25f",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The Swift dry-run invocation and helper parameter are removed. Existing Rust process tests verify that dry-runs add no analytics records; this does not claim Swift callback parity.",
+            "nativeSource": "rust-native/tests/startup_process.rs",
+            "originalScenarios": ["a CLI dry-run returns without execution or analytics side effects"],
+            "nativeCases": ["startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback", "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch"]
+        });
         inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
     }
     Ok(inventory)
@@ -4673,6 +4681,10 @@ mod tests {
         let swift_analytics = std::fs::read_to_string(root.join("Sources/RuycastApp/AnalyticsChecks.swift")).unwrap();
         assert!(!swift_analytics.contains("let store=AnalyticsStore"));
         assert!(!swift_analytics.contains("store."));
+        let dry_run = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.dryRunFixture"];
+        assert_eq!(dry_run["originalSourceSHA256"], "189f08d3eda7409b3f5487c3c7d2cb84d66c56b7c1e753e825511b951f4ad25f");
+        assert_eq!(dry_run["nativeCases"], serde_json::json!(["startup_process::analytics_same_command_tracks_actual_cli_launcher_and_owned_carbon_callback", "startup_process::analytics_cli_pause_privacy_confirmation_reset_and_inflight_epoch"]));
+        assert!(!swift_analytics.contains("dryRun:true"));
         assert!(dialog_source.contains("let palette = h.rpc(&json!({\"op\":\"native.test\",\"action\":\"read\"}));"));
         assert!(dialog_source.contains("assert_eq!(palette[\"result\"][\"windowShown\"], false);"));
         let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();
