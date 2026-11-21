@@ -1810,11 +1810,23 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.offscreenSnippetAndFocus"] = serde_json::json!({
             "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate offscreen snippet and focus assertions retired",
-            "scope": "Only the offscreen snippet replacement/cursor assertion, datetime keyword assertion with unavailable AX metadata, secure-input guards, and their three result fields are retired. The shared interaction helper, snippet-choice editor/cancel/confirm assertions, keyboard checks, fixture route, and remaining fields stay active.",
+            "scope": "Only the offscreen snippet replacement/cursor assertion, datetime keyword assertion with unavailable AX metadata, secure-input guards, and their three result fields are retired. The shared interaction helper, snippet-choice keyboard check, fixture route, and remaining fields stay active. The offscreen snippet-choice cancel/confirm assertion has its own retirement crosswalk.",
             "nativeSteps": ["native-light-600"],
             "nativeCases": ["native_edit::check_snippet_replacement"],
             "originalAssertions": ["Replacing ;hell with Hi Ω! leaves prefix Hi Ω! and places the UTF-16 cursor at offset 10.", "The ;; trigger requires exactly two semicolon keystrokes and expands to 25 October 2025 19:35 with en_GB and GMT even when AX subrole is unavailable.", "Snippet expansion is refused for secure input and AXSecureTextField subrole."],
             "compatibilityNotes": ["The existing Rust native check exercises the production matcher, focus policy, template renderer, replacement executor and a hidden NSTextView; it does not send live desktop input."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.snippetChoiceConfirmationCancellation"] = serde_json::json!({
+            "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate offscreen snippet choice confirmation/cancellation assertion retired",
+            "scope": "Only the offscreen SnippetChoiceRequest cancel/confirm assertion block and snippetChoiceConfirmationCancellation result field are retired. The shared interaction helper, checkSnippetChoiceKeyboard caller/helper, app-launch check, fixture route, and remaining result fields stay active.",
+            "nativeSteps": ["native-light-600"],
+            "nativeCases": ["native_edit::check_snippet_replacement"],
+            "originalAssertions": ["The Contact choice list is normalized to Example A and Example B.", "Cancel deactivates the request without changing prefix ;contact.", "A new safe/unchanged request inserts Example B Ω and sets the UTF-16 cursor to offset 16."],
+            "compatibilityNotes": ["The existing Rust native check exercises the production choice request and replacement against a hidden NSTextView; it does not send live desktop input."],
             "productionAccepted": false
         });
     }
@@ -5486,12 +5498,13 @@ mod tests {
         assert!(!interactions.contains("datetimeKeywordWithUnavailableAX"));
         assert!(!interactions.contains("secureSnippetGuards"));
         assert!(!interactions.contains("prefix ;hell"));
-        assert!(interactions.contains("let document=NSTextView()"));
-        assert!(interactions.contains("document.string=\"prefix ;contact\""));
-        assert!(interactions.contains("let cancelledChoice=SnippetChoiceRequest"));
-        assert!(interactions.contains("let chosen=SnippetChoiceRequest"));
-        assert!(interactions.contains("\"snippetChoiceConfirmationCancellation\":true"));
+        assert!(!interactions.contains("snippetChoiceConfirmationCancellation"));
+        assert!(!interactions.contains("let choiceCommand=Command(id:\"choice\""));
+        assert!(!interactions.contains("let cancelledChoice=SnippetChoiceRequest"));
+        assert!(!interactions.contains("let chosen=SnippetChoiceRequest"));
+        assert!(!interactions.contains("let document=NSTextView()"));
         assert!(interactions.contains("try checkSnippetChoiceKeyboard()"));
+        assert!(interactions.contains("\"snippetChoiceKeyboard\":true"));
         assert!(interactions.contains("func featureFixture"));
         assert!(!interactions.contains("func renderFeatures"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
@@ -7919,6 +7932,13 @@ mod tests {
         assert_eq!(interaction["nativeCases"], serde_json::json!(["native_edit::check_snippet_replacement"]));
         assert_eq!(interaction["productionAccepted"], false);
         assert_eq!(interaction["originalAssertions"].as_array().unwrap().len(), 3);
+        let choice = &crosswalk["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.snippetChoiceConfirmationCancellation"];
+        assert_eq!(choice["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
+        assert_eq!(choice["status"], "source-qualified-rust-case-crosswalk; duplicate offscreen snippet choice confirmation/cancellation assertion retired");
+        assert_eq!(choice["nativeSteps"], serde_json::json!(["native-light-600"]));
+        assert_eq!(choice["nativeCases"], serde_json::json!(["native_edit::check_snippet_replacement"]));
+        assert_eq!(choice["productionAccepted"], false);
+        assert_eq!(choice["originalAssertions"].as_array().unwrap().len(), 3);
         assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]

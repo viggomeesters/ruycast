@@ -74,22 +74,10 @@ func featureFixture()->[Command] {
     let nextDeadline=Date().addingTimeInterval(8)
     while state.busy,Date()<nextDeadline {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.01))}
     guard try Data(contentsOf:configPath)==external,state.message.contains("changed") else {throw LauncherError("Concurrent edit was overwritten.")}
-    let choiceCommand=Command(id:"choice",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Example A, Example B"}{cursor} Ω"#,keyword:";contact")
-    let choiceFields=Templates.fields(choiceCommand)
-    guard choiceFields.first?.options == ["Example A","Example B"] else {throw LauncherError("Choice options were not normalized.")}
-    // The following choice assertions use a real offscreen editor.
-    let document=NSTextView()
-    document.string="prefix ;contact";document.setSelectedRange(NSRange(location:document.string.utf16.count,length:0))
-    let cancelledChoice=SnippetChoiceRequest(command:choiceCommand,pid:42);cancelledChoice.cancel()
-    guard !cancelledChoice.active,document.string=="prefix ;contact" else {throw LauncherError("Cancellation changed the editor.")}
-    let chosen=SnippetChoiceRequest(command:choiceCommand,pid:42)
-    let replacement=try chosen.replacement(values:["Contact":"Example B"],pid:42,safe:true,unchanged:true)
-    replacement.apply(key:{code in if code==51 {document.deleteBackward(nil)} else if code==123 {document.moveLeft(nil)}},insert:{document.insertText($0,replacementRange:document.selectedRange())})
-    guard document.string=="prefix Example B Ω",document.selectedRange().location=="prefix Example B".utf16.count else {throw LauncherError("Choice insertion or cursor position failed.")}
     try checkAppLaunchDismissal()
     try checkSnippetChoiceKeyboard()
     panel.close()
-    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
+    return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
 // Route real AppKit key events through the same hidden panel as production.
 @MainActor func checkSnippetChoiceKeyboard() throws {
