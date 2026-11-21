@@ -1454,6 +1454,25 @@ mod tests {
         c.flush();
         assert!(c.storage_error().is_none());
         assert!(read(&path).unwrap().unwrap().legacy_imported);
+
+        let invalid_hour_root = t.0.join("invalid-hour");
+        crate::private_storage::secure_directory(&invalid_hour_root).unwrap();
+        let invalid_hour_path = invalid_hour_root.join("analytics.json");
+        let mut invalid_hour_document = Document::new(1_760_000_000.);
+        assert!(invalid_hour_document.valid());
+        invalid_hour_document
+            .hours
+            .insert("PRIVATE_QUERY_SENTINEL".into(), Day::default());
+        let invalid_hour_bytes = serde_json::to_vec(&invalid_hour_document).unwrap();
+        assert!(!invalid_hour_document.valid());
+        std::fs::write(&invalid_hour_path, &invalid_hour_bytes).unwrap();
+
+        let writer = Writer::open(&invalid_hour_root, None).unwrap();
+        let c = writer.client();
+        assert_eq!(c.storage_error().as_deref(), Some(READ_ERROR));
+        c.error("runtime", "invalid");
+        c.flush();
+        assert_eq!(std::fs::read(&invalid_hour_path).unwrap(), invalid_hour_bytes);
     }
     #[test]
     fn writer_shutdown_waits_for_real_span_completion_without_losing_final_snapshot() {
