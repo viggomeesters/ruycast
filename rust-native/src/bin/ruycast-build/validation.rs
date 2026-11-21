@@ -404,24 +404,6 @@ const SOURCE_ROSTER: &[&str] = &[
     "rust/Cargo.toml",
     "rust/Cargo.lock",
     "config/default.json",
-    "Sources/LauncherCore/Templates.swift",
-    "Sources/LauncherModels/Models.swift",
-    "Sources/RuycastApp/AppState.swift",
-    "Sources/RuycastApp/CommandEditor.swift",
-    "Sources/LauncherCore/SnippetOutput.swift",
-    "Sources/LauncherCore/SnippetMatcher.swift",
-    "Sources/RuycastApp/SnippetClipboard.swift",
-    "Sources/RuycastApp/PaletteActions.swift",
-    "Sources/RuycastApp/HyperKey.swift",
-    "Sources/RuycastApp/Palette.swift",
-    "Sources/RuycastApp/Hotkeys.swift",
-    "Sources/LauncherCore/RustBridge.swift",
-    "Sources/LauncherCore/KeyboardState.swift",
-    "Sources/LauncherCore/Files.swift",
-    "Sources/RuycastApp/SnippetExpander.swift",
-    "Sources/RuycastApp/SnippetChoice.swift",
-    "Sources/RuycastApp/SettingsChecks.swift",
-    "Sources/RuycastApp/AnalyticsStore.swift",
     "rust-native/src",
     "rust-native/tests",
     "rust-native/examples/ui_completion.rs",
@@ -2339,6 +2321,7 @@ mod tests {
         assert!(!SOURCE_ROSTER.contains(&retired));
         let snapshot = sources(root).unwrap();
         assert!(!snapshot.contains_key(retired));
+        assert!(!snapshot.keys().any(|path| path.starts_with("Sources/")));
         assert!(!snapshot
             .keys()
             .any(|path| path.starts_with("rust-native/scripts/")));
