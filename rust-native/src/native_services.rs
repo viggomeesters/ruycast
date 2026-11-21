@@ -564,3 +564,205 @@ pub fn check_owned_poll(root:&std::path::Path)->Result<(),String>{
     let mut disabled=settings;disabled.enabled=false;port.publish(&disabled,false);clipboard.poll_with_application(&port,&tx,application);assert_eq!(reads.get(),0,"disabled poll consulted attribution");
     Ok(())
 }
+
+#[cfg(feature = "test-tools")]
+pub fn benchmark_clipboard_poll(args: &[String]) -> Result<serde_json::Value, String> {
+    use objc2_foundation::NSString;
+    use std::{
+        cell::Cell,
+        collections::HashSet,
+        os::unix::fs::DirBuilderExt,
+        time::{Instant, SystemTime, UNIX_EPOCH},
+    };
+    if std::env::var_os("RUYCAST_CONFIG_DIR").is_some() {
+        return Err("Unset RUYCAST_CONFIG_DIR before running the isolated polling fixture.".into());
+    }
+    if args.len() > 3 {
+        return Err("Expected optional tick count, active|unchanged and current.".into());
+    }
+    let ticks = args
+        .first()
+        .map(|value| {
+            value
+                .parse::<usize>()
+                .map_err(|_| "Expected 1–100000 polls".to_owned())
+        })
+        .transpose()?
+        .unwrap_or(10_000);
+    if !(1..=100_000).contains(&ticks) {
+        return Err("Expected 1–100000 polls".into());
+    }
+    let active = match args.get(1).map(String::as_str) {
+        None | Some("unchanged") => false,
+        Some("active") => true,
+        _ => return Err("Expected active or unchanged polling mode.".into()),
+    };
+    let current = match args.get(2).map(String::as_str) {
+        None => false,
+        Some("current") => true,
+        _ => return Err("Expected current as the deterministic application provider.".into()),
+    };
+    let main =
+        MainThreadMarker::new().ok_or("Clipboard polling benchmark requires the main thread.")?;
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let root =
+        std::env::temp_dir().join(format!("ruycast-poll-bench-{}-{stamp}", std::process::id()));
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&root)
+        .map_err(|e| e.to_string())?;
+    struct RemoveRoot(std::path::PathBuf);
+    impl Drop for RemoveRoot {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _remove = RemoveRoot(root.clone());
+    let history = root.join("history");
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&history)
+        .map_err(|e| e.to_string())?;
+    let default: serde_json::Value =
+        serde_json::from_str(include_str!("../../config/default.json"))
+            .map_err(|e| e.to_string())?;
+    let settings: rustcast_core::ClipboardSettings =
+        serde_json::from_value(default["clipboard"].clone()).map_err(|e| e.to_string())?;
+    let paths = ProfilePaths::new(root.clone(), root.clone(), None);
+    let clipboard = Clipboard::new(main, &paths, false)?;
+    let board = NSPasteboard::pasteboardWithUniqueName();
+    clipboard.history_board.replace(Some(board.clone()));
+    struct ReleaseBoard(objc2::rc::Retained<NSPasteboard>);
+    impl Drop for ReleaseBoard {
+        fn drop(&mut self) {
+            unsafe {
+                let _: () = objc2::msg_send![&*self.0, releaseGlobally];
+            }
+        }
+    }
+    let _release = ReleaseBoard(board.clone());
+    let port = ruycast_native::clipboard_history::CapturePort::default();
+    port.publish(&settings, false);
+    let (tx, rx) = mpsc::sync_channel(2);
+    let mut store = ruycast_native::clipboard_history::Store::open(&history, &settings)?;
+    let reads = Cell::new(0usize);
+    let pids = std::cell::RefCell::new(HashSet::new());
+    let application = || {
+        reads.set(reads.get() + 1);
+        let app = if current {
+            Some(objc2_app_kit::NSRunningApplication::currentApplication())
+        } else {
+            objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()
+        };
+        if let Some(app) = app.as_ref() {
+            pids.borrow_mut().insert(app.processIdentifier());
+        }
+        app
+    };
+    fn board_text(board: &NSPasteboard, text: &str) -> Result<(), String> {
+        board.clearContents();
+        if !board.setString_forType(&NSString::from_str(text), unsafe { NSPasteboardTypeString }) {
+            return Err("Could not write the named polling pasteboard.".into());
+        }
+        Ok(())
+    }
+    fn commit(
+        clipboard: &Clipboard,
+        port: &ruycast_native::clipboard_history::CapturePort,
+        tx: &mpsc::SyncSender<ruycast_native::control::HostEvent>,
+        rx: &mpsc::Receiver<ruycast_native::control::HostEvent>,
+        store: &mut ruycast_native::clipboard_history::Store,
+        settings: &rustcast_core::ClipboardSettings,
+        application: &impl Fn() -> Option<objc2::rc::Retained<objc2_app_kit::NSRunningApplication>>,
+    ) -> Result<(), String> {
+        clipboard.poll_with_application(port, tx, application);
+        match rx.try_recv() {
+            Ok(ruycast_native::control::HostEvent::ClipboardCapture(capture)) => {
+                let ruycast_native::clipboard_history::Capture {
+                    payload,
+                    source,
+                    at,
+                    _lease,
+                } = capture;
+                let result = store.capture(payload, source, at, settings, || true)?;
+                drop(_lease);
+                if !result.durable {
+                    return Err("Polling benchmark capture was not durable.".into());
+                }
+                Ok(())
+            }
+            Ok(ruycast_native::control::HostEvent::ClipboardCaptureError(error)) => Err(error),
+            Ok(_) => Err("Unexpected event during clipboard polling benchmark.".into()),
+            Err(mpsc::TryRecvError::Empty) => Ok(()),
+            Err(mpsc::TryRecvError::Disconnected) => {
+                Err("Clipboard benchmark event queue disconnected.".into())
+            }
+        }
+    }
+    board_text(&board, "warm")?;
+    commit(
+        &clipboard,
+        &port,
+        &tx,
+        &rx,
+        &mut store,
+        &settings,
+        &application,
+    )?;
+    board_text(&board, "settled")?;
+    commit(
+        &clipboard,
+        &port,
+        &tx,
+        &rx,
+        &mut store,
+        &settings,
+        &application,
+    )?;
+    reads.set(0);
+    pids.borrow_mut().clear();
+    fn cpu_seconds() -> Result<f64, String> {
+        let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
+        if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+        let usage = unsafe { usage.assume_init() };
+        Ok((usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) as f64
+            + (usage.ru_utime.tv_usec + usage.ru_stime.tv_usec) as f64 / 1_000_000.0)
+    }
+    let began = Instant::now();
+    let initial_cpu = cpu_seconds()?;
+    for index in 0..ticks {
+        autoreleasepool(|_| {
+            if active && index % 4 == 0 {
+                board_text(&board, &format!("Fixture {}", index % 64))?;
+            }
+            commit(
+                &clipboard,
+                &port,
+                &tx,
+                &rx,
+                &mut store,
+                &settings,
+                &application,
+            )
+        })?;
+    }
+    let elapsed = began.elapsed().as_secs_f64();
+    let used_cpu = cpu_seconds()? - initial_cpu;
+    Ok(serde_json::json!({
+        "ok": true,
+        "schema": 1,
+        "mode": if active { "changed-every-fourth-poll" } else { "unchanged" },
+        "ticks": ticks,
+        "applicationReads": reads.get(),
+        "distinctForegroundPIDs": pids.borrow().len(),
+        "elapsedSeconds": elapsed,
+        "cpuSeconds": used_cpu,
+        "retainedClips": store.items.len(),
+        "scope": "Current Rust Clipboard poll plus synchronous Store::capture on a named synthetic pasteboard; no general clipboard, user configuration, visible UI, app action, physical energy or battery claim. Not directly comparable to the historical Swift AppState worker measurement.",
+    }))
+}
