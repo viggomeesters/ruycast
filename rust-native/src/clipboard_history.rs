@@ -220,6 +220,7 @@ fn secure(fd: &File, mode: libc::mode_t) -> Result<()> {
         }
         let acl = acl_get_fd_np(fd.as_raw_fd(), 0x100);
         if !acl.is_null() {
+            // Darwin returns 0 when it yields an entry and 1 when none remain.
             let mut entry = std::ptr::null_mut();
             let okay = acl_valid(acl) == 0 && acl_get_entry(acl, 0, &mut entry) != 0;
             acl_free(acl);
@@ -942,6 +943,46 @@ mod tests {
             .unwrap()
             .clipboard
     }
+    fn assert_extended_acl_entries(path: &Path, expected: bool) {
+        use std::os::fd::AsRawFd;
+
+        let file = fs::File::open(path).unwrap();
+        unsafe {
+            let acl = acl_get_fd_np(file.as_raw_fd(), 0x100);
+            if acl.is_null() {
+                assert!(!expected, "expected an extended ACL on {}", path.display());
+                assert_eq!(
+                    std::io::Error::last_os_error().raw_os_error(),
+                    Some(libc::ENOENT),
+                    "ACL inspection failed for {}",
+                    path.display()
+                );
+                return;
+            }
+
+            let mut entry = std::ptr::null_mut();
+            let result = acl_get_entry(acl, 0, &mut entry);
+            assert_eq!(
+                acl_valid(acl),
+                0,
+                "ACL validation failed for {}",
+                path.display()
+            );
+            acl_free(acl);
+            assert_ne!(
+                result,
+                -1,
+                "ACL entry inspection failed for {}",
+                path.display()
+            );
+            assert_eq!(
+                result == 0,
+                expected,
+                "unexpected extended ACL entries on {}",
+                path.display()
+            );
+        }
+    }
     #[test]
     fn unchanged_history_open_without_pending_asset_deletion_keeps_metadata_inode() {
         let dir = temp();
@@ -1233,6 +1274,7 @@ mod tests {
         fs::create_dir(&assets).unwrap();
         let status=std::process::Command::new("/bin/chmod").args(["+a","everyone allow read,execute,readattr,readextattr,readsecurity,file_inherit,directory_inherit"]).arg(&assets).status().unwrap();
         assert!(status.success());
+        assert_extended_acl_entries(&assets, true);
         store
             .capture(
                 Payload::Image(bytes.clone()),
@@ -1260,6 +1302,8 @@ mod tests {
             0o600
         );
         assert_eq!(fs::metadata(&assets).unwrap().mode() & 0o777, 0o700);
+        assert_extended_acl_entries(&assets, false);
+        assert_extended_acl_entries(&dir.0.join(path), false);
         settings.max_asset_bytes = Some(1);
         assert!(store
             .capture(
