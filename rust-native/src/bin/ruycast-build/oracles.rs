@@ -1889,6 +1889,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.coloredClipboardPixels"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift rendered clipboard pixel assertion retired",
+            "scope": "Only the >300 colored-pixel scan on clipboard image and image-file captures is retired. All six themed clipboard captures, OCR, result fields, render count, fixtures and the --check-rich-resources route remain active.",
+            "nativeCases": ["remaining_macos_process::native_clipboard_two_color_image_file_pixels_and_idle_text_are_preserved_in_both_themes"],
+            "originalAssertions": ["In each light/dark image and image-file capture, sample every fourth pixel in the right three-fifths; require alpha >229/255, red >204/255 with blue <51/255 or blue >204/255 with red <51/255, and more than 300 matches."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.vanishedSelectionCannotKillNext"] = serde_json::json!({
             "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; vanished process selection assertion retired",
@@ -5520,6 +5530,7 @@ mod tests {
         assert!(!rich.contains("Clipboard preview accepted an unsafe owned-asset path"));
         assert!(!rich.contains("unsafeAssetPathRejected"));
         assert!(rich.contains("clipboardTextImageAndImageFilePreview"));
+        assert!(!rich.contains("Clipboard image pixels are absent from the rendered view"));
         assert!(!rich.contains("state.clipboardStore.preview(image)"));
         assert!(!rich.contains("Image preview lost its actual pixels"));
         assert!(!rich.contains("Image or image-file preview failed"));
@@ -5606,6 +5617,11 @@ mod tests {
         assert_eq!(idle_retired["originalAssertions"], serde_json::json!(["Clipboard PNG bytes before and after a 1.2-second idle interval are equal.", "The Swift resource result reports clipboardStaticWhileIdle=true."]));
         assert_eq!(idle_retired["productionAccepted"], false);
         assert!(gate.native_cases.contains(&"remaining_macos_process::native_clipboard_two_color_image_file_pixels_and_idle_text_are_preserved_in_both_themes"));
+        let pixels_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.coloredClipboardPixels"];
+        assert_eq!(pixels_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(pixels_retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift rendered clipboard pixel assertion retired");
+        assert_eq!(pixels_retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_clipboard_two_color_image_file_pixels_and_idle_text_are_preserved_in_both_themes"]));
+        assert_eq!(pixels_retired["productionAccepted"], false);
         let vanished_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.vanishedSelectionCannotKillNext"];
         assert_eq!(vanished_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
         assert_eq!(vanished_retired["status"], "source-qualified-rust-case-crosswalk; vanished process selection assertion retired");
