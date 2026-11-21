@@ -231,7 +231,28 @@ fn original_project_part_navigation_and_single_submit() {
     assert_eq!(plan["scriptResult"]["selection"], 0);
     actions::key(&host, 36, 0, "\r", false);
     wait_exists(&host.base.join("ready"));
-    view(&host, |r| r["busy"] == true);
+    let loading = view(&host, |r| r["busy"] == true);
+    let loading_capture = capture(&host, "project-part-provider-loading");
+    assert_eq!(loading_capture["scriptResult"]["busy"], true);
+    assert!(actions::text_contains(&loading_capture, "Planning"));
+    assert_eq!(loading_capture["scriptResult"]["token"], token);
+    assert_eq!(
+        loading_capture["scriptResult"]["rows"],
+        loading["scriptResult"]["rows"]
+    );
+    assert_eq!(
+        loading_capture["scriptResult"]["selection"],
+        loading["scriptResult"]["selection"]
+    );
+    assert_eq!(
+        loading_capture["scriptResult"]["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["part"]
+    );
     // Hold the provider response until the second Return crosses the native boundary.
     actions::key(&host, 36, 0, "\r", false);
     fs::write(host.base.join("release"), "go").unwrap();
