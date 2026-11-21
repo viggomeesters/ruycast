@@ -863,6 +863,7 @@ const LOG_ORACLE_SHA256: &str = "9dd2ff68552ebcae0979530623309cafeb7a145a193444d
 const EDIT_COMMAND_ORACLE_SHA256: &str = "a91248845b9256c30f2906adc818e5e706034b6277a52519df2f8758203b1145";
 const VISUAL_ASSET_ORACLE_SHA256: &str = "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0";
 const RENDER_UPDATES_ORACLE_SHA256: &str = "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858";
+const FEATURE_PREVIEW_ORACLE_SHA256: &str = "147b3d30aa05dcdbedf718ad98a53ce9fb9dca6c6d4e436a5a57c2b75a67f241";
 const ANALYTICS_ORACLE_SHA256: &str = "b7e97f390de005268b1a7aa0ceeda22ca165bb2a84f8fcf1917858c4dcb73876";
 const PERFORMANCE_PIPELINE_ORACLE_SHA256: &str = "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659";
 const BROWSER_TABS_ORACLE_SHA256: &str = "82189e7c80a7baab3e38a8b34619de06f343c21ddf3b023df2bf0cafd6f0ebb9";
@@ -1825,7 +1826,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
             "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift check route retired",
-            "scope": "Only the --check-render-updates caller and checkRenderedUpdates helper are retired. The shared InteractionChecks.swift file, --check-interactions and --render-features routes remain active.",
+            "scope": "Only the --check-render-updates caller and checkRenderedUpdates helper are retired. The shared InteractionChecks.swift file and --check-interactions route remain active.",
             "nativeSource": "rust-native/examples/ui_completion.rs",
             "nativeSteps": ["render-updates-process"],
             "nativeCases": ["ui_completion::render_updates"],
@@ -1843,6 +1844,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeSteps": gate.required_native_steps,
             "nativeCases": gate.native_cases,
             "originalScenarios": ["A second provider search for café uses cached discovery, and the production shortcut merge returns exactly the matching Unicode result."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::renderFeatures"] = serde_json::json!({
+            "originalSourceSHA256": FEATURE_PREVIEW_ORACLE_SHA256,
+            "status": "retired-unused-developer-preview; no behavior assertions",
+            "scope": "Only the --render-features PNG preview and its Swift renderer are retired. The old flag fails closed before app startup; featureFixture and the shared interaction checks remain.",
+            "relatedRustCases": ["ui_completion::render_updates", "polish_original", "actions_menu", "feedback_actions", "native_snippet_choice_process", "creation_process"],
             "productionAccepted": false
         });
     }
@@ -5351,10 +5361,14 @@ mod tests {
         assert!(!interactions.contains("checkRenderedUpdates"));
         assert!(main.contains("--check-interactions"));
         assert!(main.contains("output(try checkInteractions())"));
-        assert!(main.contains("--render-features"));
-        assert!(main.contains("try renderFeatures("));
+        let retired_flag = "if args.first==\"--render-features\" {output([\"ok\":false,\"error\":\"The Swift feature preview has been retired.\"]);exit(2)}";
+        assert_eq!(main.matches("--render-features").count(), 1);
+        assert!(main.contains(retired_flag));
+        assert!(main.find(retired_flag).unwrap() < main.find("let app=NSApplication.shared").unwrap());
+        assert!(!main.contains("try renderFeatures("));
         assert!(interactions.contains("func checkInteractions"));
-        assert!(interactions.contains("func renderFeatures"));
+        assert!(interactions.contains("func featureFixture"));
+        assert!(!interactions.contains("func renderFeatures"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
         assert_eq!(gate.required_native_steps, &["render-updates-process"]);
         assert_eq!(gate.native_cases, &["ui_completion::render_updates"]);
@@ -5362,7 +5376,7 @@ mod tests {
         let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"];
         assert_eq!(retired["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
         assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift check route retired");
-        assert_eq!(retired["scope"], "Only the --check-render-updates caller and checkRenderedUpdates helper are retired. The shared InteractionChecks.swift file, --check-interactions and --render-features routes remain active.");
+        assert_eq!(retired["scope"], "Only the --check-render-updates caller and checkRenderedUpdates helper are retired. The shared InteractionChecks.swift file and --check-interactions route remain active.");
         assert_eq!(retired["nativeSource"], "rust-native/examples/ui_completion.rs");
         assert_eq!(retired["nativeSteps"], serde_json::json!(["render-updates-process"]));
         assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::render_updates"]));
@@ -5376,7 +5390,7 @@ mod tests {
         }
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
         let interaction_rows = roster.lines().filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/InteractionChecks.swift\"")).collect::<Vec<_>>();
-        assert_eq!(interaction_rows.len(), 2);
+        assert_eq!(interaction_rows.len(), 1);
         let current_hash = format!("{:x}", Sha256::digest(interactions.as_bytes()));
         let mut current_lines = Vec::new();
         for row in interaction_rows {
@@ -5389,7 +5403,11 @@ mod tests {
             assert_eq!(interactions.lines().nth(line - 1).unwrap().trim(), expected);
         }
         current_lines.sort_unstable();
-        assert_eq!(current_lines, [14, 124]);
+        assert_eq!(current_lines, [14]);
+        let preview = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::renderFeatures"];
+        assert_eq!(preview["originalSourceSHA256"], FEATURE_PREVIEW_ORACLE_SHA256);
+        assert_eq!(preview["status"], "retired-unused-developer-preview; no behavior assertions");
+        assert_eq!(preview["productionAccepted"], false);
         let reference_rows = roster.lines().filter(|line| line.contains("\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\"")).collect::<Vec<_>>();
         assert_eq!(reference_rows, [
             "(\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\",\"7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858\",\"line 16: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)\"),",

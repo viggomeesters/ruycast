@@ -40,9 +40,7 @@ if args.first=="--benchmark-performance" {let result=benchmarkPerformance();outp
 if args.first=="--check-interactions" {
     do {output(try checkInteractions());exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
 }
-if args.first=="--render-features" {
-    do {guard args.count==4 else {throw LauncherError("Expected --render-features OUTPUT light|dark MODE.")};try renderFeatures(args[1],theme:args[2],mode:args[3]);exit(0)} catch {output(["ok":false,"error":error.localizedDescription]);exit(1)}
-}
+if args.first=="--render-features" {output(["ok":false,"error":"The Swift feature preview has been retired."]);exit(2)}
 if args.first=="--check-palette" {
     _=NSApplication.shared
     NSApp.setActivationPolicy(.prohibited)

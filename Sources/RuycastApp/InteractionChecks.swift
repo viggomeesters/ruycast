@@ -120,26 +120,6 @@ func featureFixture()->[Command] {
     panel.close()
     return ["appLaunchDismissal":true,"snippetChoiceKeyboard":true,"snippetChoiceConfirmationCancellation":true,"ok":true,"nativeTextFieldFilters":true,"nativeArrowDelegateSelects":true,"returnAndEscape":true,"commandKOpensActions":true,"quickNoteInputForm":true,"quicklinkEditor":true,"snippetsAndQuicklinksNavigation":true,"offscreenSnippetReplacement":true,"datetimeKeywordWithUnavailableAX":true,"secureSnippetGuards":true,"nativeUnicodeEventPayloadRoundTrip":true,"settingsSaveThroughCLIAndReload":true,"settingsCommandRouting":true,"editorSavesThroughCLIAndReloads":true,"concurrentConfigEditPreserved":true,"liveDesktopInputSent":false]
 }
-@MainActor func renderFeatures(_ path:String,theme:String,mode:String) throws {
-    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
-    let sandbox=FileManager.default.temporaryDirectory.appendingPathComponent("rustcast-feature-render-"+UUID().uuidString)
-    defer {try? FileManager.default.removeItem(at:sandbox)}
-    let state=try AppState(root:sandbox,headless:true);state.config.commands=featureFixture()
-    if mode=="search" {state.query="obsidian"}
-    if mode=="note-form" {state.begin(state.config.commands[2])}
-    if mode=="snippet-editor" {state.newCommand("snippet");state.form?.command.title="Greeting";state.form?.command.target="Hi {cursor},\nThanks for your message.";state.form?.command.keyword=";hello"}
-    if mode=="quicklink-form" {state.begin(state.config.commands[4])}
-    if mode=="snippets" {state.mode="snippets"}
-    let choice=Command(id:"snippet.choice",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Example A, Example B, Example C"}"#,keyword:";contact")
-    let root:AnyView=mode=="snippet-choice" ? AnyView(SnippetChoiceView(command:choice,submit:{_ in},cancel:{})):mode=="actions" ? AnyView(PaletteActions(state:state).background(Color(nsColor:.windowBackgroundColor))):AnyView(Palette(state:state))
-    let view=NSHostingView(rootView:root);view.appearance=NSAppearance(named:theme=="dark" ? .darkAqua:.aqua)
-    view.frame=NSRect(x:0,y:0,width:mode=="snippet-choice" ? 456:mode=="actions" ? 256:760,height:mode=="snippet-choice" ? 200:mode=="actions" ? 380:490);view.layoutSubtreeIfNeeded()
-    guard let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {throw LauncherError("Could not render features.")}
-    view.cacheDisplay(in:view.bounds,to:bitmap)
-    guard let data=bitmap.representation(using:.png,properties:[:]) else {throw LauncherError("Could not encode features.")}
-    try data.write(to:URL(fileURLWithPath:path))
-}
-
 // Route real AppKit key events through the same hidden panel as production.
 @MainActor func checkSnippetChoiceKeyboard() throws {
     let command=Command(id:"choice.keys",title:"Choose a contact",kind:"snippet",target:#"{argument name="Contact" options="Alpha, Beta, Gamma"}"#,keyword:";contact")
