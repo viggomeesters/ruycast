@@ -1191,6 +1191,48 @@ mod tests {
         assert!(store.payload("raycast-file-copy").is_err());
     }
     #[test]
+    fn image_copy_payload_rejects_unsafe_asset_paths() {
+        use std::os::unix::fs::symlink;
+
+        let dir = temp();
+        let settings = settings();
+        let mut store = Store::open(&dir.0, &settings).unwrap();
+        let png = vec![
+            137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2,
+            8, 6, 0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 17, 73, 68, 65, 84, 120, 156, 99, 104, 112,
+            80, 248, 15, 194, 12, 48, 6, 0, 64, 180, 7, 125, 193, 185, 247, 76, 0, 0, 0, 0, 73, 69,
+            78, 68, 174, 66, 96, 130,
+        ];
+        store
+            .capture(
+                Payload::Image(png),
+                "fixture".into(),
+                now(),
+                &settings,
+                || true,
+            )
+            .unwrap();
+        let clip = store.items[0].clone();
+        let id = clip.id.clone();
+        let asset_path = clip.data_file.clone().unwrap();
+        assert!(matches!(store.payload(&id).unwrap(), Payload::Image(_)));
+
+        for unsafe_path in ["clipboard-assets/../outside.png", "/etc/passwd"] {
+            store.items[0].data_file = Some(unsafe_path.into());
+            assert!(store.payload(&id).is_err(), "accepted {unsafe_path}");
+        }
+
+        let asset = dir.0.join(&asset_path);
+        let outside = dir.0.join("outside.png");
+        let outside_bytes = fs::read(&asset).unwrap();
+        fs::write(&outside, &outside_bytes).unwrap();
+        fs::remove_file(&asset).unwrap();
+        symlink(&outside, &asset).unwrap();
+        store.items[0].data_file = Some(asset_path);
+        assert!(store.payload(&id).is_err());
+        assert_eq!(fs::read(&outside).unwrap(), outside_bytes);
+    }
+    #[test]
     fn external_edits_are_the_transaction_base_and_links_never_become_assets() {
         use std::os::unix::fs::symlink;
         let dir = temp();
