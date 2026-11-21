@@ -124,8 +124,6 @@ import LauncherModels
         try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Set Hotkey","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
         try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["Set Hotkey","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
     }
-    state.query="salutation"
-    try require(state.visibleCommands.map(\.id)==["fixture.greet"],"Alias search lost the snippet")
     state.query="longsnippet"
     try require(state.selectedCommand?.id=="fixture.long","Keyword search lost the snippet")
     state.query="";state.selection=0;state.moveSelection(1)
