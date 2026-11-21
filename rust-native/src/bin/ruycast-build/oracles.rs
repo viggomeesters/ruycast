@@ -2606,6 +2606,14 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalScenarios": ["opening analytics routes to the management dashboard and leaves the main palette hidden"],
             "nativeCases": ["native_dashboard_dialog_process::management_routing_controls_custom_retention_and_reset"]
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.concurrentWorkload"] = serde_json::json!({
+            "originalSourceSHA256": "64fca861ac1a01105517d4e4c16546deccc9bf054f16bf29b1e62af34f2c62c9",
+            "status": "source-qualified-rust-case-crosswalk",
+            "scope": "The unasserted eight-worker Swift workload is removed. Rust checks the same workload and exact counters; this does not claim to test Swift DispatchQueue thread safety.",
+            "nativeSource": "rust-native/src/analytics.rs",
+            "originalScenarios": ["eight workers each record 125 attempts, completions and timings with exact aggregate and per-command counts"],
+            "nativeCases": ["analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]
+        });
         inventory["retiredSwiftChecks"]["--check-search"] = search_crosswalk(&inventory["retiredSwiftChecks"])?;
     }
     Ok(inventory)
@@ -4647,6 +4655,9 @@ mod tests {
         let routing = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.managementRouting"];
         assert_eq!(routing["originalSourceSHA256"], "926b61901b45c6623d0c68a60379ec3926f71275aadae47ce5978fb6b36ad65b");
         assert_eq!(routing["nativeCases"], serde_json::json!(["native_dashboard_dialog_process::management_routing_controls_custom_retention_and_reset"]));
+        let workload = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::checkAnalytics.concurrentWorkload"];
+        assert_eq!(workload["originalSourceSHA256"], "64fca861ac1a01105517d4e4c16546deccc9bf054f16bf29b1e62af34f2c62c9");
+        assert_eq!(workload["nativeCases"], serde_json::json!(["analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]));
         assert!(dialog_source.contains("let palette = h.rpc(&json!({\"op\":\"native.test\",\"action\":\"read\"}));"));
         assert!(dialog_source.contains("assert_eq!(palette[\"result\"][\"windowShown\"], false);"));
         let sources=entries.iter().filter(|entry|entry.0=="rust-native/tests/dashboard_export_process.rs").collect::<Vec<_>>();
