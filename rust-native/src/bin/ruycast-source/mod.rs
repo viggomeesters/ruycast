@@ -800,4 +800,5 @@ fn source_export_omits_retired_check_helpers() {
     let paths = policy().unwrap();
     assert!(!paths.contains("Sources/RuycastApp/WindowSearchChecks.swift"));
     assert!(!paths.contains("Sources/RuycastApp/BrowserTabChecks.swift"));
+    assert!(!paths.contains("Sources/RuycastApp/PerformancePipelineChecks.swift"));
 }

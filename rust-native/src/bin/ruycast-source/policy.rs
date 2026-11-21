@@ -62,7 +62,6 @@ Sources/RuycastApp/PaletteActions.swift
 Sources/RuycastApp/PaletteGeometry.swift
 Sources/RuycastApp/PaletteSearchField.swift
 Sources/RuycastApp/PerformanceChecks.swift
-Sources/RuycastApp/PerformancePipelineChecks.swift
 Sources/RuycastApp/PerformanceSoak.swift
 Sources/RuycastApp/PerformanceTrace.swift
 Sources/RuycastApp/PolishChecks.swift

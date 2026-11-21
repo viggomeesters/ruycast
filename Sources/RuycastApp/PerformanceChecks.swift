@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import SwiftUI
 import LauncherCore
 import LauncherModels
@@ -77,3 +78,41 @@ import LauncherModels
         return ["ok":true,"clipboardCompletionMeasurementVersion":2,"releaseBuild":optimized,"scope":"in-process model/main-thread work, deterministic fixtures; excludes physical keys, rendering/presentation and external app opening","system":["macOS":ProcessInfo.processInfo.operatingSystemVersionString,"chip":ResourceSampler.text("machdep.cpu.brand_string"),"cores":ProcessInfo.processInfo.processorCount],"queries":queries,"searchWith512RecentChoices10000":rankedSearch,"cachedResultReads":catalogRead,"processResultReads1000":processReads,"processSort1000":processSort,"commandSearchWith200x8kBHistory":commandSearchWithHistory,"clipboardSearch200x8kB":clipboardSearch,"clipboardSearchEnqueue200x8kB":clipboardSearchEnqueue,"clipboardPrune200x8kB":prune,"clipboardEncode200x8kB":historyEncode,"configurationRawRead":configRead,"analyticsTimingRecord":analytics,"nativeIconWarm":iconWarm,"imageCapture960kPixels":imageCapture,"imagePreview960kPixels":imagePreview,"checksum":checksum]
     } catch {return ["ok":false,"error":error.localizedDescription]}
 }
+
+#if RUYCAST_POLL_BENCHMARK
+/// Matched polling work on a named pasteboard, never desktop input or user content.
+/// Tight-loop CPU cost is separate from the unchanged 0.75-second capture timer.
+@MainActor func benchmarkClipboardPoll(ticks:Int,active:Bool) throws -> [String:Any] {
+    guard ProcessInfo.processInfo.environment["RUYCAST_CONFIG_DIR"]==nil else {throw LauncherError("Unset RUYCAST_CONFIG_DIR before running the isolated polling fixture.")}
+    _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)
+    let root=FileManager.default.temporaryDirectory.appendingPathComponent("rc-poll-"+String(UUID().uuidString.prefix(8)))
+    defer {try? FileManager.default.removeItem(at:root)}
+    let state=try AppState(root:root,headless:true);defer {state.shutdown()}
+    state.config.clipboard.limit=20
+    let board=NSPasteboard(name:NSPasteboard.Name("ruycast-poll-bench-"+UUID().uuidString));defer {board.releaseGlobally()}
+    var reads=0,pids=Set<pid_t>()
+    func application()->NSRunningApplication? {
+        reads+=1;let app=NSWorkspace.shared.frontmostApplication
+        if let pid=app?.processIdentifier {pids.insert(pid)}
+        return app
+    }
+    func settle() throws {
+        let end=Date().addingTimeInterval(5)
+        while state.clipboardWorkInFlight,Date()<end {_=RunLoop.current.run(mode:.default,before:Date().addingTimeInterval(0.0002))}
+        if state.clipboardWorkInFlight {throw LauncherError("Polling fixture capture timed out")}
+    }
+    board.clearContents();board.setString("warm",forType:.string)
+    state.pollClipboard(from:board,activeApplication:application)
+    board.clearContents();board.setString("settled",forType:.string)
+    state.pollClipboard(from:board,activeApplication:application);try settle();reads=0;pids=[]
+    func cpu()->Double {var usage=rusage();getrusage(RUSAGE_SELF,&usage);return Double(usage.ru_utime.tv_sec+usage.ru_stime.tv_sec)+Double(usage.ru_utime.tv_usec+usage.ru_stime.tv_usec)/1_000_000}
+    let began=DispatchTime.now().uptimeNanoseconds,initialCPU=cpu()
+    for i in 0..<ticks {try autoreleasepool {
+        if active,i%4==0 {board.clearContents();board.setString("Fixture \(i%64)",forType:.string)}
+        state.pollClipboard(from:board,activeApplication:application)
+        try settle()
+    }}
+    let elapsed=Double(DispatchTime.now().uptimeNanoseconds-began)/1_000_000_000,usedCPU=cpu()-initialCPU
+    return ["ok":true,"schema":1,"mode":active ? "changed-every-fourth-poll":"unchanged","ticks":ticks,"applicationReads":reads,"distinctForegroundPIDs":pids.count,"elapsedSeconds":elapsed,"cpuSeconds":usedCPU,"retainedClips":state.clips.count,"scope":"Tight-loop named-pasteboard polling cost; ordinary timer unchanged; no general clipboard, hotkeys, visible UI, physical energy or battery claim"]
+}
+#endif

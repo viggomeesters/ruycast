@@ -6744,16 +6744,20 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
         assert!(!main.contains("--check-browser-tabs"));
+        assert!(!main.contains("--check-performance-pipeline"));
         assert!(!main.contains("--check-window-search"));
         assert!(!root.join("Sources/RuycastApp/BrowserTabChecks.swift").exists());
+        assert!(!root.join("Sources/RuycastApp/PerformancePipelineChecks.swift").exists());
         assert!(!root.join("Sources/RuycastApp/WindowSearchChecks.swift").exists());
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
         assert!(!roster.contains("frozen-current/Sources/RuycastApp/BrowserTabChecks.swift"));
         assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/BrowserTabChecks.swift"));
+        assert!(!roster.contains("frozen-current/Sources/RuycastApp/PerformancePipelineChecks.swift"));
+        assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/PerformancePipelineChecks.swift"));
         for gate in SETTINGS {
             if matches!(gate.id, "--check-command-log" | "--check-window-search"
                 | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands" | "--check-feedback"
-                | "--check-actions-menu" | "--check-menu-actions" | "--check-browser-tabs") {
+                | "--check-actions-menu" | "--check-menu-actions" | "--check-browser-tabs" | "--check-performance-pipeline") {
                 // Retired helpers retain their original path/hash as historical provenance.
                 assert!(!root.join(gate.original_source).exists());
             } else {
@@ -7178,6 +7182,48 @@ mod tests {
         assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
+
+    #[test]
+    fn retired_performance_pipeline_check_preserves_benchmark_and_crosswalk() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let retired = "Sources/RuycastApp/PerformancePipelineChecks.swift";
+        assert!(!root.join(retired).exists());
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(!main.contains("--check-performance-pipeline"));
+        assert!(!main.contains("checkPerformancePipeline"));
+        assert!(main.contains("--benchmark-clipboard-poll"));
+        let performance = std::fs::read_to_string(root.join("Sources/RuycastApp/PerformanceChecks.swift")).unwrap();
+        assert!(performance.contains("func benchmarkClipboardPoll("));
+        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
+        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
+        assert!(lock["files"].get(retired).is_none());
+        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"], format!("{:x}", Sha256::digest(main.as_bytes())));
+        assert_eq!(lock["files"]["Sources/RuycastApp/PerformanceChecks.swift"], format!("{:x}", Sha256::digest(performance.as_bytes())));
+        assert_eq!(PERFORMANCE_PIPELINE_ORACLE_SHA256, "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659");
+        let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
+        let performance_hash = "aa41d7030832cfbef76473b3fe807ae0152190f97bd49a5c7319a179ee6ec8c5";
+        for callsite in [
+            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 8: _=NSApplication.shared"),
+            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 87: _=NSApplication.shared"),
+            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 94: func application()"),
+            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 95: reads+=1;let app=NSWorkspace.shared.frontmostApplication"),
+        ] {
+            assert!(roster.contains(&callsite), "missing current benchmark callsite: {callsite}");
+        }
+        assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/PerformancePipelineChecks.swift"));
+        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
+        assert_eq!(public["schema"], "ruycast.public-source.v2");
+        assert!(public["files"].get(retired).is_none());
+        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/PerformanceChecks.swift", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json", "bench/f1-runner/src/sdk/workspace_roster.rs"] {
+            assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-performance-pipeline").unwrap();
+        assert_eq!(gate.native_cases.len(), 14);
+        assert_eq!(gate.required_native_steps, &["unit", "clipboard-history-host-process", "clipboard-rich-paste"]);
+        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
+    }
+
     #[test]
     fn clipboard_history_crosswalk_binds_current_rust_consumer_and_existing_steps() {
         let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
