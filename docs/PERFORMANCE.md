@@ -265,15 +265,14 @@ Six frozen release runs alternated baseline, candidate, candidate, baseline, bas
 
 The unchanged difference is only0.0948microseconds per poll. Original CPU ranges were7.255–9.245ms; candidate6.337–7.042ms. Active ranges overlap (164.386–170.755ms versus164.465–167.401ms), so no active CPU improvement is established. Foreground-app property calls are not proven IPC requests. No whole-app CPU, wakeup, energy or battery saving follows from eliminating them.
 
-The cost driver was opt-in at compile time. The following Swift build and launch command is retained only as a historical 0.8.6 experiment; the current Rust build route does not accept `-Xswiftc`. Production polling logic was identical in all measured configurations:
+The Swift compile flag and launch route used in the historical 0.8.6 experiment are retired. The commands below invoke the current Rust-owned `test-tools` benchmark. It measures the current Rust `Clipboard::poll_with_application` path and commits each accepted capture synchronously through `Store::capture`. It is not directly comparable with the historical Swift `AppState` worker measurements or the Swift 0.75-second timer; current Rust polling runs on a 0.4-second timer. These commands measure a named synthetic pasteboard, not a user's clipboard:
 
 ```sh
-bash scripts/build-native.sh -c release -Xswiftc -DRUYCAST_POLL_BENCHMARK
-.build/swift/release/RuycastApp --benchmark-clipboard-poll 10000
-.build/swift/release/RuycastApp --benchmark-clipboard-poll 1000 active
+cargo run --quiet --locked --offline --release --manifest-path rust-native/Cargo.toml --features test-tools --bin ruycast-native -- --benchmark-clipboard-poll 10000 unchanged
+cargo run --quiet --locked --offline --release --manifest-path rust-native/Cargo.toml --features test-tools --bin ruycast-native -- --benchmark-clipboard-poll 1000 active
 ```
 
-An ordinary build rejects that fixture flag before starting the app. The opt-in fixture rejects an ambient `RUYCAST_CONFIG_DIR` before creating state, keeping the fixture profile isolated. Rebuild without the define for installation. Keep frozen copies for alternating experiments. The original prototype's source and executable hashes remain separate from the default0.8.6 candidate; the production poll logic is unchanged after the six-run experiment.
+The Rust command exists only in builds with `test-tools`; the ordinary product binary does not expose it. The fixture rejects an ambient `RUYCAST_CONFIG_DIR` before creating state and uses its own private temporary profile. Append `current` after the mode only for deterministic provider tests; normal measurements use the workspace foreground-app provider. The historical six-run numbers above remain Swift measurements and make no claim about Rust CPU, wakeup, energy or battery behavior.
 
 The recurring-work inventory retained the5-second configuration metadata fallback with500ms leeway,2-second keyboard/snippet recovery checks,60-second history/assets maintenance, the active-only2-second monitor, and coalesced event-driven analytics/log writers. Slowing capture or removing recovery checks was rejected. Physical power sampling requires unavailable administrator credentials in this session; CPU, wakeups and I/O remain separate observed metrics, with no energy claim.
 
@@ -283,7 +282,7 @@ New-process RPC readiness p95 ranged133.4–142.6ms versus136.1–138.2ms. Statu
 
 A separate600-second passive observation of installed0.8.5build45 used121 OS counter samples:0.1016% of one CPU core,2.076 interrupt wakeups/s,54.24→54.61MiB footprint,2,113,536 disk bytes read and65,536 written. The PID and installed executable remained unchanged. Ordinary user and development activity was allowed, so this is contextual baseline evidence, not an enforced idle or paired causal energy comparison.
 
-The diagnostic split was measured before acceptance. Prepared source-build host bytes are3,396,408 for0.8.5,3,412,952 for the0.8.6opt-in benchmark build, and3,396,424 for the ordinary0.8.6build: the ordinary host is16bytes larger, while the optional diagnostic body adds16,528bytes. The first unsplit ordinary prototype was3,412,856bytes and was rejected as the default. These are executable file bytes before local installation signing, not resident-memory measurements. The ordinary binary rejects the cost-driver flag without starting the app; the opt-in binary runs the new regression guards and rejects an external config-directory override. All old release pipeline checks run in the ordinary binary; new guard result fields appear only when those guards actually ran.
+The diagnostic split was measured before acceptance. Prepared source-build host bytes are3,396,408 for0.8.5,3,412,952 for the0.8.6opt-in benchmark build, and3,396,424 for the ordinary0.8.6build: the ordinary host is16bytes larger, while the optional diagnostic body adds16,528bytes. The first unsplit ordinary prototype was3,412,856bytes and was rejected as the default. These are historical executable file sizes before local installation signing, not resident-memory measurements. The old Swift compile define and command are retired; only the Rust `test-tools` build exposes the benchmark route.
 
 ## 0.8.9: bounded typo recovery
 

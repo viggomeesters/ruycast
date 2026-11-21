@@ -881,7 +881,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-polish" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "fb6e3a1b9d32485241d2f219155d4d21b5923fe1d64c61edba085d2f18b00cfb"),
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
@@ -890,7 +890,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
             ("rust-native/src/native_clipboard.rs", include_bytes!("../../native_clipboard.rs"), "6a3db88c4184426dae72431087af17177caa1f7bb3f2cff1bc2c4d7ed621c62f"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/native_settings.rs", include_bytes!("../../native_settings.rs"), "5d662f5ad70e3be4407acf74babbf97345ac0b05079fcdd88069181d63a23041"),
             ("rust-native/src/native_snippet_editor.rs", include_bytes!("../../native_snippet_editor.rs"), "c047b34e4abf31b111d804f9bc1e5a9efe75a002e5e0ac612c0cb48fe71d6150"),
             ("rust-native/src/script_result.rs", include_bytes!("../../script_result.rs"), "6e311e6045f6f3e5d3bf8998e7e34d23323ad324d449dcac3be1ecb1e9547cbf"),
@@ -924,7 +924,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             // Feedback and the retired nested system helper have scoped Rust
             // evidence; historical helper provenance is not an active caller,
             // a host/matrix grant or exact callback-thread/token parity.
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
@@ -967,7 +967,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             // The final eight binding fields and real queued-recorder ACK are
             // carried by item-binding-original-process, never by Polish alone.
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
@@ -991,7 +991,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
             // Original local-data conjunctions and retained native-choice/open
             // components are qualified separately from full matrix execution.
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
@@ -1035,14 +1035,14 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
         "--check-rich-resources" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/native_monitor.rs", include_bytes!("../../native_monitor.rs"), "54716cd3c8d6d03f0c5da68ec83d723621854d9647d5dbc62e38d0eb2ffd89c2"),
             ("rust-native/src/native_clipboard.rs", include_bytes!("../../native_clipboard.rs"), "6a3db88c4184426dae72431087af17177caa1f7bb3f2cff1bc2c4d7ed621c62f"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
@@ -1081,7 +1081,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
@@ -1089,7 +1089,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "4a450aa2eb6a0eec8e681a67f241c0147726229de742adbd741aa9bdce980367"),
             ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "781395bce10a03e634e63fbb811498069e4679a016648b8a16ce7e42b1cf2900"),
@@ -1121,7 +1121,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
@@ -1129,7 +1129,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "4a450aa2eb6a0eec8e681a67f241c0147726229de742adbd741aa9bdce980367"),
             ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "781395bce10a03e634e63fbb811498069e4679a016648b8a16ce7e42b1cf2900"),
@@ -1157,7 +1157,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
@@ -1165,7 +1165,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "4a450aa2eb6a0eec8e681a67f241c0147726229de742adbd741aa9bdce980367"),
             ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "781395bce10a03e634e63fbb811498069e4679a016648b8a16ce7e42b1cf2900"),
@@ -1199,14 +1199,14 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
         "--check-render-updates" => &[
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/configuration_jobs.rs", include_bytes!("../../configuration_jobs.rs"), "d2a7fa23998199283807ab0e0506c04420b34c2a6166557e16adaa77ee4afc25"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
@@ -1221,13 +1221,13 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/src/benchmark_host/rpc.rs", include_bytes!("../../benchmark_host/rpc.rs"), "1faf3f1955d922d30dc409fddb6ab499931c3ae3918b651f32cec21c97d206f9"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/system_search/mod.rs", include_bytes!("../../system_search/mod.rs"), "358221b1edab478fa8eda8dbf3d6cc74050f948f483cbbf251ab824a920c41e1"),
             ("rust-native/src/system_search/fixture.rs", include_bytes!("../../system_search/fixture.rs"), "4a450aa2eb6a0eec8e681a67f241c0147726229de742adbd741aa9bdce980367"),
             ("rust-native/src/system_search/tests.rs", include_bytes!("../../system_search/tests.rs"), "781395bce10a03e634e63fbb811498069e4679a016648b8a16ce7e42b1cf2900"),
@@ -1249,11 +1249,11 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
         "--check-performance-pipeline" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_private_tests.rs", include_bytes!("../../runtime_private_tests.rs"), "00feb5e6befffefed0d19de776a13708727763b3b55bc42a45bf14ceb1bc29c3"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/configuration_jobs.rs", include_bytes!("../../configuration_jobs.rs"), "d2a7fa23998199283807ab0e0506c04420b34c2a6166557e16adaa77ee4afc25"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -1299,7 +1299,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_library.rs", include_bytes!("../../native_library.rs"), "2da5d1b8b410bd90ae4f63855a0ff06be6b0677038b33acd0a2a69cde1542ecb"),
             ("rust-native/src/native_paste.rs", include_bytes!("../../native_paste.rs"), "aa76bdf2224e9ed4a249b91d9a41712ae067b4f6a47a265bb9bcb6365da3d626"),
             ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
-            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "de40894fa6f102cebd4bf93d470833247feacc0292cec03687ab09174f680ac9"),
+            ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/native_settings.rs", include_bytes!("../../native_settings.rs"), "5d662f5ad70e3be4407acf74babbf97345ac0b05079fcdd88069181d63a23041"),
             ("rust-native/src/native_snippet_editor.rs", include_bytes!("../../native_snippet_editor.rs"), "c047b34e4abf31b111d804f9bc1e5a9efe75a002e5e0ac612c0cb48fe71d6150"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "1760da639b8753f278f209bcab2ece32edc01121cb4a5f15ae4698088e69fdc8"),
@@ -1327,7 +1327,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust/src/lib.rs", include_bytes!("../../../../rust/src/lib.rs"), "291731f83d4278ad4b1f892558a6b155de3288e8478cf64caed9489b9fa61d49"),
         ],
         "--check-command-log" => &[
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a1176e015ba10fa3d09b0b850fc2578b3d8ff2a51409bd572c19448b1aefdab1"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/runtime_utilities.rs", include_bytes!("../../runtime_utilities.rs"), "209d90ba65f4fb8fd9a1341d419fddf5ada441dcebb641914cd2ac1e6692e8bd"),
             ("rust-native/src/runtime_builtins.rs", include_bytes!("../../runtime_builtins.rs"), "43bc0ddfcfde25438465f7dc2f9c245bd7084d8906f44baf5f229be43e6f991c"),
@@ -7184,16 +7184,18 @@ mod tests {
     }
 
     #[test]
-    fn retired_performance_pipeline_check_preserves_benchmark_and_crosswalk() {
+    fn retired_swift_performance_routes_preserve_rust_benchmark_and_crosswalk() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/PerformancePipelineChecks.swift";
         assert!(!root.join(retired).exists());
         let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
         assert!(!main.contains("--check-performance-pipeline"));
         assert!(!main.contains("checkPerformancePipeline"));
-        assert!(main.contains("--benchmark-clipboard-poll"));
+        assert!(!main.contains("--benchmark-clipboard-poll"));
+        assert!(!main.contains("RUYCAST_POLL_BENCHMARK"));
         let performance = std::fs::read_to_string(root.join("Sources/RuycastApp/PerformanceChecks.swift")).unwrap();
-        assert!(performance.contains("func benchmarkClipboardPoll("));
+        assert!(!performance.contains("benchmarkClipboardPoll"));
+        assert!(!performance.contains("RUYCAST_POLL_BENCHMARK"));
         assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
         let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
         assert!(lock["files"].get(retired).is_none());
@@ -7201,20 +7203,19 @@ mod tests {
         assert_eq!(lock["files"]["Sources/RuycastApp/PerformanceChecks.swift"], format!("{:x}", Sha256::digest(performance.as_bytes())));
         assert_eq!(PERFORMANCE_PIPELINE_ORACLE_SHA256, "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659");
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
-        let performance_hash = "aa41d7030832cfbef76473b3fe807ae0152190f97bd49a5c7319a179ee6ec8c5";
-        for callsite in [
-            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 8: _=NSApplication.shared"),
-            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 87: _=NSApplication.shared"),
-            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 94: func application()"),
-            format!("frozen-current/Sources/RuycastApp/PerformanceChecks.swift\",\"{performance_hash}\",\"line 95: reads+=1;let app=NSWorkspace.shared.frontmostApplication"),
-        ] {
-            assert!(roster.contains(&callsite), "missing current benchmark callsite: {callsite}");
-        }
+        let current_performance_roster = roster
+            .lines()
+            .filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/PerformanceChecks.swift\""))
+            .collect::<Vec<_>>();
+        assert_eq!(current_performance_roster.len(), 1);
+        assert!(current_performance_roster[0].contains("\"a0534165a6df3d6afda628abaefdc8f740b4b0a54a969f814af76e8860382950\",\"line 7: _=NSApplication.shared"));
         assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/PerformancePipelineChecks.swift"));
+        let rust_main = std::fs::read_to_string(root.join("rust-native/src/main.rs")).unwrap();
+        assert!(rust_main.contains("#[cfg(feature = \"test-tools\")]\n        Some(\"--benchmark-clipboard-poll\")"));
         let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
         assert_eq!(public["schema"], "ruycast.public-source.v2");
         assert!(public["files"].get(retired).is_none());
-        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/PerformanceChecks.swift", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json", "bench/f1-runner/src/sdk/workspace_roster.rs"] {
+        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/PerformanceChecks.swift", "rust-native/src/main.rs", "rust-native/src/native_services.rs", "rust-native/tests/clipboard_poll_benchmark_process.rs", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json", "bench/f1-runner/src/sdk/workspace_roster.rs", "docs/PERFORMANCE.md"] {
             assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
         }
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-performance-pipeline").unwrap();

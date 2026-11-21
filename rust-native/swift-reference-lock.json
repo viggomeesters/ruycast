@@ -62,7 +62,7 @@
     "Sources/RuycastApp/PaletteActions.swift": "da7af103f2997d7eb24e6d91985d857ddd6ef3f11e6d8171ef7f53fc4e516213",
     "Sources/RuycastApp/PaletteGeometry.swift": "d13ff100c8a4d126496c9a0858c25eb8cc1fff0f9aedf8807feb347a8e84efaf",
     "Sources/RuycastApp/PaletteSearchField.swift": "9db0c85dee727398ee1960d8eee75bdffd8df0c46e1aabeafa5cd9924ac799e7",
-    "Sources/RuycastApp/PerformanceChecks.swift": "aa41d7030832cfbef76473b3fe807ae0152190f97bd49a5c7319a179ee6ec8c5",
+    "Sources/RuycastApp/PerformanceChecks.swift": "a0534165a6df3d6afda628abaefdc8f740b4b0a54a969f814af76e8860382950",
     "Sources/RuycastApp/PerformanceSoak.swift": "ee33d067dfbbf845de1199e7bcf580266d2fe10cea4674c1dd6246bec09aff80",
     "Sources/RuycastApp/PerformanceTrace.swift": "b96fd64ae30c8f550f42c30843d52439b0243d11d7c5df919d05212478ec4dbc",
     "Sources/RuycastApp/PolishChecks.swift": "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b",
@@ -87,6 +87,6 @@
     "Sources/RuycastApp/WebsiteIcons.swift": "2708e4accf997b102fe831dd271fab41cf40aa6911a00454e6d0a4ad181aadc8",
     "Sources/RuycastApp/WindowManager.swift": "01b6d2951b64698664e175694407e9df84faf8a08adb84966fd4a3db7f58fd87",
     "Sources/RuycastApp/WindowSearch.swift": "1f4d263bfbffb0c323aaa48f24a7a90783f127e2ffb03ed18a79bb924e1218e9",
-    "Sources/RuycastApp/main.swift": "84d298bef068b48600c46e76811b1fbc2e9ae3de046f7408078f552b4713d041"
+    "Sources/RuycastApp/main.swift": "4a6fd784e48d737965a74cce1d6612323d73ccd78fee2728c260be3fc34e3edd"
   }
 }

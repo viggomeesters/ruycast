@@ -91,6 +91,8 @@ fn main() {
             let width = match args.get(3).map(String::as_str) { None | Some("760") => 760., Some("600") => 600., _ => { eprintln!("Expected width 600 or 760"); std::process::exit(2) } };
             native::check(args.get(1).map(std::path::Path::new), width, args.get(2).map(String::as_str) != Some("light"))
         },
+        #[cfg(feature = "test-tools")]
+        Some("--benchmark-clipboard-poll") => native_services::benchmark_clipboard_poll(&args[1..]),
         Some("--benchmark-model") if args.len() == 1 => Ok(benchmark()),
         _ => Err("Unknown arguments. Start Ruycast without arguments, or use --headless or --version.".into()),
     };
