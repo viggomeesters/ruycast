@@ -1798,7 +1798,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.nativeUnicodeEventPayloadRoundTrip"] = serde_json::json!({
             "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate local CGEvent Unicode payload assertion retired",
-            "scope": "Only the local CGEvent Unicode create/set/get roundtrip and nativeUnicodeEventPayloadRoundTrip result field are retired. The shared checkInteractions helper and all other interaction checks remain active.",
+            "scope": "Only the local CGEvent Unicode create/set/get roundtrip and nativeUnicodeEventPayloadRoundTrip result field are retired. The shared checkInteractions helper remains; each subsequently retired scenario has its own source-qualified crosswalk entry.",
             "nativeSteps": ["native-light-600"],
             "nativeCases": ["native_edit::check_snippet_replacement"],
             "originalAssertions": ["Forty copies of Line Ω 👨‍👩‍👧‍👦 plus newline roundtrip exactly through local CGEvents.", "Each inserted chunk is at most 16 UTF-16 units and reads back through a 32-unit buffer."],
@@ -1810,7 +1810,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.offscreenSnippetAndFocus"] = serde_json::json!({
             "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate offscreen snippet and focus assertions retired",
-            "scope": "Only the offscreen snippet replacement/cursor assertion, datetime keyword assertion with unavailable AX metadata, secure-input guards, and their three result fields are retired. The shared interaction helper, snippet-choice keyboard check, fixture route, and remaining fields stay active. The offscreen snippet-choice cancel/confirm assertion has its own retirement crosswalk.",
+            "scope": "Only the offscreen snippet replacement/cursor assertion, datetime keyword assertion with unavailable AX metadata, secure-input guards, and their three result fields are retired. The shared interaction helper and snippet-choice keyboard check remain; the offscreen snippet-choice cancel/confirm and Command-K smoke have separate retirement crosswalk entries.",
             "nativeSteps": ["native-light-600"],
             "nativeCases": ["native_edit::check_snippet_replacement"],
             "originalAssertions": ["Replacing ;hell with Hi Ω! leaves prefix Hi Ω! and places the UTF-16 cursor at offset 10.", "The ;; trigger requires exactly two semicolon keystrokes and expands to 25 October 2025 19:35 with en_GB and GMT even when AX subrole is unavailable.", "Snippet expansion is refused for secure input and AXSecureTextField subrole."],
@@ -1822,11 +1822,23 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.snippetChoiceConfirmationCancellation"] = serde_json::json!({
             "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate offscreen snippet choice confirmation/cancellation assertion retired",
-            "scope": "Only the offscreen SnippetChoiceRequest cancel/confirm assertion block and snippetChoiceConfirmationCancellation result field are retired. The shared interaction helper, checkSnippetChoiceKeyboard caller/helper, app-launch check, fixture route, and remaining result fields stay active.",
+            "scope": "Only the offscreen SnippetChoiceRequest cancel/confirm assertion block and snippetChoiceConfirmationCancellation result field are retired. The shared interaction helper, checkSnippetChoiceKeyboard caller/helper, app-launch check, and fixture route remain; the Command-K smoke has a separate retirement crosswalk entry.",
             "nativeSteps": ["native-light-600"],
             "nativeCases": ["native_edit::check_snippet_replacement"],
             "originalAssertions": ["The Contact choice list is normalized to Example A and Example B.", "Cancel deactivates the request without changing prefix ;contact.", "A new safe/unchanged request inserts Example B Ω and sets the UTF-16 cursor to offset 16."],
             "compatibilityNotes": ["The existing Rust native check exercises the production choice request and replacement against a hidden NSTextView; it does not send live desktop input."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.commandKOpensActions"] = serde_json::json!({
+            "originalSourceSHA256": RENDER_UPDATES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate synthetic Command-K actions smoke retired",
+            "scope": "Only the local PalettePanel Command-K event, its action-state assertion, panel cleanup, and commandKOpensActions result field are retired. The shared interaction route, PaletteSearchField delegate assertions, snippet-choice keyboard check, app-launch check, and other active checks remain.",
+            "nativeSteps": ["actions-process"],
+            "nativeCases": ["actions_process::actions_keyboard_badges_and_escape_keeps_palette"],
+            "originalAssertions": ["A local nonrepeat Command-K key event is handled by performKeyEquivalent: and opens the actions menu.", "The Rust case also confirms the hidden launcher, selected item, and query while actions are visible, then confirms Escape restores the palette and search focus."],
+            "compatibilityNotes": ["The existing Rust process test drives the same native key-dispatch path without live desktop input."],
             "productionAccepted": false
         });
     }
@@ -5503,8 +5515,13 @@ mod tests {
         assert!(!interactions.contains("let cancelledChoice=SnippetChoiceRequest"));
         assert!(!interactions.contains("let chosen=SnippetChoiceRequest"));
         assert!(!interactions.contains("let document=NSTextView()"));
+        assert!(!interactions.contains("commandKOpensActions"));
+        assert!(!interactions.contains("let panel=PalettePanel(contentRect:"));
+        assert!(!interactions.contains("panel.performKeyEquivalent(with:event)"));
         assert!(interactions.contains("try checkSnippetChoiceKeyboard()"));
         assert!(interactions.contains("\"snippetChoiceKeyboard\":true"));
+        assert!(interactions.contains("guard submitted,cancelled else"));
+        assert!(interactions.contains("state.query=\"quick note\";state.begin(state.selectedCommand!)"));
         assert!(interactions.contains("func featureFixture"));
         assert!(!interactions.contains("func renderFeatures"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
@@ -7869,6 +7886,7 @@ mod tests {
     }
     #[test]
     fn interactions_provenance_preserves_inputs_cases_routes_and_status() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-interactions").unwrap();
         let inputs = settings_sources(gate.id);
         let provenance = (gate.original_source, RENDER_UPDATES_ORACLE_SHA256);
@@ -7939,6 +7957,13 @@ mod tests {
         assert_eq!(choice["nativeCases"], serde_json::json!(["native_edit::check_snippet_replacement"]));
         assert_eq!(choice["productionAccepted"], false);
         assert_eq!(choice["originalAssertions"].as_array().unwrap().len(), 3);
+        let command_k = &crosswalk["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkInteractions.commandKOpensActions"];
+        assert_eq!(command_k["originalSourceSHA256"], RENDER_UPDATES_ORACLE_SHA256);
+        assert_eq!(command_k["status"], "source-qualified-rust-case-crosswalk; duplicate synthetic Command-K actions smoke retired");
+        assert_eq!(command_k["nativeSteps"], serde_json::json!(["actions-process"]));
+        assert_eq!(command_k["nativeCases"], serde_json::json!(["actions_process::actions_keyboard_badges_and_escape_keeps_palette"]));
+        assert_eq!(command_k["productionAccepted"], false);
+        assert!(std::fs::read_to_string(root.join("rust-native/tests/actions_process.rs")).unwrap().contains("fn actions_keyboard_badges_and_escape_keeps_palette()"));
         assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
