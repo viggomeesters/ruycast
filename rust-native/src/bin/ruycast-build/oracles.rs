@@ -1012,7 +1012,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/benchmark_host/rpc.rs", include_bytes!("../../benchmark_host/rpc.rs"), "1faf3f1955d922d30dc409fddb6ab499931c3ae3918b651f32cec21c97d206f9"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
 
-            ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "996077f8247a7b53a165e2f7ac10cd316120b05da0856608c7aff8102841cb8d"),
+            ("rust-native/src/native_edit.rs", include_bytes!("../../native_edit.rs"), "e11332abd4573baf4d868eafe18d496604227d9a5e15f2ad738ef087627641e0"),
             ("rust-native/src/keyword_matcher.rs", include_bytes!("../../keyword_matcher.rs"), "4f35db2014bc5ec4832a10ad42b7ba9318930d1d09e8937839d3c0a37c1433dd"),
             ("rust-native/src/templates.rs", include_bytes!("../../templates.rs"), "420e51cd15454dd20a366bde6e8c02cdec659726e0d45a2069f77d37660bdf7f"),
             ("rust-native/src/snippet_output.rs", include_bytes!("../../snippet_output.rs"), "40f779d97941aec293f6a53c89970051189e82a0fa2a98a86027c196724138be"),
@@ -1343,7 +1343,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/native_edit.rs",
                 include_bytes!("../../native_edit.rs"),
-                "996077f8247a7b53a165e2f7ac10cd316120b05da0856608c7aff8102841cb8d",
+                "e11332abd4573baf4d868eafe18d496604227d9a5e15f2ad738ef087627641e0",
             ),
             (
                 "rust-native/src/native_edit_menu.rs",
@@ -6980,7 +6980,7 @@ mod tests {
         assert_eq!(edit_bindings.len(), 3);
         assert!(edit_bindings.contains(&(
             "rust-native/src/native_edit.rs",
-            "996077f8247a7b53a165e2f7ac10cd316120b05da0856608c7aff8102841cb8d",
+            "e11332abd4573baf4d868eafe18d496604227d9a5e15f2ad738ef087627641e0",
         )));
         assert!(edit_bindings.contains(&(
             "rust-native/src/native_edit_menu.rs",
