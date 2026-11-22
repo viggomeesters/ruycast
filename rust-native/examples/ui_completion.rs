@@ -161,7 +161,7 @@ impl Host {
         let binary = if let Some(path) = ui_validation_file(root,"HOST") { let _ = ui_validation_file(root,"FIXTURE"); path } else if std::env::args().nth(1).as_deref() == Some("--polish-bindings-only") {
             let path = PathBuf::from(std::env::var_os("RUYCAST_POLISH_BINDINGS_HOST").expect("Explicit qualified Polish fixture host required"));
             assert!(path.is_absolute(), "Polish fixture host must be absolute");
-            assert_eq!(format!("{:x}", Sha256::digest(fs::read(&path).unwrap())), "185dd5388c4ce3c57e4254e56e949233fda066742189b8d89888e82fa8e42f84", "Polish fixture host changed");
+            assert_eq!(format!("{:x}", Sha256::digest(fs::read(&path).unwrap())), "89be1d2f376ec8f8ae122fdedaf00e1a4b1f2736a1f1a11c4c4542342f1a2d93", "Polish fixture host changed");
             path
         } else if std::env::args().nth(1).as_deref() == Some("--polish-original-only") {
             let path=PathBuf::from(std::env::var_os("RUYCAST_POLISH_ORIGINAL_HOST").expect("Explicit qualified current Polish host required"));
@@ -186,7 +186,7 @@ impl Host {
         } else if std::env::args().nth(1).as_deref() == Some("--task-date-only") {
             let path = PathBuf::from(std::env::var_os("RUYCAST_TASK_DATE_HOST").expect("Explicit qualified Date fixture host required"));
             assert!(path.is_absolute(), "Date fixture host must be absolute");
-            assert_eq!(format!("{:x}", Sha256::digest(fs::read(&path).unwrap())), "185dd5388c4ce3c57e4254e56e949233fda066742189b8d89888e82fa8e42f84", "Date fixture host changed");
+            assert_eq!(format!("{:x}", Sha256::digest(fs::read(&path).unwrap())), "89be1d2f376ec8f8ae122fdedaf00e1a4b1f2736a1f1a11c4c4542342f1a2d93", "Date fixture host changed");
             path
         } else {
             root.join("rust-native/target/native-tools/debug/ruycast-native")
@@ -860,8 +860,16 @@ fn task_date(root: &Path) {
         h.settled();
         key(36,0,"\r");
         h.wait(|_| h.probe(false,"read",json!({}))["runInputInline"]==true);
+        let preview_started=SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
         type_value(true,"morgen");
-        require_visible_date(&capture("valid",&["Task Deadline"],&["YYYY-MM-DD","Datum niet herkend"]));
+        let preview_finished=SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
+        let valid=capture("valid",&["Task Deadline"],&["YYYY-MM-DD","Datum niet herkend"]);
+        require_visible_date(&valid);
+        let expected=[preview_started,preview_finished].map(|now|ruycast_native::task_date::resolve("morgen",now).unwrap().label);
+        let rendered=valid["screenText"].as_array().unwrap().iter().filter_map(Value::as_str)
+            .find(|label|["maandag ","dinsdag ","woensdag ","donderdag ","vrijdag ","zaterdag ","zondag "].iter().any(|day|label.starts_with(*day)))
+            .expect("Actual native natural-date preview label is missing");
+        assert!(expected.iter().any(|label|label==rendered),"Natural date preview differs from the localized resolver: expected {expected:?}, actual {rendered}; view: {valid}");
         type_value(true,"in 3");
         let invalid = capture("invalid",&["Datum niet herkend"],&["YYYY-MM-DD"]);
         key(36,0,"\r");

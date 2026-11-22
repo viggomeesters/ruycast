@@ -82,14 +82,6 @@ import LauncherModels
     state.clips=[]
     try capture(Palette(state:state),"clipboard-cleared",NSSize(width:1080,height:700),required:["Select an item"],absent:["Readable clipboard text"])
     state.mode="commands";state.query=""
-    let dateCommand=Command(id:"fixture.date",title:"Task Deadline",kind:"script",target:"/bin/echo",arguments:["{input}"],inputPrompt:"Deadline (YYYY-MM-DD of clear)")
-    state.config.commands.append(dateCommand);state.begin(dateCommand);state.inlineInput="morgen"
-    let frozen=state.inlineDatePreview!
-    try capture(Palette(state:state),"date-valid",NSSize(width:760,height:480),required:[frozen.label],absent:["YYYY-MM-DD"])
-    state.inlineInput="in 3"
-    try capture(Palette(state:state),"date-invalid",NSSize(width:760,height:480),required:["Datum niet herkend"])
-    state.message="";state.inlineInput="clear";try capture(Palette(state:state),"date-clear",NSSize(width:760,height:480),required:["Datum wissen"])
-    state.cancelInlineInput();state.message=""
     state.mode="snippets";state.query="";state.config.commands=[
         Command(id:"fixture.greet",title:"Greeting",kind:"snippet",target:"Hello",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";greetsnippet"),
         Command(id:"fixture.long",title:"Longer bindings",kind:"snippet",target:"Example",aliases:["first-alias","second-alias","third-alias","fourth-alias","final-alias"],keyword:";longsnippet"),
