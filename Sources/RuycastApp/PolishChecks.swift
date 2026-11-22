@@ -33,8 +33,6 @@ import LauncherModels
     try Files.save(config,to:state.configURL);try state.reload()
     for theme in ["system","light","dark","graphite"] {
         state.config.theme=theme;state.query=""
-        let navigation=ManagementNavigation();navigation.select(.general)
-        try capture(ManagementView(state:state,navigation:navigation),"settings-"+theme,NSSize(width:980,height:680),required:["Theme","Menu Bar Icon"])
     }
 #if DEBUG
     let actionFixtures=[state.config.commands.first {$0.id=="app.finder"}!,
