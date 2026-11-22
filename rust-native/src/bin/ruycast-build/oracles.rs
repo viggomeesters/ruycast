@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "f699dc0d32997de2bc57622a181cb521595d09a525b54f0660b4ed6ec3b1b849";
+const POLISH_CURRENT_SHA256: &str = "98d1647a3e2605cf229d10a32cb6dc0e2f4e5f1d2d11ed731fe20b112cda110d";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -2071,6 +2071,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The inline alias query displays Inline Input and Café in the selected action preview."],
             "compatibilityNotes": ["Swift used Vision OCR on one offscreen 760×490 palette image. Rust verifies exact `Café & spaces` input and the Inline Input/Run labels in native screen text, and captures the equivalent state in the light/dark subset of the four-theme process route."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineSaveCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift idle inline-save preview captures retired",
+            "scope": "Only the four idle action-inline-save light/dark 600/760 Vision captures and their Save-present/Open-absent OCR assertion are retired. Keep the shared command/input setup, busy-save and empty captures, and all other action/inline/snippet cases.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["The idle quick-note preview shows Save and hides Open in both themes and widths."],
+            "compatibilityNotes": ["Swift used Vision OCR on offscreen 600×490 and 760×490 palette images. Rust checks actual native screen text for Save and absence of `Open` and the exact `Run ↵` label, retains native captures at both widths in light/dark and keeps the palette window hidden."],
             "productionAccepted": false
         });
     }
@@ -8367,7 +8377,7 @@ mod tests {
         for retired in ["date-valid", "date-invalid", "date-clear", "Deadline (YYYY-MM-DD of clear)"] {
             assert!(!source.contains(retired), "Swift date-preview setup remains: {retired}");
         }
-        for retained in ["action-inline-save-", "snippet-bindings-"] {
+        for retained in ["action-inline-busy-", "snippet-bindings-"] {
             assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
         }
 
@@ -8575,7 +8585,7 @@ mod tests {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("\"launcher-\"+theme"));
         assert!(!source.contains("\"createRemoved\":true"));
-        assert!(source.contains("action-inline-save-"));
+        assert!(source.contains("action-inline-busy-"));
         assert!(source.contains("snippet-bindings-"));
         assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
 
@@ -8613,7 +8623,7 @@ mod tests {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("ManagementNavigation"));
         assert!(!source.contains("\"settings-\"+theme"));
-        assert!(source.contains("action-inline-save-"));
+        assert!(source.contains("action-inline-busy-"));
         assert!(source.contains("snippet-bindings-"));
         assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
 
@@ -8654,7 +8664,7 @@ mod tests {
         assert!(!source.contains("state.inlineSource=\"hotkey\""));
         assert!(!source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("state.form=nil;state.query=\"\""));
-        for retained in ["action-inline-save-", "action-inline-busy-", "snippet-bindings-"] {
+        for retained in ["action-inline-busy-", "action-empty-", "snippet-bindings-"] {
             assert!(source.contains(retained), "Unrelated Swift capture was removed: {retained}");
         }
 
@@ -8688,6 +8698,46 @@ mod tests {
         assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
         assert_eq!(retired["originalAssertions"], serde_json::json!(["The inline alias query displays Inline Input and Café in the selected action preview."]));
         assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on one offscreen 760×490 palette image. Rust verifies exact `Café & spaces` input and the Inline Input/Run labels in native screen text, and captures the equivalent state in the light/dark subset of the four-theme process route."]));
+        assert_eq!(retired["productionAccepted"], false);
+    }
+    #[test]
+    fn polish_inline_save_captures_are_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("action-inline-save-"));
+        assert!(source.contains("state.begin(actionFixtures[3]);state.inlineInput=\"Example note\""));
+        assert!(source.contains("action-inline-busy-"));
+        assert!(source.contains("action-empty-"));
+        assert!(source.contains("snippet-bindings-"));
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        let test = native
+            .split_once("fn polish_original(root: &Path) {")
+            .unwrap()
+            .1
+            .split_once("\nfn closed_creation(")
+            .unwrap()
+            .0;
+        for retained in [
+            "for theme in [\"system\",\"light\",\"dark\",\"graphite\"]",
+            "if [\"light\",\"dark\"].contains(&theme)",
+            "for width in [600,760]",
+            "capture(false,&format!(\"polish-capture-idle-{theme}-{width}\"),&[\"Save\"],&[\"Open\",\"Run ↵\"]);captures+=1;",
+            "capture(false,&format!(\"polish-capture-busy-{theme}-{width}\"),&[\"Save\"],&[\"Open\"]);captures+=1;",
+        ] {
+            assert!(test.contains(retained), "Rust idle inline-save coverage changed: {retained}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineSaveCaptures"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift idle inline-save preview captures retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["The idle quick-note preview shows Save and hides Open in both themes and widths."]));
+        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 600×490 and 760×490 palette images. Rust checks actual native screen text for Save and absence of `Open` and the exact `Run ↵` label, retains native captures at both widths in light/dark and keeps the palette window hidden."]));
         assert_eq!(retired["productionAccepted"], false);
     }
     #[test]
@@ -8867,7 +8917,7 @@ mod tests {
         ] {
             assert!(!source.contains(retired), "Swift clipboard preview capture remains: {retired}");
         }
-        for retained in ["action-inline-save-", "snippet-bindings-"] {
+        for retained in ["action-inline-busy-", "snippet-bindings-"] {
             assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
         }
 

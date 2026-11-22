@@ -49,7 +49,6 @@ import LauncherModels
                 try capture(Palette(state:state),"action-\(command.kind)-\(command.id)-\(theme)-\(width)",NSSize(width:width,height:490))
             }
             state.begin(actionFixtures[3]);state.inlineInput="Example note"
-            try capture(Palette(state:state),"action-inline-save-\(theme)-\(width)",NSSize(width:width,height:490),required:["Save"],absent:["Open"])
             state.busy=true
             try capture(Palette(state:state),"action-inline-busy-\(theme)-\(width)",NSSize(width:width,height:490),required:["Save"],absent:["Open"])
             state.busy=false
