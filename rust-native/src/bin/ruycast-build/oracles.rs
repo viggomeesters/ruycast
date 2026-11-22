@@ -854,7 +854,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "d11785c76601e5925cdc698d415edda51f3acb74d7e6255e2772944e537d050f";
+const POLISH_CURRENT_SHA256: &str = "fb758066cfed57828e56eae9e88f52c9cda498bca1dedb93c4b186bda1770a00";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -1964,6 +1964,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Activating a busy inline primary action does not submit input or change usage."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.emptyActionResult"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift empty-action result assertion retired",
+            "scope": "Only the selectedCommand-is-nil assertion for the empty action query is retired. Keep the no-result query, empty-state captures, theme/width variants and cleanup; Rust polish-original-process checks selectedId is null and captures the empty state without Open.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["The unmatched action query selects no command."],
             "productionAccepted": false
         });
     }
@@ -8240,6 +8249,32 @@ mod tests {
         ] {
             assert!(native.contains(retained), "missing Rust busy-action behavior: {retained}");
         }
+    }
+    #[test]
+    fn polish_empty_action_result_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Empty action fixture returned a result"));
+        assert!(!source.contains("state.selectedCommand==nil"));
+        assert!(source.contains("state.query=\"___no-result___\""));
+        assert!(source.contains("action-empty-\\(theme)-\\(width)"));
+        assert!(source.contains("absent:[\"Open\"]"));
+        assert!(source.contains("state.cancelInlineInput()"));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.emptyActionResult"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["The unmatched action query selects no command."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        assert!(native.contains(r#"h.rpc(json!({"op":"show","mode":"commands","query":"___no-result___"}));h.settled();"#));
+        assert!(native.contains(r#"assert!(h.probe(false,"read",json!({}))["selectedId"].is_null());"#));
+        assert!(native.contains(r#"capture(false,&format!("polish-empty-{theme}-{width}"),&[],&["Open"]);"#));
     }
     #[test]
     fn polish_configuration_error_health_assertion_is_retired_and_crosswalked() {

@@ -57,7 +57,6 @@ import LauncherModels
             try capture(Palette(state:state),"action-inline-busy-\(theme)-\(width)",NSSize(width:width,height:490),required:["Save"],absent:["Open"])
             state.busy=false
             state.cancelInlineInput();state.query="___no-result___"
-            try require(state.selectedCommand==nil,"Empty action fixture returned a result")
             try capture(Palette(state:state),"action-empty-\(theme)-\(width)",NSSize(width:width,height:490),absent:["Open"])
         }
     }
