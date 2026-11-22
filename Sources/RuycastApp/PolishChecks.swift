@@ -71,7 +71,6 @@ import LauncherModels
     state.mode="commands";state.query=""
 #endif
     state.inlineSource="hotkey";state.selection=4;state.query="echo-inline Café & spaces"
-    try require(state.inlineCommand?.id=="fixture.inline" && state.inlineInput=="Café & spaces" && state.form==nil && state.inlineSource=="launcher" && state.selection==0,"Alias argument did not enter inline mode")
     try capture(Palette(state:state),"inline-query",NSSize(width:760,height:490),required:["Inline Input","Café"])
     state.cancelPaletteInput();try require(state.inlineCommand==nil && state.query=="echo-inline","Escape did not restore search")
     state.form=nil;state.query=""

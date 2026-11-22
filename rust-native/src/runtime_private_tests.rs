@@ -17,6 +17,42 @@ fn original_exact_alias_title_multiterm_and_uppercase_resolution() {
 }
 
 #[test]
+fn interactive_alias_capture_resets_hotkey_source() {
+    let (_temp, mut state, _, _, _) = setup();
+    let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+    config["commands"] = json!([{
+        "id":"script.fixture",
+        "title":"Inline input",
+        "kind":"script",
+        "target":"/bin/echo",
+        "arguments":["{input}"],
+        "inputPrompt":"Text",
+        "aliases":["echo-inline"]
+    }]);
+    state.configuration.save(&config).unwrap();
+    let mut window = WindowRuntime::new(
+        crate::session::Session::new(state.configuration.current().commands.clone()),
+        Default::default(),
+        &state,
+    );
+    let (tx, _rx) = mpsc::sync_channel(8);
+    let ui = Connection::new(tx, false);
+    window.show(Some(""), Instant::now(), &ui).unwrap();
+    window.native_source = "hotkey";
+
+    ui.query("echo-inline Café & spaces");
+    process_inputs(&mut state, &mut window, &ui);
+
+    assert_eq!(window.native_source, "launcher");
+    let editor = window.editing.view().expect("inline alias editor opened");
+    assert_eq!(editor.id, "script.fixture");
+    assert_eq!(editor.mode, crate::actions::Mode::Input);
+    assert!(editor.run_inline);
+    assert_eq!(window.editing.input(editor.token).unwrap().1, "Café & spaces");
+    assert_eq!(window.session.query, "echo-inline");
+}
+
+#[test]
 fn original_bounded_typo_fallback_keeps_resolution_literal() {
     let (_temp, mut state, window, _, _) = setup();
     let mut config = serde_json::to_value(state.configuration.current()).unwrap();
