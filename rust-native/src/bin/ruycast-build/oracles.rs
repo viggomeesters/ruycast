@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "a62ffc1c1ad2e898cbb723a012c36c5aea741630d4ca7b6dbca2419e93d2c06c";
+const POLISH_CURRENT_SHA256: &str = "5f8e0fcc049c4e4c5f15e44ac334dc96e95612d175a4eb719ea4cda782d9a484";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -2017,10 +2017,20 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processSelectionAfterCapture"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift process selection assertion retired",
-            "scope": "Only the synthetic process selectedCommand identity assertion after each theme capture is retired. Both theme captures, process fixture, metric and Kill-label assertions, and one owned termination assertion remain.",
+            "scope": "Only the synthetic process selectedCommand identity assertion after each theme capture is retired. The separate process fixture and Swift preview captures are retired under checkPolish.processActionCaptures; the Rust test still checks identity before and after capture and exactly-once termination.",
             "nativeSteps": ["remaining-macos-process"],
             "nativeCases": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"],
             "originalAssertions": ["Rendering the synthetic process result in light and dark themes preserves its selected command identity."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processActionCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift process-action preview captures retired",
+            "scope": "Only the synthetic system.kill:fixture setup and its action-process-light/action-process-dark Vision captures are retired. The Rust native process-action test retains light/dark AppKit coverage, the visible Kill-label assertion, owned process identity, selection across palette capture and exactly-once termination.",
+            "nativeSteps": ["remaining-macos-process"],
+            "nativeCases": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"],
+            "originalAssertions": ["The process action menu displays its Kill action in both light and dark themes."],
+            "compatibilityNotes": ["Swift used Vision OCR on offscreen 600×490 captures. Rust reads the native AppKit action labels and retains native palette captures in both themes."],
             "productionAccepted": false
         });
     }
@@ -8426,11 +8436,15 @@ mod tests {
         assert!(native.contains(r#"capture(false,&format!("polish-empty-{theme}-{width}"),&[],&["Open"]);"#));
     }
     #[test]
-    fn polish_process_selection_assertion_is_retired_and_crosswalked() {
+    fn polish_process_selection_and_action_captures_are_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Synthetic process selection changed during rendering"));
-        assert!(source.contains("action-process-\"+theme"));
-        assert!(source.contains("required:[\"Kill\"]"));
+        assert!(!source.contains("system.kill:fixture"));
+        assert!(!source.contains("Fixture Process"));
+        assert!(!source.contains("action-process-"));
+        assert!(!source.contains("required:[\"Kill\"]"));
+        assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
+        assert!(source.contains(r#"action-\(command.kind)-\(command.id)-\(theme)-\(width)"#));
 
         let native = include_str!("../../../tests/remaining_macos_process.rs");
         let test = native
@@ -8452,6 +8466,14 @@ mod tests {
         assert_eq!(retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"]));
         assert_eq!(retired["originalAssertions"], serde_json::json!(["Rendering the synthetic process result in light and dark themes preserves its selected command identity."]));
         assert_eq!(retired["productionAccepted"], false);
+
+        let captures = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processActionCaptures"];
+        assert_eq!(captures["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(captures["status"], "source-qualified-rust-case-crosswalk; Swift process-action preview captures retired");
+        assert_eq!(captures["nativeSteps"], serde_json::json!(["remaining-macos-process"]));
+        assert_eq!(captures["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"]));
+        assert_eq!(captures["originalAssertions"], serde_json::json!(["The process action menu displays its Kill action in both light and dark themes."]));
+        assert_eq!(captures["productionAccepted"], false);
     }
     #[test]
     fn polish_configuration_error_health_assertion_is_retired_and_crosswalked() {
