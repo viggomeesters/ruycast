@@ -166,7 +166,7 @@ impl Host {
         } else if std::env::args().nth(1).as_deref() == Some("--polish-original-only") {
             let path=PathBuf::from(std::env::var_os("RUYCAST_POLISH_ORIGINAL_HOST").expect("Explicit qualified current Polish host required"));
             assert!(path.is_absolute(), "Polish host must be absolute");
-            assert_eq!(format!("{:x}",Sha256::digest(fs::read(&path).unwrap())),"1987db672c1a9770a0ccec48c5f85039c325ab72b6725ba184904f71f39635a4","Current Polish host changed");
+            assert_eq!(format!("{:x}",Sha256::digest(fs::read(&path).unwrap())),"52a7a80367ed9fc4ef864272ba67cbbbf767e1b811c58f93860cc3a999ae7e5a","Current Polish host changed");
             path
         } else if matches!(std::env::args().nth(1).as_deref(),Some("--feedback-actions-only"|"--interaction-trace-only")) {
             let path=PathBuf::from(std::env::var_os("RUYCAST_INTERACTION_TRACE_HOST").expect("Explicit qualified integrated Trace host required"));
@@ -2570,7 +2570,7 @@ fn polish_original(root: &Path) {
             }
             h.rpc(json!({"op":"show","mode":"commands","query":"echo-inline Café & spaces"}));
             h.wait(|_|h.probe(false,"read",json!({}))["runInputInline"]==true);
-            let inline=h.probe(false,"read",json!({}));assert_eq!(inline["selectedRow"],0);assert_eq!(inline["formVisible"],false);
+            let inline=h.probe(false,"read",json!({}));assert_eq!(inline["selectedId"],"script.fixture");assert_eq!(inline["editorId"],"script.fixture");assert_eq!(inline["selectedRow"],0);assert_eq!(inline["formVisible"],false);
             assert_eq!(h.probe(false,"run-inline-read",json!({}))["text"],"Café & spaces");
             h.probe(false,"dashboard-size",json!({"width":760,"height":490}));
             capture(false,&format!("polish-inline-query-{theme}"),&["Inline Input","Café & spaces","Run"],&[]);captures+=1;

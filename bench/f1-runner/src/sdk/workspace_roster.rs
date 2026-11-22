@@ -230,7 +230,7 @@ pub const CALLSITES:&[(&str,&str,&str)]=&[
 ("frozen-current/Sources/RuycastApp/SystemMonitor.swift","5a06e9fe1762b1eed1c83ac23026208f8141a2fa12fbac8bbf747f35e7a5a8bb","line 114: let window:NSWindow"),
 ("frozen-current/Sources/RuycastApp/SystemMonitor.swift","5a06e9fe1762b1eed1c83ac23026208f8141a2fa12fbac8bbf747f35e7a5a8bb","line 116: window=NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:640),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)"),
 ("frozen-current/Sources/RuycastApp/SystemMonitor.swift","5a06e9fe1762b1eed1c83ac23026208f8141a2fa12fbac8bbf747f35e7a5a8bb","line 121: func show() {if !window.isVisible {window.center()};window.deminiaturize(nil);window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true);model.start()}"),
-("frozen-current/Sources/RuycastApp/PolishChecks.swift","fb758066cfed57828e56eae9e88f52c9cda498bca1dedb93c4b186bda1770a00","line 8: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)"),
+("frozen-current/Sources/RuycastApp/PolishChecks.swift","66738243358f6e762a7e71dae4da4cca72ad4a85a8f89164cd172527311abe18","line 8: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)"),
 ("frozen-current/Sources/RuycastApp/ScriptChoiceChecks.swift","7d98578478074c4c8c25d39ffc0dda8048debadd62f643ef1265700d449336cc","line 7: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)"),
 ("frozen-current/Sources/RuycastApp/SnippetChoice.swift","3d43c84d15dc76aaed1a38c5e7d4131232168fb0d0723c79e52deb1e447b9d69","line 46: final class SnippetChoicePanel:NSPanel {"),
 ("frozen-current/Sources/RuycastApp/SnippetChoice.swift","3d43c84d15dc76aaed1a38c5e7d4131232168fb0d0723c79e52deb1e447b9d69","line 108: private var panel:NSPanel?"),

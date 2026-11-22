@@ -3379,6 +3379,7 @@ fn capture_inline_query(state: &SharedState, window: &mut WindowRuntime, ui: &Co
     {
         return;
     }
+    window.native_source = "launcher";
     window
         .editing
         .open(&state.configuration, command, crate::actions::Mode::Input);
