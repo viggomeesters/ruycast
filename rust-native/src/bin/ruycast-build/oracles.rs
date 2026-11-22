@@ -855,7 +855,6 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "3bf83a85e045751ce320217f5865976b0be7edc28205a991ea51720e1ee15754";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -1489,7 +1488,7 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/AppleShortcutChecks.swift",
             APPLE_SHORTCUTS_ORACLE_SHA256,
         )),
-        "--check-polish" => Some(("Sources/RuycastApp/PolishChecks.swift", POLISH_CURRENT_SHA256)),
+        "--check-polish" => Some(("Sources/RuycastApp/PolishChecks.swift", POLISH_ORACLE_SHA256)),
         "--check-settings" => Some(("Sources/RuycastApp/SettingsChecks.swift", SETTINGS_ORACLE_SHA256)),
         "--check-feedback" => Some(("Sources/RuycastApp/FeedbackChecks.swift", FEEDBACK_ORACLE_SHA256)),
         _ => None,
@@ -1547,7 +1546,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-actions-menu" => Some(ACTIONS_MENU_ORACLE_SHA256),
             "--check-rich-resources" => Some(RICH_RESOURCES_ORACLE_SHA256),
             "--check-apple-shortcuts" => Some(APPLE_SHORTCUTS_ORACLE_SHA256),
-            "--check-polish" => Some(POLISH_CURRENT_SHA256),
+            "--check-polish" => Some(POLISH_ORACLE_SHA256),
             "--check-settings" => Some(SETTINGS_ORACLE_SHA256),
             "--check-feedback" => Some(FEEDBACK_ORACLE_SHA256),
             _ => None,
@@ -1808,7 +1807,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.keyboardHealth"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift keyboard-health tuples retired",
-            "scope": "Only the combined Swift assertion covering three AppState.keyboardHealth preference/trust/conflict tuples is retired. The healthStates output, menu icon, catalog check, captures, and --check-polish route remain active. The separate configuration-error assertion is retired under checkPolish.configurationErrorHealth and remains in the Rust unit crosswalk.",
+            "scope": "Earlier incremental retirement: Only the combined Swift assertion covering three AppState.keyboardHealth preference/trust/conflict tuples is retired. The healthStates output, menu icon, catalog check, captures, and the Rust historical --check-polish gate selector and Rust case bindings are retained. The separate configuration-error assertion is retired under checkPolish.configurationErrorHealth and remains in the Rust unit crosswalk. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit"],
             "nativeCases": ["runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"],
             "originalAssertions": ["Hyper enabled with Raycast active reports unhealthy.", "Snippet expansion enabled without Accessibility trust reports unhealthy.", "Both preferences disabled remains healthy despite Raycast active and missing Accessibility trust."],
@@ -1817,7 +1816,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.configurationErrorHealth"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift configuration-health assertion retired",
-            "scope": "Only the Swift runtime-health assertion and its local fixture error set/reset are retired. Other Polish fixtures, health output, captures and --check-polish remain active.",
+            "scope": "Earlier incremental retirement: Only the Swift runtime-health assertion and its local fixture error set/reset are retired. Other Polish fixtures, health output, captures and the Rust historical --check-polish gate selector and Rust case bindings are retained. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit"],
             "nativeCases": ["runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"],
             "originalAssertions": ["A configuration error makes runtime health unhealthy."],
@@ -1826,7 +1825,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.menuIconTemplateState"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift menu-icon template assertion retired",
-            "scope": "Only the local assertion that the healthy AppBrand menu image is a template and the unhealthy image is not is retired. Production Swift menu-icon code and all other Polish checks remain active.",
+            "scope": "Earlier incremental retirement: Only the local assertion that the healthy AppBrand menu image is a template and the unhealthy image is not is retired. Production Swift menu-icon code and all other Polish checks remain active. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit"],
             "nativeCases": ["native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description"],
             "originalAssertions": ["Healthy menu icon has template status true.", "Unhealthy menu icon has template status false."],
@@ -1835,7 +1834,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.partialDateValidity"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift Polish partial-date validity assertion retired",
-            "scope": "The Swift `in 3` input and invalid-date preview capture are retired with the date-preview block. The Rust task-date process still renders `Datum niet herkend`, refuses submission without execution, and retains the frozen-date checks and --check-polish route.",
+            "scope": "Earlier incremental retirement: The Swift `in 3` input and invalid-date preview capture are retired with the date-preview block. The Rust task-date process still renders `Datum niet herkend`, refuses submission without execution, and retains the frozen-date checks; the Rust historical --check-polish selector and Rust case bindings are retained. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit", "task-date-process"],
             "nativeCases": ["task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock", "ui_completion::task_date"],
             "originalAssertions": ["The partial date `in 3` is invalid."],
@@ -1844,7 +1843,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.invalidDateSubmission"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift invalid-date submission/refusal assertion retired",
-            "scope": "The Swift `in 3` submission/refusal and preview captures are retired with the date-preview block. The Rust task-date process sends Return and verifies editor-token/inline-mode retention with no child or usage, while retaining invalid and clear preview captures in both themes.",
+            "scope": "Earlier incremental retirement: The Swift `in 3` submission/refusal and preview captures are retired with the date-preview block. The Rust task-date process sends Return and verifies editor-token/inline-mode retention with no child or usage, while retaining invalid and clear preview captures in both themes. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["Submitting the invalid date keeps the inline command active and does not execute its target."],
@@ -1853,7 +1852,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet-alias search assertion retired",
-            "scope": "Only the Swift `salutation` query result-set assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while --check-polish remains active.",
+            "scope": "Earlier incremental retirement: Only the Swift `salutation` query result-set assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while the Rust historical --check-polish gate selector and Rust case bindings are retained. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["The alias query `salutation` returns exactly `fixture.greet`."],
@@ -1862,7 +1861,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetKeywordSearch"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet-keyword search assertion retired",
-            "scope": "Only the Swift `longsnippet` keyword-result assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while --check-polish remains active.",
+            "scope": "Earlier incremental retirement: Only the Swift `longsnippet` keyword-result assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while the Rust historical --check-polish gate selector and Rust case bindings are retained. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["Typing `longsnippet` selects exactly the `fixture.long` snippet by its `;longsnippet` keyword."],
@@ -1871,7 +1870,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetArrowSelection"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet arrow-selection assertion retired",
-            "scope": "Only the Swift arrow-key selected-snippet assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while --check-polish remains active.",
+            "scope": "Earlier incremental retirement: Only the Swift arrow-key selected-snippet assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while the Rust historical --check-polish gate selector and Rust case bindings are retained. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["After moving down once from the first row, `fixture.long` is selected."],
@@ -1880,7 +1879,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardGeometry"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift clipboard geometry assertion retired",
-            "scope": "Only the Swift clipboard-frame growth and screen-containment assertion is retired. The native Rust polish-original process checks the same screen bounds in both context themes; the three Swift clipboard preview captures are retired separately under checkPolish.clipboardPreviewCaptures.",
+            "scope": "Earlier incremental retirement: Only the Swift clipboard-frame growth and screen-containment assertion is retired. The native Rust polish-original process checks the same screen bounds in both context themes; the three Swift clipboard preview captures are retired separately under checkPolish.clipboardPreviewCaptures. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The clipboard frame is larger than the normal frame and stays within the full screen bounds."],
@@ -1889,7 +1888,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardPreviewCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift clipboard preview captures retired",
-            "scope": "Only the Swift clipboard-large, clipboard-small and clipboard-cleared Vision captures and their clipboard-only fixture setup are retired. The Rust polish-original process retains native PNG captures, visible-text checks, size checks and the separate clipboard-geometry assertion in light and dark themes.",
+            "scope": "Earlier incremental retirement: Only the Swift clipboard-large, clipboard-small and clipboard-cleared Vision captures and their clipboard-only fixture setup are retired. The Rust polish-original process retains native PNG captures, visible-text checks, size checks and the separate clipboard-geometry assertion in light and dark themes. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Large clipboard preview shows readable content.", "Small clipboard preview retains its requested size.", "Cleared clipboard shows the empty state and no old text."],
@@ -1899,7 +1898,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift natural-date validity assertion retired",
-            "scope": "The Swift `morgen` input, inline-preview capture, and date-preview setup are retired. Rust task-date checks the actual localized AppKit label against the resolver at timestamps bracketing native input; its native PNG capture and the remaining frozen submission, refusal, and clear assertions remain.",
+            "scope": "Earlier incremental retirement: The Swift `morgen` input, inline-preview capture, and date-preview setup are retired. Rust task-date checks the actual localized AppKit label against the resolver at timestamps bracketing native input; its native PNG capture and the remaining frozen submission, refusal, and clear assertions remain. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit", "task-date-process"],
             "nativeCases": ["task_date::tests::original_natural_date_vectors_and_labels_match", "ui_completion::task_date"],
             "originalAssertions": ["Natural input `morgen` produces a valid inline date preview."],
@@ -1908,7 +1907,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.datePreviewCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift task-date preview captures retired",
-            "scope": "Only the three Swift date-valid/date-invalid/date-clear Vision captures and their Swift-only fixture setup are retired. The --check-polish route and all other captures remain active; the Rust task-date process retains native PNG captures in both themes.",
+            "scope": "Earlier incremental retirement: Only the three Swift date-valid/date-invalid/date-clear Vision captures and their Swift-only fixture setup are retired. The Rust historical --check-polish selector and its Rust case bindings are retained; the Rust task-date process retains native PNG captures in both themes. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["`morgen` shows the exact localized date label and hides YYYY-MM-DD.", "`in 3` shows Datum niet herkend.", "`clear` shows Datum wissen."],
@@ -1918,7 +1917,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.frozenDateSubmissionValue"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift frozen-date submission value assertion retired",
-            "scope": "The Swift frozen-preview and date-valid/date-invalid/date-clear captures are retired with the date-preview block. Rust task-date retains a frozen preview capture and verifies that the actual child output equals its displayed date; the refusal checks and --check-polish route remain active.",
+            "scope": "Earlier incremental retirement: The Swift frozen-preview and date-valid/date-invalid/date-clear captures are retired with the date-preview block. Rust task-date retains a frozen preview capture and verifies that the actual child output equals its displayed date; the refusal checks and the Rust historical --check-polish gate selector and Rust case bindings are retained. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["The script receives exactly the frozen date shown to the user."],
@@ -1927,7 +1926,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift default management-command assertion retired",
-            "scope": "Only the Swift assertion that the default systemCommands contain four built-in IDs is retired. The custom system-monitor override assertion has its own retirement crosswalk. The managementBuiltins output, captures, and --check-polish route remain active; configuration-error health is covered by the Rust settings-presentation unit case.",
+            "scope": "Earlier incremental retirement: Only the Swift assertion that the default systemCommands contain four built-in IDs is retired. The custom system-monitor override assertion has its own retirement crosswalk. The managementBuiltins output, captures, and the Rust historical --check-polish gate selector and Rust case bindings are retained; configuration-error health is covered by the Rust settings-presentation unit case. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit"],
             "nativeCases": ["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"],
             "originalAssertions": ["Default system commands include builtin.settings.", "Default system commands include builtin.open-config.", "Default system commands include builtin.reload-config.", "Default system commands include builtin.system-monitor."],
@@ -1936,7 +1935,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.customSystemMonitorOverride"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift system-monitor override assertion retired",
-            "scope": "Only the Swift custom system-monitor target override fixture/assertion is retired. The Rust catalog test now covers this exact target collision; default command ordering, managementBuiltins output, captures, and --check-polish remain active. Configuration-error health is covered by the Rust settings-presentation unit case.",
+            "scope": "Earlier incremental retirement: Only the Swift custom system-monitor target override fixture/assertion is retired. The Rust catalog test now covers this exact target collision; default command ordering, managementBuiltins output, captures, and the Rust historical --check-polish gate selector and Rust case bindings are retained. Configuration-error health is covered by the Rust settings-presentation unit case. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit"],
             "nativeCases": ["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"],
             "originalAssertions": ["A custom builtin targeting system-monitor suppresses the default builtin.system-monitor entry."],
@@ -1945,7 +1944,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias Enter assertion retired",
-            "scope": "Only the Swift duplicate one-shot Enter assertion and its result-summary fields are retired here. The alias fixture/input mode assertion is crosswalked separately as checkPolish.inlineAliasMode; the inline-query screenshot/setup is retired separately as checkPolish.inlineQueryCapture, while expanded-input behavior and --check-polish remain active. Escape restoration has its own crosswalk.",
+            "scope": "Earlier incremental retirement: Only the Swift duplicate one-shot Enter assertion and its result-summary fields are retired here. The alias fixture/input mode assertion is crosswalked separately as checkPolish.inlineAliasMode; the inline-query screenshot/setup is retired separately as checkPolish.inlineQueryCapture, while expanded-input behavior and the Rust historical --check-polish gate selector and Rust case bindings are retained. Escape restoration has its own crosswalk. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Enter executes the inline alias exactly once; a repeated Enter while busy does not duplicate execution."],
@@ -1954,7 +1953,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasMode"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias mode assertion retired",
-            "scope": "Only the direct inline-alias mode/state assertion is retired. Keep its input fixture and expanded-input scenario; the inline-query screenshot/setup is retired separately as checkPolish.inlineQueryCapture. The Rust runtime test proves a launcher alias resets a prior hotkey source and opens script.fixture as an inline editor, while polish-original-process checks selection, active editor, row 0, no form and exact Unicode input. Escape restoration has its own crosswalk.",
+            "scope": "Earlier incremental retirement: Only the direct inline-alias mode/state assertion is retired. Keep its input fixture and expanded-input scenario; the inline-query screenshot/setup is retired separately as checkPolish.inlineQueryCapture. The Rust runtime test proves a launcher alias resets a prior hotkey source and opens script.fixture as an inline editor, while polish-original-process checks selection, active editor, row 0, no form and exact Unicode input. Escape restoration has its own crosswalk. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["unit", "polish-original-process"],
             "nativeCases": ["runtime::inline_tests::interactive_alias_capture_resets_hotkey_source", "ui_completion::polish_original"],
             "originalAssertions": ["The echo-inline alias opens script.fixture as the active inline editor in launcher-origin mode with the exact Unicode input and no form."],
@@ -1963,7 +1962,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift expanded inline-input assertion retired",
-            "scope": "Only the duplicate Swift expanded-inline-input assertion and its result-summary field are retired. Alias mode is crosswalked separately as checkPolish.inlineAliasMode; the inline-query screenshot/setup has its own retirement crosswalk, and --check-polish remains active. Escape restoration has its own crosswalk.",
+            "scope": "Earlier incremental retirement: Only the duplicate Swift expanded-inline-input assertion and its result-summary field are retired. Alias mode is crosswalked separately as checkPolish.inlineAliasMode; the inline-query screenshot/setup has its own retirement crosswalk, and the Rust historical --check-polish gate selector and Rust case bindings are retained. Escape restoration has its own crosswalk. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Expanding the echo-inline input preserves `First line` in the form without replacing the editor token."],
@@ -1972,7 +1971,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEscape"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias Escape assertion retired",
-            "scope": "Only the Swift assertion that Escape closes inline alias input and restores its alias query is retired. The inline-query preview setup/capture has its own retirement crosswalk; the input fixture and expanded-input scenario remain. The existing polish-original-process checks Escape before submission, then reopens the alias for the existing Enter scenario.",
+            "scope": "Earlier incremental retirement: Only the Swift assertion that Escape closes inline alias input and restores its alias query is retired. The inline-query preview setup/capture has its own retirement crosswalk; the input fixture and expanded-input scenario remain. The existing polish-original-process checks Escape before submission, then reopens the alias for the existing Enter scenario. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Escape closes inline alias input, clears the inline command, restores the `echo-inline` query, and does not execute the script."],
@@ -1981,7 +1980,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.dateDoubleSubmit"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift task-date double-submit assertion retired",
-            "scope": "The Swift date-writer fixture, two-submit assertion, natural preview and date-valid/date-invalid/date-clear captures are retired. Rust task-date-process retains exact localized preview, invalid-date refusal, clear and single-execution checks.",
+            "scope": "Earlier incremental retirement: The Swift date-writer fixture, two-submit assertion, natural preview and date-valid/date-invalid/date-clear captures are retired. Rust task-date-process retains exact localized preview, invalid-date refusal, clear and single-execution checks. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["Submitting the frozen `morgen` date twice executes one child and records one usage."],
@@ -1990,7 +1989,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.primaryActionSelection"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift primary-action selection assertion retired",
-            "scope": "Only the Swift selectedCommand ID assertion is retired. The five action fixtures, theme/width variants, captures, and --check-polish route remain active.",
+            "scope": "Earlier incremental retirement: Only the Swift selectedCommand ID assertion is retired. The five action fixtures, theme/width variants, captures, and the Rust historical --check-polish gate selector and Rust case bindings are retained. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Searching each app, snippet, inline-script, quick-note, and window title selects that fixture as the primary action."],
@@ -1999,7 +1998,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.busyPrimaryAction"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift busy primary-action assertion retired",
-            "scope": "Only the duplicate direct busy activateSelection/counts assertion is retired. Keep the busy state, five action fixtures, both widths/themes and cleanup; its Swift busy preview captures have a separate retirement crosswalk. Rust polish-original-process verifies a busy Return leaves input intact, does not start a second child and records one usage.",
+            "scope": "Earlier incremental retirement: Only the duplicate direct busy activateSelection/counts assertion is retired. Keep the busy state, five action fixtures, both widths/themes and cleanup; its Swift busy preview captures have a separate retirement crosswalk. Rust polish-original-process verifies a busy Return leaves input intact, does not start a second child and records one usage. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Activating a busy inline primary action does not submit input or change usage."],
@@ -2008,7 +2007,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.emptyActionResult"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift empty-action result assertion retired",
-            "scope": "Only the selectedCommand-is-nil assertion for the empty action query is retired here. The Swift no-result preview setup/captures have a separate retirement crosswalk; Rust polish-original-process still checks selectedId is null and captures the empty state without Open.",
+            "scope": "Earlier incremental retirement: Only the selectedCommand-is-nil assertion for the empty action query is retired here. The Swift no-result preview setup/captures have a separate retirement crosswalk; Rust polish-original-process still checks selectedId is null and captures the empty state without Open. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The unmatched action query selects no command."],
@@ -2017,7 +2016,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processSelectionAfterCapture"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift process selection assertion retired",
-            "scope": "Only the synthetic process selectedCommand identity assertion after each theme capture is retired. The separate process fixture and Swift preview captures are retired under checkPolish.processActionCaptures; the Rust test still checks identity before and after capture and exactly-once termination.",
+            "scope": "Earlier incremental retirement: Only the synthetic process selectedCommand identity assertion after each theme capture is retired. The separate process fixture and Swift preview captures are retired under checkPolish.processActionCaptures; the Rust test still checks identity before and after capture and exactly-once termination. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["remaining-macos-process"],
             "nativeCases": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"],
             "originalAssertions": ["Rendering the synthetic process result in light and dark themes preserves its selected command identity."],
@@ -2026,7 +2025,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processActionCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift process-action preview captures retired",
-            "scope": "Only the synthetic system.kill:fixture setup and its action-process-light/action-process-dark Vision captures are retired. The Rust native process-action test retains light/dark AppKit coverage, the visible Kill-label assertion, owned process identity, selection across palette capture and exactly-once termination.",
+            "scope": "Earlier incremental retirement: Only the synthetic system.kill:fixture setup and its action-process-light/action-process-dark Vision captures are retired. The Rust native process-action test retains light/dark AppKit coverage, the visible Kill-label assertion, owned process identity, selection across palette capture and exactly-once termination. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["remaining-macos-process"],
             "nativeCases": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"],
             "originalAssertions": ["The process action menu displays its Kill action in both light and dark themes."],
@@ -2036,7 +2035,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.commandEditorLayoutCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift command-editor layout captures retired",
-            "scope": "Only the one-off script CommandEditor fixture and its editor-closed/editor-expanded Vision captures are retired. The Rust script-advanced process retains both themes, visible Name and Advanced labels, hidden closed fields, visible expanded labels, unhidden expanded fields, document growth and native captures at multiple sizes.",
+            "scope": "Earlier incremental retirement: Only the one-off script CommandEditor fixture and its editor-closed/editor-expanded Vision captures are retired. The Rust script-advanced process retains both themes, visible Name and Advanced labels, hidden closed fields, visible expanded labels, unhidden expanded fields, document growth and native captures at multiple sizes. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["script-advanced-process"],
             "nativeCases": ["ui_completion::script_advanced"],
             "originalAssertions": ["Closed script editor shows Name and Advanced while hiding Arguments, Timeout and Executable.", "Expanded script editor shows Advanced, Arguments and Timeout."],
@@ -2046,7 +2045,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.launcherPreviewCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift launcher preview captures retired",
-            "scope": "Only the four Swift launcher-system/light/dark/graphite Vision captures and their Create-absent OCR assertion/summary field are retired. The settings preview set has its own crosswalk; remaining action previews and the shared --check-polish route remain active. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
+            "scope": "Earlier incremental retirement: Only the four Swift launcher-system/light/dark/graphite Vision captures and their Create-absent OCR assertion/summary field are retired. The settings preview set has its own crosswalk; remaining action previews and the Rust historical --check-polish gate selector and Rust case bindings are retained. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Create is absent from the launcher preview in system, light, dark and graphite themes."],
@@ -2056,7 +2055,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.settingsPreviewCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift settings preview captures retired",
-            "scope": "Only the four Swift General-settings system/light/dark/graphite Vision captures and their Theme/Menu Bar Icon OCR assertions are retired. The existing Rust four-theme settings capture remains; other Polish cases stay active. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
+            "scope": "Earlier incremental retirement: Only the four Swift General-settings system/light/dark/graphite Vision captures and their Theme/Menu Bar Icon OCR assertions are retired. The existing Rust four-theme settings capture remains; other Polish cases stay active. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The General settings preview shows Theme and Menu Bar Icon in system, light, dark and graphite themes."],
@@ -2066,7 +2065,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineQueryCapture"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift inline-query preview capture retired",
-            "scope": "Only the Swift hotkey-source setup, one inline-query Vision capture and its related cancellation are retired. The subsequent form/query reset remains. Rust polish-original-process retains the exact Unicode inline text, selected command/editor, visible action label, native captures, Escape restoration, Enter submission and expanded-input behavior; remaining action captures remain. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
+            "scope": "Earlier incremental retirement: Only the Swift hotkey-source setup, one inline-query Vision capture and its related cancellation are retired. The subsequent form/query reset remains. Rust polish-original-process retains the exact Unicode inline text, selected command/editor, visible action label, native captures, Escape restoration, Enter submission and expanded-input behavior; remaining action captures remain. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The inline alias query displays Inline Input and Café in the selected action preview."],
@@ -2076,7 +2075,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineSaveCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift idle inline-save preview captures retired",
-            "scope": "Only the four idle action-inline-save light/dark 600/760 Vision captures and their Save-present/Open-absent OCR assertion are retired. Keep the shared command/input setup and other action/inline cases; busy-save captures have a separate retirement crosswalk. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
+            "scope": "Earlier incremental retirement: Only the four idle action-inline-save light/dark 600/760 Vision captures and their Save-present/Open-absent OCR assertion are retired. Keep the shared command/input setup and other action/inline cases; busy-save captures have a separate retirement crosswalk. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The idle quick-note preview shows Save and hides Open in both themes and widths."],
@@ -2086,7 +2085,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineBusyCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift busy inline-save preview captures retired",
-            "scope": "Only the four busy action-inline-busy light/dark 600/760 Vision captures and their Save-present/Open-absent OCR assertion are retired. Keep input setup, busy-state mutation/reset, and other action cases.",
+            "scope": "Earlier incremental retirement: Only the four busy action-inline-busy light/dark 600/760 Vision captures and their Save-present/Open-absent OCR assertion are retired. Keep input setup, busy-state mutation/reset, and other action cases. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["While the inline note preview is marked busy, Save remains visible and Open stays absent in both themes and widths."],
@@ -2096,7 +2095,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.emptyActionCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift empty-action preview captures retired",
-            "scope": "Only the four Swift action-empty light/dark 600/760 no-result preview setups/captures and their Open-absent OCR assertion are retired. The surrounding command reset and other action/inline cases remain. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
+            "scope": "Earlier incremental retirement: Only the four Swift action-empty light/dark 600/760 no-result preview setups/captures and their Open-absent OCR assertion are retired. The surrounding command reset and other action/inline cases remain. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The unmatched-action preview hides Open in both themes and widths."],
@@ -2106,11 +2105,22 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetBindingCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift snippet-binding preview captures retired",
-            "scope": "Only the four Swift snippet-binding light/dark captures at 600/760 widths and their OCR checks, their now-unused snippet fixture setup and two stale success-summary fields are retired. Rust polish-bindings-process retains both themes and widths, verifies snippet titles, aliases, keywords and Set Hotkey in native screen text, confirms the technical Keyword label stays hidden, checks that the footer is present/enabled with the expected title, and captures the native palette. The shared form/query cleanup and unrelated action previews remain.",
+            "scope": "Earlier incremental retirement: Only the four Swift snippet-binding light/dark captures at 600/760 widths and their OCR checks, their now-unused snippet fixture setup and two stale success-summary fields are retired. Rust polish-bindings-process retains both themes and widths, verifies snippet titles, aliases, keywords and Set Hotkey in native screen text, confirms the technical Keyword label stays hidden, checks that the footer is present/enabled with the expected title, and captures the native palette. The shared form/query cleanup and unrelated action previews remain. Current state: this change removes the Swift helper, its fixtures and result fields, and every remaining Swift capture; it retains the Rust historical selector and Rust validation cases.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["At 760 pixels, the light and dark snippet previews show Set Hotkey, `greetsnippet`, Aliases, `hello`, `greeting`, `salutation`, `final-alias` and Unbound snippet while hiding Keyword.", "At 600 pixels, the light and dark snippet previews show Set Hotkey, `salutation`, `final-alias` and Unbound snippet while hiding Keyword."],
             "compatibilityNotes": ["Swift used Vision OCR on offscreen 760×490 and 600×490 palette images. Rust reads native AppKit screen text including Set Hotkey, checks the actual palette width, verifies the footer is present/enabled with the expected title, and retains native captures for both widths in light and dark."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.actionPreviewCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift action preview captures retired",
+            "scope": "Retires the final twenty Swift screenshots: five action preview archetypes across light/dark themes and 600/760 widths. These screenshots had no required or forbidden OCR assertions; no pixel-equivalence claim is made.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "swiftOriginalCaptures": 20,
+            "originalAssertions": [],
+            "compatibilityNotes": ["The Rust route exercises the five action preview states, checks selected IDs, titles and action text using actual native screen text, and retains its own native captures. The historical Swift screenshots are retained only as provenance; they are not recreated or used as build inputs."] ,
             "productionAccepted": false
         });
     }
@@ -3629,11 +3639,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/ClipboardPreviewChecks.swift";
         assert!(!root.join(retired).exists());
-        let polish = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!polish.contains("checkClipboardPreviewCancellation"));
-        assert!(!polish.contains("previewCancellation"));
-        assert!(!polish.contains("clipboardLargeAndSmall"));
-        assert!(!polish.contains("clearedPreviewContentRemoved"));
+        assert!(!root.join("Sources/RuycastApp/PolishChecks.swift").exists());
 
         let policy = include_str!("../ruycast-source/policy.rs");
         assert!(!policy.lines().any(|line| line == retired));
@@ -8156,7 +8162,7 @@ mod tests {
     fn polish_provenance_preserves_current_inputs_cases_routes_and_status() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
         let inputs = settings_sources(gate.id);
-        let provenance = (gate.original_source, POLISH_CURRENT_SHA256);
+        let provenance = (gate.original_source, POLISH_ORACLE_SHA256);
         let bindings = settings_source_bindings(gate.id);
         let case_sources = [
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
@@ -8192,922 +8198,72 @@ mod tests {
         assert!(!inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
-    fn polish_keyboard_health_swift_tuples_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Keyboard health misses conflicts or disabled preferences"));
-        assert!(source.contains("healthStates"));
-        let inventory = inventory("settings").unwrap();
-        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.keyboardHealth"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"]));
-        assert_eq!(retired["originalAssertions"].as_array().unwrap().len(), 3);
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.native_cases.contains(&"runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"));
-    }
-    #[test]
-    fn polish_menu_icon_template_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Health glyph states are missing"));
-        assert!(source.contains("healthStates"));
-        let inventory = inventory("settings").unwrap();
-        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.menuIconTemplateState"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description"]));
-        assert_eq!(retired["originalAssertions"].as_array().unwrap().len(), 2);
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.native_cases.contains(&"native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description"));
-    }
-    #[test]
-    fn polish_default_management_commands_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Launcher management actions missing"));
-        assert!(!source.contains("Duplicate built-in target in catalog"));
-        assert!(!source.contains("existing.monitor"));
-        assert!(source.contains("managementBuiltins"));
-        let inventory = inventory("settings").unwrap();
-        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"]));
-        assert_eq!(retired["originalAssertions"].as_array().unwrap().len(), 4);
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.native_cases.contains(&"management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"));
-    }
-    #[test]
-    fn polish_system_monitor_override_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Duplicate built-in target in catalog"));
-        assert!(!source.contains("existing.monitor"));
-        assert!(source.contains("managementBuiltins"));
-        let native = include_str!("../../management_commands.rs");
-        assert!(native.contains("assert!(!system(&saved).iter().any(|command|command.target==\"system-monitor\"));"));
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.customSystemMonitorOverride"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["A custom builtin targeting system-monitor suppresses the default builtin.system-monitor entry."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.native_cases.contains(&"management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"));
-    }
-    #[test]
-    fn polish_inline_alias_enter_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Inline Enter failed or duplicated execution"));
-        assert!(!source.contains("inlineAliasAndEnter"));
-        assert!(!source.contains("inlineSubmitOnce"));
-        assert!(!source.contains("Alias argument did not enter inline mode"));
-        assert!(!source.contains("inline-query"));
-        assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(!source.contains("snippet-bindings-"));
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Enter executes the inline alias exactly once; a repeated Enter while busy does not duplicate execution."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"unit"));
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"runtime::inline_tests::interactive_alias_capture_resets_hotkey_source"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-        let runtime = include_str!("../../runtime.rs");
-        assert!(runtime.contains("window.native_source = \"launcher\";"));
-        let runtime_test = include_str!("../../runtime_private_tests.rs");
-        assert!(runtime_test.contains("fn interactive_alias_capture_resets_hotkey_source()"));
-        assert!(runtime_test.contains("ui.query(\"echo-inline Café & spaces\")"));
-        assert!(runtime_test.contains("assert_eq!(window.native_source, \"launcher\")"));
-        let native = include_str!("../../../examples/ui_completion.rs");
-        assert!(native.contains("echo-inline Café & spaces"));
-        assert!(native.contains("h.rpc(json!({\"op\":\"usage\"}))[\"script.fixture\"],1"));
-    }
-    #[test]
-    fn polish_inline_alias_mode_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Alias argument did not enter inline mode"));
-        assert!(!source.contains("state.inlineSource=\"hotkey\";state.selection=4;state.query=\"echo-inline Café & spaces\""));
-        assert!(!source.contains("inline-query"));
-        assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(!source.contains("snippet-bindings-"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasMode"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit", "polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["runtime::inline_tests::interactive_alias_capture_resets_hotkey_source", "ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["The echo-inline alias opens script.fixture as the active inline editor in launcher-origin mode with the exact Unicode input and no form."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            "h.rpc(json!({\"op\":\"show\",\"mode\":\"commands\",\"query\":\"echo-inline Café & spaces\"}));",
-            "assert_eq!(inline[\"selectedId\"],\"script.fixture\");",
-            "assert_eq!(inline[\"editorId\"],\"script.fixture\");",
-            "assert_eq!(inline[\"selectedRow\"],0);",
-            "assert_eq!(inline[\"formVisible\"],false);",
-            "[\"text\"],\"Café & spaces\"",
-            "entries.iter().all(|entry|entry[\"source\"]==\"launcher\")",
-        ] {
-            assert!(native.contains(retained), "missing Rust inline-alias mode assertion: {retained}");
-        }
-    }
-    #[test]
-    fn polish_inline_alias_escape_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Escape did not restore search"));
-        assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(!source.contains("inline-query"));
-        assert!(!source.contains("snippet-bindings-"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEscape"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Escape closes inline alias input, clears the inline command, restores the `echo-inline` query, and does not execute the script."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        assert!(native.contains("let restored=h.probe(false,\"read\",json!({}));"));
-        assert!(native.contains("assert_eq!(restored[\"runInputInline\"],false);"));
-        assert!(native.contains("assert_eq!(restored[\"modelQuery\"],\"echo-inline\");"));
-        assert!(native.contains("Escape executed the inline alias"));
-    }
-    #[test]
-    fn polish_expanded_inline_input_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Expanded input lost text"));
-        assert!(!source.contains("expandedInputPreserved"));
-        assert!(!source.contains("state.expandInlineInput()"));
-        assert!(!source.contains("Alias argument did not enter inline mode"));
-        assert!(!source.contains("inline-query"));
-        assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(!source.contains("snippet-bindings-"));
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Expanding the echo-inline input preserves `First line` in the form without replacing the editor token."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-        let native = include_str!("../../../examples/ui_completion.rs");
-        assert!(native.contains(r#"h.probe(false,"run-inline-type",json!({"text":"First line"}));"#));
-        assert!(native.contains(r#"assert_eq!(h.probe(false,"run-input-read",json!({}))["text"],"First line");"#));
-        assert!(native.contains(r#"assert_eq!(h.probe(false,"read",json!({}))["editorToken"],token);"#));
-    }
-    #[test]
-    fn polish_date_double_submit_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Date Enter failed or ran twice"));
-        assert!(!source.contains("fixture.date-write"));
-        assert!(!source.contains("date-result.txt"));
-        for retired in ["date-valid", "date-invalid", "date-clear", "state.inlineInput=\"morgen\"", "state.inlineInput=\"in 3\""] {
-            assert!(!source.contains(retired), "Swift date-preview scenario remains: {retired}");
-        }
-        assert!(!source.contains("Invalid date executed or discarded input"));
-        assert!(!source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
-        assert!(!source.contains("state.cancelInlineInput();state.message=\"\""));
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.dateDoubleSubmit"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["task-date-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::task_date"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Submitting the frozen `morgen` date twice executes one child and records one usage."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"task-date-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::task_date"));
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [r#"type_value(true,"morgen");"#, r#"type_value(true,"in 3");"#, r#"type_value(true,"clear");"#, r#"capture("valid""#, r#"capture("invalid""#, r#"capture("clear""#] {
-            assert!(native.contains(retained), "missing retained Rust date-preview behavior: {retained}");
-        }
-        assert!(native.contains(r#"key(36,0,"\r");key(36,0,"\r");"#));
-        assert!(native.contains(r#"assert_eq!(fs::read(&marker).unwrap(),b"run\n","Double Return executed the real child twice");"#));
-        assert!(native.contains(r#"assert_eq!(h.rpc(json!({"op":"usage"}))["date.fixture"],1);"#));
-    }
-    #[test]
-    fn polish_date_preview_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        for retired in ["date-valid", "date-invalid", "date-clear", "Deadline (YYYY-MM-DD of clear)"] {
-            assert!(!source.contains(retired), "Swift date-preview setup remains: {retired}");
-        }
-        assert!(!source.contains("snippet-bindings-"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            r#"type_value(true,"morgen");"#,
-            r#"type_value(true,"in 3");"#,
-            r#"type_value(true,"clear");"#,
-            r#"capture("valid""#,
-            r#"capture("invalid""#,
-            r#"capture("clear""#,
-            "expected.iter().any(|label|label==rendered)",
-            r#""taskDate":true"#,
-        ] {
-            assert!(native.contains(retained), "missing Rust date-preview behavior: {retained}");
-        }
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.datePreviewCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["task-date-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::task_date"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["`morgen` shows the exact localized date label and hides YYYY-MM-DD.", "`in 3` shows Datum niet herkend.", "`clear` shows Datum wissen."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 760×480 PNGs. Rust reads actual AppKit screenText and retains native PNG captures in light and dark themes."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_primary_action_selection_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Primary action fixture selection changed"));
-        for retained in ["app.finder", "snippet.greeting", "fixture.inline", "capture.quick-note", "fixture.window", "action-\\(command.kind", "for width in [600,760]"] {
-            assert!(source.contains(retained), "missing retained primary-action capture input: {retained}");
-        }
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.primaryActionSelection"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Searching each app, snippet, inline-script, quick-note, and window title selects that fixture as the primary action."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-        let native = include_str!("../../../examples/ui_completion.rs");
-        assert!(native.contains(r#"h.wait(|s|s["nativeUI"]["selectedId"]==id);"#));
-        assert!(native.contains(r#""app.fixture","Synthetic app","Open""#));
-        assert!(native.contains(r#""snippet.fixture","Synthetic snippet","Insert Snippet""#));
-        assert!(native.contains(r#""script.fixture","Inline Input","Run""#));
-        assert!(native.contains(r#""capture.quick-note","Quick Note","Save""#));
-        assert!(native.contains(r#""window.fixture","Left Half","Run""#));
-    }
-    #[test]
-    fn polish_busy_primary_action_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("let completedBefore=state.counts"));
-        assert!(!source.contains("Busy primary action changed or submitted input"));
-        assert!(!source.contains("state.activateSelection()"));
-        assert!(source.contains("state.busy=true"));
-        assert!(!source.contains("action-inline-busy-\\(theme)-\\(width)"));
-        assert!(source.contains("for width in [600,760]"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.busyPrimaryAction"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Activating a busy inline primary action does not submit input or change usage."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            r#"key(36,0,"\r");h.wait(|s|s["scriptsRunning"]==1"#,
-            r#"assert_eq!(h.probe(false,"read",json!({}))["input"],"Example note","Busy Return changed capture input");"#,
-            r#"assert_eq!(h.rpc(json!({"op":"status"}))["scriptsRunning"],1,"Busy capture already completed");"#,
-            r#"assert_eq!(h.rpc(json!({"op":"usage"}))["capture.quick-note"],1);"#,
-        ] {
-            assert!(native.contains(retained), "missing Rust busy-action behavior: {retained}");
-        }
-    }
-    #[test]
-    fn polish_empty_action_result_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Empty action fixture returned a result"));
-        assert!(!source.contains("state.selectedCommand==nil"));
-        assert!(!source.contains("state.query=\"___no-result___\""));
-        assert!(!source.contains("action-empty-\\(theme)-\\(width)"));
-        assert!(!source.contains("absent:[\"Open\"]"));
-        assert!(!source.contains("state.cancelInlineInput();state.query=\"___no-result___\""));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.emptyActionResult"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["The unmatched action query selects no command."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        assert!(native.contains(r#"h.rpc(json!({"op":"show","mode":"commands","query":"___no-result___"}));h.settled();"#));
-        assert!(native.contains(r#"assert!(h.probe(false,"read",json!({}))["selectedId"].is_null());"#));
-        assert!(native.contains(r#"capture(false,&format!("polish-empty-{theme}-{width}"),&[],&["Open"]);"#));
-    }
-    #[test]
-    fn polish_empty_action_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("action-empty-"));
-        assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
-        assert!(source.contains("state.cancelInlineInput()"));
-        assert!(!source.contains("snippet-bindings-"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            r#"h.rpc(json!({"op":"show","mode":"commands","query":"___no-result___"}));h.settled();"#,
-            r#"assert!(h.probe(false,"read",json!({}))["selectedId"].is_null());"#,
-            r#"capture(false,&format!("polish-empty-{theme}-{width}"),&[],&["Open"]);"#,
-        ] {
-            assert!(native.contains(retained), "missing Rust empty-action behavior: {retained}");
-        }
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.emptyActionCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_process_selection_and_action_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Synthetic process selection changed during rendering"));
-        assert!(!source.contains("system.kill:fixture"));
-        assert!(!source.contains("Fixture Process"));
-        assert!(!source.contains("action-process-"));
-        assert!(!source.contains("required:[\"Kill\"]"));
-        assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
-        assert!(source.contains(r#"action-\(command.kind)-\(command.id)-\(theme)-\(width)"#));
-
-        let native = include_str!("../../../tests/remaining_macos_process.rs");
-        let test = native
-            .split_once("fn native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes()")
-            .unwrap()
-            .1
-            .split_once("\n}\n")
-            .unwrap()
-            .0;
-        assert!(test.contains("let selected_before = menu[\"selectedId\"].as_str().unwrap();"));
-        assert!(test.contains("id == selected_before && [730011, 730012].contains(pid)"));
-        assert!(test.contains("assert_eq!(capture[\"result\"][\"selectedId\"], selected_before);"));
-        assert!(test.contains(r#"json!(["terminate-owned"])"#));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processSelectionAfterCapture"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["remaining-macos-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Rendering the synthetic process result in light and dark themes preserves its selected command identity."]));
-        assert_eq!(retired["productionAccepted"], false);
-
-        let captures = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processActionCaptures"];
-        assert_eq!(captures["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(captures["status"], "source-qualified-rust-case-crosswalk; Swift process-action preview captures retired");
-        assert_eq!(captures["nativeSteps"], serde_json::json!(["remaining-macos-process"]));
-        assert_eq!(captures["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"]));
-        assert_eq!(captures["originalAssertions"], serde_json::json!(["The process action menu displays its Kill action in both light and dark themes."]));
-        assert_eq!(captures["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_command_editor_layout_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        for retired in [
-            "editor-closed",
-            "editor-expanded",
-            "fixture.edit",
-            "CommandEditor(state:state",
-            "advancedExpanded:true",
-        ] {
-            assert!(!source.contains(retired), "Swift command-editor fixture/capture remains: {retired}");
-        }
-        assert!(source.contains("state.form=nil;state.query=\"\""));
-        assert!(!source.contains("snippet-bindings-"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        let test = native
-            .split_once("fn script_advanced(root: &Path) {")
-            .unwrap()
-            .1
-            .split_once("\nfn snippet_links(root: &Path)")
-            .unwrap()
-            .0;
-        for retained in [
-            "for required in [\"Name\", \"Advanced\"]",
-            "visible.iter().any(|value| value == required)",
-            "assert_eq!(closed[\"advanced\"], false);",
-            "\"Target\", \"Arguments\", \"Timeout in seconds\"",
-            "assert!(!matches.is_empty(), \"Missing closed script-editor field",
-            "matches.iter().all(|field| field[\"hidden\"] == true)",
-            "assert_eq!(open[\"advanced\"], true);",
-            "let expanded_screen = h.probe(true, \"read\", json!({}));",
-            "visible.iter().any(|value| value == label)",
-            "for label in [\"Advanced\", \"Target\", \"Arguments\", \"Timeout in seconds\"]",
-            "assert!(!matches.is_empty(), \"Missing expanded script-editor field",
-            "assert!(matches.iter().any(|field| field[\"hidden\"] == false)",
-            "script-advanced-open-{theme}",
-        ] {
-            assert!(test.contains(retained), "Rust script-editor layout coverage changed: {retained}");
-        }
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"script-advanced-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::script_advanced"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.commandEditorLayoutCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift command-editor layout captures retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["script-advanced-process"]));
-        assert!(retired["scope"].as_str().unwrap().contains("visible expanded labels, unhidden expanded fields"));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::script_advanced"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Closed script editor shows Name and Advanced while hiding Arguments, Timeout and Executable.", "Expanded script editor shows Advanced, Arguments and Timeout."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 760×490 and 760×620 CommandEditor images. Rust checks the expanded labels in the visible screen text and checks each field's hidden state in AppKit; captures are saved in both themes. The legacy Swift `Executable` field maps to the Rust `Target` field."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_launcher_preview_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("\"launcher-\"+theme"));
-        assert!(!source.contains("\"createRemoved\":true"));
-        assert!(!source.contains("action-empty-"));
-        assert!(!source.contains("snippet-bindings-"));
-        assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        let test = native
-            .split_once("fn polish_original(root: &Path) {")
-            .unwrap()
-            .1
-            .split_once("\nfn closed_creation(")
-            .unwrap()
-            .0;
-        for retained in [
-            "for theme in [\"system\",\"light\",\"dark\",\"graphite\"]",
-            "capture(false,&format!(\"polish-launcher-{theme}\"),&[],&[\"Create\"]);captures+=1;",
-            "for flag in [\"windowShown\",\"windowKey\",\"windowMain\"]",
-        ] {
-            assert!(test.contains(retained), "Rust launcher preview coverage changed: {retained}");
-        }
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.launcherPreviewCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift launcher preview captures retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Create is absent from the launcher preview in system, light, dark and graphite themes."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on four offscreen 760×490 palette images. Rust checks actual AppKit screen text and that the launcher window remains hidden, then retains native captures in the same four themes."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_settings_preview_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("ManagementNavigation"));
-        assert!(!source.contains("\"settings-\"+theme"));
-        assert!(!source.contains("action-empty-"));
-        assert!(!source.contains("snippet-bindings-"));
-        assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        let test = native
-            .split_once("fn polish_original(root: &Path) {")
-            .unwrap()
-            .1
-            .split_once("\nfn closed_creation(")
-            .unwrap()
-            .0;
-        for retained in [
-            "for theme in [\"system\",\"light\",\"dark\",\"graphite\"]",
-            "h.rpc(json!({\"op\":\"show\",\"mode\":\"settings\"}));h.probe(true,\"library-tab\",json!({\"tab\":\"general\"}));",
-            "capture(true,&format!(\"polish-general-{theme}\"),&[\"Theme\",\"Menu Bar Icon\"],&[]);captures+=1;",
-            "for flag in [\"windowShown\",\"windowKey\",\"windowMain\"]",
-        ] {
-            assert!(test.contains(retained), "Rust settings preview coverage changed: {retained}");
-        }
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.settingsPreviewCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift settings preview captures retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["The General settings preview shows Theme and Menu Bar Icon in system, light, dark and graphite themes."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 980×680 ManagementView images. Rust checks both labels in actual native screen text, verifies the settings window remains hidden and retains native captures in the same four themes."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_inline_query_capture_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("\"inline-query\""));
-        assert!(!source.contains("state.inlineSource=\"hotkey\""));
-        assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("state.form=nil;state.query=\"\""));
-        assert!(!source.contains("snippet-bindings-"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        let test = native
-            .split_once("fn polish_original(root: &Path) {")
-            .unwrap()
-            .1
-            .split_once("\nfn closed_creation(")
-            .unwrap()
-            .0;
-        for retained in [
-            "json!({\"op\":\"show\",\"mode\":\"commands\",\"query\":\"echo-inline Café & spaces\"})",
-            "assert_eq!(h.probe(false,\"run-inline-read\",json!({}))[\"text\"],\"Café & spaces\")",
-            "capture(false,&format!(\"polish-inline-query-{theme}\"),&[\"Inline Input\",\"Café & spaces\",\"Run\"],&[]);captures+=1;",
-            "assert!(!alias_marker.exists(),\"Escape executed the inline alias\");",
-            "key(36,0,\"\\r\")",
-            "assert_eq!(h.probe(false,\"run-input-read\",json!({}))[\"text\"],\"First line\")",
-        ] {
-            assert!(test.contains(retained), "Rust inline-query coverage changed: {retained}");
-        }
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineQueryCapture"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift inline-query preview capture retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["The inline alias query displays Inline Input and Café in the selected action preview."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on one offscreen 760×490 palette image. Rust verifies exact `Café & spaces` input and the Inline Input/Run labels in native screen text, and captures the equivalent state in the light/dark subset of the four-theme process route."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_inline_save_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("action-inline-save-"));
-        assert!(source.contains("state.begin(actionFixtures[3]);state.inlineInput=\"Example note\""));
-        assert!(!source.contains("action-inline-busy-"));
-        assert!(!source.contains("action-empty-"));
-        assert!(!source.contains("snippet-bindings-"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        let test = native
-            .split_once("fn polish_original(root: &Path) {")
-            .unwrap()
-            .1
-            .split_once("\nfn closed_creation(")
-            .unwrap()
-            .0;
-        for retained in [
-            "for theme in [\"system\",\"light\",\"dark\",\"graphite\"]",
-            "if [\"light\",\"dark\"].contains(&theme)",
-            "for width in [600,760]",
-            "capture(false,&format!(\"polish-capture-idle-{theme}-{width}\"),&[\"Save\"],&[\"Open\",\"Run ↵\"]);captures+=1;",
-            "capture(false,&format!(\"polish-capture-busy-{theme}-{width}\"),&[\"Save\"],&[\"Open\"]);captures+=1;",
-        ] {
-            assert!(test.contains(retained), "Rust idle inline-save coverage changed: {retained}");
-        }
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineSaveCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift idle inline-save preview captures retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["The idle quick-note preview shows Save and hides Open in both themes and widths."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 600×490 and 760×490 palette images. Rust checks actual native screen text for Save and absence of `Open` and the exact `Run ↵` label, retains native captures at both widths in light/dark and keeps the palette window hidden."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_inline_busy_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("action-inline-busy-"));
-        assert!(source.contains("state.busy=true"));
-        assert!(source.contains("state.busy=false"));
-        assert!(!source.contains("action-empty-"));
-        assert!(!source.contains("snippet-bindings-"));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        let test = native
-            .split_once("fn polish_original(root: &Path) {")
-            .unwrap()
-            .1
-            .split_once("\nfn closed_creation(")
-            .unwrap()
-            .0;
-        for retained in [
-            "for theme in [\"system\",\"light\",\"dark\",\"graphite\"]",
-            "if [\"light\",\"dark\"].contains(&theme)",
-            "for width in [600,760]",
-            "capture(false,&format!(\"polish-capture-busy-{theme}-{width}\"),&[\"Save\"],&[\"Open\"]);captures+=1;",
-            "assert_eq!(h.rpc(json!({\"op\":\"status\"}))[\"scriptsRunning\"],1,\"Busy capture already completed\");",
-            "assert_eq!(h.probe(false,\"read\",json!({}))[\"input\"],\"Example note\",\"Busy render changed capture input\");",
-            "assert_eq!(h.rpc(json!({\"op\":\"usage\"}))[\"capture.quick-note\"],1);",
-        ] {
-            assert!(test.contains(retained), "Rust busy inline-save coverage changed: {retained}");
-        }
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-original-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineBusyCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift busy inline-save preview captures retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["While the inline note preview is marked busy, Save remains visible and Open stays absent in both themes and widths."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 600×490 and 760×490 palette images. Rust captures the actual busy child state in light/dark at both widths, checks Save and absence of `Open`, verifies input remains unchanged while the child runs, and confirms one recorded execution after completion."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_configuration_error_health_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("Runtime health ignored config failure"));
-        assert!(!source.contains("Fixture configuration failure"));
-        let native = include_str!("../../runtime_private_tests.rs");
-        let scenario = native
-            .split_once("fn settings_presentation_ignores_palette_navigation_and_clears_configuration_error()")
-            .unwrap()
-            .1
-            .split_once("\n}\n")
-            .unwrap()
-            .0;
-        assert!(scenario.contains("assert!(state.healthy(true, None));"));
-        assert!(scenario.contains("state.configuration.last_error = Some(\"Fixture configuration error\".into());"));
-        assert!(scenario.contains("assert!(!state.healthy(true, None));"));
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.configurationErrorHealth"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["A configuration error makes runtime health unhealthy."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"unit"));
-        assert!(gate.native_cases.contains(&"runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"));
-    }
-    #[test]
-    fn polish_partial_date_assertion_is_retired_and_crosswalked() {
-        let mapping = inventory("settings").unwrap();
-        let partial_date = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.partialDateValidity"];
-        assert_eq!(partial_date["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(partial_date["status"], "source-qualified-rust-case-crosswalk; duplicate Swift Polish partial-date validity assertion retired");
-        assert_eq!(partial_date["nativeSteps"], serde_json::json!(["unit", "task-date-process"]));
-        assert_eq!(partial_date["nativeCases"], serde_json::json!(["task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock", "ui_completion::task_date"]));
-        assert_eq!(partial_date["originalAssertions"], serde_json::json!(["The partial date `in 3` is invalid."]));
-        assert_eq!(partial_date["productionAccepted"], false);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let polish_source = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(!polish_source.contains("state.inlineInput=\"in 3\""));
-        assert!(!polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
-        assert!(!polish_source.contains("Invalid date executed or discarded input"));
-        assert!(!polish_source.contains("date-invalid"));
-        assert!(include_str!("../../../examples/ui_completion.rs").contains(r#"type_value(true,"in 3");"#));
-        assert!(!polish_source.contains("Partial date accepted"));
-    }
-    #[test]
-    fn polish_invalid_date_submission_assertion_is_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("state.inlineInput=\"in 3\""));
-        assert!(!source.contains("date-invalid"));
-        assert!(!source.contains("Invalid date executed or discarded input"));
-        assert!(!source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
-        assert!(!source.contains("state.cancelInlineInput();state.message=\"\""));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            r#"type_value(true,"in 3");"#,
-            r#"key(36,0,"\r");"#,
-            r#"assert_eq!(retained["editorToken"],invalid["editorToken"]);"#,
-            r#"assert_eq!(retained["runInputInline"],true);"#,
-            r#"assert!(!marker.exists());"#,
-            r#"assert_eq!(h.rpc(json!({"op":"usage"})),json!({}));"#,
-            r#""invalidRefused":true"#,
-        ] {
-            assert!(native.contains(retained), "missing Rust invalid-date behavior: {retained}");
-        }
+    fn polish_helper_is_retired_and_preview_capture_history_is_preserved() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let helper = "Sources/RuycastApp/PolishChecks.swift";
+        assert!(!root.join(helper).exists());
+        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
+        assert!(!main.contains("--check-polish"));
+        let policy = std::fs::read_to_string(root.join("rust-native/src/bin/ruycast-source/policy.rs")).unwrap();
+        assert!(!policy.lines().any(|line| line == helper));
+        let lock: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
+        ).unwrap();
+        assert!(lock["files"].get(helper).is_none());
+        let public: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap(),
+        ).unwrap();
+        assert!(public["files"].get(helper).is_none());
 
         let inventory = inventory("settings").unwrap();
-        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.invalidDateSubmission"];
+        let retired = &inventory["retiredSwiftChecks"]
+            ["Sources/RuycastApp/PolishChecks.swift::checkPolish.actionPreviewCaptures"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["task-date-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::task_date"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Submitting the invalid date keeps the inline command active and does not execute its target."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"task-date-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::task_date"));
-    }
-    #[test]
-    fn polish_snippet_binding_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(!source.contains("snippet-bindings-"));
-        assert!(!source.contains("fixture.greet"));
-        assert!(!source.contains("snippetBindingsVisible"));
-        assert!(!source.contains("snippetAliasesAndKeywordSearch"));
-        assert!(source.contains(r#"action-\(command.kind)-\(command.id)-\(theme)-\(width)"#));
-        assert!(source.contains("state.cancelInlineInput()"));
-        assert!(source.contains("state.form=nil;state.query=\"\""));
-
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            "fn polish_bindings(root: &Path)",
-            "for theme in [\"light\", \"dark\"]",
-            "for width in [600, 760]",
-            "Unbound snippet",
-            "first-alias",
-            "final-alias",
-            "Set Hotkey",
-            ";greetsnippet",
-            ";longsnippet",
-            "!text.contains(\"Keyword\")",
-            "let footer = h.probe(false, \"snippet-hotkey\", json!({}));",
-            "h.capture(false, &format!(\"polish-bindings-{theme}-{width}\"));",
-        ] {
-            assert!(native.contains(retained), "missing Rust snippet-binding coverage: {retained}");
-        }
-        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
-        assert!(gate.required_native_steps.contains(&"polish-bindings-process"));
-        assert!(gate.native_cases.contains(&"ui_completion::polish_bindings"));
-
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetBindingCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_snippet_alias_search_is_retired_and_crosswalked() {
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift snippet-alias search assertion retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
-        assert!(retired["scope"].as_str().unwrap().contains("Rust native bindings process covers alias, keyword, and arrow selection"));
-        assert_eq!(retired["productionAccepted"], false);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(!polish.contains("Alias search lost the snippet"));
-        assert!(!polish.contains("state.query=\"salutation\""));
-        assert!(!polish.contains("state.query=\"longsnippet\""));
-        assert!(!polish.contains("Keyword search lost the snippet"));
-        assert!(!polish.contains("Arrow selection changed after rendering bindings"));
-        assert!(!polish.contains("state.moveSelection(1)"));
-        assert!(!polish.contains("snippetAliasesAndKeywordSearch"));
-    }
-    #[test]
-    fn polish_snippet_keyword_search_is_retired_and_crosswalked() {
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetKeywordSearch"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift snippet-keyword search assertion retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
-        assert!(retired["scope"].as_str().unwrap().contains("Rust native bindings process covers alias, keyword, and arrow selection"));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Typing `longsnippet` selects exactly the `fixture.long` snippet by its `;longsnippet` keyword."]));
-        assert_eq!(retired["productionAccepted"], false);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(!polish.contains("Keyword search lost the snippet"));
-        assert!(!polish.contains("state.query=\"longsnippet\""));
-        assert!(!polish.contains("Arrow selection changed after rendering bindings"));
-        assert!(!polish.contains("state.moveSelection(1)"));
-        assert!(!polish.contains("snippetAliasesAndKeywordSearch"));
-    }
-    #[test]
-    fn polish_snippet_arrow_selection_is_retired_and_crosswalked() {
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetArrowSelection"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift snippet arrow-selection assertion retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["After moving down once from the first row, `fixture.long` is selected."]));
-        assert!(retired["scope"].as_str().unwrap().contains("Rust native bindings process covers alias, keyword, and arrow selection"));
-        assert_eq!(retired["productionAccepted"], false);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(!polish.contains("Arrow selection changed after rendering bindings"));
-        assert!(!polish.contains("state.moveSelection(1)"));
-        assert!(!polish.contains("snippetAliasesAndKeywordSearch"));
-    }
-    #[test]
-    fn polish_clipboard_geometry_is_retired_and_crosswalked() {
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardGeometry"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift clipboard geometry assertion retired");
         assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
         assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["The clipboard frame is larger than the normal frame and stays within the full screen bounds."]));
+        assert_eq!(retired["swiftOriginalCaptures"], 20);
         assert_eq!(retired["productionAccepted"], false);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(!polish.contains("Clipboard geometry did not grow safely"));
-        assert!(!polish.contains("PaletteGeometry.frame(in:screen,mode:\"clipboard\")"));
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            "(1080,700,\"large\"),(600,400,\"small\")",
-            "polish-clipboard-{label}-{theme}",
-            "polish-clipboard-cleared-{theme}",
-            "capture(false,&format!(\"polish-clipboard-{label}-{theme}\"),&[\"Readable clipboard text\"],&[])",
-            "capture(false,&format!(\"polish-clipboard-cleared-{theme}\"),&[\"Select an item\"],&[\"Readable clipboard text\"])",
-            "assert_eq!(preview[\"screenText\"][0],long,\"Clipboard preview pane did not show the full selected text\");",
-            "c[2]>n[2]&&c[3]>n[3]",
-        ] {
-            assert!(native.contains(retained), "Rust clipboard geometry coverage changed: {retained}");
-        }
-    }
-    #[test]
-    fn polish_clipboard_preview_captures_are_retired_and_crosswalked() {
-        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        for retired in [
-            "clipboard-large",
-            "clipboard-small",
-            "clipboard-cleared",
-            "Readable clipboard text",
-            "Select an item",
-            "state.clips=[Clip(text:String(repeating:",
-            "clipboardLargeAndSmall",
-            "clearedPreviewContentRemoved",
-        ] {
-            assert!(!source.contains(retired), "Swift clipboard preview capture remains: {retired}");
-        }
-        assert!(!source.contains("snippet-bindings-"));
+        assert_eq!(retired["compatibilityNotes"].as_array().unwrap().len(), 1);
 
-        let native = include_str!("../../../examples/ui_completion.rs");
-        for retained in [
-            "let long=\"Readable clipboard text. \".repeat(80);",
-            "polish-clipboard-{label}-{theme}",
-            "polish-clipboard-cleared-{theme}",
-            "c[2]>n[2]&&c[3]>n[3]",
-        ] {
-            assert!(native.contains(retained), "missing Rust clipboard preview behavior: {retained}");
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        let inputs = settings_sources(gate.id);
+        let case_sources = [
+            ("ui_completion::", "rust-native/examples/ui_completion.rs"),
+            ("native_menu_bar::tests::", "rust-native/src/native_menu_bar.rs"),
+            ("runtime_health::tests::", "rust-native/src/runtime_health.rs"),
+            ("runtime::inline_tests::", "rust-native/src/runtime_private_tests.rs"),
+            ("management_commands::catalog_tests::", "rust-native/src/management_commands.rs"),
+            ("clipboard_preview::tests::", "rust-native/src/clipboard_preview.rs"),
+            ("remaining_macos_process::", "rust-native/tests/remaining_macos_process.rs"),
+            ("task_date::tests::", "rust-native/src/task_date.rs"),
+        ];
+        let retired_checks = inventory["retiredSwiftChecks"].as_object().unwrap();
+        let polish_checks = retired_checks.iter()
+            .filter(|(name, _)| name.starts_with("Sources/RuycastApp/PolishChecks.swift::"))
+            .collect::<Vec<_>>();
+        assert_eq!(polish_checks.len(), 34);
+        for (name, check) in polish_checks {
+            assert_eq!(check["originalSourceSHA256"], POLISH_ORACLE_SHA256, "{name}");
+            assert_eq!(check["productionAccepted"], false, "{name}");
+            assert!(check["status"].as_str().unwrap().starts_with("source-qualified-rust-case-crosswalk"), "{name}");
+            if name.ends_with("checkPolish.actionPreviewCaptures") {
+                assert!(check["originalAssertions"].as_array().unwrap().is_empty(), "{name}");
+            } else {
+                assert!(!check["originalAssertions"].as_array().unwrap().is_empty(), "{name}");
+            }
+            for step in check["nativeSteps"].as_array().unwrap() {
+                assert!(gate.required_native_steps.contains(&step.as_str().unwrap()), "{name}: {step}");
+            }
+            let cases = check["nativeCases"].as_array().unwrap();
+            assert!(!cases.is_empty(), "{name}");
+            for case in cases {
+                let case = case.as_str().unwrap();
+                let (prefix, path) = case_sources.iter().find(|(prefix, _)| case.starts_with(prefix)).unwrap();
+                let source = std::str::from_utf8(inputs.iter().find(|(input, _, _)| input == path).unwrap().1).unwrap();
+                let function = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
+                assert!(source.contains(&format!("fn {function}(")), "{name}: {case}");
+            }
         }
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardPreviewCaptures"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift clipboard preview captures retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
-        assert_eq!(retired["originalAssertions"], serde_json::json!(["Large clipboard preview shows readable content.", "Small clipboard preview retains its requested size.", "Cleared clipboard shows the empty state and no old text."]));
-        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 1080×700 and 600×400 PNGs. Rust checks the clipboard NSTextView text directly, retains native PNG captures in light and dark themes, and verifies the cleared empty state."]));
-        assert_eq!(retired["productionAccepted"], false);
-    }
-    #[test]
-    fn polish_natural_date_preview_validity_is_retired_and_crosswalked() {
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift natural-date validity assertion retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit", "task-date-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["task_date::tests::original_natural_date_vectors_and_labels_match", "ui_completion::task_date"]));
-        assert_eq!(retired["productionAccepted"], false);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(!polish.contains("Natural date preview missing"));
-        assert!(!polish.contains("state.inlineInput=\"morgen\""));
-        assert!(!polish.contains("let frozen=state.inlineDatePreview!"));
-        assert!(!polish.contains("date-valid"));
-        let native = include_str!("../../../examples/ui_completion.rs");
-        assert!(native.contains("let preview_started=SystemTime::now()"));
-        assert!(native.contains("ruycast_native::task_date::resolve(\"morgen\",now)"));
-        assert!(native.contains("expected.iter().any(|label|label==rendered)"));
-    }
-    #[test]
-    fn polish_frozen_date_submission_value_is_retired_and_crosswalked() {
-        let mapping = inventory("settings").unwrap();
-        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.frozenDateSubmissionValue"];
-        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
-        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; duplicate Swift frozen-date submission value assertion retired");
-        assert_eq!(retired["nativeSteps"], serde_json::json!(["task-date-process"]));
-        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::task_date"]));
-        assert_eq!(retired["productionAccepted"], false);
-        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(!polish.contains("Enter did not send the displayed date"));
-        assert!(!polish.contains("dateWriter.arguments"));
-        assert!(!polish.contains("state.inlineDatePreview=frozenDate"));
-        assert!(!polish.contains("let frozen=state.inlineDatePreview!"));
-        assert!(!polish.contains("date-valid") && !polish.contains("date-invalid") && !polish.contains("date-clear"));
-        let native = include_str!("../../../examples/ui_completion.rs");
-        assert!(native.contains("let frozen=h.rpc(json!({\"op\":\"native.test\",\"action\":\"date-reference\""));
-        assert!(native.contains("capture(\"frozen\""));
     }
     #[test]
     fn polish_catalog_source_pin_matches_current_catalog_bytes() {
