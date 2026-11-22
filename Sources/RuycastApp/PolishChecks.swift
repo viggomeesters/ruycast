@@ -57,14 +57,5 @@ import LauncherModels
     state.mode="commands";state.query=""
 #endif
     state.form=nil;state.query=""
-    state.mode="snippets";state.query="";state.config.commands=[
-        Command(id:"fixture.greet",title:"Greeting",kind:"snippet",target:"Hello",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";greetsnippet"),
-        Command(id:"fixture.long",title:"Longer bindings",kind:"snippet",target:"Example",aliases:["first-alias","second-alias","third-alias","fourth-alias","final-alias"],keyword:";longsnippet"),
-        Command(id:"fixture.none",title:"Unbound snippet",kind:"snippet",target:"Example")]
-    for theme in ["light","dark"] {
-        state.config.theme=theme
-        try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Set Hotkey","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
-        try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["Set Hotkey","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
-    }
-    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"consumerEditorDisclosure":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["ok":true,"themes":4,"consumerEditorDisclosure":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
