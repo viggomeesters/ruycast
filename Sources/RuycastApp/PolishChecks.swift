@@ -86,7 +86,6 @@ import LauncherModels
     try capture(Palette(state:state),"clipboard-small",NSSize(width:600,height:400))
     state.clips=[]
     try capture(Palette(state:state),"clipboard-cleared",NSSize(width:1080,height:700),required:["Select an item"],absent:["Readable clipboard text"])
-    state.configError="Fixture configuration failure";try require(!state.runtimeHealthy,"Runtime health ignored config failure");state.configError=nil
     state.mode="commands";state.query=""
     let dateCommand=Command(id:"fixture.date",title:"Task Deadline",kind:"script",target:"/bin/echo",arguments:["{input}"],inputPrompt:"Deadline (YYYY-MM-DD of clear)")
     state.config.commands.append(dateCommand);state.begin(dateCommand);state.inlineInput="morgen"

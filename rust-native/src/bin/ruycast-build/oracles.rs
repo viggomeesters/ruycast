@@ -828,6 +828,7 @@ const SETTINGS: &[SettingsGate] = &[
         "ui_completion::polish_bindings",
         "native_menu_bar::tests::genuine_health_images_preserve_template_state_and_accessible_description",
         "runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions",
+        "runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error",
         "management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides",
         "clipboard_preview::tests::cancelled_same_id_reopen_cannot_publish_old_error_or_asset",
         "clipboard_preview::tests::equal_metadata_different_id_replaces_preview_owner_and_releases_old_image",
@@ -853,6 +854,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
+const POLISH_CURRENT_SHA256: &str = "4ae00a969a2f9c3e08a6d0804bb6730cc0d4626420d809edabc9fac4914d83be";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -877,6 +879,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/script_result.rs", include_bytes!("../../script_result.rs"), "6e311e6045f6f3e5d3bf8998e7e34d23323ad324d449dcac3be1ecb1e9547cbf"),
             ("rust-native/src/task_date.rs", include_bytes!("../../task_date.rs"), "ebc3df3a84c149af7f6fd6bcabea58073ea1209204e01b3a14571c3f393db856"),
             ("rust-native/src/runtime_health.rs", include_bytes!("../../runtime_health.rs"), "ee787b5ccd193c1f1a400ce0da4798132d8dd68d48f85f40b63a776cfccf7d86"),
+            ("rust-native/src/runtime_private_tests.rs", include_bytes!("../../runtime_private_tests.rs"), "d71a7ad83de4d5d00caa350d367946f3f55f522e0d2b631c009dbee6145bbfac"),
             ("rust-native/src/native_menu_bar.rs", include_bytes!("../../native_menu_bar.rs"), "6c87e3f883b6f0abfbd96f3df1733a0e889fe347465f27fc55b3b81d3263d9d3"),
             ("rust-native/src/management_commands.rs", include_bytes!("../../management_commands.rs"), "5c329310641d600d1c0f86687e003fe0dbf93a1099237411eb946a34c4dad5bb"),
             ("rust-native/src/clipboard_preview.rs", include_bytes!("../../clipboard_preview.rs"), "1406185c311781ff5be404caaa0d92ac76746a68f44fb54e3eedff5419241738"),
@@ -1231,7 +1234,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         "--check-performance-pipeline" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "a6ef829a2c87091d9133e377ef12e8ba7d3fe008fae7275e3cd8f019c2c7a4ce"),
-            ("rust-native/src/runtime_private_tests.rs", include_bytes!("../../runtime_private_tests.rs"), "00feb5e6befffefed0d19de776a13708727763b3b55bc42a45bf14ceb1bc29c3"),
+            ("rust-native/src/runtime_private_tests.rs", include_bytes!("../../runtime_private_tests.rs"), "d71a7ad83de4d5d00caa350d367946f3f55f522e0d2b631c009dbee6145bbfac"),
             ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "aeca7fa758f28ea3162f78b0261417b9a89cdf987afeace27cad9ade954bf6bc"),
             ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "611637d4df9bf371e15274e7a71beca99e214a1582c092e1a4a2a40341cb2569"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
@@ -1485,7 +1488,7 @@ fn settings_provenance_source(id: &str) -> Option<(&'static str, &'static str)> 
             "Sources/RuycastApp/AppleShortcutChecks.swift",
             APPLE_SHORTCUTS_ORACLE_SHA256,
         )),
-        "--check-polish" => Some(("Sources/RuycastApp/PolishChecks.swift", POLISH_ORACLE_SHA256)),
+        "--check-polish" => Some(("Sources/RuycastApp/PolishChecks.swift", POLISH_CURRENT_SHA256)),
         "--check-settings" => Some(("Sources/RuycastApp/SettingsChecks.swift", SETTINGS_ORACLE_SHA256)),
         "--check-feedback" => Some(("Sources/RuycastApp/FeedbackChecks.swift", FEEDBACK_ORACLE_SHA256)),
         _ => None,
@@ -1543,7 +1546,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
             "--check-actions-menu" => Some(ACTIONS_MENU_ORACLE_SHA256),
             "--check-rich-resources" => Some(RICH_RESOURCES_ORACLE_SHA256),
             "--check-apple-shortcuts" => Some(APPLE_SHORTCUTS_ORACLE_SHA256),
-            "--check-polish" => Some(POLISH_ORACLE_SHA256),
+            "--check-polish" => Some(POLISH_CURRENT_SHA256),
             "--check-settings" => Some(SETTINGS_ORACLE_SHA256),
             "--check-feedback" => Some(FEEDBACK_ORACLE_SHA256),
             _ => None,
@@ -1692,7 +1695,7 @@ const SEARCH_CASES: &[(&str, &str, &str)] = &[
 ];
 fn search_source_bindings() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "00feb5e6befffefed0d19de776a13708727763b3b55bc42a45bf14ceb1bc29c3"),
+        ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "d71a7ad83de4d5d00caa350d367946f3f55f522e0d2b631c009dbee6145bbfac"),
         ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
         ("rust/src/lib.rs", include_str!("../../../../rust/src/lib.rs"), "291731f83d4278ad4b1f892558a6b155de3288e8478cf64caed9489b9fa61d49"),
         ("rust-native/src/session.rs", include_str!("../../session.rs"), "c23e3d163e5cc8b87e6cdd11c80ed5380980885281499e5472065a169aac6d61"),
@@ -1804,10 +1807,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.keyboardHealth"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift keyboard-health tuples retired",
-            "scope": "Only the combined Swift assertion covering three AppState.keyboardHealth preference/trust/conflict tuples is retired. The healthStates output, menu icon, injected configuration-error result, catalog check, captures, and --check-polish route remain active.",
+            "scope": "Only the combined Swift assertion covering three AppState.keyboardHealth preference/trust/conflict tuples is retired. The healthStates output, menu icon, catalog check, captures, and --check-polish route remain active. The separate configuration-error assertion is retired under checkPolish.configurationErrorHealth and remains in the Rust unit crosswalk.",
             "nativeSteps": ["unit"],
             "nativeCases": ["runtime_health::tests::actual_hook_and_keyword_state_are_required_without_fabricating_permissions"],
             "originalAssertions": ["Hyper enabled with Raycast active reports unhealthy.", "Snippet expansion enabled without Accessibility trust reports unhealthy.", "Both preferences disabled remains healthy despite Raycast active and missing Accessibility trust."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.configurationErrorHealth"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift configuration-health assertion retired",
+            "scope": "Only the Swift runtime-health assertion and its local fixture error set/reset are retired. Other Polish fixtures, health output, captures and --check-polish remain active.",
+            "nativeSteps": ["unit"],
+            "nativeCases": ["runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"],
+            "originalAssertions": ["A configuration error makes runtime health unhealthy."],
             "productionAccepted": false
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.menuIconTemplateState"] = serde_json::json!({
@@ -1885,7 +1897,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.defaultManagementCommands"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift default management-command assertion retired",
-            "scope": "Only the Swift assertion that the default systemCommands contain four built-in IDs is retired. The custom system-monitor override assertion has its own retirement crosswalk. The managementBuiltins output, configuration-health checks, captures, and --check-polish route remain active.",
+            "scope": "Only the Swift assertion that the default systemCommands contain four built-in IDs is retired. The custom system-monitor override assertion has its own retirement crosswalk. The managementBuiltins output, captures, and --check-polish route remain active; configuration-error health is covered by the Rust settings-presentation unit case.",
             "nativeSteps": ["unit"],
             "nativeCases": ["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"],
             "originalAssertions": ["Default system commands include builtin.settings.", "Default system commands include builtin.open-config.", "Default system commands include builtin.reload-config.", "Default system commands include builtin.system-monitor."],
@@ -1894,7 +1906,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.customSystemMonitorOverride"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift system-monitor override assertion retired",
-            "scope": "Only the Swift custom system-monitor target override fixture/assertion is retired. The Rust catalog test now covers this exact target collision; default command ordering, managementBuiltins output, configuration-health checks, captures, and --check-polish remain active.",
+            "scope": "Only the Swift custom system-monitor target override fixture/assertion is retired. The Rust catalog test now covers this exact target collision; default command ordering, managementBuiltins output, captures, and --check-polish remain active. Configuration-error health is covered by the Rust settings-presentation unit case.",
             "nativeSteps": ["unit"],
             "nativeCases": ["management_commands::catalog_tests::original_nine_defaults_keep_source_order_and_saved_overrides"],
             "originalAssertions": ["A custom builtin targeting system-monitor suppresses the default builtin.system-monitor entry."],
@@ -7979,12 +7991,13 @@ mod tests {
     fn polish_provenance_preserves_current_inputs_cases_routes_and_status() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
         let inputs = settings_sources(gate.id);
-        let provenance = (gate.original_source, POLISH_ORACLE_SHA256);
+        let provenance = (gate.original_source, POLISH_CURRENT_SHA256);
         let bindings = settings_source_bindings(gate.id);
         let case_sources = [
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
             ("native_menu_bar::tests::", "rust-native/src/native_menu_bar.rs"),
             ("runtime_health::tests::", "rust-native/src/runtime_health.rs"),
+            ("runtime::inline_tests::", "rust-native/src/runtime_private_tests.rs"),
             ("management_commands::catalog_tests::", "rust-native/src/management_commands.rs"),
             ("clipboard_preview::tests::", "rust-native/src/clipboard_preview.rs"),
             ("remaining_macos_process::", "rust-native/tests/remaining_macos_process.rs"),
@@ -7992,10 +8005,10 @@ mod tests {
         ];
 
         assert_eq!(gate.required_native_steps, &["unit", "polish-original-process", "script-advanced-process", "task-date-process", "polish-bindings-process", "remaining-macos-process", "clipboard-preview-cancel-original", "clipboard-preview-owner-different-id", "clipboard-preview-cancel-before-publish", "clipboard-preview-failure-after-success", "clipboard-preview-stale-success-same-id"]);
-        assert_eq!(gate.native_cases.len(), 14);
+        assert_eq!(gate.native_cases.len(), 15);
         assert!(gate.unproven_invariants.is_empty());
-        assert_eq!(inputs.len(), 32);
-        assert_eq!(bindings.len(), 33);
+        assert_eq!(inputs.len(), 33);
+        assert_eq!(bindings.len(), 34);
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert!(bindings.contains(&provenance));
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
@@ -8018,7 +8031,6 @@ mod tests {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Keyboard health misses conflicts or disabled preferences"));
         assert!(source.contains("healthStates"));
-        assert!(source.contains("Fixture configuration failure"));
         let inventory = inventory("settings").unwrap();
         let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.keyboardHealth"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8033,7 +8045,7 @@ mod tests {
     fn polish_menu_icon_template_assertion_is_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Health glyph states are missing"));
-        assert!(source.contains("Fixture configuration failure"));
+        assert!(source.contains("healthStates"));
         let inventory = inventory("settings").unwrap();
         let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.menuIconTemplateState"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8066,7 +8078,6 @@ mod tests {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Duplicate built-in target in catalog"));
         assert!(!source.contains("existing.monitor"));
-        assert!(source.contains("Fixture configuration failure"));
         assert!(source.contains("managementBuiltins"));
         let native = include_str!("../../management_commands.rs");
         assert!(native.contains("assert!(!system(&saved).iter().any(|command|command.target==\"system-monitor\"));"));
@@ -8178,6 +8189,33 @@ mod tests {
         assert!(native.contains(r#""script.fixture","Inline Input","Run""#));
         assert!(native.contains(r#""capture.quick-note","Quick Note","Save""#));
         assert!(native.contains(r#""window.fixture","Left Half","Run""#));
+    }
+    #[test]
+    fn polish_configuration_error_health_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Runtime health ignored config failure"));
+        assert!(!source.contains("Fixture configuration failure"));
+        let native = include_str!("../../runtime_private_tests.rs");
+        let scenario = native
+            .split_once("fn settings_presentation_ignores_palette_navigation_and_clears_configuration_error()")
+            .unwrap()
+            .1
+            .split_once("\n}\n")
+            .unwrap()
+            .0;
+        assert!(scenario.contains("assert!(state.healthy(true, None));"));
+        assert!(scenario.contains("state.configuration.last_error = Some(\"Fixture configuration error\".into());"));
+        assert!(scenario.contains("assert!(!state.healthy(true, None));"));
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.configurationErrorHealth"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["unit"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["A configuration error makes runtime health unhealthy."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"unit"));
+        assert!(gate.native_cases.contains(&"runtime::inline_tests::settings_presentation_ignores_palette_navigation_and_clears_configuration_error"));
     }
     #[test]
     fn polish_partial_date_assertion_is_retired_and_crosswalked() {
@@ -8531,6 +8569,7 @@ mod tests {
             ("ui_completion::", "rust-native/examples/ui_completion.rs"),
             ("native_menu_bar::tests::", "rust-native/src/native_menu_bar.rs"),
             ("runtime_health::tests::", "rust-native/src/runtime_health.rs"),
+            ("runtime::inline_tests::", "rust-native/src/runtime_private_tests.rs"),
             ("management_commands::catalog_tests::", "rust-native/src/management_commands.rs"),
             ("clipboard_preview::tests::", "rust-native/src/clipboard_preview.rs"),
             ("task_date::tests::", "rust-native/src/task_date.rs"),
@@ -8560,7 +8599,7 @@ mod tests {
             ("native_choice_host_process::", "rust-native/tests/native_choice_host_process.rs"),
         ];
         for (id, count, input_count, complete) in [
-            ("--check-polish", 14, 32, true),
+            ("--check-polish", 15, 33, true),
             ("--check-feedback", 23, 36, true),
             ("--check-actions-menu", 11, 25, true),
             ("--check-interactions", 16, 44, true),
