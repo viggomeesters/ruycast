@@ -74,7 +74,7 @@ current issue or release gate. Developer ID notarization remains deferred.
 
 The complete native rewrite remains a development candidate. V4 Rust build receipts and unsigned candidate receipts keep `productionAccepted: false`, `installedOrPublished: false` and no signing/notarization claim. Historical candidate 67 and v2/v3 receipts are preserved evidence, not new installation authority. No new release, public push, installation or publication follows implicitly from these tools.
 
-Production build, version, diagnostic preparation and packaging policy are Rust. The remaining Settings shell entrypoints forward arguments to the locked offline Rust build tool. `rust/src/product_version.rs` is the sole product-version literal. The Swift tree is a historical oracle and not a production fallback.
+Production build, version, diagnostic preparation and packaging policy are Rust. Settings validation also runs through the locked offline Rust build tool. `rust/src/product_version.rs` is the sole product-version literal. The retired Swift package is available at the revision recorded in the [source export guide](SOURCE-EXPORT.md).
 
 Export an explicit reviewed public source snapshot first and verify its clean archive before compilation. The accepted source-export policy excludes `.go`, profiles, signing material, private adapters and Actions. After building, packaging permits `.build` outputs but rebinds every PUBLIC-SOURCE.v2 file/mode and the entire production inventory. Unreviewed new production files, source changes, private checkouts, stale/pre-v4/debug receipts and existing outputs are refused. Use the direct Rust build and verification commands below.
 
@@ -99,7 +99,7 @@ Complete functional/native/accessibility parity, safe installation/readback and 
 
 Change the single `CURRENT` semantic-version literal in `rust/src/product_version.rs`. The Rust build tool checks that source value against the compiled host and CLI; installer and source-export authority use it too. Run `cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat version --repo "$PWD" --` to read the value through the Rust build tool. Installer-flow tests no longer import the historical Swift-version reader. Product-version compiler/export/refusal tests now execute in Rust under #174.
 
-Update current release examples and the changelog, rebuild the tools, then regenerate and verify the public source snapshot. Build and verify the prepared release pair from that reviewed clean snapshot before running the required local gates. The Cargo package versions and historical release notes are separate from the product version. Keep the frozen Swift reference unchanged.
+Update current release examples and the changelog, rebuild the tools, then regenerate and verify the public source snapshot. Build and verify the prepared release pair from that reviewed clean snapshot before running the required local gates. The Cargo package versions and historical release notes are separate from the product version. Recorded historical reference revisions stay immutable.
 
 ## Historical 0.8.25 source preview
 

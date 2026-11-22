@@ -83,7 +83,7 @@ fn bind_policy(root: &Path, allowlist: std::collections::BTreeSet<String>) -> Re
         || manifest.version != version::read(root)?
         || manifest.version_authority != "rust/src/product_version.rs"
         || manifest.historical_references
-            != ["Package.swift", "Sources/"]
+            != [policy::HISTORICAL_REFERENCE]
         || manifest.publication != "export-only; not published, installed or production-accepted"
         || bytes != canonical
     {
@@ -152,10 +152,7 @@ mod tests {
                 .map(|p| (p.clone(), "owned synthetic policy fixture".into()))
                 .collect(),
             files,
-            historical_references: vec![
-                "Package.swift".into(),
-                "Sources/".into(),
-            ],
+            historical_references: vec![policy::HISTORICAL_REFERENCE.into()],
             publication: "export-only; not published, installed or production-accepted".into(),
         };
         let mut bytes = serde_json::to_vec_pretty(&manifest).unwrap();

@@ -15,15 +15,15 @@ The maintainer selected a complete Rust rewrite after the earlier hybrid decisio
 | `rust-native/src/artifact_lease.rs` | One inherited checkout-local artifact lease through final synchronous consumers |
 | `rust-native/src/bin/ruycast-source*` | Explicit allowlisted local source export; no implicit publication |
 
-`rust/src/product_version.rs` is the one product-version literal. Host and CLI handle `--version` before resolving profiles or initializing native services. The build tool validates the narrow literal, both compiled metadata responses and the current source inventory. Product execution and delivery authority are Rust, while the repository still contains historical Swift references, Python and shell build/test routes, and C reference material. Their retirement and caller cutover remain tracked in [issue #157](https://github.com/viggomeesters/ruycast/issues/157); no repository-wide 100% Rust claim is made before the tracked-source inventory passes.
+`rust/src/product_version.rs` is the one product-version literal. Host and CLI handle `--version` before resolving profiles or initializing native services. The build tool validates the narrow literal, both compiled metadata responses and the current source inventory. The executable source, build and test tools are Rust. The retired Swift package is recorded in the [source export guide](SOURCE-EXPORT.md).
 
 Release builds use concrete Rust host-target paths under `.build/full-rust-release/{core,native}/TARGET/release`. Debug builds use `.build/full-rust-debug`. V4 release authority binds sources, both binaries, library loads, version, build commands and mandatory release preparation. Preparation retains matching original executables and dSYM under `.build/full-rust-release/symbols`, verifies backed sections/UUID, and persists a recoverable intent before replacing a pair. A debug or historical v3 receipt cannot authorize packaging/install.
 
 The shared lease transfers a live descriptor with checked root/device/inode/owner identity. It is not released by an explicit unlock when a controller exits; synchronous children keep it alive. Tool process groups are retired before their leader is reaped, including descendants holding pipes after leader exit. Source/artifact readbacks and final lease validation precede evidence publication.
 
-Native validation retains the full ordered leaf-validator matrix. Explicit-target outputs may be copied to old hardcoded test paths only with fresh hash binding and `productionAuthority: false`. Production package/install authority never reads those compatibility aliases. Historical Swift source is a frozen oracle; raw Swift host startup requires complete pre-entry SDK confinement. The full Swift-comparison/F1 campaign ended on 10 November 2026 and is not a current release requirement. Current changes use focused behavior checks and short launcher-time or memory measurements when relevant; those do not replace final product acceptance. None of these development receipts alone declares the whole rewrite accepted.
+Native validation retains the full ordered leaf-validator matrix. Explicit-target outputs may be copied to old hardcoded test paths only with fresh hash binding and `productionAuthority: false`. Production package/install authority never reads those compatibility aliases. The full Swift-comparison/F1 campaign ended on 10 November 2026 and is not a current release requirement. Current changes use focused behavior checks and short launcher-time or memory measurements when relevant; those do not replace final product acceptance. None of these development receipts alone declares the whole rewrite accepted.
 
-## Historical hybrid architecture (0.8.x)
+## Historical hybrid architecture (0.8.x, removed from the checkout)
 
 The remaining sections describe the previous shipped Swift host and its measurements. They are preserved as migration contracts and test-oracle history, not the current production language, version or build authority. That split was selected on 24 October 2026 and later superseded by the complete Rust decision.
 
@@ -124,7 +124,7 @@ A headless host has neither palette refresh nor pasteboard polling; its recurrin
 
 ## Operational product version
 
-The frozen Swift reference retains `Sources/LauncherCore/ProductVersion.swift` for its historical status, analytics export and Settings Version row. That reference literal is neither production version authority nor a runtime fallback.
+The former Swift version literal is available in [the retired package revision](https://github.com/viggomeesters/ruycast/blob/f1259ea51dd312c3049d6af77b9275a7fdad54e3/Sources/LauncherCore/ProductVersion.swift).
 
 `rust/src/product_version.rs` is the sole production version authority. The Rust reader accepts one owned `CURRENT` semantic-version literal and rejects missing, linked, non-regular, ambiguous, nonliteral or malformed sources. The source exporter binds that exact source to its compiled version and refuses drift before output creation. Rust tests compare the reader with the actual Rust compiler, export an actually rebuilt `17.23.409` tool, and check invalid-source refusal without export/archive creation. `cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat version --repo "$PWD" --` invokes the Rust authority directly. The obsolete Python product-version test file was removed under #174; the compatibility wrapper and its import reader are removed under #802.
 

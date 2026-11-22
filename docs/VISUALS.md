@@ -4,8 +4,6 @@
 
 The launcher keeps everyday actions in one keyboard-driven panel. Settings manages commands, snippets, links, clipboard, shortcuts and local analytics.
 
-These images are rendered from the real native views with a disposable demonstration profile. They contain no personal commands, clipboard data or customer information.
+The published images were rendered from the native views using a disposable demonstration profile. Their original renderer is preserved at [the retired Swift package revision](https://github.com/viggomeesters/ruycast/tree/f1259ea51dd312c3049d6af77b9275a7fdad54e3).
 
-## Refresh the images
-
-Build locally, then run `RuycastApp --render-public assets` from the release build directory. Rendering uses hidden windows and does not take desktop focus. Review the images at actual size before including them in a release.
+For current Rust UI review, use the owned hidden AppKit scenarios in `rust-native/examples/ui_completion.rs` and the Rust [validation routes](../rust-native/README.md#current-build-and-validation-routes). Those scenarios produce review images. The earlier public hero composition remains a historical asset.

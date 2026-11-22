@@ -2,7 +2,7 @@
 
 Saved native script commands can opt into invocation provenance by putting the literal `{invocation-provenance}` first in `arguments`. It is not passed to the script. The supervisor gives the script a `VIGGOBSIDIAN_INVOCATION_ID` UUID and `VIGGOBSIDIAN_INVOCATION_AT` UTC timestamp sampled at admission. In this mode any `{uuid}` argument uses that same UUID. Literal input cannot enable the mode. Persist both values if the script supports recovery; running the command again is a new action, not a replay.
 
-Ruycast's production host, domain library, CLI and delivery policy are Rust. The native host uses AppKit through Rust bindings. Frozen Swift sources are historical parity oracles, not a production host or fallback. Start with the [architecture](docs/ARCHITECTURE.md), [product contract](docs/vision.json) and the [current source beta](https://github.com/viggomeesters/ruycast/releases/tag/v0.9.0-beta.17).
+Ruycast's production host, domain library, CLI and delivery policy are Rust. The native host uses AppKit through Rust bindings. The former Swift package and its test oracles are available in Git history. Current tests use Rust and pinned historical results. Start with the [architecture](docs/ARCHITECTURE.md), [product contract](docs/vision.json) and the [current source beta](https://github.com/viggomeesters/ruycast/releases/tag/v0.9.0-beta.17).
 
 ## Build and check
 
@@ -42,7 +42,7 @@ The Core gate builds the Rust static library, links it to a Rust ABI probe, and 
 
 Production release builds use explicit host-target output paths and v4 receipts. A release receipt requires matching retained originals/dSYM, unchanged backed sections/UUID and the hashed release-preparation record. Debug receipts have `releasePreparation: null` and cannot authorize packaging or installation. V2/v3 build receipts and historical candidate 67 remain historical evidence. Failed release builds invalidate their previous build receipt.
 
-Build, install, version and source-export routes are available directly through Rust commands; compatibility wrappers and the legacy check pipeline still include Python and shell code. A few Python import functions remain for historical whitebox tests, and the full `check` route still has an unmapped discovery gate. The actual product version is the Rust `rust/src/product_version.rs` literal. New implementation and tests belong in Rust. Existing leaf validators and historical test oracles may be maintained only within their declared boundary.
+Build, install, version, source export and compatibility check entrypoints use Rust tools. The Core receipt binds the Rust ABI probe and current source policy. The product version comes from `rust/src/product_version.rs`. Use Rust for executable source; keep parity fixtures as data.
 
 The lease descriptor is inherited by synchronous consumers. If the controller is interrupted, a still-running child keeps the lease until it exits; another build can therefore keep waiting after cancellation. Avoid deleting `.build/artifacts.lock` or invoking the internal helpers directly. Separate checkouts have separate leases and can still contend for CPU during measurements.
 

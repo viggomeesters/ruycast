@@ -400,7 +400,6 @@ const SOURCE_ROSTER: &[&str] = &[
     "rust-native/Cargo.toml",
     "rust-native/Cargo.lock",
     "rust-native/README.md",
-    "rust-native/swift-reference-lock.json",
     "rust/Cargo.toml",
     "rust/Cargo.lock",
     "config/default.json",
@@ -1526,12 +1525,16 @@ const DASHBOARD_EXPORT_CASES: [&str; 5] = [
 ];
 pub(super) fn rust_policy_result(stdout: &[u8]) -> Result<serde_json::Value> {
     let value: serde_json::Value = serde_json::from_slice(stdout).map_err(error)?;
-        if value["ok"] != true || value["policy"] != "Rust-only new product code"
-            || value["productionReady"] != false || value["errors"] != serde_json::json!([])
-            || value["frozenLegacyFiles"].as_u64().is_none() || value["rustRuntimeFiles"].as_u64().is_none()
-            || value["lockSHA256"].as_str().is_none_or(|sha| sha.len()!=64 || !sha.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))) {
-            return Err("Rust policy must emit its actual successful fail-closed JSON result.".into());
-        }
+    if value["schema"] != "ruycast.rust-only-source-policy.v1"
+        || value["ok"] != true
+        || value["policy"] != "Rust-only executable source"
+        || value["productionReady"] != false
+        || value["errors"] != serde_json::json!([])
+        || value["rustRuntimeFiles"].as_u64().is_none_or(|count| count == 0)
+        || value.as_object().is_none_or(|fields| fields.len() != 6)
+    {
+        return Err("Rust policy must emit its actual successful fail-closed JSON result.".into());
+    }
     Ok(value)
 }
 fn selected_step_output(name: &str, stdout: &[u8]) -> Result<()> {
@@ -2314,7 +2317,7 @@ pub(super) fn run(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> {
 mod tests {
     use super::*;
     #[test]
-    fn source_snapshot_accepts_the_migrated_checkout_with_or_without_empty_retired_directory() {
+    fn source_snapshot_binds_the_rust_checkout_without_retired_inputs() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/KeyboardChecks.swift";
         assert!(!SOURCE_ROSTER.contains(&"rust-native/scripts"));
@@ -2322,6 +2325,8 @@ mod tests {
         let snapshot = sources(root).unwrap();
         assert!(!snapshot.contains_key(retired));
         assert!(!snapshot.keys().any(|path| path.starts_with("Sources/")));
+        assert!(!snapshot.contains_key("Package.swift"));
+        assert!(!snapshot.contains_key("rust-native/swift-reference-lock.json"));
         assert!(!snapshot
             .keys()
             .any(|path| path.starts_with("rust-native/scripts/")));
@@ -3284,11 +3289,6 @@ mod tests {
             .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("target/debug/rust-only-policy"));
         assert!(binary.is_absolute() && binary.is_file(), "Build the actual Rust policy CLI first");
         let fixture = super::super::tests::Fixture::new(); let root = &fixture.0;
-        fs::create_dir(root.join("Sources")).unwrap();
-        fs::write(root.join("Sources/Legacy.swift"), b"// own policy fixture").unwrap();
-        fs::write(root.join("Package.swift"), b"// own policy fixture").unwrap();
-        let frozen = ["Sources/Legacy.swift","Package.swift"].into_iter().map(|name|(name,digest(&root.join(name)).unwrap())).collect::<BTreeMap<_,_>>();
-        fs::write(root.join("rust-native/swift-reference-lock.json"), serde_json::to_vec(&serde_json::json!({"schema":"ruycast.rust-only-reference-lock.v1","legacy_roots":["Sources"],"runtime_roots":["rust/src","rust-native/src"],"files":frozen})).unwrap()).unwrap();
         let target="aarch64-apple-darwin"; let source=rust_policy_source(target).unwrap();
         fs::create_dir_all(root.join(&source).parent().unwrap()).unwrap();
         fs::copy(&binary,root.join(&source)).unwrap();
@@ -3366,15 +3366,37 @@ mod tests {
     }
     #[test]
     fn rust_policy_matrix_output_requires_successful_actual_json() {
-        let good=serde_json::json!({"ok":true,"policy":"Rust-only new product code","productionReady":false,"errors":[],"frozenLegacyFiles":2,"rustRuntimeFiles":2,"lockSHA256":"a".repeat(64)});
+        let good = serde_json::json!({
+            "schema": "ruycast.rust-only-source-policy.v1",
+            "ok": true,
+            "policy": "Rust-only executable source",
+            "productionReady": false,
+            "errors": [],
+            "rustRuntimeFiles": 2,
+        });
+        let retired = serde_json::json!({
+            "ok": true,
+            "policy": "Rust-only new product code",
+            "productionReady": false,
+            "errors": [],
+            "frozenLegacyFiles": 2,
+            "rustRuntimeFiles": 2,
+            "lockSHA256": "a".repeat(64),
+        });
         for name in ["rust-only-policy", "rust-only-policy-final"] {
-            selected_step_output(name,&serde_json::to_vec(&good).unwrap()).unwrap();
-            for key in ["ok","policy","productionReady","errors","frozenLegacyFiles","rustRuntimeFiles","lockSHA256"] {
-                let mut bad=good.clone();bad.as_object_mut().unwrap().remove(key);
-                assert!(selected_step_output(name,&serde_json::to_vec(&bad).unwrap()).is_err());
+            selected_step_output(name, &serde_json::to_vec(&good).unwrap()).unwrap();
+            for key in good.as_object().unwrap().keys() {
+                let mut bad = good.clone();
+                bad.as_object_mut().unwrap().remove(key);
+                assert!(selected_step_output(name, &serde_json::to_vec(&bad).unwrap()).is_err());
             }
-            let mut failed=good.clone();failed["ok"]=serde_json::json!(false);
-            assert!(selected_step_output(name,&serde_json::to_vec(&failed).unwrap()).is_err());
+            assert!(selected_step_output(name, &serde_json::to_vec(&retired).unwrap()).is_err());
+            let mut failed = good.clone();
+            failed["ok"] = serde_json::json!(false);
+            assert!(selected_step_output(name, &serde_json::to_vec(&failed).unwrap()).is_err());
+            let mut empty_runtime = good.clone();
+            empty_runtime["rustRuntimeFiles"] = serde_json::json!(0);
+            assert!(selected_step_output(name, &serde_json::to_vec(&empty_runtime).unwrap()).is_err());
         }
     }
     #[test]

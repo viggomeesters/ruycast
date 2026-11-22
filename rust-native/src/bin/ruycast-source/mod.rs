@@ -394,13 +394,7 @@ struct Manifest {
     publication: String,
 }
 fn role(p: &str) -> String {
-    if p.starts_with("Sources/")
-        || p == "Package.swift"
-        || p.starts_with("Tests/LauncherCoreTests/")
-        || p.starts_with("bench/reference/0.8.26/")
-    {
-        "historical Swift reference/test oracle; not a product host"
-    } else if p.starts_with("rust/src/") || p.starts_with("rust-native/src/") {
+    if p.starts_with("rust/src/") || p.starts_with("rust-native/src/") {
         "Rust product or Rust tool"
     } else {
         "product documentation, assets, default configuration or test support"
@@ -418,10 +412,7 @@ fn manifest(inputs: &Snapshot) -> Manifest {
             .collect(),
         modes: inputs.iter().map(|(p, i)| (p.clone(), i.mode)).collect(),
         roles: inputs.keys().map(|p| (p.clone(), role(p))).collect(),
-        historical_references: vec![
-            "Package.swift".into(),
-            "Sources/".into(),
-        ],
+        historical_references: vec![allowlist::HISTORICAL_REFERENCE.into()],
         publication: "export-only; not published, installed or production-accepted".into(),
     }
 }
@@ -762,37 +753,19 @@ pub fn cli(args: Vec<String>) -> Result<Value> {
 
 #[cfg(test)]
 #[test]
-fn source_export_omits_duplicate_benchmark_reference_tree() {
+fn source_export_omits_retired_swift_packages() {
     let paths = policy().unwrap();
-    assert!(
-        !paths
-            .iter()
-            .any(|path| path.starts_with("bench/reference/0.8.26/"))
-    );
-    assert!(paths.contains("Package.swift"));
-    assert!(paths.contains("Sources/LauncherCore/Files.swift"));
-    assert!(!paths.contains("Sources/RuycastApp/WindowSearchChecks.swift"));
-    assert!(!paths.contains("Tests/LauncherCoreTests/CoreTests.swift"));
-    let historical = role("Sources/LauncherCore/Files.swift");
-    for path in [
-        "bench/reference/0.8.26/Package.swift",
-        "bench/reference/0.8.26/Sources/RuycastApp/main.swift",
-        "bench/reference/0.8.26/rust/src/lib.rs",
-    ] {
-        assert_eq!(role(path), historical, "{path}");
-    }
-    for path in [
-        "bench/reference/0.8.260/Sources/main.swift",
-        "bench/reference/0.8.26-old/Sources/main.swift",
-        "bench/reference/0.8.26",
-        "bench/f1-runner/src/main.rs",
-    ] {
-        assert_ne!(role(path), historical, "{path}");
-    }
-    let manifest = manifest(&Snapshot::new());
+    assert!(!paths.iter().any(|path| {
+        path.starts_with("bench/reference/0.8.26/")
+            || path.starts_with("Sources/")
+            || path.starts_with("Tests/LauncherCoreTests/")
+            || path == "Package.swift"
+            || path == "rust-native/swift-reference-lock.json"
+    }));
+    assert!(paths.contains("Tests/fixtures/core_abi_probe.rs"));
     assert_eq!(
-        manifest.historical_references,
-        ["Package.swift", "Sources/",]
+        manifest(&Snapshot::new()).historical_references,
+        [allowlist::HISTORICAL_REFERENCE]
     );
 }
 #[test]
