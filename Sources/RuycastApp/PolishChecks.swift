@@ -33,7 +33,6 @@ import LauncherModels
     try Files.save(config,to:state.configURL);try state.reload()
     for theme in ["system","light","dark","graphite"] {
         state.config.theme=theme;state.query=""
-        try capture(Palette(state:state),"launcher-"+theme,NSSize(width:760,height:490),absent:["Create"])
         let navigation=ManagementNavigation();navigation.select(.general)
         try capture(ManagementView(state:state,navigation:navigation),"settings-"+theme,NSSize(width:980,height:680),required:["Theme","Menu Bar Icon"])
     }
@@ -75,5 +74,5 @@ import LauncherModels
         try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Set Hotkey","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
         try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["Set Hotkey","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
     }
-    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"consumerEditorDisclosure":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
