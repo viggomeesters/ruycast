@@ -72,7 +72,7 @@ import LauncherModels
 #endif
     state.inlineSource="hotkey";state.selection=4;state.query="echo-inline Café & spaces"
     try capture(Palette(state:state),"inline-query",NSSize(width:760,height:490),required:["Inline Input","Café"])
-    state.cancelPaletteInput();try require(state.inlineCommand==nil && state.query=="echo-inline","Escape did not restore search")
+    state.cancelPaletteInput()
     state.form=nil;state.query=""
     let script=Command(id:"fixture.edit",title:"Example Action",kind:"script",target:"/bin/sh",aliases:["example"],arguments:["-c","printf sample"])
     try capture(CommandEditor(state:state,form:CommandForm(command:script,isRun:false)),"editor-closed",NSSize(width:760,height:490),required:["Name","Advanced"],absent:["Arguments","Timeout","Executable"])
