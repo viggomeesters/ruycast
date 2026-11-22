@@ -58,8 +58,6 @@ import LauncherModels
         let view=NSHostingView(rootView:SystemMonitorView(model:monitor,tab:tab));view.appearance=NSAppearance(named:dark ? .darkAqua:.aqua);view.frame=NSRect(x:0,y:0,width:900,height:640)
         capture(view,"monitor-\(dark ? "dark":"light")-\(tab.rawValue.replacingOccurrences(of:" ",with:"-"))",words:[tab.rawValue])
     }}
-    let controller=SystemMonitorController(state:state);defer {controller.window.close()}
-    try require(!controller.window.isVisible && !controller.model.active,"Monitor window opened or sampled automatically")
     let palette=PaletteController(state:state);var routed=false;state.showSystemMonitor={routed=true};palette.show("system-monitor")
     try require(routed && !palette.panel.isVisible,"System Monitor did not use its own window route")
     try require(!window.isVisible,"Resource checks opened a visible window")

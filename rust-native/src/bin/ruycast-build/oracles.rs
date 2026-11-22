@@ -2306,6 +2306,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         });
     }
     if kind == "check" {
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.monitorColdStart"] = serde_json::json!({
+            "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; redundant monitor cold-start assertion retired",
+            "scope": "Only the standalone Swift SystemMonitorController allocation, deferred close and initial hidden/inactive assertion are retired. The monitor model and six themed tab captures plus the palette-to-monitor window routing assertion remain.",
+            "nativeCases": ["monitor::lifecycle_tests::visible_only_two_second_sampling_history_bound_and_reopen_preserve_state", "remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"],
+            "originalAssertions": ["A newly constructed monitor starts hidden and inactive before the monitor is explicitly opened."],
+            "productionAccepted": false
+        });
+    }
+    if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.clipboardStaticWhileIdle"] = serde_json::json!({
             "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift idle clipboard assertion and orphaned captures retired",
@@ -6023,6 +6033,9 @@ mod tests {
         assert!(!rich.contains("Image preview lost its actual pixels"));
         assert!(!rich.contains("Image or image-file preview failed"));
         assert!(rich.contains("let monitor=SystemMonitorModel()"));
+        assert!(!rich.contains("SystemMonitorController(state:state)"));
+        assert!(!rich.contains("Monitor window opened or sampled automatically"));
+        assert!(rich.contains("state.showSystemMonitor={routed=true};palette.show(\"system-monitor\")"));
         assert!(!rich.contains("Monitor kept sampling while closed"));
         assert!(!rich.contains("monitorStopsSamplingWhenClosed"));
         assert!(!rich.contains("clipboard-static-before"));
@@ -6045,6 +6058,13 @@ mod tests {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
         assert_eq!(gate.required_native_steps.len(), 5);
         assert_eq!(gate.native_cases.len(), 16);
+        let inventory = inventory("check").unwrap();
+        let monitor_cold_start = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.monitorColdStart"];
+        assert_eq!(monitor_cold_start["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
+        assert_eq!(monitor_cold_start["status"], "source-qualified-rust-case-crosswalk; redundant monitor cold-start assertion retired");
+        assert_eq!(monitor_cold_start["nativeCases"], serde_json::json!(["monitor::lifecycle_tests::visible_only_two_second_sampling_history_bound_and_reopen_preserve_state", "remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"]));
+        assert_eq!(monitor_cold_start["productionAccepted"], false);
+        assert!(gate.native_cases.contains(&"remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"));
         let inputs = settings_sources(gate.id);
         assert_eq!(inputs.len(), 39);
         for case in [
@@ -6053,7 +6073,6 @@ mod tests {
         ] {
             assert!(gate.native_cases.contains(&case), "missing Rust case {case}");
         }
-        let inventory = inventory("check").unwrap();
         let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.processQueries"];
         assert_eq!(retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
         assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift process assertions retired");
