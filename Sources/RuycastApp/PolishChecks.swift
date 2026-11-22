@@ -97,14 +97,6 @@ import LauncherModels
     state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id,"Invalid date executed or discarded input")
     try capture(Palette(state:state),"date-invalid",NSSize(width:760,height:480),required:["Datum niet herkend"])
     state.message="";state.inlineInput="clear";try capture(Palette(state:state),"date-clear",NSSize(width:760,height:480),required:["Datum wissen"])
-    let savedDate=root.appendingPathComponent("date-result.txt")
-    var dateWriter=dateCommand;dateWriter.id="fixture.date-write";dateWriter.target="/bin/sh"
-    dateWriter.arguments=["-c","printf '%s' \"$1\" > \"$2\"","date-preview","{input}",savedDate.path]
-    state.config.commands.append(dateWriter);state.cancelInlineInput();state.begin(dateWriter);state.inlineInput="morgen"
-    let frozenDate=TaskDateInput.resolve("morgen",now:Date(timeIntervalSince1970:946728000))
-    state.inlineDatePreview=frozenDate;state.submitInlineInput();state.submitInlineInput()
-    let dateEnd=Date().addingTimeInterval(8);while state.busy,Date()<dateEnd {pump(0.02)}
-    try require(!state.busy && state.message.isEmpty && state.counts[dateWriter.id]==1,"Date Enter failed or ran twice")
     state.cancelInlineInput();state.message=""
     state.mode="snippets";state.query="";state.config.commands=[
         Command(id:"fixture.greet",title:"Greeting",kind:"snippet",target:"Hello",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";greetsnippet"),
