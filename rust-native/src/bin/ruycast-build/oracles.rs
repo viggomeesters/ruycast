@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "42680ac05638a8fb91834bd7887fd6051ea75be1646987707ea8909afcb1ebce";
+const POLISH_CURRENT_SHA256: &str = "7470002b4c2061ef90e610c1b14d69b4938f0c13f46c3fc676a3c84c82874cac";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -2046,11 +2046,21 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.launcherPreviewCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift launcher preview captures retired",
-            "scope": "Only the four Swift launcher-system/light/dark/graphite Vision captures and their Create-absent OCR assertion/summary field are retired. Other settings, action, inline and snippet captures and the shared --check-polish route remain active.",
+            "scope": "Only the four Swift launcher-system/light/dark/graphite Vision captures and their Create-absent OCR assertion/summary field are retired. The settings preview set has its own crosswalk; action, inline and snippet captures and the shared --check-polish route remain active.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Create is absent from the launcher preview in system, light, dark and graphite themes."],
             "compatibilityNotes": ["Swift used Vision OCR on four offscreen 760×490 palette images. Rust checks actual AppKit screen text and that the launcher window remains hidden, then retains native captures in the same four themes."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.settingsPreviewCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift settings preview captures retired",
+            "scope": "Only the four Swift General-settings system/light/dark/graphite Vision captures and their Theme/Menu Bar Icon OCR assertions are retired. The existing Rust four-theme settings capture remains; action, inline, snippet and other Polish cases stay active.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["The General settings preview shows Theme and Menu Bar Icon in system, light, dark and graphite themes."],
+            "compatibilityNotes": ["Swift used Vision OCR on offscreen 980×680 ManagementView images. Rust checks both labels in actual native screen text, verifies the settings window remains hidden and retains native captures in the same four themes."],
             "productionAccepted": false
         });
     }
@@ -8555,7 +8565,6 @@ mod tests {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("\"launcher-\"+theme"));
         assert!(!source.contains("\"createRemoved\":true"));
-        assert!(source.contains("\"settings-\"+theme"));
         assert!(source.contains("action-inline-save-"));
         assert!(source.contains("snippet-bindings-"));
         assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
@@ -8587,6 +8596,45 @@ mod tests {
         assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
         assert_eq!(retired["originalAssertions"], serde_json::json!(["Create is absent from the launcher preview in system, light, dark and graphite themes."]));
         assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on four offscreen 760×490 palette images. Rust checks actual AppKit screen text and that the launcher window remains hidden, then retains native captures in the same four themes."]));
+        assert_eq!(retired["productionAccepted"], false);
+    }
+    #[test]
+    fn polish_settings_preview_captures_are_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("ManagementNavigation"));
+        assert!(!source.contains("\"settings-\"+theme"));
+        assert!(source.contains("action-inline-save-"));
+        assert!(source.contains("snippet-bindings-"));
+        assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        let test = native
+            .split_once("fn polish_original(root: &Path) {")
+            .unwrap()
+            .1
+            .split_once("\nfn closed_creation(")
+            .unwrap()
+            .0;
+        for retained in [
+            "for theme in [\"system\",\"light\",\"dark\",\"graphite\"]",
+            "h.rpc(json!({\"op\":\"show\",\"mode\":\"settings\"}));h.probe(true,\"library-tab\",json!({\"tab\":\"general\"}));",
+            "capture(true,&format!(\"polish-general-{theme}\"),&[\"Theme\",\"Menu Bar Icon\"],&[]);captures+=1;",
+            "for flag in [\"windowShown\",\"windowKey\",\"windowMain\"]",
+        ] {
+            assert!(test.contains(retained), "Rust settings preview coverage changed: {retained}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.settingsPreviewCaptures"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift settings preview captures retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["The General settings preview shows Theme and Menu Bar Icon in system, light, dark and graphite themes."]));
+        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 980×680 ManagementView images. Rust checks both labels in actual native screen text, verifies the settings window remains hidden and retains native captures in the same four themes."]));
         assert_eq!(retired["productionAccepted"], false);
     }
     #[test]
