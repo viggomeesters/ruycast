@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "5f8e0fcc049c4e4c5f15e44ac334dc96e95612d175a4eb719ea4cda782d9a484";
+const POLISH_CURRENT_SHA256: &str = "f0c71c84b8ace48f2f445a21671e196bd51ab2a4ab54cc11d08232a262039127";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -864,7 +864,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
     match id {
         "--check-polish" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "fafca33b6a713b50ac212da4c9a49ebb8529e1a335ec5dc82f7262483752fedd"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
@@ -914,7 +914,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -957,7 +957,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -981,7 +981,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -1196,7 +1196,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -1272,7 +1272,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -2031,6 +2031,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeCases": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"],
             "originalAssertions": ["The process action menu displays its Kill action in both light and dark themes."],
             "compatibilityNotes": ["Swift used Vision OCR on offscreen 600×490 captures. Rust reads the native AppKit action labels and retains native palette captures in both themes."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.commandEditorLayoutCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift command-editor layout captures retired",
+            "scope": "Only the one-off script CommandEditor fixture and its editor-closed/editor-expanded Vision captures are retired. The Rust script-advanced process retains both themes, visible Name and Advanced labels, hidden closed fields, visible expanded labels, unhidden expanded fields, document growth and native captures at multiple sizes.",
+            "nativeSteps": ["script-advanced-process"],
+            "nativeCases": ["ui_completion::script_advanced"],
+            "originalAssertions": ["Closed script editor shows Name and Advanced while hiding Arguments, Timeout and Executable.", "Expanded script editor shows Advanced, Arguments and Timeout."],
+            "compatibilityNotes": ["Swift used Vision OCR on offscreen 760×490 and 760×620 CommandEditor images. Rust checks the expanded labels in the visible screen text and checks each field's hidden state in AppKit; captures are saved in both themes. The legacy Swift `Executable` field maps to the Rust `Target` field."],
             "productionAccepted": false
         });
     }
@@ -8185,7 +8195,7 @@ mod tests {
         assert!(!source.contains("Alias argument did not enter inline mode"));
         assert!(source.contains("inline-query"));
         assert!(source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("editor-expanded"));
+        assert!(source.contains("snippet-bindings-"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8215,7 +8225,7 @@ mod tests {
         assert!(source.contains("state.inlineSource=\"hotkey\";state.selection=4;state.query=\"echo-inline Café & spaces\""));
         assert!(source.contains("inline-query"));
         assert!(source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("editor-expanded"));
+        assert!(source.contains("snippet-bindings-"));
 
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasMode"];
@@ -8247,7 +8257,7 @@ mod tests {
         assert!(!source.contains("Escape did not restore search"));
         assert!(source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("inline-query"));
-        assert!(source.contains("editor-expanded"));
+        assert!(source.contains("snippet-bindings-"));
 
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEscape"];
@@ -8275,7 +8285,7 @@ mod tests {
         assert!(!source.contains("Alias argument did not enter inline mode"));
         assert!(source.contains("inline-query"));
         assert!(source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("editor-expanded"));
+        assert!(source.contains("snippet-bindings-"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8327,7 +8337,7 @@ mod tests {
         for retired in ["date-valid", "date-invalid", "date-clear", "Deadline (YYYY-MM-DD of clear)"] {
             assert!(!source.contains(retired), "Swift date-preview setup remains: {retired}");
         }
-        for retained in ["inline-query", "editor-closed", "snippet-bindings-"] {
+        for retained in ["inline-query", "action-inline-save-", "snippet-bindings-"] {
             assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
         }
 
@@ -8474,6 +8484,61 @@ mod tests {
         assert_eq!(captures["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"]));
         assert_eq!(captures["originalAssertions"], serde_json::json!(["The process action menu displays its Kill action in both light and dark themes."]));
         assert_eq!(captures["productionAccepted"], false);
+    }
+    #[test]
+    fn polish_command_editor_layout_captures_are_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        for retired in [
+            "editor-closed",
+            "editor-expanded",
+            "fixture.edit",
+            "CommandEditor(state:state",
+            "advancedExpanded:true",
+        ] {
+            assert!(!source.contains(retired), "Swift command-editor fixture/capture remains: {retired}");
+        }
+        assert!(source.contains("state.form=nil;state.query=\"\""));
+        assert!(source.contains("snippet-bindings-"));
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        let test = native
+            .split_once("fn script_advanced(root: &Path) {")
+            .unwrap()
+            .1
+            .split_once("\nfn snippet_links(root: &Path)")
+            .unwrap()
+            .0;
+        for retained in [
+            "for required in [\"Name\", \"Advanced\"]",
+            "visible.iter().any(|value| value == required)",
+            "assert_eq!(closed[\"advanced\"], false);",
+            "\"Target\", \"Arguments\", \"Timeout in seconds\"",
+            "assert!(!matches.is_empty(), \"Missing closed script-editor field",
+            "matches.iter().all(|field| field[\"hidden\"] == true)",
+            "assert_eq!(open[\"advanced\"], true);",
+            "let expanded_screen = h.probe(true, \"read\", json!({}));",
+            "visible.iter().any(|value| value == label)",
+            "for label in [\"Advanced\", \"Target\", \"Arguments\", \"Timeout in seconds\"]",
+            "assert!(!matches.is_empty(), \"Missing expanded script-editor field",
+            "assert!(matches.iter().any(|field| field[\"hidden\"] == false)",
+            "script-advanced-open-{theme}",
+        ] {
+            assert!(test.contains(retained), "Rust script-editor layout coverage changed: {retained}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"script-advanced-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::script_advanced"));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.commandEditorLayoutCaptures"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift command-editor layout captures retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["script-advanced-process"]));
+        assert!(retired["scope"].as_str().unwrap().contains("visible expanded labels, unhidden expanded fields"));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::script_advanced"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Closed script editor shows Name and Advanced while hiding Arguments, Timeout and Executable.", "Expanded script editor shows Advanced, Arguments and Timeout."]));
+        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 760×490 and 760×620 CommandEditor images. Rust checks the expanded labels in the visible screen text and checks each field's hidden state in AppKit; captures are saved in both themes. The legacy Swift `Executable` field maps to the Rust `Target` field."]));
+        assert_eq!(retired["productionAccepted"], false);
     }
     #[test]
     fn polish_configuration_error_health_assertion_is_retired_and_crosswalked() {
@@ -8652,7 +8717,7 @@ mod tests {
         ] {
             assert!(!source.contains(retired), "Swift clipboard preview capture remains: {retired}");
         }
-        for retained in ["inline-query", "editor-closed", "snippet-bindings-"] {
+        for retained in ["inline-query", "action-inline-save-", "snippet-bindings-"] {
             assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
         }
 

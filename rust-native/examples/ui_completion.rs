@@ -1167,6 +1167,10 @@ fn script_advanced(root: &Path) {
         h.edit("script.fixture");
         h.capture(true, &format!("script-advanced-initial-{theme}"));
         let screen = h.probe(true, "read", json!({}));
+        let visible = screen["screenText"].as_array().unwrap();
+        for required in ["Name", "Advanced"] {
+            assert!(visible.iter().any(|value| value == required), "Missing closed script-editor label {required}: {screen}");
+        }
         assert!(
             !screen["screenText"]
                 .as_array()
@@ -1178,12 +1182,14 @@ fn script_advanced(root: &Path) {
         let closed = h.probe(true, "editor-layout", json!({}));
         assert_eq!(closed["advanced"], false);
         for label in ["Target", "Arguments", "Timeout in seconds"] {
-            assert!(closed["fields"]
+            let matches = closed["fields"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .filter(|v| v["text"] == label || v["label"] == label)
-                .all(|v| v["hidden"] == true));
+                .filter(|field| field["text"] == label || field["label"] == label)
+                .collect::<Vec<_>>();
+            assert!(!matches.is_empty(), "Missing closed script-editor field {label}: {closed}");
+            assert!(matches.iter().all(|field| field["hidden"] == true), "Closed script-editor field is visible: {label}: {closed}");
         }
         h.probe(true, "command-scroll", json!({"y":2000.}));
         h.capture(true, &format!("script-advanced-closed-{theme}"));
@@ -1191,6 +1197,22 @@ fn script_advanced(root: &Path) {
         let open = h.probe(true, "editor-layout", json!({"advanced":"toggle"}));
         assert_eq!(open["advanced"], true);
         assert!(open["document"][3].as_f64().unwrap() > closed["document"][3].as_f64().unwrap());
+        h.probe(true, "command-scroll", json!({"y":2000.}));
+        let expanded_screen = h.probe(true, "read", json!({}));
+        let visible = expanded_screen["screenText"].as_array().unwrap();
+        for label in ["Advanced", "Target", "Arguments", "Timeout in seconds"] {
+            assert!(visible.iter().any(|value| value == label), "Expanded script-editor label is not visible: {label}: {expanded_screen}");
+        }
+        for label in ["Advanced", "Target", "Arguments", "Timeout in seconds"] {
+            let matches = open["fields"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|field| field["text"] == label || field["label"] == label)
+                .collect::<Vec<_>>();
+            assert!(!matches.is_empty(), "Missing expanded script-editor field {label}: {open}");
+            assert!(matches.iter().any(|field| field["hidden"] == false), "Expanded script-editor field is hidden: {label}: {open}");
+        }
         for field in open["fields"].as_array().unwrap() {
             assert_eq!(field["hidden"], false);
         }
