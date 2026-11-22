@@ -239,7 +239,7 @@ impl Host {
         .unwrap();
         result
     }
-    fn capture_palette(&self, name: &str) {
+    fn capture_palette(&self, name: &str) -> Value {
         let read = self.probe("screenshot");
         let out = native().join("target/remaining-macos-evidence");
         fs::create_dir_all(&out).unwrap();
@@ -253,6 +253,7 @@ impl Host {
             serde_json::to_vec_pretty(&read).unwrap(),
         )
         .unwrap();
+        read
     }
 }
 impl Drop for Host {
@@ -607,10 +608,25 @@ fn native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_theme
         let host = Host::new(true, theme);
         host.ok(json!({"op":"show","mode":"processes"}));
         host.wait_probe("read", |v| v["rows"] == 2);
+        let owned = host.ok(json!({"op":"processes"}))["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| {
+                (
+                    row["command"]["id"].as_str().unwrap().to_owned(),
+                    row["metrics"]["identity"]["pid"].as_i64().unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
         host.ok(
             json!({"op":"native.test","action":"key-event","code":40,"flags":1u64<<20,"chars":"k"}),
         );
         let menu = host.wait_probe("read", |v| v["actionsVisible"] == true);
+        let selected_before = menu["selectedId"].as_str().unwrap();
+        assert!(owned.iter().any(|(id, pid)| {
+            id == selected_before && [730011, 730012].contains(pid)
+        }), "selected command is not one of the owned process results: {selected_before}");
         let screen = menu["screenText"]
             .as_array()
             .unwrap()
@@ -645,7 +661,8 @@ fn native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_theme
                 "{label}"
             );
         }
-        host.capture_palette(&format!("process-actions-{theme}"));
+        let capture = host.capture_palette(&format!("process-actions-{theme}"));
+        assert_eq!(capture["result"]["selectedId"], selected_before);
         host.ok(json!({"op":"native.test","action":"key-event","code":53,"flags":0,"chars":""}));
         host.wait_probe("read", |v| v["actionsVisible"] == false);
         host.ok(json!({"op":"native.test","action":"key","key":"return"}));

@@ -66,7 +66,6 @@ import LauncherModels
     for theme in ["light","dark"] {
         state.config.theme=theme
         try capture(Palette(state:state),"action-process-"+theme,NSSize(width:600,height:490),required:["Kill"])
-        try require(state.selectedCommand?.id==process.id,"Synthetic process selection changed during rendering")
     }
     state.mode="commands";state.query=""
 #endif
