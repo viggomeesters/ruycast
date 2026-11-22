@@ -22,9 +22,9 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 The app host, CLI, build receipts and packaging are implemented in Rust. Current source betas are available on the [Releases page](https://github.com/viggomeesters/ruycast/releases). A notarized app download remains deferred.
 
-The repository is not yet entirely Rust: historical Swift sources, Python tools and tests, shell entrypoints and C reference programs remain. Native SDK test providers are now Rust. [The repository migration](https://github.com/viggomeesters/ruycast/issues/157) replaces or retires the remaining executable sources and switches their callers to Rust, preserving required behavior without excluding files from language statistics.
+The application, CLI, build tools, helpers, and tests are implemented in Rust. The former Swift package is preserved in Git history. The [source export guide](docs/SOURCE-EXPORT.md) records its exact revision.
 
-Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Python 3.10+ is needed only for compatibility entrypoints and unchanged test validators; Swift is needed for explicit historical parity oracles, not the production build. Dependencies must already be cached for the offline build:
+Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Dependencies must already be cached for the offline build.
 
 Build and verify the Rust pair directly through the Rust build tool:
 
@@ -78,9 +78,9 @@ cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --ta
 cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify-check
 ```
 
-`disk-status` reports available bytes and the current headroom estimate for each producer. `clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. The `check` command runs the Rust build tool directly. Its inventory qualifies the actual empty Python unittest tree and the current `git-diff-check` source; that does not itself prove the full validation pipeline ran or make the repository Rust-only. The native matrix still includes Python validators. The `settings` inventory now source-qualifies all 16 selector gates; this inventory result does not mean the full Settings matrix ran or that production acceptance was granted.
+`disk-status` reports available bytes and the current headroom estimate for each producer. `clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. The Rust build tool runs the `check` and `settings` pipelines. Their source-qualified gate inventory describes the required coverage. Successful local runs and verified receipts establish execution evidence.
 
-The previous full Swift-comparison and F1 measurement campaign was discontinued on 10 November 2026. Current work uses focused checks for each change and separate short launcher-time and memory measurements. Historical comparison code remains pending retirement; its presence does not make the discontinued campaign a release requirement.
+The previous full Swift-comparison and F1 measurement campaign was discontinued on 10 November 2026. Current work uses focused checks for each change and separate short launcher-time and memory measurements. Historical comparison measurements remain available in the performance notes.
 
 [Contributing](CONTRIBUTING.md) · [Performance](docs/PERFORMANCE.md) · [Product contract](docs/vision.json)
 

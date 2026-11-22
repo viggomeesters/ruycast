@@ -18,6 +18,18 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
+
+// Both digests match the checked-in inputs to commit
+// 3433cd64b64f218933e797848d6d9ad88db8a217, which introduced the literal corpus.
+const RETIRED_BRIDGE_SOURCE: (&str, &str) = (
+    "Sources/LauncherCore/RustBridge.swift",
+    "ddcc0cdf77db35ca157cda6d36e78925dfd47a5f17fcaeba2529aeab73e5bd6e",
+);
+const RETIRED_HOTKEYS_SOURCE: (&str, &str) = (
+    "Sources/RuycastApp/Hotkeys.swift",
+    "c78041f9d41ba4c97cd2958b3f575b24079d86ce401c3065705835e1d17b8ac0",
+);
+
 fn config(launcher: &str, clipboard: &str) -> Value {
     let mut c = runtime_host::default_config();
     c["launcherHotkey"] = json!(launcher);
@@ -37,11 +49,8 @@ fn literal_shortcut_corpus() -> Value {
         "4cac352ef3da30cb8d25236cec5eb46789e623ee3c763fdbfcbb96f7c60cd4e8"
     );
     let gold: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(gold["source"], "Sources/LauncherCore/RustBridge.swift");
-    assert_eq!(
-        gold["sourceSHA256"],
-        "ddcc0cdf77db35ca157cda6d36e78925dfd47a5f17fcaeba2529aeab73e5bd6e"
-    );
+    assert_eq!(gold["source"], RETIRED_BRIDGE_SOURCE.0);
+    assert_eq!(gold["sourceSHA256"], RETIRED_BRIDGE_SOURCE.1);
     gold
 }
 fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Value, Vec<Value>) {
@@ -123,20 +132,8 @@ fn run_probe(operations: Vec<Value>, flags: &[&str], shim: Option<&str>) -> (Val
             )
         })
         .collect::<std::collections::BTreeMap<_, _>>();
-        let lock: Value =
-            serde_json::from_str(include_str!("../swift-reference-lock.json")).unwrap();
-        let retired_swift_sources = [
-            "Sources/LauncherCore/RustBridge.swift",
-            "Sources/RuycastApp/Hotkeys.swift",
-        ]
-        .into_iter()
-        .map(|path| {
-            let sha256 = lock["files"][path]
-                .as_str()
-                .expect("historical keyboard source must remain pinned in the reference lock");
-            (path, sha256)
-        })
-        .collect::<std::collections::BTreeMap<_, _>>();
+        let retired_swift_sources =
+            std::collections::BTreeMap::from([RETIRED_BRIDGE_SOURCE, RETIRED_HOTKEYS_SOURCE]);
         let mut copies = std::collections::BTreeMap::new();
         for (label, source) in &artifacts {
             let (path, digest) =

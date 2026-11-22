@@ -2,17 +2,22 @@
 #[allow(dead_code)]
 #[path = "support/child_output.rs"]
 mod child_output;
-use serde_json::{json, Value};
-use sha2::{Digest, Sha256};
+use serde_json::{Value, json};
 use std::{
+    ffi::{CString, OsString},
     fs,
-    os::unix::fs::DirBuilderExt,
+    os::unix::{
+        ffi::{OsStrExt, OsStringExt},
+        fs::{DirBuilderExt, PermissionsExt, symlink},
+    },
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
+
 struct Fixture(PathBuf);
+
 impl Fixture {
     fn new() -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -24,55 +29,43 @@ impl Fixture {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::DirBuilder::new().mode(0o700).create(&root).unwrap();
-        let value = Self(root);
-        for path in [
-            "Sources/Legacy.swift",
-            "Package.swift",
-            "rust/src/lib.rs",
-            "rust-native/src/main.rs",
-        ] {
-            value.write(path, "// own policy fixture\n");
+        let fixture = Self(root);
+        for path in ["rust/src/lib.rs", "rust-native/src/main.rs"] {
+            fixture.write(path, "// own policy fixture\n");
         }
-        let files = ["Sources/Legacy.swift", "Package.swift"]
-            .into_iter()
-            .map(|path| {
-                (
-                    path,
-                    format!(
-                        "{:x}",
-                        Sha256::digest(fs::read(value.0.join(path)).unwrap())
-                    ),
-                )
-            })
-            .collect::<std::collections::BTreeMap<_, _>>();
-        value.write("rust-native/swift-reference-lock.json", &json!({"schema":"ruycast.rust-only-reference-lock.v1", "legacy_roots":["Sources"], "runtime_roots":["rust/src","rust-native/src"], "files":files}).to_string());
-        value
+        fixture
     }
+
     fn write(&self, path: &str, text: &str) {
         let path = self.0.join(path);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, text).unwrap();
     }
 }
+
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
-fn verify(root: &Path) -> Value {
-    let output = child_output::wait(
-        Command::new(env!("CARGO_BIN_EXE_rust-only-policy"))
-            .arg("--root")
-            .arg(root)
+
+fn run(command: &mut Command) -> std::process::Output {
+    child_output::wait(
+        command
             .env_clear()
-            .current_dir(root)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .unwrap(),
         Duration::from_secs(6),
-    );
+    )
+}
+
+fn verify(root: &Path) -> Value {
+    let output = run(Command::new(env!("CARGO_BIN_EXE_rust-only-policy"))
+        .arg("--root")
+        .arg(root));
     let result: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(
         output.status.code(),
@@ -80,233 +73,210 @@ fn verify(root: &Path) -> Value {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert_eq!(result["schema"], "ruycast.rust-only-source-policy.v1");
+    assert_eq!(result["policy"], "Rust-only executable source");
     assert_eq!(result["productionReady"], false);
     result
 }
+
+fn assert_refusal(root: &Path, expected: &str) {
+    let result = verify(root);
+    assert_eq!(result["ok"], false, "{result}");
+    assert!(
+        result["errors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|error| error == expected),
+        "{expected}: {result}"
+    );
+}
+
 #[test]
-fn test_real_repository_current_freeze_passes() {
+fn real_repository_is_rust_only() {
     let result = verify(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap());
     assert_eq!(result["ok"], true, "{result}");
-    assert!(result["frozenLegacyFiles"].as_u64().unwrap() > 2);
+    assert!(result["rustRuntimeFiles"].as_u64().unwrap() > 2);
+    assert!(
+        !result
+            .as_object()
+            .unwrap()
+            .contains_key("frozenLegacyFiles")
+    );
+    assert!(!result.as_object().unwrap().contains_key("lockSHA256"));
 }
+
 #[test]
-fn test_rust_changes_and_new_rust_files_remain_allowed() {
+fn rust_changes_and_data_remain_allowed() {
     let fixture = Fixture::new();
     fixture.write("rust-native/src/main.rs", "fn main() {}\n");
-    fixture.write("rust/src/new.rs", "pub fn execute() {}\n");
-    assert_eq!(verify(&fixture.0)["ok"], true);
+    fixture.write("rust/src/�.rs", "pub fn execute() {}\n");
+    fixture.write("scripts/check.rs", "fn main() {}\n");
+    fixture.write("rust-native/tests/example.json", "{}");
+    fixture.write("tests.md", "# Testing\n");
+    fixture.write("assets/icon.svg", "<svg/>");
+    fixture.write("docs/old-host.md", "# Historical Swift input\n");
+    let result = verify(&fixture.0);
+    assert_eq!(result["ok"], true, "{result}");
+    assert_eq!(result["rustRuntimeFiles"], 3);
+    assert_eq!(result["errors"], json!([]));
 }
+
 #[test]
-fn test_non_rust_test_and_helper_sources_fail() {
+fn retired_paths_fail_even_with_no_swift_bytes() {
     for path in [
-        "rust-native/tests/oracle.swift",
-        "rust-native/tests/sdk.m",
-        "rust-native/scripts/check.py",
-        "rust/tests/oracle.swift",
-        "rust/scripts/check.py",
-        "Tests/fixtures/oracle.swift",
-        "scripts/check.py",
-        "bench/f1-runner/examples/helper.sh",
+        "Sources",
+        "Package.swift",
+        "rust-native/swift-reference-lock.json",
+        "Tests/LauncherCoreTests",
+    ] {
+        let fixture = Fixture::new();
+        if path == "Sources" || path == "Tests/LauncherCoreTests" {
+            fs::create_dir_all(fixture.0.join(path)).unwrap();
+        } else {
+            fixture.write(path, "");
+        }
+        assert_refusal(&fixture.0, &format!("retired Swift input: {path}"));
+    }
+    let fixture = Fixture::new();
+    symlink("missing", fixture.0.join("Sources")).unwrap();
+    assert_refusal(&fixture.0, "retired Swift input: Sources");
+}
+
+#[test]
+fn non_rust_executable_source_fails_in_every_scope() {
+    for (path, scope) in [
+        ("rust-native/src/bridge.swift", "runtime"),
+        ("rust/src/bridge.m", "runtime"),
+        ("rust-native/tests/oracle.swift", "tooling"),
+        ("rust-native/scripts/check.py", "tooling"),
+        ("rust/tests/oracle.swift", "tooling"),
+        ("rust/scripts/check.py", "tooling"),
+        ("Tests/fixtures/oracle.swift", "tooling"),
+        ("scripts/check.py", "tooling"),
+        ("bench/f1-runner/examples/helper.sh", "tooling"),
+        ("bench/unowned/target/oracle.swift", "tooling"),
+        ("rust-native/NewHost.swift", "product"),
+        ("rust-native/web/runtime.js", "product"),
+        ("rust/NewHost.go", "product"),
+        ("helper.sh", "repository"),
+        ("helpers/run", "repository"),
+        ("assets/Host.swift", "repository"),
+        ("docs/runtime.py", "repository"),
     ] {
         let fixture = Fixture::new();
         fixture.write(path, "// forbidden executable source fixture\n");
-        let result = verify(&fixture.0);
-        assert_eq!(result["ok"], false, "{path}: {result}");
-        assert_eq!(
-            result["errors"],
-            json!([format!("non-Rust/unknown tooling input: {path}")])
+        assert_refusal(
+            &fixture.0,
+            &format!("non-Rust/unknown {scope} input: {path}"),
         );
     }
 }
 
 #[test]
-fn frozen_replacement_character_legacy_name_remains_supported() {
+fn executable_data_and_disguised_scripts_fail() {
     let fixture = Fixture::new();
-    let lock = fixture.0.join("rust-native/swift-reference-lock.json");
-    let mut value: Value = serde_json::from_slice(&fs::read(&lock).unwrap()).unwrap();
-    let sha = value["files"]
-        .as_object_mut()
-        .unwrap()
-        .remove("Sources/Legacy.swift")
-        .unwrap();
-    value["files"]["Sources/�.swift"] = sha;
-    fs::write(lock, serde_json::to_vec(&value).unwrap()).unwrap();
-    fs::rename(
-        fixture.0.join("Sources/Legacy.swift"),
-        fixture.0.join("Sources/�.swift"),
+    fixture.write("config/default.json", "{}");
+    fs::set_permissions(
+        fixture.0.join("config/default.json"),
+        fs::Permissions::from_mode(0o755),
     )
     .unwrap();
-    assert_eq!(verify(&fixture.0)["ok"], true);
+    fixture.write("rust-native/tests/wrapped.md", "#!/bin/sh\nexit 0\n");
+    assert_refusal(
+        &fixture.0,
+        "non-Rust/unknown repository input: config/default.json",
+    );
+    assert_refusal(
+        &fixture.0,
+        "non-Rust/unknown tooling input: rust-native/tests/wrapped.md",
+    );
 }
 
 #[test]
-fn product_errors_keep_directory_links_then_files_then_descendants() {
-    use std::os::unix::fs::symlink;
+fn only_real_known_build_outputs_are_skipped() {
     let fixture = Fixture::new();
-    fixture.write(
-        "rust-native/nested/child.go",
-        "// own forbidden source fixture\n",
-    );
-    fixture.write("rust-native/z.sh", "// own forbidden source fixture\n");
-    fixture.write("rust-native/a.rb", "// own forbidden source fixture\n");
-    fs::create_dir(fixture.0.join("outside")).unwrap();
-    symlink(
-        fixture.0.join("outside"),
-        fixture.0.join("rust-native/host"),
-    )
-    .unwrap();
-    let mut expected = vec![json!("product directory symlink: rust-native/host")];
-    for entry in fs::read_dir(fixture.0.join("rust-native")).unwrap() {
-        let name = entry.unwrap().file_name();
-        if name == "z.sh" || name == "a.rb" {
-            expected.push(json!(format!(
-                "non-Rust/unknown product input: rust-native/{}",
-                name.to_str().unwrap()
-            )));
-        }
-    }
-    expected.push(json!(
-        "non-Rust/unknown product input: rust-native/nested/child.go"
-    ));
-    assert_eq!(verify(&fixture.0)["errors"], json!(expected));
-}
-
-#[test]
-fn broken_and_file_tooling_links_keep_both_refusals() {
-    use std::os::unix::fs::symlink;
-    for name in ["tests", "scripts"] {
-        for file_target in [false, true] {
-            let fixture = Fixture::new();
-            let target = fixture.0.join("own-target");
-            if file_target {
-                fs::write(&target, "// own target fixture").unwrap();
-            }
-            symlink(&target, fixture.0.join("rust-native").join(name)).unwrap();
-            assert_eq!(
-                verify(&fixture.0)["errors"],
-                json!([
-                    format!("tooling source symlink: rust-native/{name}"),
-                    format!("non-Rust/unknown product input: rust-native/{name}")
-                ])
-            );
-        }
-    }
-}
-
-#[test]
-fn non_utf8_cli_root_is_a_json_refusal() {
-    use std::os::unix::ffi::OsStringExt;
-    let fixture = Fixture::new();
-    let root = fixture
-        .0
-        .join(std::ffi::OsString::from_vec(b"root-\xff".to_vec()));
-    let output = child_output::wait(
-        Command::new(env!("CARGO_BIN_EXE_rust-only-policy"))
-            .arg("--root")
-            .arg(&root)
-            .current_dir(&fixture.0)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
-        Duration::from_secs(6),
-    );
-    assert_eq!(output.status.code(), Some(1));
-    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(result["ok"], false);
-    assert!(result["errors"][0].as_str().unwrap().contains("not UTF-8"));
-    let output = child_output::wait(
-        Command::new(env!("CARGO_BIN_EXE_rust-only-policy"))
-            .arg(std::ffi::OsString::from_vec(b"--flag-\xff".to_vec()))
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap(),
-        Duration::from_secs(6),
-    );
-    assert_eq!(output.status.code(), Some(2));
-}
-
-#[test]
-fn test_legacy_change_addition_removal_and_package_edit_fail() {
-    let mut fixtures = Vec::new();
-    for mutation in ["change", "add", "remove", "package"] {
-        let fixture = Fixture::new();
-        match mutation {
-            "change" => fixture.write("Sources/Legacy.swift", "// changed\n"),
-            "add" => fixture.write("Sources/NewHost.swift", "// new\n"),
-            "remove" => fs::remove_file(fixture.0.join("Sources/Legacy.swift")).unwrap(),
-            _ => fixture.write("Package.swift", "// new Swift target\n"),
-        }
-        assert_eq!(verify(&fixture.0)["ok"], false, "{mutation}");
-        fixtures.push(fixture);
-    }
-}
-
-#[test]
-fn test_non_rust_runtime_or_sidecar_host_fails() {
-    let mut fixtures = Vec::new();
-    for path in [
-        "rust-native/src/bridge.swift",
-        "rust-native/src/bridge.m",
-        "rust/src/bridge.py",
-        "rust-native/NewHost.swift",
-        "rust-native/web/runtime.js",
-        "rust/NewHost.swift",
-        "rust-native/NewHost.rb",
-        "rust/NewHost.go",
-        "rust-native/NewHost.sh",
+    for output in [
+        ".build",
+        ".dist",
+        "rust/target",
+        "rust-native/target",
+        "bench/f1-runner/target",
     ] {
-        let fixture = Fixture::new();
-        fixture.write(path, "// forbidden product code\n");
-        assert_eq!(verify(&fixture.0)["ok"], false, "{path}");
-        fixtures.push(fixture);
+        fixture.write(&format!("{output}/generated.py"), "generated fixture\n");
     }
+    fixture.write(".git", "gitdir: /worktree/.git/worktrees/fixture\n");
+    assert_eq!(verify(&fixture.0)["ok"], true);
+    fs::remove_dir_all(fixture.0.join(".dist")).unwrap();
+    symlink(".build", fixture.0.join(".dist")).unwrap();
+    assert_refusal(&fixture.0, "repository source symlink: .dist");
 }
 
 #[test]
-fn test_symlink_and_missing_or_weakened_lock_fail_closed() {
-    use std::os::unix::fs::symlink;
-    // Match unittest cleanup: all five independent owned trees survive until completion.
-    let mut fixtures = Vec::new();
+fn missing_runtime_and_source_links_fail_closed() {
     let fixture = Fixture::new();
-    let file = fixture.0.join("Sources/Legacy.swift");
-    let content = fs::read(&file).unwrap();
-    fs::remove_file(&file).unwrap();
-    let other = fixture.0.join("old.swift");
-    fs::write(&other, content).unwrap();
-    symlink(&other, &file).unwrap();
-    assert_eq!(verify(&fixture.0)["ok"], false);
-    fixtures.push(fixture);
+    fs::remove_file(fixture.0.join("rust/src/lib.rs")).unwrap();
+    symlink("missing", fixture.0.join("rust/src/alias.rs")).unwrap();
+    symlink("../rust/src", fixture.0.join("rust-native/tests")).unwrap();
+    assert_refusal(
+        &fixture.0,
+        "runtime source root must contain Rust source: rust/src",
+    );
+    assert_refusal(&fixture.0, "runtime source symlink: rust/src/alias.rs");
+    assert_refusal(&fixture.0, "tooling source symlink: rust-native/tests");
+}
+
+#[test]
+fn symlinked_repository_root_fails_closed() {
     let fixture = Fixture::new();
-    symlink(
-        fixture.0.join("rust/src/lib.rs"),
-        fixture.0.join("rust-native/src/alias.rs"),
-    )
-    .unwrap();
-    assert_eq!(verify(&fixture.0)["ok"], false);
-    fixtures.push(fixture);
+    let link = fixture.0.join("alias");
+    symlink(&fixture.0, &link).unwrap();
+    assert_refusal(
+        &link,
+        "Rust-only policy: repository root must be a real directory",
+    );
+}
+
+#[test]
+fn nonregular_resource_fails_closed() {
     let fixture = Fixture::new();
-    let external = fixture.0.join("foreign");
-    fs::create_dir(&external).unwrap();
-    fs::write(external.join("Host.swift"), "// own symlink fixture").unwrap();
-    symlink(&external, fixture.0.join("rust-native/host")).unwrap();
-    assert_eq!(verify(&fixture.0)["ok"], false);
-    fixtures.push(fixture);
+    let path = fixture.0.join("config");
+    fs::create_dir(&path).unwrap();
+    let fifo = CString::new(path.join("default.json").as_os_str().as_bytes()).unwrap();
+    // The fixture owns the parent directory and the C string lives through the call.
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+    assert_refusal(
+        &fixture.0,
+        "nonregular repository input: config/default.json",
+    );
+}
+
+#[test]
+fn relative_root_argument_scans_the_current_directory() {
     let fixture = Fixture::new();
-    fs::remove_file(fixture.0.join("rust-native/swift-reference-lock.json")).unwrap();
-    assert_eq!(verify(&fixture.0)["ok"], false);
-    fixtures.push(fixture);
+    let output = run(Command::new(env!("CARGO_BIN_EXE_rust-only-policy"))
+        .arg("--root")
+        .arg(".")
+        .current_dir(&fixture.0));
+    assert!(output.status.success());
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["ok"], true, "{result}");
+    assert_eq!(result["rustRuntimeFiles"], 2);
+}
+
+#[test]
+fn non_utf8_root_and_entry_are_json_refusals() {
     let fixture = Fixture::new();
-    let lock = fixture.0.join("rust-native/swift-reference-lock.json");
-    let mut value: Value = serde_json::from_slice(&fs::read(&lock).unwrap()).unwrap();
-    value["files"]
-        .as_object_mut()
-        .unwrap()
-        .remove("Package.swift");
-    fs::write(lock, serde_json::to_vec(&value).unwrap()).unwrap();
-    assert_eq!(verify(&fixture.0)["ok"], false);
-    fixtures.push(fixture);
+    let root = fixture.0.join(OsString::from_vec(b"root-\xff".to_vec()));
+    assert_refusal(&root, "Rust-only policy: filesystem path is not UTF-8");
+    let path = fixture
+        .0
+        .join("rust/src")
+        .join(OsString::from_vec(b"\xff.rs".to_vec()));
+    if fs::write(&path, "// own fixture\n").is_ok() {
+        assert_refusal(&fixture.0, "Rust-only policy: filesystem path is not UTF-8");
+    }
+    let output = run(Command::new(env!("CARGO_BIN_EXE_rust-only-policy"))
+        .arg(OsString::from_vec(b"--flag-\xff".to_vec())));
+    assert_eq!(output.status.code(), Some(2));
 }

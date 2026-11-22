@@ -73,8 +73,6 @@ fn verification_sources(root: &Path) -> Result<BTreeMap<String, String>> {
         "Tests",
         "scripts",
         "docs",
-        "Sources",
-        "Package.swift",
         "README.md",
         "CONTRIBUTING.md",
     ] {
@@ -737,17 +735,16 @@ mod tests {
     #[test]
     fn pipeline_receipt_readback_rejects_live_source_and_artifact_drift() {
         let fixture = super::super::tests::Fixture::new();
-        for directory in ["Tests", "scripts", "docs", "Sources"] {
+        for directory in ["Tests", "scripts", "docs"] {
             fs::create_dir_all(fixture.0.join(directory)).unwrap();
         }
-        for name in ["Package.swift", "README.md", "CONTRIBUTING.md"] {
+        for name in ["README.md", "CONTRIBUTING.md"] {
             fs::write(fixture.0.join(name), b"owned verification input").unwrap();
         }
         let test_source = fixture.0.join("Tests/hold.rs");
         fs::write(&test_source, b"original test source").unwrap();
         fs::write(fixture.0.join("scripts/hold.sh"), b"owned script input").unwrap();
         fs::write(fixture.0.join("docs/README.md"), b"owned documentation input").unwrap();
-        fs::write(fixture.0.join("Sources/hold.rs"), b"owned source input").unwrap();
         let build_path = fixture.0.join(OUTPUT).join("development-build.json");
         let report_path = fixture.0.join("rust-native/target/verification/report.json");
         fs::create_dir_all(build_path.parent().unwrap()).unwrap();
@@ -793,6 +790,15 @@ mod tests {
         assert_eq!(verify_live(&receipt).unwrap_err(), stale);
         fs::write(&report_path, b"synthetic native-report binding").unwrap();
         assert!(verify_live(&receipt).is_ok());
+
+        let mut retired_sources = receipt.sources.clone();
+        retired_sources.insert("Package.swift".into(), "a".repeat(64));
+        retired_sources.insert("Sources/Legacy.swift".into(), "b".repeat(64));
+        let retired_receipt = Pipeline {
+            sources: retired_sources,
+            ..receipt
+        };
+        assert_eq!(verify_live(&retired_receipt).unwrap_err(), stale);
     }
 
     #[test]
@@ -819,10 +825,10 @@ mod tests {
     fn actual_failed_build_stops_consumers_and_releases_pipeline_lease() {
         use std::time::Duration;
         let fixture = super::super::tests::Fixture::compiler_pair();
-        for directory in ["Tests", "scripts", "docs", "Sources"] {
+        for directory in ["Tests", "scripts", "docs"] {
             fs::create_dir(fixture.0.join(directory)).unwrap();
         }
-        for name in ["Package.swift", "README.md", "CONTRIBUTING.md"] {
+        for name in ["README.md", "CONTRIBUTING.md"] {
             fs::write(fixture.0.join(name), b"owned verification input").unwrap();
         }
         // A real Cargo/rustc failure, not a synthetic failed receipt or gate.
@@ -939,10 +945,10 @@ fn main() {{
     fn failed_final_consumer_revokes_previous_pass_and_releases_pipeline_lease() {
         use std::time::Duration;
         let fixture = super::super::tests::Fixture::new();
-        for directory in ["Tests", "scripts", "docs", "Sources"] {
+        for directory in ["Tests", "scripts", "docs"] {
             fs::create_dir(fixture.0.join(directory)).unwrap();
         }
-        for name in ["Package.swift", "README.md", "CONTRIBUTING.md"] {
+        for name in ["README.md", "CONTRIBUTING.md"] {
             fs::write(fixture.0.join(name), b"owned verification input").unwrap();
         }
         let build = fixture.0.join(OUTPUT).join("development-build.json");
@@ -1396,8 +1402,8 @@ fn main() {{
         // compiler output, validation report, F1 data or product gate is used.
         let fixture=std::mem::ManuallyDrop::new(super::super::tests::Fixture::compiler_pair());
         let root=&fixture.0;fs::set_permissions(root,fs::Permissions::from_mode(0o700)).unwrap();
-        for directory in ["Tests","scripts","docs","Sources"] {fs::create_dir(root.join(directory)).unwrap();}
-        for name in ["Package.swift","README.md","CONTRIBUTING.md"] {fs::write(root.join(name),b"owned verification input\n").unwrap();}
+        for directory in ["Tests","scripts","docs"] {fs::create_dir(root.join(directory)).unwrap();}
+        for name in ["README.md","CONTRIBUTING.md"] {fs::write(root.join(name),b"owned verification input\n").unwrap();}
         event(root,".temporal-owned",b"disposable-temporal-v1");
         let receipts=root.join(".build/receipts");fs::create_dir_all(&receipts).unwrap();
         let kind=match mode {"settings"=>"settings","performance"|"performance-success"=>"performance",_=>"check"};

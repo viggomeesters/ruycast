@@ -16,7 +16,6 @@ The installer builds a release and installs it with `--build`. To install an exi
 - macOS 14 or later.
 - Apple's command-line developer tools, including the linker, `dsymutil`, `strip` and `codesign`.
 - Rust/Cargo 1.92 or later, with locked dependencies cached for offline builds.
-- Python 3.10 or later only for remaining compatibility wrappers and validators; direct Rust build and install commands do not require it. Explicit historical Swift parity oracles require Swift 6.2; the production build does not.
 - OpenSSL for initial local certificate preparation. The signer prefers Homebrew OpenSSL when available and otherwise the system tool.
 
 Development builds have been checked on Apple silicon. This does not establish clean-Mac or physical desktop acceptance of the complete rewrite; Intel execution is untested. Full Xcode is optional for builds; Instruments profiling requires it.

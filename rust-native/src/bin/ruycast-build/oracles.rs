@@ -5,8 +5,10 @@ use std::collections::BTreeSet;
 #[path = "../../../tests/support/hid_state_goldens.rs"]
 mod hid_state_goldens;
 
+const CORE_SMOKE_SCHEMA: &str = "ruycast.core-build-link-smoke.v5";
 const CORE_SMOKE_SCOPE: &str = "Rust static library linked to a Rust ABI probe; checks version, JSON call/free and index create/search/free only; no app UI, startup or desktop acceptance";
 
+#[cfg(test)]
 pub(super) fn swift_alias(root: &Path, architecture: &str) -> Result<Option<String>> {
     if !matches!(architecture, "arm64-apple-macosx" | "x86_64-apple-macosx") {
         return Err("Unexpected Swift oracle architecture.".into());
@@ -52,77 +54,47 @@ struct PolicyInvocation { arguments: Vec<String>, result: serde_json::Value }
 struct CorePolicyEvidence { artifact: PolicyArtifact, before: PolicyInvocation, after: PolicyInvocation, inputs: BTreeMap<String,PolicyInput> }
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all="camelCase", deny_unknown_fields)]
-struct PolicyInput { kind:String, sha256:Option<String>, link_target:Option<String> }
-#[derive(Clone, Copy)]
-enum PolicyTree { Legacy, Runtime, Product, Tooling }
-fn policy_input_name(root:&Path,path:&Path)->Result<String> {
-    path.strip_prefix(root).map_err(error)?.to_str().map(str::to_owned).ok_or("Unrepresentable policy input path.".into())
+struct PolicyInput {
+    kind: String,
+    sha256: Option<String>,
+    executable_bits: Option<u32>,
 }
-fn record_policy_input(root:&Path,path:&Path,kind:&str,bytes:bool,link:bool,values:&mut BTreeMap<String,PolicyInput>)->Result<()> {
-    let target=if link {Some(fs::read_link(path).map_err(error)?.to_str().ok_or("Unrepresentable policy input link.")?.to_owned())} else {None};
-    values.insert(policy_input_name(root,path)?,PolicyInput{kind:kind.into(),sha256:if bytes{Some(digest(path)?)}else{None},link_target:target});Ok(())
-}
-fn policy_input_tree(root:&Path,path:&Path,tree:PolicyTree,values:&mut BTreeMap<String,PolicyInput>)->Result<()> {
-    policy_input_name(root,path)?;
-    let metadata=fs::symlink_metadata(path).map_err(error)?;
-    let ignored=matches!(tree,PolicyTree::Product)&&path.file_name().is_some_and(|name|name==".DS_Store")&&!path.is_dir();
-    if metadata.is_symlink() {
-        if ignored {return record_policy_input(root,path,"ignored-file-symlink",false,true,values);}
-        return Err("Linked policy input cannot qualify a core receipt.".into());
+fn policy_input_tree(root: &Path, path: &Path, values: &mut BTreeMap<String, PolicyInput>) -> Result<()> {
+    let name = path.strip_prefix(root).map_err(error)?.to_str().ok_or("Unrepresentable policy input path.")?;
+    let metadata = fs::symlink_metadata(path).map_err(error)?;
+    if (name == ".git" && (metadata.is_dir() || metadata.is_file()))
+        || (metadata.is_dir()
+            && matches!(name, ".build" | ".dist" | "rust/target" | "rust-native/target" | "bench/f1-runner/target"))
+    {
+        return Ok(());
     }
+    let (kind, sha256, executable_bits) = if metadata.is_file() {
+        ("file", Some(digest(path)?), Some(metadata.mode() & 0o111))
+    } else if metadata.is_dir() {
+        ("directory", None, None)
+    } else {
+        return Err(format!("Nonregular policy input cannot qualify a core receipt: {name}"));
+    };
+    values.insert(name.into(), PolicyInput { kind: kind.into(), sha256, executable_bits });
     if metadata.is_dir() {
-        record_policy_input(root,path,"directory",false,false,values)?;
         for entry in fs::read_dir(path).map_err(error)? {
-            let child=entry.map_err(error)?.path();
-            let metadata=fs::symlink_metadata(&child).map_err(error)?;
-            if matches!(tree,PolicyTree::Tooling)&&metadata.is_dir()&&child.file_name().is_some_and(|name|name=="target")&&path.join("Cargo.toml").is_file() {
-                record_policy_input(root,&child,"pruned-directory",false,false,values)?;
-                continue;
-            }
-            policy_input_tree(root,&child,tree,values)?;
+            policy_input_tree(root, &entry.map_err(error)?.path(), values)?;
         }
-    } else if metadata.is_file() {
-        let ignored=ignored||(matches!(tree,PolicyTree::Runtime|PolicyTree::Tooling)&&path.file_name().is_some_and(|name|name==".DS_Store"));
-        record_policy_input(root,path,if ignored{"ignored-file"}else{"file"},!ignored,false,values)?;
-    } else if ignored {record_policy_input(root,path,"ignored-nonregular",false,false,values)?;}
-    else {return Err("Nonregular policy input cannot qualify a core receipt.".into());}
+    }
     Ok(())
 }
-fn core_policy_footprint(root:&Path)->Result<BTreeMap<String,PolicyInput>> {
-    let mut values=BTreeMap::new();
-    let legacy=fs::symlink_metadata(root.join("Sources")).map_err(error)?;
-    if legacy.is_symlink()||!legacy.is_dir(){return Err("Legacy policy root must be a real directory.".into());}
-    for name in ["Package.swift","rust-native/swift-reference-lock.json"] {if !fs::symlink_metadata(root.join(name)).map_err(error)?.is_file(){return Err("Policy lock and package must be regular files.".into());}}
-    for name in ["Sources","Package.swift","rust-native/swift-reference-lock.json"] {policy_input_tree(root,&root.join(name),PolicyTree::Legacy,&mut values)?;}
-    for name in ["rust/src","rust-native/src"] {
-        let path=root.join(name);let metadata=fs::symlink_metadata(&path).map_err(error)?;
-        if metadata.is_symlink()||!metadata.is_dir(){return Err("Runtime policy root must be a real directory.".into());}
-        policy_input_tree(root,&path,PolicyTree::Runtime,&mut values)?;
-    }
-    for name in ["rust","rust-native"] {
-        let product=root.join(name);let metadata=fs::symlink_metadata(&product).map_err(error)?;
-        if metadata.is_symlink()||!metadata.is_dir(){return Err("Product policy root must be a real directory.".into());}
-        record_policy_input(root,&product,"directory",false,false,&mut values)?;
-        for tooling in ["tests","scripts"] {if product.join(tooling).is_symlink(){return Err("Tooling policy link cannot qualify a core receipt.".into());}}
-        for entry in fs::read_dir(&product).map_err(error)? {
-            let path=entry.map_err(error)?.path();let relative=policy_input_name(root,&path)?;
-            let name=path.file_name().unwrap().to_str().ok_or("Unrepresentable policy input name.")?;
-            if path.is_dir()&&["target","tests","scripts","src",".git"].contains(&name) {
-                if name!="src" {record_policy_input(root,&path,if path.is_symlink(){"pruned-directory-symlink"}else{"pruned-directory"},false,path.is_symlink(),&mut values)?;}
-                continue;
-            }
-            policy_input_tree(root,&path,PolicyTree::Product,&mut values).map_err(|e|format!("{relative}: {e}"))?;
+fn core_policy_footprint(root: &Path) -> Result<BTreeMap<String, PolicyInput>> {
+    // Bind the same repository inputs as rust_only_policy.rs, including executable bits.
+    for name in ["Sources", "Package.swift", "Tests/LauncherCoreTests", "rust-native/swift-reference-lock.json"] {
+        match fs::symlink_metadata(root.join(name)) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => return Err(error.to_string()),
+            Ok(_) => return Err(format!("Retired Swift package input cannot qualify a core receipt: {name}")),
         }
     }
-    // Keep the helper roots and Cargo-output semantics aligned with rust_only_policy.rs.
-    for name in ["Tests","scripts","bench","rust/tests","rust/scripts","rust-native/tests","rust-native/scripts"] {
-        let path=root.join(name);
-        match fs::symlink_metadata(&path) {
-            Err(error) if error.kind()==std::io::ErrorKind::NotFound=>continue,
-            Err(error)=>return Err(error.to_string()),
-            Ok(metadata) if metadata.is_symlink()||!metadata.is_dir()=>return Err("Tooling policy root must be a real directory.".into()),
-            Ok(_)=>policy_input_tree(root,&path,PolicyTree::Tooling,&mut values)?,
-        }
+    let mut values = BTreeMap::new();
+    for entry in fs::read_dir(root).map_err(error)? {
+        policy_input_tree(root, &entry.map_err(error)?.path(), &mut values)?;
     }
     Ok(values)
 }
@@ -172,27 +144,21 @@ fn check_core_policy_evidence(root:&Path,policy:&CorePolicyEvidence)->Result<()>
         let logged:serde_json::Value=serde_json::from_slice(&regular_bytes(&root.join(format!(".build/receipts/{lane_prefix}-policy-{phase}.stdout")))?).map_err(error)?;
         if logged!=invocation.result {return Err("Pure core policy log differs from its receipt.".into());}
     }
-    if policy.before.result!=policy.after.result || policy.before.result["lockSHA256"]!=digest(&root.join("rust-native/swift-reference-lock.json"))? {
+    if policy.before.result!=policy.after.result {
         return Err("Pure core policy inputs changed between gates.".into());
     } Ok(())
 }
 fn core_sources(root: &Path) -> Result<BTreeMap<String, String>> {
     let mut values = BTreeMap::new();
     for name in [
-        "Package.swift",
-        "Sources/LauncherModels",
-        "Sources/LauncherCore",
-        "Sources/CRuycastCore",
         "rust/Cargo.toml",
         "rust/Cargo.lock",
         "rust/src",
-        "Sources",
         "rust-native/src",
         "rust-native/src/bin/rust_only_policy.rs",
         "Tests/fixtures/core_abi_probe.rs",
         "rust-native/Cargo.toml",
         "rust-native/Cargo.lock",
-        "rust-native/swift-reference-lock.json",
         "rust-toolchain.toml",
     ] {
         validation::source_folder(root, &root.join(name), &mut values)?;
@@ -297,7 +263,7 @@ pub(super) fn core(root: &Path, lease: &BuildLock) -> Result<serde_json::Value> 
         );
     }
     artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-    let receipt=CoreReceipt{schema:"ruycast.core-build-link-smoke.v4".into(),scope:CORE_SMOKE_SCOPE.into(),sources:before,artifacts,commands,outcome:"Core Rust ABI build/link smoke passed".into(),production_accepted:false,policy};
+    let receipt=CoreReceipt{schema:CORE_SMOKE_SCHEMA.into(),scope:CORE_SMOKE_SCOPE.into(),sources:before,artifacts,commands,outcome:"Core Rust ABI build/link smoke passed".into(),production_accepted:false,policy};
     lease.validate()?;
     let path = root.join(".build/receipts/pure-core-oracle.json");
     ruycast_native::private_storage::write(
@@ -452,7 +418,7 @@ pub(super) fn verify_core(root: &Path, lease: &BuildLock) -> Result<serde_json::
         receipt.policy.artifact.path.clone(),
     ]);
     let actual_artifacts=receipt.artifacts.keys().cloned().collect::<BTreeSet<_>>();
-    if receipt.schema != "ruycast.core-build-link-smoke.v4"
+    if receipt.schema != CORE_SMOKE_SCHEMA
         || receipt.production_accepted
         || receipt.sources != core_sources(root)?
         || actual_artifacts != expected_artifacts
@@ -1591,7 +1557,7 @@ fn settings_mapping_state(gate: &SettingsGate) -> &'static str {
     }
 }
 fn root_git_mapping_state(source: &[u8]) -> &'static str {
-    if format!("{:x}", Sha256::digest(source)) == "4fb35b273771a011b7b015cc39d29be2e2641d0862d81a6e66b90b23de8838b1" {
+    if format!("{:x}", Sha256::digest(source)) == "1cb422ffc007d7c756c124d1c8a1397a759c6e21311d12d6a7068f175d0137ea" {
         "source-qualified-root-bound-whitespace-check"
     } else {
         "requires-source-requalification"
@@ -3471,6 +3437,10 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "productionAccepted": false
         });
     }
+    inventory["historicalSwiftReference"] = serde_json::json!({
+        "source": source_policy::HISTORICAL_REFERENCE,
+        "scope": "Swift paths and incremental retirement descriptions record historical evidence. The current checkout uses the named Rust checks and fixed reference data."
+    });
     Ok(inventory)
 }
 pub(super) fn require_complete(kind: &str) -> Result<()> {
@@ -3489,23 +3459,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn retired_system_helper_has_no_callers_and_preserves_historical_assertions() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let retired = "Sources/RuycastApp/SystemChecks.swift";
-        assert!(!root.join(retired).exists());
-        assert!(root.join("Sources/RuycastApp/SystemServices.swift").exists());
-        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(!root.join("Sources/RuycastApp/FeedbackChecks.swift").exists());
-        assert!(!main.contains("--check-system"));
-        assert!(!main.contains("checkSystemServices"));
+    fn retired_system_helper_preserves_historical_assertions() {
         assert_eq!(settings_provenance_source("--check-feedback"),Some(("Sources/RuycastApp/FeedbackChecks.swift",FEEDBACK_ORACLE_SHA256)));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
-        let lock: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
-        ).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert!(lock["files"].get("Sources/RuycastApp/FeedbackChecks.swift").is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"],format!("{:x}",Sha256::digest(main.as_bytes())));
         let inventory = inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/SystemChecks.swift::checkSystemServices"];
         assert_eq!(mapping["originalSourceSHA256"], "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4");
@@ -3522,32 +3477,15 @@ mod tests {
     }
 
     #[test]
-    fn retired_interaction_benchmark_has_no_caller_and_preserves_all_crosswalks() {
+    fn retired_interaction_benchmark_preserves_all_crosswalks() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/InteractionPerformanceChecks.swift";
-        assert!(!root.join(retired).exists());
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("--benchmark-interactions"));
-        assert!(!main.contains("checkInteractionPerformance"));
-        assert!(!include_str!("../ruycast-source/policy.rs")
-            .lines()
-            .any(|line| line == retired));
-        let lock: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
-        )
-        .unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(
-            lock["files"]["Sources/RuycastApp/main.swift"],
-            format!("{:x}", Sha256::digest(main.as_bytes()))
-        );
         let docs = std::fs::read_to_string(root.join("docs/PERFORMANCE.md")).unwrap();
         assert!(!docs.contains("--benchmark-interactions"));
         assert!(docs.contains("interaction-trace-process"));
         assert!(docs.contains("physical desktop input"));
         assert!(!docs.contains("NSViewRepresentable.updateNSView"));
         assert!(!docs.contains("Swift result conversion"));
-        assert!(root.join("Sources/RuycastApp/PerformanceTrace.swift").exists());
         let public: serde_json::Value = serde_json::from_slice(
             &std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap(),
         )
@@ -3555,11 +3493,9 @@ mod tests {
         assert_eq!(public["schema"], "ruycast.public-source.v2");
         assert!(public["files"].get(retired).is_none());
         for path in [
-            "Sources/RuycastApp/main.swift",
             "docs/PERFORMANCE.md",
             "rust-native/src/bin/ruycast-build/oracles.rs",
             "rust-native/src/bin/ruycast-source/policy.rs",
-            "rust-native/swift-reference-lock.json",
         ] {
             assert_eq!(
                 public["files"][path],
@@ -3610,18 +3546,7 @@ mod tests {
     }
 
     #[test]
-    fn retired_clipboard_helper_is_absent_and_its_assertions_are_crosswalked() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let retired = "Sources/RuycastApp/ClipboardChecks.swift";
-        assert!(!root.join(retired).exists());
-        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(!main.contains("--check-clipboard"));
-        assert!(!main.contains("checkClipboardStore"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
-        let lock: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
-        ).unwrap();
-        assert!(lock["files"].get(retired).is_none());
+    fn retired_clipboard_helper_assertions_are_crosswalked() {
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/ClipboardChecks.swift::checkClipboardStore"];
         assert_eq!(mapping["status"], "source-qualified-rust-case-crosswalk");
@@ -3645,27 +3570,8 @@ mod tests {
     }
 
     #[test]
-    fn retired_clipboard_preview_helper_is_absent_and_scenarios_are_crosswalked() {
+    fn retired_clipboard_preview_scenarios_are_crosswalked() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let retired = "Sources/RuycastApp/ClipboardPreviewChecks.swift";
-        assert!(!root.join(retired).exists());
-        assert!(!root.join("Sources/RuycastApp/PolishChecks.swift").exists());
-
-        let policy = include_str!("../ruycast-source/policy.rs");
-        assert!(!policy.lines().any(|line| line == retired));
-        assert!(policy.lines().any(|line| line == "Sources/RuycastApp/ClipboardPreview.swift"));
-        let lock: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
-        )
-        .unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert!(lock["files"]["Sources/RuycastApp/ClipboardPreview.swift"].is_string());
-        let manifest: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap(),
-        )
-        .unwrap();
-        assert!(manifest["files"].get(retired).is_none());
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Sources/RuycastApp/ClipboardPreviewChecks.swift::checkClipboardPreviewCancellation"];
@@ -3734,20 +3640,8 @@ mod tests {
         assert_eq!(value["productionAccepted"], false);
     }
     #[test]
-    fn retired_feedback_helper_has_no_caller_and_preserves_native_assertions() {
-        let root=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    fn retired_feedback_helper_preserves_native_assertions() {
         let retired="Sources/RuycastApp/FeedbackChecks.swift";
-        assert!(!root.join(retired).exists());
-        for product in ["Sources/RuycastApp/FeatureState.swift","Sources/RuycastApp/CaptureTextEditor.swift","Sources/RuycastApp/InteractionChecks.swift"] {
-            assert!(root.join(product).is_file());
-        }
-        let main=include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(!main.contains("--check-feedback"));
-        assert!(!main.contains("checkFeedback"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line|line==retired));
-        let lock:serde_json::Value=serde_json::from_slice(&fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"],format!("{:x}",Sha256::digest(main.as_bytes())));
         let gate=SETTINGS.iter().find(|gate|gate.id=="--check-feedback").unwrap();
         assert_eq!(settings_provenance_source(gate.id),Some((retired,FEEDBACK_ORACLE_SHA256)));
         assert_eq!(gate.native_cases.len(),23);
@@ -3784,20 +3678,8 @@ mod tests {
         assert_eq!(cases.len(),10);
     }
     #[test]
-    fn retired_edit_command_helper_has_no_caller_and_preserves_native_assertions() {
-        let root=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    fn retired_edit_command_helper_preserves_native_assertions() {
         let retired="Sources/RuycastApp/EditCommandChecks.swift";
-        assert!(!root.join(retired).exists());
-        for product in ["Sources/RuycastApp/NativeEditCommands.swift","Sources/RuycastApp/CaptureTextEditor.swift","Sources/RuycastApp/ShortcutRecorder.swift"] {
-            assert!(root.join(product).is_file());
-        }
-        let main=include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(!main.contains("--check-edit-commands"));
-        assert!(!main.contains("checkNativeEditCommands"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line|line==retired));
-        let lock:serde_json::Value=serde_json::from_slice(&fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"],format!("{:x}",Sha256::digest(main.as_bytes())));
         let gate=SETTINGS.iter().find(|gate|gate.id=="--check-edit-commands").unwrap();
         assert_eq!(settings_provenance_source(gate.id),Some((retired,EDIT_COMMAND_ORACLE_SHA256)));
         assert_eq!(gate.native_cases,&["native_edit::check"]);
@@ -3823,18 +3705,7 @@ mod tests {
         assert_eq!(cases.len(),9);
     }
     #[test]
-    fn retired_script_choice_ui_helper_has_no_caller_and_preserves_assertion_crosswalk() {
-        let root=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let retired="Sources/RuycastApp/ScriptChoiceChecks.swift";
-        assert!(!root.join(retired).exists());
-        assert!(root.join("Sources/RuycastApp/ScriptChoiceView.swift").is_file());
-        let main=include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(!main.contains("--check-script-choices"));
-        assert!(!main.contains("checkScriptChoicesUI"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line|line==retired));
-        let lock:serde_json::Value=serde_json::from_slice(&fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"],format!("{:x}",Sha256::digest(main.as_bytes())));
+    fn retired_script_choice_ui_helper_preserves_assertion_crosswalk() {
         let value=inventory("check").unwrap();
         let mapping=&value["retiredSwiftChecks"]["Sources/RuycastApp/ScriptChoiceChecks.swift::checkScriptChoicesUI"];
         assert_eq!(mapping["originalSourceSHA256"],"7d98578478074c4c8c25d39ffc0dda8048debadd62f643ef1265700d449336cc");
@@ -5196,28 +5067,6 @@ mod tests {
     }
 
     #[test]
-    fn search_ranking_crosswalks_do_not_embed_live_swift_sources() {
-        let source = include_str!("oracles.rs");
-        let ranking_guards = source
-            .split_once("fn unchanged_search_ranking_reuse_assertion_is_crosswalked_to_rust()")
-            .unwrap()
-            .1
-            .split_once("fn accented_uppercase_query_assertion_is_crosswalked_to_rust()")
-            .unwrap()
-            .0;
-        let search_checks = ["SearchChecks", ".swift"].concat();
-        let search_include = format!(
-            "include_str!(\"../../../../Sources/RuycastApp/{search_checks}\")"
-        );
-        let main_swift = ["main", ".swift"].concat();
-        let runner_include = format!(
-            "include_str!(\"../../../../Sources/RuycastApp/{main_swift}\")"
-        );
-        assert!(!ranking_guards.contains(&search_include));
-        assert!(!ranking_guards.contains(&runner_include));
-    }
-
-    #[test]
     fn accented_uppercase_query_assertion_is_crosswalked_to_rust() {
         assert!(include_str!("../../../../rust/src/lib.rs").contains("fn original_accented_uppercase_title_query_returns_matching_command()"));
 
@@ -5429,22 +5278,6 @@ mod tests {
 
     #[test]
     fn retired_utilities_helper_is_removed_and_its_scenarios_are_crosswalked() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let retired = "Sources/RuycastApp/UtilityChecks.swift";
-        assert!(!root.join(retired).exists());
-        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(!main.contains("--check-utilities"));
-        assert!(!main.contains("checkUtilities"));
-        assert!(!include_str!("../ruycast-source/policy.rs")
-            .lines()
-            .any(|line| line == retired));
-
-        let lock: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
-        )
-        .unwrap();
-        assert!(lock["files"].get(retired).is_none());
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Sources/RuycastApp/UtilityChecks.swift::checkUtilities"];
@@ -5470,22 +5303,6 @@ mod tests {
 
     #[test]
     fn retired_keyboard_helper_is_removed_and_its_assertions_are_crosswalked() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let retired = "Sources/RuycastApp/KeyboardChecks.swift";
-        assert!(!root.join(retired).exists());
-        let main = include_str!("../../../../Sources/RuycastApp/main.swift");
-        assert!(!main.contains("--check-keyboard"));
-        assert!(!main.contains("checkKeyboard"));
-        assert!(!include_str!("../ruycast-source/policy.rs")
-            .lines()
-            .any(|line| line == retired));
-
-        let lock: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
-        )
-        .unwrap();
-        assert!(lock["files"].get(retired).is_none());
-
         let inventory = super::inventory("check").unwrap();
         let mapping = &inventory["retiredSwiftChecks"]
             ["Sources/RuycastApp/KeyboardChecks.swift::checkKeyboard"];
@@ -5700,8 +5517,7 @@ mod tests {
 
     fn core_policy_fixture() -> super::super::tests::Fixture {
         let fixture=super::super::tests::Fixture::new();let root=&fixture.0;
-        for name in ["Sources/LauncherModels","Sources/LauncherCore","Sources/CRuycastCore"] {fs::create_dir_all(root.join(name)).unwrap();}
-        for name in ["Sources/Legacy.swift","Package.swift","rust-toolchain.toml"] {fs::write(root.join(name),b"// owned policy fixture").unwrap();}
+        fs::write(root.join("rust-toolchain.toml"), b"# owned toolchain fixture").unwrap();
         fs::create_dir_all(root.join("rust-native/src/bin")).unwrap();
         fs::create_dir_all(root.join("Tests/fixtures")).unwrap();
         fs::write(
@@ -5710,8 +5526,6 @@ mod tests {
         )
         .unwrap();
         fs::copy(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/bin/rust_only_policy.rs"),root.join("rust-native/src/bin/rust_only_policy.rs")).unwrap();
-        let files=["Sources/Legacy.swift","Package.swift"].into_iter().map(|name|(name,digest(&root.join(name)).unwrap())).collect::<BTreeMap<_,_>>();
-        fs::write(root.join("rust-native/swift-reference-lock.json"),serde_json::to_vec(&serde_json::json!({"schema":"ruycast.rust-only-reference-lock.v1","legacy_roots":["Sources"],"runtime_roots":["rust/src","rust-native/src"],"files":files})).unwrap()).unwrap();
         let binary=std::env::var_os("RUYCAST_TEST_POLICY_CLI").map(PathBuf::from).unwrap_or_else(||Path::new(env!("CARGO_MANIFEST_DIR")).join("target/debug/rust-only-policy"));
         assert!(binary.is_absolute()&&binary.is_file());
         let destination=root.join(".build/oracle-policy/aarch64-apple-darwin/debug/rust-only-policy");
@@ -5736,7 +5550,7 @@ mod tests {
         }
         artifacts.insert(archive.clone(),archive_sha256.clone());
         artifacts.insert(policy.artifact.path.clone(),policy.artifact.sha256.clone());
-        CoreReceipt{schema:"ruycast.core-build-link-smoke.v4".into(),scope:CORE_SMOKE_SCOPE.into(),sources:core_sources(root).unwrap(),artifacts,commands:core_build_commands(target,&archive_sha256).unwrap(),outcome:"Core Rust ABI build/link smoke passed".into(),production_accepted:false,policy}
+        CoreReceipt{schema:CORE_SMOKE_SCHEMA.into(),scope:CORE_SMOKE_SCOPE.into(),sources:core_sources(root).unwrap(),artifacts,commands:core_build_commands(target,&archive_sha256).unwrap(),outcome:"Core Rust ABI build/link smoke passed".into(),production_accepted:false,policy}
     }
     #[test]
     fn core_rust_policy_snapshot_preserves_actual_calls_after_rebuild_and_fails_closed() {
@@ -5751,7 +5565,7 @@ mod tests {
         let policy=CorePolicyEvidence{artifact,before,after,inputs:core_policy_footprint(root).unwrap()};check_core_policy_evidence(root,&policy).unwrap();
         let mut altered=policy.clone();altered.after.arguments[0]=altered.artifact.build_source.clone();assert!(check_core_policy_evidence(root,&altered).is_err());
         altered=policy.clone();altered.after.result["productionReady"]=serde_json::json!(true);assert!(check_core_policy_evidence(root,&altered).is_err());
-        fs::write(root.join("Sources/Legacy.swift"),b"changed legacy fixture").unwrap();
+        fs::write(root.join("Package.swift"), b"// retired package reintroduced").unwrap();
         assert!(execute_core_policy(root,&lease,&policy.artifact,"after").is_err());
         let failed:serde_json::Value=serde_json::from_slice(&fs::read(root.join(".build/receipts/pure-core-policy-after.stdout")).unwrap()).unwrap();
         assert_eq!(failed["ok"],false);assert!(!root.join(".build/receipts/pure-core-oracle.json").exists());
@@ -5759,7 +5573,7 @@ mod tests {
     }
     #[test]
     fn core_build_link_smoke_receipt_requires_current_policy_source_artifact_and_both_gates() {
-        use std::os::unix::fs::symlink;
+        use std::os::unix::fs::{symlink, PermissionsExt};
         let fixture=core_policy_fixture();let root=&fixture.0;
         let debug_alias=root.join(".build/swift/debug");
         fs::create_dir_all(debug_alias.parent().unwrap()).unwrap();
@@ -5787,6 +5601,17 @@ mod tests {
         assert_eq!(verify_core(root,&lease).unwrap_err(),"Core policy input path/type/content footprint changed.");
         fs::write(&helper,helper_bytes).unwrap();
         verify_core(root,&lease).unwrap();
+        let data = root.join("config/default.json");
+        let permissions = fs::metadata(&data).unwrap().permissions();
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(verify_core(root, &lease).unwrap_err(), "Core policy input path/type/content footprint changed.");
+        fs::set_permissions(&data, permissions).unwrap();
+        verify_core(root, &lease).unwrap();
+        let retired_package = root.join("Package.swift");
+        symlink("absent-target", &retired_package).unwrap();
+        assert!(verify_core(root, &lease).is_err());
+        fs::remove_file(&retired_package).unwrap();
+        verify_core(root, &lease).unwrap();
         let good=serde_json::to_value(&receipt).unwrap();
         let probe=receipt.artifacts.keys().find(|name|name.ends_with("/core-abi-probe")).unwrap().clone();
         for mutation in ["command-link-search", "outcome", "scope", "missing-probe", "changed-probe-hash", "wrong-command"] {
@@ -5825,10 +5650,10 @@ mod tests {
             while parent!=root {if fs::remove_dir(parent).is_err(){break;}parent=parent.parent().unwrap();}
             verify_core(root,&lease).unwrap();
         }
-        for old in ["ruycast.core-build-link-smoke.v1", "ruycast.core-build-link-smoke.v2", "ruycast.core-build-link-smoke.v3", "ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4", "ruycast.pure-core-oracle.v5", "ruycast.pure-core-oracle.v6"] {
+        for old in ["ruycast.core-build-link-smoke.v1", "ruycast.core-build-link-smoke.v2", "ruycast.core-build-link-smoke.v3", "ruycast.core-build-link-smoke.v4", "ruycast.pure-core-oracle.v2", "ruycast.pure-core-oracle.v3", "ruycast.pure-core-oracle.v4", "ruycast.pure-core-oracle.v5", "ruycast.pure-core-oracle.v6"] {
             receipt.schema=old.into();save(&receipt);assert_eq!(verify_core(root,&lease).unwrap_err(), "Core build/link smoke receipt is invalid or stale.");
         }
-        receipt.schema="ruycast.core-build-link-smoke.v4".into();save(&receipt);
+        receipt.schema=CORE_SMOKE_SCHEMA.into();save(&receipt);
         let mut missing=serde_json::to_value(&receipt).unwrap();missing.as_object_mut().unwrap().remove("policy");
         fs::write(&path,serde_json::to_vec(&missing).unwrap()).unwrap();assert!(verify_core(root,&lease).is_err());
         save(&receipt);fs::write(root.join("rust-native/src/main.rs"),b"changed bound runtime fixture").unwrap();assert!(verify_core(root,&lease).is_err());
@@ -5844,16 +5669,21 @@ mod tests {
             let values=core_policy_footprint(root).unwrap();
             assert_eq!(values[&format!("{name}/helper.rs")].sha256,Some(digest(&path).unwrap()));
         }
-        let crate_root=root.join("bench/fixture");
+        let crate_root=root.join("bench/f1-runner");
         fs::create_dir_all(crate_root.join("target")).unwrap();
         fs::write(crate_root.join("Cargo.toml"),b"# owned crate metadata").unwrap();
         let ds_store=root.join("scripts/.DS_Store");
         fs::write(&ds_store,b"owned ignored metadata").unwrap();
         let before=core_policy_footprint(root).unwrap();
         fs::write(crate_root.join("target/owned.py"),b"// owned generated output").unwrap();
-        fs::write(&ds_store,b"changed ignored metadata").unwrap();
-        assert_eq!(serde_json::to_value(&before).unwrap(),serde_json::to_value(core_policy_footprint(root).unwrap()).unwrap());
-        // A target directory without Cargo metadata is source, not generated output.
+        assert!(before == core_policy_footprint(root).unwrap());
+        fs::remove_dir_all(crate_root.join("target")).unwrap();
+        assert!(before == core_policy_footprint(root).unwrap());
+        fs::create_dir(crate_root.join("target")).unwrap();
+        assert!(before == core_policy_footprint(root).unwrap());
+        fs::write(&ds_store,b"#! unexpected interpreter").unwrap();
+        assert!(before != core_policy_footprint(root).unwrap());
+        // A target directory outside the designated Cargo outputs is still policy input.
         let nested=root.join("scripts/target/helper.rs");
         fs::create_dir_all(nested.parent().unwrap()).unwrap();
         fs::write(&nested,b"// owned nested source").unwrap();
@@ -5911,51 +5741,8 @@ mod tests {
         assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
-    fn retired_render_updates_swift_route_keeps_shared_interaction_routes() {
+    fn retired_render_routes_preserve_rust_render_crosswalk_and_history() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        let interactions = std::fs::read_to_string(root.join("Sources/RuycastApp/InteractionChecks.swift")).unwrap();
-        assert!(!main.contains("--check-render-updates"));
-        assert!(!interactions.contains("checkRenderedUpdates"));
-        assert!(main.contains("--check-interactions"));
-        assert!(main.contains("output(try checkInteractions())"));
-        let retired_flag = "if args.first==\"--render-features\" {output([\"ok\":false,\"error\":\"The Swift feature preview has been retired.\"]);exit(2)}";
-        assert_eq!(main.matches("--render-features").count(), 1);
-        assert!(main.contains(retired_flag));
-        assert!(main.find(retired_flag).unwrap() < main.find("let app=NSApplication.shared").unwrap());
-        assert!(!main.contains("try renderFeatures("));
-        assert!(interactions.contains("func checkInteractions"));
-        assert!(!interactions.contains("nativeUnicodeEventPayloadRoundTrip"));
-        assert!(!interactions.contains("CGEvent(keyboardEventSource:nil,virtualKey:0,keyDown:true)"));
-        assert!(!interactions.contains("offscreenSnippetReplacement"));
-        assert!(!interactions.contains("datetimeKeywordWithUnavailableAX"));
-        assert!(!interactions.contains("secureSnippetGuards"));
-        assert!(!interactions.contains("prefix ;hell"));
-        assert!(!interactions.contains("snippetChoiceConfirmationCancellation"));
-        assert!(!interactions.contains("let choiceCommand=Command(id:\"choice\""));
-        assert!(!interactions.contains("let cancelledChoice=SnippetChoiceRequest"));
-        assert!(!interactions.contains("let chosen=SnippetChoiceRequest"));
-        assert!(!interactions.contains("let document=NSTextView()"));
-        assert!(!interactions.contains("commandKOpensActions"));
-        assert!(!interactions.contains("let panel=PalettePanel(contentRect:"));
-        assert!(!interactions.contains("panel.performKeyEquivalent(with:event)"));
-        assert!(interactions.contains("try checkSnippetChoiceKeyboard()"));
-        assert!(interactions.contains("\"snippetChoiceKeyboard\":true"));
-        assert!(!interactions.contains("editingText:true,composing:true"));
-        assert!(interactions.contains("panel.performKeyEquivalent(with:key(36))"));
-        assert!(interactions.contains("panel.sendEvent(key(36));model.submit()"));
-        assert!(interactions.contains("cancelPanel.sendEvent(key(53));cancelPanel.sendEvent(key(36))"));
-        assert!(interactions.contains("key(76,[],repeatKey:true)"));
-        assert!(interactions.contains("guard submitted,cancelled else"));
-        assert!(interactions.contains("state.query=\"quick note\";state.begin(state.selectedCommand!)"));
-        assert!(!interactions.contains("state.newCommand(\"url\""));
-        assert!(!interactions.contains("Quicklink editor did not open"));
-        assert!(!interactions.contains("\"quicklinkEditor\":true"));
-        assert!(interactions.contains("state.form=nil;state.mode=\"snippets\""));
-        assert!(interactions.contains("guard state.selectedCommand?.id==\"link.search\""));
-        assert!(interactions.contains("let created=Command(id:\"saved.link\""));
-        assert!(interactions.contains("func featureFixture"));
-        assert!(!interactions.contains("func renderFeatures"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-render-updates").unwrap();
         assert_eq!(gate.required_native_steps, &["render-updates-process"]);
         assert_eq!(gate.native_cases, &["ui_completion::render_updates"]);
@@ -5971,26 +5758,7 @@ mod tests {
         assert_eq!(retired["rustRenderedCaptures"], 26);
         assert_eq!(retired["productionAccepted"], false);
         assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        for (path, source) in [("Sources/RuycastApp/main.swift", &main), ("Sources/RuycastApp/InteractionChecks.swift", &interactions)] {
-            assert_eq!(lock["files"][path], format!("{:x}", Sha256::digest(source.as_bytes())));
-        }
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
-        let interaction_rows = roster.lines().filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/InteractionChecks.swift\"")).collect::<Vec<_>>();
-        assert_eq!(interaction_rows.len(), 1);
-        let current_hash = format!("{:x}", Sha256::digest(interactions.as_bytes()));
-        let mut current_lines = Vec::new();
-        for row in interaction_rows {
-            let encoded = row.trim().trim_end_matches(',').trim_start_matches('(').trim_end_matches(')');
-            let fields: Vec<String> = serde_json::from_str(&format!("[{encoded}]")).unwrap();
-            assert_eq!(fields[1], current_hash);
-            let (line, expected) = fields[2].strip_prefix("line ").unwrap().split_once(": ").unwrap();
-            let line = line.parse::<usize>().unwrap();
-            current_lines.push(line);
-            assert_eq!(interactions.lines().nth(line - 1).unwrap().trim(), expected);
-        }
-        current_lines.sort_unstable();
-        assert_eq!(current_lines, [14]);
         let preview = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::renderFeatures"];
         assert_eq!(preview["originalSourceSHA256"], FEATURE_PREVIEW_ORACLE_SHA256);
         assert_eq!(preview["status"], "retired-unused-developer-preview; no behavior assertions");
@@ -6002,59 +5770,10 @@ mod tests {
             "(\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\",\"7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858\",\"line 148: _=NSApplication.shared;NSApp.setActivationPolicy(.prohibited)\"),",
             "(\"reference-0.8.26/Sources/RuycastApp/InteractionChecks.swift\",\"7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858\",\"line 153: let panel=NSPanel(contentRect:NSRect(x:0,y:0,width:760,height:490),styleMask:[.borderless,.nonactivatingPanel],backing:.buffered,defer:false)\"),"
         ]);
-        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
-        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/InteractionChecks.swift"] {
-            assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())));
-        }
     }
     #[test]
-    fn retired_rich_resource_process_assertions_keep_exact_rust_cases_and_live_helper() {
+    fn retired_rich_resource_process_assertions_keep_exact_rust_cases() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let rich = std::fs::read_to_string(root.join("Sources/RuycastApp/RichResourceChecks.swift")).unwrap();
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(main.contains("if args.first==\"--check-rich-resources\" {"));
-        assert!(main.contains("output(try checkRichResources(args[1]))"));
-        assert!(rich.contains("func checkRichResources"));
-        assert!(rich.contains("try require(!window.isVisible,\"Resource checks opened a visible window\")"));
-        assert!(!rich.contains("Read-only resource CLI failed"));
-        assert!(!rich.contains("monitorAndProcessCLI"));
-        assert!(!rich.contains("func cli(_ arguments:[String])"));
-        assert!(rich.contains("let actual=ResourceSampler().sample()"));
-        assert!(rich.contains("var fixture=actual;"));
-        assert!(!rich.contains("Native system sampling did not return real values"));
-        assert!(!rich.contains("realReadOnlySystemSampling"));
-        assert!(rich.contains("for index in [0,1,2]"));
-        assert!(!rich.contains("../outside.png"));
-        assert!(!rich.contains("Clipboard preview accepted an unsafe owned-asset path"));
-        assert!(!rich.contains("unsafeAssetPathRejected"));
-        assert!(rich.contains("clipboardTextImageAndImageFilePreview"));
-        assert!(!rich.contains("Clipboard image pixels are absent from the rendered view"));
-        assert!(!rich.contains("state.clipboardStore.preview(image)"));
-        assert!(!rich.contains("Image preview lost its actual pixels"));
-        assert!(!rich.contains("Image or image-file preview failed"));
-        assert!(rich.contains("let monitor=SystemMonitorModel()"));
-        assert!(!rich.contains("SystemMonitorController(state:state)"));
-        assert!(!rich.contains("Monitor window opened or sampled automatically"));
-        assert!(rich.contains("state.showSystemMonitor={routed=true};palette.show(\"system-monitor\")"));
-        assert!(!rich.contains("Monitor kept sampling while closed"));
-        assert!(!rich.contains("monitorStopsSamplingWhenClosed"));
-        assert!(!rich.contains("clipboard-static-before"));
-        assert!(!rich.contains("clipboard-static-after"));
-        assert!(!rich.contains("state.selection=0;pump(0.2)"));
-        assert!(!rich.contains("Clipboard timestamps still animate or update while idle"));
-        assert!(!rich.contains("clipboardStaticWhileIdle"));
-        assert!(rich.contains("effects.processes={samples}"));
-        assert!(!rich.contains("state.query=\"Obsidian\";try wait {state.results.count==1}"));
-        assert!(!rich.contains("killed==[123411] && state.confirmationCommand==nil"));
-        assert!(!rich.contains("directKillNoConfirmation"));
-        assert!(!rich.contains("fakeTerminationOnly"));
-        assert!(!rich.contains("Disappearing selection activated another process"));
-        assert!(!rich.contains("vanishedSelectionCannotKillNext"));
-        assert!(!rich.contains("Sorting changed selected identity or memory order"));
-        assert!(!rich.contains("Refresh moved process selection"));
-        assert!(!rich.contains("sortAndRefreshPreserveProcessIdentity"));
-        assert!(!rich.contains("Concurrent process queries mixed resource metadata"));
-        assert!(!rich.contains("Large process lists were not bounded before target registration"));
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-rich-resources").unwrap();
         assert_eq!(gate.required_native_steps.len(), 5);
         assert_eq!(gate.native_cases.len(), 16);
@@ -6156,24 +5875,10 @@ mod tests {
         assert_eq!(kill_retired["originalAssertions"], serde_json::json!(["Direct Kill terminates the verified fixture exactly once without confirmation.", "Fixture termination never targets a real process."]));
         assert!(gate.native_cases.contains(&"remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"));
         assert!(gate.native_cases.contains(&"processes::tests::owned_table_sort_and_immutable_kill_identity"));
-        let hash = format!("{:x}", Sha256::digest(rich.as_bytes()));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert_eq!(lock["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
-        let current_rows = roster.lines().filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/RichResourceChecks.swift\"")).collect::<Vec<_>>();
-        assert_eq!(current_rows.len(), 2);
-        for row in current_rows {
-            let encoded = row.trim().trim_end_matches(',').trim_start_matches('(').trim_end_matches(')');
-            let fields: Vec<String> = serde_json::from_str(&format!("[{encoded}]")).unwrap();
-            assert_eq!(fields[1], hash);
-            let (line, expected) = fields[2].strip_prefix("line ").unwrap().split_once(": ").unwrap();
-            assert_eq!(rich.lines().nth(line.parse::<usize>().unwrap() - 1).unwrap().trim(), expected);
-        }
         let historical_rows = roster.lines().filter(|line| line.contains("\"reference-0.8.26/Sources/RuycastApp/RichResourceChecks.swift\"")).collect::<Vec<_>>();
         assert_eq!(historical_rows.len(), 2);
         assert!(historical_rows.iter().all(|row| row.contains(RICH_RESOURCES_ORACLE_SHA256)));
-        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
-        assert_eq!(public["files"]["Sources/RuycastApp/RichResourceChecks.swift"], hash);
     }
     #[test]
     fn window_search_provenance_keeps_current_inputs_and_gate_status() {
@@ -6212,19 +5917,8 @@ mod tests {
             "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
         )));
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        assert!(!root.join("Sources/RuycastApp/VisualAssetChecks.swift").exists());
-        let product_icons = std::fs::read_to_string(root.join("Sources/RuycastApp/WebsiteIcons.swift")).unwrap();
-        assert!(product_icons.contains("WebsiteIcons"));
         let rust_icons = std::fs::read_to_string(root.join("rust-native/src/website_icons.rs")).unwrap();
         assert!(rust_icons.contains("fn origin_and_candidate_privacy"));
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("if args.first==\"--check-visual-assets\""));
-        assert!(!main.contains("if args.first==\"--render-visual-assets\""));
-        assert!(!main.contains("if args.first==\"--render-website-icons\""));
-        let source_policy = std::fs::read_to_string(root.join("rust-native/src/bin/ruycast-source/policy.rs")).unwrap();
-        assert!(!source_policy.contains("Sources/RuycastApp/VisualAssetChecks.swift"));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get("Sources/RuycastApp/VisualAssetChecks.swift").is_none());
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
         assert!(!roster.contains("frozen-current/Sources/RuycastApp/VisualAssetChecks.swift"));
         assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/VisualAssetChecks.swift"));
@@ -6249,40 +5943,10 @@ mod tests {
         assert!(!value["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
-    fn retired_command_icon_sheet_preview_keeps_shared_glyph_callers() {
+    fn retired_command_icon_sheet_preserves_historical_provenance() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        let glyph = std::fs::read_to_string(root.join("Sources/RuycastApp/CommandGlyph.swift")).unwrap();
-        assert!(!main.contains("--render-icons"));
-        assert!(!main.contains("CommandIconSheet"));
-        assert!(main.contains("--check-palette"));
-        assert!(main.contains("CommandGlyph(kind:\"window\""));
-        assert!(!glyph.contains("CommandIconSheet"));
-        assert!(glyph.contains("struct CommandGlyph:View"));
-        let website_icons = std::fs::read_to_string(root.join("Sources/RuycastApp/WebsiteIcons.swift")).unwrap();
-        assert!(website_icons.contains("CommandGlyph(kind:command.kind,target:command.target)"));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        for (path, source) in [("Sources/RuycastApp/main.swift", &main), ("Sources/RuycastApp/CommandGlyph.swift", &glyph)] {
-            assert_eq!(lock["files"][path], format!("{:x}", Sha256::digest(source.as_bytes())));
-        }
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
-        let main_rows = roster.lines().filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/main.swift\"")).collect::<Vec<_>>();
-        assert_eq!(main_rows.len(), 12);
-        let current_hash = format!("{:x}", Sha256::digest(main.as_bytes()));
-        for row in main_rows {
-            let encoded = row.trim().trim_end_matches(',').trim_start_matches('(').trim_end_matches(')');
-            let fields: Vec<String> = serde_json::from_str(&format!("[{encoded}]")).unwrap();
-            assert_eq!(fields[0], "frozen-current/Sources/RuycastApp/main.swift");
-            assert_eq!(fields[1], current_hash);
-            let (line, expected) = fields[2].strip_prefix("line ").unwrap().split_once(": ").unwrap();
-            let line = line.parse::<usize>().unwrap();
-            assert_eq!(main.lines().nth(line - 1).unwrap().trim(), expected, "roster callsite line {line}");
-        }
         assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/main.swift"));
-        let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
-        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/CommandGlyph.swift"] {
-            assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())));
-        }
         let inventory = inventory("check").unwrap();
         let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/CommandGlyph.swift::CommandIconSheet"];
         assert_eq!(retired["originalSourceSHA256"], "f9b6b16cf6e3ee41c58835ba71cdea0270a4adb7d528498e6865e2dfc8eb9feb");
@@ -6414,13 +6078,6 @@ mod tests {
         assert_eq!(detached_store["originalSourceSHA256"], "24e8731e4bf1da3622e28ef982f3ad085b374a5135bb0ac3fa16b6348c5671ab");
         assert_eq!(detached_store["nativeCases"], serde_json::json!(["analytics::tests::completion_survives_pause_but_reset_retires_old_ticket_and_private_export", "analytics::tests::concurrent_original_hourly_counts_bounds_and_aged_retention"]));
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        assert!(!root.join("Sources/RuycastApp/AnalyticsChecks.swift").exists());
-        let swift_main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!swift_main.contains("if args.first==\"--check-analytics\""));
-        let source_policy = std::fs::read_to_string(root.join("rust-native/src/bin/ruycast-source/policy.rs")).unwrap();
-        assert!(!source_policy.contains("Sources/RuycastApp/AnalyticsChecks.swift"));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get("Sources/RuycastApp/AnalyticsChecks.swift").is_none());
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
         assert!(!roster.contains("frozen-current/Sources/RuycastApp/AnalyticsChecks.swift"));
         let whole_file = &check_inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::file"];
@@ -6442,18 +6099,6 @@ mod tests {
     }
     #[test]
     fn retired_snippet_editing_helper_preserves_rust_crosswalk_and_provenance() {
-        use sha2::Digest;
-        let root=Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let retired="Sources/RuycastApp/SnippetEditingChecks.swift";
-        assert!(!root.join(retired).exists());
-        let caller=include_str!("../../../../Sources/RuycastApp/SettingsChecks.swift");
-        assert!(!caller.contains("checkSnippetEditing"));
-        assert!(!caller.contains("snippetEditing"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line|line==retired));
-        let lock:serde_json::Value=serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/SettingsChecks.swift"],format!("{:x}",Sha256::digest(caller.as_bytes())));
-
         let gate=super::SETTINGS.iter().find(|gate|gate.id=="--check-settings").unwrap();
         assert!(gate.native_cases.contains(&"ui_completion::snippet_links"));
         let historical=("Sources/RuycastApp/SnippetEditingChecks.swift",super::SNIPPET_EDITING_ORACLE_SHA256);
@@ -7579,30 +7224,16 @@ mod tests {
             16
         );
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("--check-browser-tabs"));
-        assert!(!main.contains("--check-performance-pipeline"));
-        assert!(!main.contains("--check-window-search"));
-        assert!(!main.contains("--check-apple-shortcuts"));
-        assert!(!root.join("Sources/RuycastApp/AppleShortcutChecks.swift").exists());
-        assert!(!root.join("Sources/RuycastApp/BrowserTabChecks.swift").exists());
-        assert!(!root.join("Sources/RuycastApp/PerformancePipelineChecks.swift").exists());
-        assert!(!root.join("Sources/RuycastApp/WindowSearchChecks.swift").exists());
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
         assert!(!roster.contains("frozen-current/Sources/RuycastApp/BrowserTabChecks.swift"));
         assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/BrowserTabChecks.swift"));
         assert!(!roster.contains("frozen-current/Sources/RuycastApp/PerformancePipelineChecks.swift"));
         assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/PerformancePipelineChecks.swift"));
         for gate in SETTINGS {
-            if matches!(gate.id, "--check-command-log" | "--check-window-search"
-                | "--check-analytics" | "--check-visual-assets" | "--check-edit-commands" | "--check-feedback"
-                | "--check-actions-menu" | "--check-menu-actions" | "--check-browser-tabs" | "--check-performance-pipeline"
-                | "--check-apple-shortcuts") {
-                // Retired helpers retain their original path/hash as historical provenance.
-                assert!(!root.join(gate.original_source).exists());
-            } else {
-                regular_file(&root.join(gate.original_source)).unwrap();
-            }
+            let (path, hash) = settings_provenance_source(gate.id).unwrap();
+            assert_eq!(path, gate.original_source);
+            assert!(settings_source_bindings(gate.id).contains(&(path, hash)));
+            assert!(!settings_sources(gate.id).iter().any(|(name, _, _)| *name == path));
         }
     }
     #[test]
@@ -7891,16 +7522,6 @@ mod tests {
     fn retired_apple_shortcuts_swift_check_preserves_rust_crosswalk_and_history() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/AppleShortcutChecks.swift";
-        assert!(!root.join(retired).exists());
-        assert!(root.join("Sources/RuycastApp/AppleShortcuts.swift").is_file());
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("--check-apple-shortcuts"));
-        assert!(!main.contains("checkAppleShortcuts"));
-        let policy = std::fs::read_to_string(root.join("rust-native/src/bin/ruycast-source/policy.rs")).unwrap();
-        assert!(!policy.lines().any(|line| line == retired));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"], format!("{:x}", Sha256::digest(main.as_bytes())));
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
         assert!(!roster.lines().any(|line| line.contains("\"frozen-current/Sources/RuycastApp/AppleShortcutChecks.swift\"")));
         assert_eq!(roster.lines().filter(|line| line.contains("\"reference-0.8.26/Sources/RuycastApp/AppleShortcutChecks.swift\"")).collect::<Vec<_>>(), [
@@ -7930,28 +7551,19 @@ mod tests {
         assert!(provider.contains("apple_shortcuts::merged(&accented_results.commands,&[],\"café\")"));
         let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
         assert!(public["files"].get(retired).is_none());
-        for path in ["Sources/RuycastApp/main.swift", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json", "rust-native/src/system_search/providers.rs"] {
+        for path in ["rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/src/system_search/providers.rs"] {
             assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
         }
     }
     #[test]
-    fn retired_actions_menu_check_has_no_caller_and_preserves_crosswalk() {
+    fn retired_actions_menu_check_preserves_crosswalk() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/ActionMenuChecks.swift";
-        assert!(!root.join(retired).exists());
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("--check-actions-menu"));
-        assert!(!main.contains("checkActionsMenu"));
-        assert!(!main.contains("checkItemBindingEditing"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"], format!("{:x}", Sha256::digest(main.as_bytes())));
         assert_eq!(ACTIONS_MENU_ORACLE_SHA256, "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f");
         let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
         assert_eq!(public["schema"], "ruycast.public-source.v2");
         assert!(public["files"].get(retired).is_none());
-        for path in ["Sources/RuycastApp/main.swift", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json"] {
+        for path in ["rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs"] {
             assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
         }
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-actions-menu").unwrap();
@@ -8048,22 +7660,14 @@ mod tests {
     }
 
     #[test]
-    fn retired_menu_action_check_has_no_caller_and_preserves_crosswalk() {
+    fn retired_menu_action_check_preserves_crosswalk() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/MenuActionChecks.swift";
-        assert!(!root.join(retired).exists());
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("--check-menu-actions"));
-        assert!(!main.contains("checkMenuActions"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"], format!("{:x}", Sha256::digest(main.as_bytes())));
         assert_eq!(MENU_ACTIONS_ORACLE_SHA256, "41d224340e00d1970fb953aad90c3c4a539e6af84634b1aa04b90972c166f1ed");
         let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
         assert_eq!(public["schema"], "ruycast.public-source.v2");
         assert!(public["files"].get(retired).is_none());
-        for path in ["Sources/RuycastApp/main.swift", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json"] {
+        for path in ["rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs"] {
             assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
         }
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-menu-actions").unwrap();
@@ -8077,35 +7681,15 @@ mod tests {
     fn retired_swift_performance_routes_preserve_rust_benchmark_and_crosswalk() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let retired = "Sources/RuycastApp/PerformancePipelineChecks.swift";
-        assert!(!root.join(retired).exists());
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("--check-performance-pipeline"));
-        assert!(!main.contains("checkPerformancePipeline"));
-        assert!(!main.contains("--benchmark-clipboard-poll"));
-        assert!(!main.contains("RUYCAST_POLL_BENCHMARK"));
-        let performance = std::fs::read_to_string(root.join("Sources/RuycastApp/PerformanceChecks.swift")).unwrap();
-        assert!(!performance.contains("benchmarkClipboardPoll"));
-        assert!(!performance.contains("RUYCAST_POLL_BENCHMARK"));
-        assert!(!include_str!("../ruycast-source/policy.rs").lines().any(|line| line == retired));
-        let lock: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap()).unwrap();
-        assert!(lock["files"].get(retired).is_none());
-        assert_eq!(lock["files"]["Sources/RuycastApp/main.swift"], format!("{:x}", Sha256::digest(main.as_bytes())));
-        assert_eq!(lock["files"]["Sources/RuycastApp/PerformanceChecks.swift"], format!("{:x}", Sha256::digest(performance.as_bytes())));
         assert_eq!(PERFORMANCE_PIPELINE_ORACLE_SHA256, "429130589dd29b1c12fea7854b9e868b9d365f85ec8334a80782da999fa90659");
         let roster = std::fs::read_to_string(root.join("bench/f1-runner/src/sdk/workspace_roster.rs")).unwrap();
-        let current_performance_roster = roster
-            .lines()
-            .filter(|line| line.contains("\"frozen-current/Sources/RuycastApp/PerformanceChecks.swift\""))
-            .collect::<Vec<_>>();
-        assert_eq!(current_performance_roster.len(), 1);
-        assert!(current_performance_roster[0].contains("\"a0534165a6df3d6afda628abaefdc8f740b4b0a54a969f814af76e8860382950\",\"line 7: _=NSApplication.shared"));
         assert!(roster.contains("reference-0.8.26/Sources/RuycastApp/PerformancePipelineChecks.swift"));
         let rust_main = std::fs::read_to_string(root.join("rust-native/src/main.rs")).unwrap();
         assert!(rust_main.contains("#[cfg(feature = \"test-tools\")]\n        Some(\"--benchmark-clipboard-poll\")"));
         let public: serde_json::Value = serde_json::from_slice(&std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap()).unwrap();
         assert_eq!(public["schema"], "ruycast.public-source.v2");
         assert!(public["files"].get(retired).is_none());
-        for path in ["Sources/RuycastApp/main.swift", "Sources/RuycastApp/PerformanceChecks.swift", "rust-native/src/main.rs", "rust-native/src/native_services.rs", "rust-native/tests/clipboard_poll_benchmark_process.rs", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "rust-native/swift-reference-lock.json", "bench/f1-runner/src/sdk/workspace_roster.rs", "docs/PERFORMANCE.md"] {
+        for path in ["rust-native/src/main.rs", "rust-native/src/native_services.rs", "rust-native/tests/clipboard_poll_benchmark_process.rs", "rust-native/src/bin/ruycast-build/oracles.rs", "rust-native/src/bin/ruycast-source/policy.rs", "bench/f1-runner/src/sdk/workspace_roster.rs", "docs/PERFORMANCE.md"] {
             assert_eq!(public["files"][path], format!("{:x}", Sha256::digest(std::fs::read(root.join(path)).unwrap())), "stale public source hash: {path}");
         }
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-performance-pipeline").unwrap();
@@ -8222,15 +7806,6 @@ mod tests {
     fn polish_helper_is_retired_and_preview_capture_history_is_preserved() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let helper = "Sources/RuycastApp/PolishChecks.swift";
-        assert!(!root.join(helper).exists());
-        let main = std::fs::read_to_string(root.join("Sources/RuycastApp/main.swift")).unwrap();
-        assert!(!main.contains("--check-polish"));
-        let policy = std::fs::read_to_string(root.join("rust-native/src/bin/ruycast-source/policy.rs")).unwrap();
-        assert!(!policy.lines().any(|line| line == helper));
-        let lock: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(root.join("rust-native/swift-reference-lock.json")).unwrap(),
-        ).unwrap();
-        assert!(lock["files"].get(helper).is_none());
         let public: serde_json::Value = serde_json::from_slice(
             &std::fs::read(root.join("PUBLIC-SOURCE.json")).unwrap(),
         ).unwrap();
@@ -8298,7 +7873,7 @@ mod tests {
     }
     #[test]
     fn history_source_pins_match_current_rust_bytes() {
-        let expected = "9a44dee7a431ff2f56016d4a984e5966dfd2f4e08e05346a3676f472111cdfa7";
+        let expected = "291731f83d4278ad4b1f892558a6b155de3288e8478cf64caed9489b9fa61d49";
         for gate in ["--check-performance-pipeline", "--check-settings"] {
             let (path, bytes, pin) = settings_sources(gate)
                 .iter()
@@ -8501,10 +8076,6 @@ mod tests {
         assert_eq!(settings_routing["nativeSteps"], serde_json::json!(["library-navigation-process", "remaining-macos-process"]));
         assert_eq!(settings_routing["nativeCases"], serde_json::json!(["library_navigation_process::cli_settings_is_separate_and_reusable_without_showing_a_window", "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"]));
         assert_eq!(settings_routing["productionAccepted"], false);
-        let interactions = std::fs::read_to_string(root.join("Sources/RuycastApp/InteractionChecks.swift")).unwrap();
-        assert!(!interactions.contains("settingsCommandRouting"));
-        assert!(!interactions.contains("Settings routing failed."));
-        assert!(interactions.contains("concurrentConfigEditPreserved"));
         assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
