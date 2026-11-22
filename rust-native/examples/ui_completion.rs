@@ -2607,7 +2607,8 @@ fn polish_original(root: &Path) {
             for (width,height,label) in [(1080,700,"large"),(600,400,"small")] {
                 let f=h.probe(false,"palette-geometry",json!({"visible":[-20000.,-20000.,width+48,height+48],"clipboard":true}));
                 assert_eq!(f["frame"][2].as_f64().unwrap(),f64::from(width));assert_eq!(f["frame"][3].as_f64().unwrap(),f64::from(height));
-                capture(false,&format!("polish-clipboard-{label}-{theme}"),&["Readable clipboard text"],&[]);captures+=1;
+                let preview=capture(false,&format!("polish-clipboard-{label}-{theme}"),&["Readable clipboard text"],&[]);captures+=1;
+                assert_eq!(preview["screenText"][0],long,"Clipboard preview pane did not show the full selected text");
             }
             h.rpc(json!({"op":"clipboard.clear"}));h.wait(|s|s["clipboardCount"]==0);
             h.probe(false,"palette-geometry",json!({"visible":[-20000.,-20000.,1128.,748.],"clipboard":true}));
