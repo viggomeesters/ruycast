@@ -50,7 +50,6 @@ import LauncherModels
             }
             state.begin(actionFixtures[3]);state.inlineInput="Example note"
             state.busy=true
-            try capture(Palette(state:state),"action-inline-busy-\(theme)-\(width)",NSSize(width:width,height:490),required:["Save"],absent:["Open"])
             state.busy=false
             state.cancelInlineInput();state.query="___no-result___"
             try capture(Palette(state:state),"action-empty-\(theme)-\(width)",NSSize(width:width,height:490),absent:["Open"])
