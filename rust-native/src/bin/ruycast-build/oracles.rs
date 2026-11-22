@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "142d7bb00239061dd7bc5265b89e70a14d7c2a97f9c5f5d60b803d2d7d0b801a";
+const POLISH_CURRENT_SHA256: &str = "a62ffc1c1ad2e898cbb723a012c36c5aea741630d4ca7b6dbca2419e93d2c06c";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -864,7 +864,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
     match id {
         "--check-polish" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "fafca33b6a713b50ac212da4c9a49ebb8529e1a335ec5dc82f7262483752fedd"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
@@ -914,7 +914,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -957,7 +957,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -981,7 +981,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -1196,7 +1196,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -1272,7 +1272,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "0d261feb8abe8920ffc5ab221dbc1415543aac4ef626e2c6370ab1446a233ebb"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -1880,10 +1880,20 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardGeometry"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift clipboard geometry assertion retired",
-            "scope": "Only the Swift clipboard-frame growth and screen-containment assertion is retired. The native Rust polish-original process checks the same screen bounds in both context themes; all three Swift clipboard PNG captures and Vision OCR assertions remain active.",
+            "scope": "Only the Swift clipboard-frame growth and screen-containment assertion is retired. The native Rust polish-original process checks the same screen bounds in both context themes; the three Swift clipboard preview captures are retired separately under checkPolish.clipboardPreviewCaptures.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The clipboard frame is larger than the normal frame and stays within the full screen bounds."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardPreviewCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift clipboard preview captures retired",
+            "scope": "Only the Swift clipboard-large, clipboard-small and clipboard-cleared Vision captures and their clipboard-only fixture setup are retired. The Rust polish-original process retains native PNG captures, visible-text checks, size checks and the separate clipboard-geometry assertion in light and dark themes.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["Large clipboard preview shows readable content.", "Small clipboard preview retains its requested size.", "Cleared clipboard shows the empty state and no old text."],
+            "compatibilityNotes": ["Swift used Vision OCR on offscreen 1080×700 and 600×400 PNGs. Rust checks the clipboard NSTextView text directly, retains native PNG captures in light and dark themes, and verifies the cleared empty state."],
             "productionAccepted": false
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"] = serde_json::json!({
@@ -3532,8 +3542,8 @@ mod tests {
         let polish = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!polish.contains("checkClipboardPreviewCancellation"));
         assert!(!polish.contains("previewCancellation"));
-        assert!(polish.contains("clipboardLargeAndSmall"));
-        assert!(polish.contains("clearedPreviewContentRemoved"));
+        assert!(!polish.contains("clipboardLargeAndSmall"));
+        assert!(!polish.contains("clearedPreviewContentRemoved"));
 
         let policy = include_str!("../ruycast-source/policy.rs");
         assert!(!policy.lines().any(|line| line == retired));
@@ -8307,7 +8317,7 @@ mod tests {
         for retired in ["date-valid", "date-invalid", "date-clear", "Deadline (YYYY-MM-DD of clear)"] {
             assert!(!source.contains(retired), "Swift date-preview setup remains: {retired}");
         }
-        for retained in ["clipboard-large", "clipboard-small", "clipboard-cleared", "snippet-bindings-"] {
+        for retained in ["inline-query", "editor-closed", "snippet-bindings-"] {
             assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
         }
 
@@ -8592,11 +8602,56 @@ mod tests {
         let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
         assert!(!polish.contains("Clipboard geometry did not grow safely"));
         assert!(!polish.contains("PaletteGeometry.frame(in:screen,mode:\"clipboard\")"));
-        for capture in ["clipboard-large", "clipboard-small", "clipboard-cleared"] {
-            assert!(polish.contains(capture));
+        let native = include_str!("../../../examples/ui_completion.rs");
+        for retained in [
+            "(1080,700,\"large\"),(600,400,\"small\")",
+            "polish-clipboard-{label}-{theme}",
+            "polish-clipboard-cleared-{theme}",
+            "capture(false,&format!(\"polish-clipboard-{label}-{theme}\"),&[\"Readable clipboard text\"],&[])",
+            "capture(false,&format!(\"polish-clipboard-cleared-{theme}\"),&[\"Select an item\"],&[\"Readable clipboard text\"])",
+            "assert_eq!(preview[\"screenText\"][0],long,\"Clipboard preview pane did not show the full selected text\");",
+            "c[2]>n[2]&&c[3]>n[3]",
+        ] {
+            assert!(native.contains(retained), "Rust clipboard geometry coverage changed: {retained}");
         }
-        assert!(polish.contains("Readable clipboard text"));
-        assert!(polish.contains("Select an item"));
+    }
+    #[test]
+    fn polish_clipboard_preview_captures_are_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        for retired in [
+            "clipboard-large",
+            "clipboard-small",
+            "clipboard-cleared",
+            "Readable clipboard text",
+            "Select an item",
+            "state.clips=[Clip(text:String(repeating:",
+            "clipboardLargeAndSmall",
+            "clearedPreviewContentRemoved",
+        ] {
+            assert!(!source.contains(retired), "Swift clipboard preview capture remains: {retired}");
+        }
+        for retained in ["inline-query", "editor-closed", "snippet-bindings-"] {
+            assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
+        }
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        for retained in [
+            "let long=\"Readable clipboard text. \".repeat(80);",
+            "polish-clipboard-{label}-{theme}",
+            "polish-clipboard-cleared-{theme}",
+            "c[2]>n[2]&&c[3]>n[3]",
+        ] {
+            assert!(native.contains(retained), "missing Rust clipboard preview behavior: {retained}");
+        }
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.clipboardPreviewCaptures"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift clipboard preview captures retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Large clipboard preview shows readable content.", "Small clipboard preview retains its requested size.", "Cleared clipboard shows the empty state and no old text."]));
+        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 1080×700 and 600×400 PNGs. Rust checks the clipboard NSTextView text directly, retains native PNG captures in light and dark themes, and verifies the cleared empty state."]));
+        assert_eq!(retired["productionAccepted"], false);
     }
     #[test]
     fn polish_natural_date_preview_validity_is_retired_and_crosswalked() {

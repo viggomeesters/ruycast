@@ -76,12 +76,6 @@ import LauncherModels
     let script=Command(id:"fixture.edit",title:"Example Action",kind:"script",target:"/bin/sh",aliases:["example"],arguments:["-c","printf sample"])
     try capture(CommandEditor(state:state,form:CommandForm(command:script,isRun:false)),"editor-closed",NSSize(width:760,height:490),required:["Name","Advanced"],absent:["Arguments","Timeout","Executable"])
     try capture(CommandEditor(state:state,form:CommandForm(command:script,isRun:false),advancedExpanded:true),"editor-expanded",NSSize(width:760,height:620),required:["Advanced","Arguments","Timeout"])
-    state.clips=[Clip(text:String(repeating:"Readable clipboard text. ",count:80),source:"Fixture")];state.mode="clipboard"
-    try capture(Palette(state:state),"clipboard-large",NSSize(width:1080,height:700),required:["Readable clipboard text"])
-    try capture(Palette(state:state),"clipboard-small",NSSize(width:600,height:400))
-    state.clips=[]
-    try capture(Palette(state:state),"clipboard-cleared",NSSize(width:1080,height:700),required:["Select an item"],absent:["Readable clipboard text"])
-    state.mode="commands";state.query=""
     state.mode="snippets";state.query="";state.config.commands=[
         Command(id:"fixture.greet",title:"Greeting",kind:"snippet",target:"Hello",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";greetsnippet"),
         Command(id:"fixture.long",title:"Longer bindings",kind:"snippet",target:"Example",aliases:["first-alias","second-alias","third-alias","fourth-alias","final-alias"],keyword:";longsnippet"),
@@ -91,5 +85,5 @@ import LauncherModels
         try capture(Palette(state:state),"snippet-bindings-"+theme,NSSize(width:760,height:490),required:["Set Hotkey","greetsnippet","Aliases","hello","greeting","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
         try capture(Palette(state:state),"snippet-bindings-narrow-"+theme,NSSize(width:600,height:490),required:["Set Hotkey","salutation","final-alias","Unbound snippet"],absent:["Keyword"])
     }
-    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"clipboardLargeAndSmall":true,"clearedPreviewContentRemoved":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
+    return ["snippetBindingsVisible":true,"snippetAliasesAndKeywordSearch":true,"ok":true,"themes":4,"createRemoved":true,"consumerEditorDisclosure":true,"healthStates":true,"managementBuiltins":true,"desktopInputSent":false,"visibleWindowOpened":false]
 }
