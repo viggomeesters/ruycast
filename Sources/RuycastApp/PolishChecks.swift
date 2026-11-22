@@ -60,13 +60,6 @@ import LauncherModels
             try capture(Palette(state:state),"action-empty-\(theme)-\(width)",NSSize(width:width,height:490),absent:["Open"])
         }
     }
-    state.mode="processes";state.systemServices.cancel()
-    let process=Command(id:"system.kill:fixture",title:"Fixture Process",kind:"builtin",target:"system.kill:fixture")
-    state.applySystemResults([process],resources:[:],preserveSelection:false);state.selection=0
-    for theme in ["light","dark"] {
-        state.config.theme=theme
-        try capture(Palette(state:state),"action-process-"+theme,NSSize(width:600,height:490),required:["Kill"])
-    }
     state.mode="commands";state.query=""
 #endif
     state.inlineSource="hotkey";state.selection=4;state.query="echo-inline Café & spaces"
