@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "b605eddbd6fd0c0b272497bc8e31e6e9312b517887de3e5152d2511ecf4cf36e";
+const POLISH_CURRENT_SHA256: &str = "2bf5bcf84b943871a14d129c31c2c6941a889ed86104e27eb2e6016c98ac83fb";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -894,7 +894,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/performance_signposts.rs", include_bytes!("../../performance_signposts.rs"), "c0dcaaaf7b427d9363f536d2bc81ff097efc8042e1778e09fc6eac3302df1dcd"),
             ("rust-native/src/control.rs", include_bytes!("../../control.rs"), "ddf75e56e36fe83d474355b4e11c543e4ce87a5111577d21e9a9386ff26203b1"),
             ("rust-native/src/lib.rs", include_bytes!("../../lib.rs"), "ec3b20d3a35fe914df778b4ebdc8a3ba9e7a0c23d98386c94fa65ef518fdd732"),
-            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "e870bc1f9ea23e6e36b2157531b6086baa1b2a85f8c033469581810376de19de"),
+            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "a9a557cd215f5accd26f146fe433d97d9355f7b240e4772664bb52ee26a82f58"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "7e6e2194d2de003c6d1dcc80544298bfe171d692553bbffa42ed0fec070db098"),
         ],
         "--check-feedback" => &[
@@ -934,7 +934,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/system_search/main_bridge.rs", include_bytes!("../../system_search/main_bridge.rs"), "d0267d4a14fbefc08a7c17a50c4e1f9872abb11fe414fe32f7507274552c908e"),
             ("rust-native/src/system_search/service.rs", include_bytes!("../../system_search/service.rs"), "da7a087cdd593525e6d4314655ea245bd9cc6954b89efcf87e43b8b3cb17595a"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
-            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "e870bc1f9ea23e6e36b2157531b6086baa1b2a85f8c033469581810376de19de"),
+            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "a9a557cd215f5accd26f146fe433d97d9355f7b240e4772664bb52ee26a82f58"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "a4a171e74c80e06295d175dcb1d4858313a0a414fabf43926c6a9b72ebcaeef0"),
         ],
@@ -1045,7 +1045,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/activity.rs", include_bytes!("../../activity.rs"), "15c93afc3731db2ca870db6d824dcc90bc6f0f367fe9d3ca12497b90f26df97a"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust/src/private_storage.rs", include_bytes!("../../../../rust/src/private_storage.rs"), "cefa77c11c4cd3543dc547f0696854d4e4601550fc701440803b74f4a8287092"),
-            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "e870bc1f9ea23e6e36b2157531b6086baa1b2a85f8c033469581810376de19de"),
+            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "a9a557cd215f5accd26f146fe433d97d9355f7b240e4772664bb52ee26a82f58"),
             ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "8cf10e2943cf3f48c6a2a7edebbf1721ad305a34116e9fe357ae66b93eb7a0f8"),
             ("rust-native/tests/clipboard_rich_paste.rs", include_bytes!("../../../tests/clipboard_rich_paste.rs"), "263551b7339fbf2e7e714fc277af9840262f796fe9c9851ca972cd9f8cc014d8"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1992,6 +1992,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The unmatched action query selects no command."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processSelectionAfterCapture"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift process selection assertion retired",
+            "scope": "Only the synthetic process selectedCommand identity assertion after each theme capture is retired. Both theme captures, process fixture, metric and Kill-label assertions, and one owned termination assertion remain.",
+            "nativeSteps": ["remaining-macos-process"],
+            "nativeCases": ["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"],
+            "originalAssertions": ["Rendering the synthetic process result in light and dark themes preserves its selected command identity."],
             "productionAccepted": false
         });
     }
@@ -8360,6 +8369,34 @@ mod tests {
         assert!(native.contains(r#"h.rpc(json!({"op":"show","mode":"commands","query":"___no-result___"}));h.settled();"#));
         assert!(native.contains(r#"assert!(h.probe(false,"read",json!({}))["selectedId"].is_null());"#));
         assert!(native.contains(r#"capture(false,&format!("polish-empty-{theme}-{width}"),&[],&["Open"]);"#));
+    }
+    #[test]
+    fn polish_process_selection_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Synthetic process selection changed during rendering"));
+        assert!(source.contains("action-process-\"+theme"));
+        assert!(source.contains("required:[\"Kill\"]"));
+
+        let native = include_str!("../../../tests/remaining_macos_process.rs");
+        let test = native
+            .split_once("fn native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes()")
+            .unwrap()
+            .1
+            .split_once("\n}\n")
+            .unwrap()
+            .0;
+        assert!(test.contains("let selected_before = menu[\"selectedId\"].as_str().unwrap();"));
+        assert!(test.contains("id == selected_before && [730011, 730012].contains(pid)"));
+        assert!(test.contains("assert_eq!(capture[\"result\"][\"selectedId\"], selected_before);"));
+        assert!(test.contains(r#"json!(["terminate-owned"])"#));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.processSelectionAfterCapture"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["remaining-macos-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_process_actions_remain_ephemeral_and_direct_kill_is_once_in_both_themes"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Rendering the synthetic process result in light and dark themes preserves its selected command identity."]));
+        assert_eq!(retired["productionAccepted"], false);
     }
     #[test]
     fn polish_configuration_error_health_assertion_is_retired_and_crosswalked() {
