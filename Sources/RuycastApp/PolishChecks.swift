@@ -92,7 +92,6 @@ import LauncherModels
     let frozen=state.inlineDatePreview!
     try capture(Palette(state:state),"date-valid",NSSize(width:760,height:480),required:[frozen.label],absent:["YYYY-MM-DD"])
     state.inlineInput="in 3"
-    state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id,"Invalid date executed or discarded input")
     try capture(Palette(state:state),"date-invalid",NSSize(width:760,height:480),required:["Datum niet herkend"])
     state.message="";state.inlineInput="clear";try capture(Palette(state:state),"date-clear",NSSize(width:760,height:480),required:["Datum wissen"])
     state.cancelInlineInput();state.message=""

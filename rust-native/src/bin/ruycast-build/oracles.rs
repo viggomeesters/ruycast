@@ -854,7 +854,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "4ae00a969a2f9c3e08a6d0804bb6730cc0d4626420d809edabc9fac4914d83be";
+const POLISH_CURRENT_SHA256: &str = "b330b4b4c8d4f6550a3ca163ff81dd69981441402a0e1a6105f175078b2629eb";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -1834,10 +1834,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.partialDateValidity"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift Polish partial-date validity assertion retired",
-            "scope": "Only the Swift assertion that `in 3` is invalid is retired. The input, submit/refusal assertion, captures, frozen-date check, and --check-polish route remain active.",
+            "scope": "The earlier Swift validity assertion is retired; the `in 3` input and invalid-date preview capture remain active. The direct Swift submit/refusal assertion is retired under checkPolish.invalidDateSubmission. The frozen-date check and --check-polish route remain active.",
             "nativeSteps": ["unit", "task-date-process"],
             "nativeCases": ["task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock", "ui_completion::task_date"],
-            "originalAssertions": ["The partial date `in 3` is invalid.", "Submitting it leaves the command form open and does not execute it."],
+            "originalAssertions": ["The partial date `in 3` is invalid."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.invalidDateSubmission"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift invalid-date submission/refusal assertion retired",
+            "scope": "Only the direct Swift submission/refusal call and state assertion for `in 3` are retired. Keep the input, visible invalid-date preview capture, date-clear capture, frozen-date check and --check-polish route; the Rust task-date process sends Return and verifies editor-token/inline-mode retention with no child or usage.",
+            "nativeSteps": ["task-date-process"],
+            "nativeCases": ["ui_completion::task_date"],
+            "originalAssertions": ["Submitting the invalid date keeps the inline command active and does not execute its target."],
             "productionAccepted": false
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"] = serde_json::json!({
@@ -1933,7 +1942,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.dateDoubleSubmit"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift task-date double-submit assertion retired",
-            "scope": "Only the duplicate Swift date-writer fixture and two-submit assertion are retired. Natural preview, invalid-date refusal and date-valid/date-invalid/date-clear captures remain active.",
+            "scope": "Only the duplicate Swift date-writer fixture and two-submit assertion are retired. Natural preview and date-valid/date-invalid/date-clear captures remain active; Rust task-date-process retains the invalid-date refusal check, mapped under checkPolish.invalidDateSubmission.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["Submitting the frozen `morgen` date twice executes one child and records one usage."],
@@ -8146,9 +8155,11 @@ mod tests {
         assert!(!source.contains("Date Enter failed or ran twice"));
         assert!(!source.contains("fixture.date-write"));
         assert!(!source.contains("date-result.txt"));
-        for kept in ["date-valid", "date-invalid", "date-clear", "Invalid date executed or discarded input", "Datum niet herkend"] {
+        for kept in ["date-valid", "date-invalid", "date-clear", "state.inlineInput=\"in 3\"", "Datum niet herkend"] {
             assert!(source.contains(kept), "missing retained Polish date scenario: {kept}");
         }
+        assert!(!source.contains("Invalid date executed or discarded input"));
+        assert!(!source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
         assert!(source.contains("state.cancelInlineInput();state.message=\"\""));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.dateDoubleSubmit"];
@@ -8225,13 +8236,48 @@ mod tests {
         assert_eq!(partial_date["status"], "source-qualified-rust-case-crosswalk; duplicate Swift Polish partial-date validity assertion retired");
         assert_eq!(partial_date["nativeSteps"], serde_json::json!(["unit", "task-date-process"]));
         assert_eq!(partial_date["nativeCases"], serde_json::json!(["task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock", "ui_completion::task_date"]));
+        assert_eq!(partial_date["originalAssertions"], serde_json::json!(["The partial date `in 3` is invalid."]));
         assert_eq!(partial_date["productionAccepted"], false);
         let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let polish_source = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
         assert!(polish_source.contains("state.inlineInput=\"in 3\""));
-        assert!(polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
+        assert!(!polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
+        assert!(!polish_source.contains("Invalid date executed or discarded input"));
+        assert!(polish_source.contains("try capture(Palette(state:state),\"date-invalid\""));
         assert!(!polish_source.contains("Partial date accepted"));
-        assert!(polish_source.contains("Invalid date executed or discarded input"));
+    }
+    #[test]
+    fn polish_invalid_date_submission_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(source.contains("state.inlineInput=\"in 3\""));
+        assert!(!source.contains("Invalid date executed or discarded input"));
+        assert!(!source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
+        assert!(source.contains("try capture(Palette(state:state),\"date-invalid\""));
+        assert!(source.contains("state.cancelInlineInput();state.message=\"\""));
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        for retained in [
+            r#"type_value(true,"in 3");"#,
+            r#"key(36,0,"\r");"#,
+            r#"assert_eq!(retained["editorToken"],invalid["editorToken"]);"#,
+            r#"assert_eq!(retained["runInputInline"],true);"#,
+            r#"assert!(!marker.exists());"#,
+            r#"assert_eq!(h.rpc(json!({"op":"usage"})),json!({}));"#,
+            r#""invalidRefused":true"#,
+        ] {
+            assert!(native.contains(retained), "missing Rust invalid-date behavior: {retained}");
+        }
+
+        let inventory = inventory("settings").unwrap();
+        let retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.invalidDateSubmission"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["task-date-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::task_date"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Submitting the invalid date keeps the inline command active and does not execute its target."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"task-date-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::task_date"));
     }
     #[test]
     fn polish_snippet_alias_search_is_retired_and_crosswalked() {
