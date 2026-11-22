@@ -2459,6 +2459,7 @@ fn polish_bindings(root: &Path) {
                 "third-alias",
                 "fourth-alias",
                 "final-alias",
+                "Set Hotkey",
             ] {
                 assert!(
                     text.contains(required),

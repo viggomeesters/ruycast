@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "db91ba78eeaff85ce6f880f3deb2f2e67a1a01697e082b09ab09292af3505b9d";
+const POLISH_CURRENT_SHA256: &str = "3bf83a85e045751ce320217f5865976b0be7edc28205a991ea51720e1ee15754";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -864,7 +864,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
     match id {
         "--check-polish" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "6938bb2593d880943e3a92ccaf0fba8b8f8d9df33e7af9e840405fc86d15831b"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "fafca33b6a713b50ac212da4c9a49ebb8529e1a335ec5dc82f7262483752fedd"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
@@ -914,7 +914,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "6938bb2593d880943e3a92ccaf0fba8b8f8d9df33e7af9e840405fc86d15831b"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -957,7 +957,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "6938bb2593d880943e3a92ccaf0fba8b8f8d9df33e7af9e840405fc86d15831b"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -981,7 +981,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "6938bb2593d880943e3a92ccaf0fba8b8f8d9df33e7af9e840405fc86d15831b"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -1196,7 +1196,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "6938bb2593d880943e3a92ccaf0fba8b8f8d9df33e7af9e840405fc86d15831b"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -1272,7 +1272,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "1a0d349a9bf2bd1ce98bb2afc3415ea08f308c3bb96994c0d4b66de660bb71c2"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "6938bb2593d880943e3a92ccaf0fba8b8f8d9df33e7af9e840405fc86d15831b"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -1853,7 +1853,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet-alias search assertion retired",
-            "scope": "Only the Swift `salutation` query result-set assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; Swift snippet fixtures/captures, result summary, and --check-polish remain active.",
+            "scope": "Only the Swift `salutation` query result-set assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while --check-polish remains active.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["The alias query `salutation` returns exactly `fixture.greet`."],
@@ -1862,7 +1862,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetKeywordSearch"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet-keyword search assertion retired",
-            "scope": "Only the Swift `longsnippet` keyword-result assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; Swift snippet fixtures/captures, result summary, and --check-polish remain active.",
+            "scope": "Only the Swift `longsnippet` keyword-result assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while --check-polish remains active.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["Typing `longsnippet` selects exactly the `fixture.long` snippet by its `;longsnippet` keyword."],
@@ -1871,7 +1871,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetArrowSelection"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift snippet arrow-selection assertion retired",
-            "scope": "Only the Swift arrow-key selected-snippet assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; Swift fixtures/captures, result summary, and --check-polish remain active.",
+            "scope": "Only the Swift arrow-key selected-snippet assertion is retired. The Rust native bindings process covers alias, keyword, and arrow selection; the now-unused Swift snippet fixture/captures and result summary are retired under checkPolish.snippetBindingCaptures, while --check-polish remains active.",
             "nativeSteps": ["polish-bindings-process"],
             "nativeCases": ["ui_completion::polish_bindings"],
             "originalAssertions": ["After moving down once from the first row, `fixture.long` is selected."],
@@ -2046,7 +2046,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.launcherPreviewCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift launcher preview captures retired",
-            "scope": "Only the four Swift launcher-system/light/dark/graphite Vision captures and their Create-absent OCR assertion/summary field are retired. The settings preview set has its own crosswalk; action, inline and snippet captures and the shared --check-polish route remain active.",
+            "scope": "Only the four Swift launcher-system/light/dark/graphite Vision captures and their Create-absent OCR assertion/summary field are retired. The settings preview set has its own crosswalk; remaining action previews and the shared --check-polish route remain active. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Create is absent from the launcher preview in system, light, dark and graphite themes."],
@@ -2056,7 +2056,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.settingsPreviewCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift settings preview captures retired",
-            "scope": "Only the four Swift General-settings system/light/dark/graphite Vision captures and their Theme/Menu Bar Icon OCR assertions are retired. The existing Rust four-theme settings capture remains; action, inline, snippet and other Polish cases stay active.",
+            "scope": "Only the four Swift General-settings system/light/dark/graphite Vision captures and their Theme/Menu Bar Icon OCR assertions are retired. The existing Rust four-theme settings capture remains; other Polish cases stay active. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The General settings preview shows Theme and Menu Bar Icon in system, light, dark and graphite themes."],
@@ -2066,7 +2066,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineQueryCapture"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift inline-query preview capture retired",
-            "scope": "Only the Swift hotkey-source setup, one inline-query Vision capture and its related cancellation are retired. The subsequent form/query reset remains. Rust polish-original-process retains the exact Unicode inline text, selected command/editor, visible action label, native captures, Escape restoration, Enter submission and expanded-input behavior; remaining action and snippet captures remain.",
+            "scope": "Only the Swift hotkey-source setup, one inline-query Vision capture and its related cancellation are retired. The subsequent form/query reset remains. Rust polish-original-process retains the exact Unicode inline text, selected command/editor, visible action label, native captures, Escape restoration, Enter submission and expanded-input behavior; remaining action captures remain. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The inline alias query displays Inline Input and Café in the selected action preview."],
@@ -2076,7 +2076,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineSaveCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift idle inline-save preview captures retired",
-            "scope": "Only the four idle action-inline-save light/dark 600/760 Vision captures and their Save-present/Open-absent OCR assertion are retired. Keep the shared command/input setup and all other action/inline/snippet cases; busy-save captures have a separate retirement crosswalk.",
+            "scope": "Only the four idle action-inline-save light/dark 600/760 Vision captures and their Save-present/Open-absent OCR assertion are retired. Keep the shared command/input setup and other action/inline cases; busy-save captures have a separate retirement crosswalk. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The idle quick-note preview shows Save and hides Open in both themes and widths."],
@@ -2096,11 +2096,21 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.emptyActionCaptures"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; Swift empty-action preview captures retired",
-            "scope": "Only the four Swift action-empty light/dark 600/760 no-result preview setups/captures and their Open-absent OCR assertion are retired. The surrounding command reset and other action/inline/snippet cases remain.",
+            "scope": "Only the four Swift action-empty light/dark 600/760 no-result preview setups/captures and their Open-absent OCR assertion are retired. The surrounding command reset and other action/inline cases remain. Snippet-binding captures are retired under checkPolish.snippetBindingCaptures.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The unmatched-action preview hides Open in both themes and widths."],
             "compatibilityNotes": ["Swift used Vision OCR on offscreen 600×490 and 760×490 palette images. Rust sets the unmatched query, asserts selectedId is null, checks actual screen text omits Open, and retains native empty-state captures in light/dark at both widths."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetBindingCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift snippet-binding preview captures retired",
+            "scope": "Only the four Swift snippet-binding light/dark captures at 600/760 widths and their OCR checks, their now-unused snippet fixture setup and two stale success-summary fields are retired. Rust polish-bindings-process retains both themes and widths, verifies snippet titles, aliases, keywords and Set Hotkey in native screen text, confirms the technical Keyword label stays hidden, checks that the footer is present/enabled with the expected title, and captures the native palette. The shared form/query cleanup and unrelated action previews remain.",
+            "nativeSteps": ["polish-bindings-process"],
+            "nativeCases": ["ui_completion::polish_bindings"],
+            "originalAssertions": ["At 760 pixels, the light and dark snippet previews show Set Hotkey, `greetsnippet`, Aliases, `hello`, `greeting`, `salutation`, `final-alias` and Unbound snippet while hiding Keyword.", "At 600 pixels, the light and dark snippet previews show Set Hotkey, `salutation`, `final-alias` and Unbound snippet while hiding Keyword."],
+            "compatibilityNotes": ["Swift used Vision OCR on offscreen 760×490 and 600×490 palette images. Rust reads native AppKit screen text including Set Hotkey, checks the actual palette width, verifies the footer is present/enabled with the expected title, and retains native captures for both widths in light and dark."],
             "productionAccepted": false
         });
     }
@@ -8255,7 +8265,7 @@ mod tests {
         assert!(!source.contains("Alias argument did not enter inline mode"));
         assert!(!source.contains("inline-query"));
         assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8285,7 +8295,7 @@ mod tests {
         assert!(!source.contains("state.inlineSource=\"hotkey\";state.selection=4;state.query=\"echo-inline Café & spaces\""));
         assert!(!source.contains("inline-query"));
         assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
 
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasMode"];
@@ -8317,7 +8327,7 @@ mod tests {
         assert!(!source.contains("Escape did not restore search"));
         assert!(!source.contains("state.cancelPaletteInput()"));
         assert!(!source.contains("inline-query"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
 
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEscape"];
@@ -8345,7 +8355,7 @@ mod tests {
         assert!(!source.contains("Alias argument did not enter inline mode"));
         assert!(!source.contains("inline-query"));
         assert!(!source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8397,9 +8407,7 @@ mod tests {
         for retired in ["date-valid", "date-invalid", "date-clear", "Deadline (YYYY-MM-DD of clear)"] {
             assert!(!source.contains(retired), "Swift date-preview setup remains: {retired}");
         }
-        for retained in ["snippet-bindings-"] {
-            assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
-        }
+        assert!(!source.contains("snippet-bindings-"));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         for retained in [
@@ -8511,7 +8519,7 @@ mod tests {
         assert!(!source.contains("action-empty-"));
         assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
         assert!(source.contains("state.cancelInlineInput()"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         for retained in [
@@ -8582,7 +8590,7 @@ mod tests {
             assert!(!source.contains(retired), "Swift command-editor fixture/capture remains: {retired}");
         }
         assert!(source.contains("state.form=nil;state.query=\"\""));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         let test = native
@@ -8630,7 +8638,7 @@ mod tests {
         assert!(!source.contains("\"launcher-\"+theme"));
         assert!(!source.contains("\"createRemoved\":true"));
         assert!(!source.contains("action-empty-"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
         assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
 
         let native = include_str!("../../../examples/ui_completion.rs");
@@ -8668,7 +8676,7 @@ mod tests {
         assert!(!source.contains("ManagementNavigation"));
         assert!(!source.contains("\"settings-\"+theme"));
         assert!(!source.contains("action-empty-"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
         assert!(source.contains("state.mode=\"commands\";state.query=\"\""));
 
         let native = include_str!("../../../examples/ui_completion.rs");
@@ -8708,9 +8716,7 @@ mod tests {
         assert!(!source.contains("state.inlineSource=\"hotkey\""));
         assert!(!source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("state.form=nil;state.query=\"\""));
-        for retained in ["snippet-bindings-"] {
-            assert!(source.contains(retained), "Unrelated Swift capture was removed: {retained}");
-        }
+        assert!(!source.contains("snippet-bindings-"));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         let test = native
@@ -8751,7 +8757,7 @@ mod tests {
         assert!(source.contains("state.begin(actionFixtures[3]);state.inlineInput=\"Example note\""));
         assert!(!source.contains("action-inline-busy-"));
         assert!(!source.contains("action-empty-"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         let test = native
@@ -8791,7 +8797,7 @@ mod tests {
         assert!(source.contains("state.busy=true"));
         assert!(source.contains("state.busy=false"));
         assert!(!source.contains("action-empty-"));
-        assert!(source.contains("snippet-bindings-"));
+        assert!(!source.contains("snippet-bindings-"));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         let test = native
@@ -8906,6 +8912,45 @@ mod tests {
         assert!(gate.native_cases.contains(&"ui_completion::task_date"));
     }
     #[test]
+    fn polish_snippet_binding_captures_are_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("snippet-bindings-"));
+        assert!(!source.contains("fixture.greet"));
+        assert!(!source.contains("snippetBindingsVisible"));
+        assert!(!source.contains("snippetAliasesAndKeywordSearch"));
+        assert!(source.contains(r#"action-\(command.kind)-\(command.id)-\(theme)-\(width)"#));
+        assert!(source.contains("state.cancelInlineInput()"));
+        assert!(source.contains("state.form=nil;state.query=\"\""));
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        for retained in [
+            "fn polish_bindings(root: &Path)",
+            "for theme in [\"light\", \"dark\"]",
+            "for width in [600, 760]",
+            "Unbound snippet",
+            "first-alias",
+            "final-alias",
+            "Set Hotkey",
+            ";greetsnippet",
+            ";longsnippet",
+            "!text.contains(\"Keyword\")",
+            "let footer = h.probe(false, \"snippet-hotkey\", json!({}));",
+            "h.capture(false, &format!(\"polish-bindings-{theme}-{width}\"));",
+        ] {
+            assert!(native.contains(retained), "missing Rust snippet-binding coverage: {retained}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-bindings-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_bindings"));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetBindingCaptures"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-bindings-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_bindings"]));
+        assert_eq!(retired["productionAccepted"], false);
+    }
+    #[test]
     fn polish_snippet_alias_search_is_retired_and_crosswalked() {
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.snippetAliasSearch"];
@@ -8923,7 +8968,7 @@ mod tests {
         assert!(!polish.contains("Keyword search lost the snippet"));
         assert!(!polish.contains("Arrow selection changed after rendering bindings"));
         assert!(!polish.contains("state.moveSelection(1)"));
-        assert!(polish.contains("snippetAliasesAndKeywordSearch"));
+        assert!(!polish.contains("snippetAliasesAndKeywordSearch"));
     }
     #[test]
     fn polish_snippet_keyword_search_is_retired_and_crosswalked() {
@@ -8942,7 +8987,7 @@ mod tests {
         assert!(!polish.contains("state.query=\"longsnippet\""));
         assert!(!polish.contains("Arrow selection changed after rendering bindings"));
         assert!(!polish.contains("state.moveSelection(1)"));
-        assert!(polish.contains("snippetAliasesAndKeywordSearch"));
+        assert!(!polish.contains("snippetAliasesAndKeywordSearch"));
     }
     #[test]
     fn polish_snippet_arrow_selection_is_retired_and_crosswalked() {
@@ -8959,7 +9004,7 @@ mod tests {
         let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
         assert!(!polish.contains("Arrow selection changed after rendering bindings"));
         assert!(!polish.contains("state.moveSelection(1)"));
-        assert!(polish.contains("snippetAliasesAndKeywordSearch"));
+        assert!(!polish.contains("snippetAliasesAndKeywordSearch"));
     }
     #[test]
     fn polish_clipboard_geometry_is_retired_and_crosswalked() {
@@ -9003,9 +9048,7 @@ mod tests {
         ] {
             assert!(!source.contains(retired), "Swift clipboard preview capture remains: {retired}");
         }
-        for retained in ["snippet-bindings-"] {
-            assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
-        }
+        assert!(!source.contains("snippet-bindings-"));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         for retained in [
