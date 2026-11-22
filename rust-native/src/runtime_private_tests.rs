@@ -362,7 +362,9 @@ fn settings_presentation_ignores_palette_navigation_and_clears_configuration_err
     settings.session.visible = true;
     settings.session.navigate("tab", "advanced").unwrap();
     let revision = state.configuration.revision;
+    assert!(state.healthy(true, None));
     state.configuration.last_error = Some("Fixture configuration error".into());
+    assert!(!state.healthy(true, None));
     settings.publish(&state, &settings_ui);
 
     let initial_view = settings_ui.view();
