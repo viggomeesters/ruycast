@@ -2574,6 +2574,14 @@ fn polish_original(root: &Path) {
             assert_eq!(h.probe(false,"run-inline-read",json!({}))["text"],"Café & spaces");
             h.probe(false,"dashboard-size",json!({"width":760,"height":490}));
             capture(false,&format!("polish-inline-query-{theme}"),&["Inline Input","Café & spaces","Run"],&[]);captures+=1;
+            key(53,0,"");h.settled();
+            let restored=h.probe(false,"read",json!({}));
+            assert_eq!(restored["runInputInline"],false);
+            assert_eq!(restored["formVisible"],false);
+            assert_eq!(restored["modelQuery"],"echo-inline");
+            assert!(!alias_marker.exists(),"Escape executed the inline alias");
+            h.rpc(json!({"op":"show","mode":"commands","query":"echo-inline Café & spaces"}));
+            h.wait(|_|h.probe(false,"read",json!({}))["runInputInline"]==true);
             key(36,0,"\r");h.wait(|s|s["scriptsRunning"]==1&&fs::read(&alias_marker).is_ok_and(|b|b==b"run\n"));key(36,0,"\r");
             h.wait(|s|s["scriptsRunning"]==0);assert_eq!(fs::read(&alias_marker).unwrap(),b"run\n");
             assert_eq!(h.rpc(json!({"op":"usage"}))["script.fixture"],1);

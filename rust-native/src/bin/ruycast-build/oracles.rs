@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "66738243358f6e762a7e71dae4da4cca72ad4a85a8f89164cd172527311abe18";
+const POLISH_CURRENT_SHA256: &str = "b605eddbd6fd0c0b272497bc8e31e6e9312b517887de3e5152d2511ecf4cf36e";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -864,7 +864,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
     match id {
         "--check-polish" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "e52aff464e0616a4840b80a9a945bcc0c6fb7f8d49dd28a41d3209d232396f87"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "fafca33b6a713b50ac212da4c9a49ebb8529e1a335ec5dc82f7262483752fedd"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
@@ -914,7 +914,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "e52aff464e0616a4840b80a9a945bcc0c6fb7f8d49dd28a41d3209d232396f87"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -957,7 +957,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "e52aff464e0616a4840b80a9a945bcc0c6fb7f8d49dd28a41d3209d232396f87"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -981,7 +981,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "e52aff464e0616a4840b80a9a945bcc0c6fb7f8d49dd28a41d3209d232396f87"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -1196,7 +1196,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "e52aff464e0616a4840b80a9a945bcc0c6fb7f8d49dd28a41d3209d232396f87"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -1272,7 +1272,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "e52aff464e0616a4840b80a9a945bcc0c6fb7f8d49dd28a41d3209d232396f87"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -1925,7 +1925,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias Enter assertion retired",
-            "scope": "Only the Swift duplicate one-shot Enter assertion and its result-summary fields are retired here. The alias fixture/input mode assertion is crosswalked separately as checkPolish.inlineAliasMode; the inline-query capture, Escape restoration, expanded-input scenario and --check-polish route remain active.",
+            "scope": "Only the Swift duplicate one-shot Enter assertion and its result-summary fields are retired here. The alias fixture/input mode assertion is crosswalked separately as checkPolish.inlineAliasMode; the inline-query capture, expanded-input scenario and --check-polish route remain active. Escape restoration has its own crosswalk.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Enter executes the inline alias exactly once; a repeated Enter while busy does not duplicate execution."],
@@ -1934,7 +1934,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasMode"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias mode assertion retired",
-            "scope": "Only the direct inline-alias mode/state assertion is retired. Keep its input fixture, inline-query capture, Escape restoration, expanded-input scenario and --check-polish route; the Rust runtime test proves a launcher alias resets a prior hotkey source and opens script.fixture as an inline editor, while polish-original-process checks selection, active editor, row 0, no form and exact Unicode input.",
+            "scope": "Only the direct inline-alias mode/state assertion is retired. Keep its input fixture, inline-query capture, expanded-input scenario and --check-polish route; the Rust runtime test proves a launcher alias resets a prior hotkey source and opens script.fixture as an inline editor, while polish-original-process checks selection, active editor, row 0, no form and exact Unicode input. Escape restoration has its own crosswalk.",
             "nativeSteps": ["unit", "polish-original-process"],
             "nativeCases": ["runtime::inline_tests::interactive_alias_capture_resets_hotkey_source", "ui_completion::polish_original"],
             "originalAssertions": ["The echo-inline alias opens script.fixture as the active inline editor in launcher-origin mode with the exact Unicode input and no form."],
@@ -1943,10 +1943,19 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift expanded inline-input assertion retired",
-            "scope": "Only the duplicate Swift expanded-inline-input assertion and its result-summary field are retired. Alias mode is crosswalked separately as checkPolish.inlineAliasMode; inline-query capture, Escape restoration, editor captures and --check-polish remain active.",
+            "scope": "Only the duplicate Swift expanded-inline-input assertion and its result-summary field are retired. Alias mode is crosswalked separately as checkPolish.inlineAliasMode; inline-query capture, editor captures and --check-polish remain active. Escape restoration has its own crosswalk.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Expanding the echo-inline input preserves `First line` in the form without replacing the editor token."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEscape"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias Escape assertion retired",
+            "scope": "Only the Swift assertion that Escape closes inline alias input and restores its alias query is retired. The fixture, cancellation call, inline-query capture, expanded-input scenario and --check-polish route remain active; the existing polish-original-process now checks Escape before submission, then reopens the alias for the existing Enter scenario.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["Escape closes inline alias input, clears the inline command, restores the `echo-inline` query, and does not execute the script."],
             "productionAccepted": false
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.dateDoubleSubmit"] = serde_json::json!({
@@ -8136,7 +8145,7 @@ mod tests {
         assert!(!source.contains("inlineSubmitOnce"));
         assert!(!source.contains("Alias argument did not enter inline mode"));
         assert!(source.contains("inline-query"));
-        assert!(source.contains("Escape did not restore search"));
+        assert!(source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("editor-expanded"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"];
@@ -8166,7 +8175,7 @@ mod tests {
         assert!(!source.contains("Alias argument did not enter inline mode"));
         assert!(source.contains("state.inlineSource=\"hotkey\";state.selection=4;state.query=\"echo-inline Café & spaces\""));
         assert!(source.contains("inline-query"));
-        assert!(source.contains("Escape did not restore search"));
+        assert!(source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("editor-expanded"));
 
         let mapping = inventory("settings").unwrap();
@@ -8194,6 +8203,31 @@ mod tests {
         }
     }
     #[test]
+    fn polish_inline_alias_escape_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Escape did not restore search"));
+        assert!(source.contains("state.cancelPaletteInput()"));
+        assert!(source.contains("inline-query"));
+        assert!(source.contains("editor-expanded"));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEscape"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Escape closes inline alias input, clears the inline command, restores the `echo-inline` query, and does not execute the script."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        assert!(native.contains("let restored=h.probe(false,\"read\",json!({}));"));
+        assert!(native.contains("assert_eq!(restored[\"runInputInline\"],false);"));
+        assert!(native.contains("assert_eq!(restored[\"modelQuery\"],\"echo-inline\");"));
+        assert!(native.contains("Escape executed the inline alias"));
+    }
+    #[test]
     fn polish_expanded_inline_input_assertion_is_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Expanded input lost text"));
@@ -8201,7 +8235,7 @@ mod tests {
         assert!(!source.contains("state.expandInlineInput()"));
         assert!(!source.contains("Alias argument did not enter inline mode"));
         assert!(source.contains("inline-query"));
-        assert!(source.contains("Escape did not restore search"));
+        assert!(source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("editor-expanded"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"];
