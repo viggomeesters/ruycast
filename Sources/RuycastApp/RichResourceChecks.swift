@@ -49,8 +49,6 @@ import LauncherModels
         host.appearance=NSAppearance(named:dark ? .darkAqua:.aqua)
         for index in [0,1,2] {state.selection=index;pump(0.2);capture(host,"clipboard-\(dark ? "dark":"light")-\(index)",words:index==0 ? ["Characters","full text"]:["Dimensions","240","140"])}
     }
-    state.selection=0;pump(0.2)
-    capture(host,"clipboard-static-before");pump(1.2);capture(host,"clipboard-static-after")
     let monitor=SystemMonitorModel()
     let actual=ResourceSampler().sample()
     var fixture=actual;fixture.cpuPercent=42.5;fixture.memoryTotal=16*1_073_741_824;fixture.memoryUsed=10*1_073_741_824;fixture.memoryWired=2*1_073_741_824;fixture.memoryCompressed=512*1_048_576

@@ -2308,8 +2308,8 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
     if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.clipboardStaticWhileIdle"] = serde_json::json!({
             "originalSourceSHA256": RICH_RESOURCES_ORACLE_SHA256,
-            "status": "source-qualified-rust-case-crosswalk; clipboard idle PNG equality assertion retired",
-            "scope": "Only Swift's byte-equality assertion between idle PNG captures and clipboardStaticWhileIdle are retired. Both named before/after captures, the settle and wait intervals, six themed clipboard captures, lightDarkRenders and active selector remain.",
+            "status": "source-qualified-rust-case-crosswalk; Swift idle clipboard assertion and orphaned captures retired",
+            "scope": "The historical Swift byte-equality assertion and result field were retired earlier; this change removes their now-unconsumed before/after PNG captures and dedicated 200 ms settle plus 1.2-second wait. The six themed clipboard captures, lightDarkRenders and active selector remain.",
             "nativeCases": ["remaining_macos_process::native_clipboard_two_color_image_file_pixels_and_idle_text_are_preserved_in_both_themes"],
             "originalAssertions": ["Clipboard PNG bytes before and after a 1.2-second idle interval are equal.", "The Swift resource result reports clipboardStaticWhileIdle=true."],
             "productionAccepted": false
@@ -6025,7 +6025,9 @@ mod tests {
         assert!(rich.contains("let monitor=SystemMonitorModel()"));
         assert!(!rich.contains("Monitor kept sampling while closed"));
         assert!(!rich.contains("monitorStopsSamplingWhenClosed"));
-        assert!(rich.contains("capture(host,\"clipboard-static-before\");pump(1.2);capture(host,\"clipboard-static-after\")"));
+        assert!(!rich.contains("clipboard-static-before"));
+        assert!(!rich.contains("clipboard-static-after"));
+        assert!(!rich.contains("state.selection=0;pump(0.2)"));
         assert!(!rich.contains("Clipboard timestamps still animate or update while idle"));
         assert!(!rich.contains("clipboardStaticWhileIdle"));
         assert!(rich.contains("effects.processes={samples}"));
@@ -6100,7 +6102,7 @@ mod tests {
         assert!(gate.native_cases.contains(&"remaining_macos_process::native_monitor_delegate_pause_resume_close_and_reopen_use_actual_callback_route"));
         let idle_retired = &inventory["retiredSwiftChecks"]["Sources/RuycastApp/RichResourceChecks.swift::checkRichResources.clipboardStaticWhileIdle"];
         assert_eq!(idle_retired["originalSourceSHA256"], RICH_RESOURCES_ORACLE_SHA256);
-        assert_eq!(idle_retired["status"], "source-qualified-rust-case-crosswalk; clipboard idle PNG equality assertion retired");
+        assert_eq!(idle_retired["status"], "source-qualified-rust-case-crosswalk; Swift idle clipboard assertion and orphaned captures retired");
         assert_eq!(idle_retired["nativeCases"], serde_json::json!(["remaining_macos_process::native_clipboard_two_color_image_file_pixels_and_idle_text_are_preserved_in_both_themes"]));
         assert_eq!(idle_retired["originalAssertions"], serde_json::json!(["Clipboard PNG bytes before and after a 1.2-second idle interval are equal.", "The Swift resource result reports clipboardStaticWhileIdle=true."]));
         assert_eq!(idle_retired["productionAccepted"], false);
