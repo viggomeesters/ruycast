@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "7470002b4c2061ef90e610c1b14d69b4938f0c13f46c3fc676a3c84c82874cac";
+const POLISH_CURRENT_SHA256: &str = "f699dc0d32997de2bc57622a181cb521595d09a525b54f0660b4ed6ec3b1b849";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -1945,7 +1945,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias Enter assertion retired",
-            "scope": "Only the Swift duplicate one-shot Enter assertion and its result-summary fields are retired here. The alias fixture/input mode assertion is crosswalked separately as checkPolish.inlineAliasMode; the inline-query capture, expanded-input scenario and --check-polish route remain active. Escape restoration has its own crosswalk.",
+            "scope": "Only the Swift duplicate one-shot Enter assertion and its result-summary fields are retired here. The alias fixture/input mode assertion is crosswalked separately as checkPolish.inlineAliasMode; the inline-query screenshot/setup is retired separately as checkPolish.inlineQueryCapture, while expanded-input behavior and --check-polish remain active. Escape restoration has its own crosswalk.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Enter executes the inline alias exactly once; a repeated Enter while busy does not duplicate execution."],
@@ -1954,7 +1954,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasMode"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias mode assertion retired",
-            "scope": "Only the direct inline-alias mode/state assertion is retired. Keep its input fixture, inline-query capture, expanded-input scenario and --check-polish route; the Rust runtime test proves a launcher alias resets a prior hotkey source and opens script.fixture as an inline editor, while polish-original-process checks selection, active editor, row 0, no form and exact Unicode input. Escape restoration has its own crosswalk.",
+            "scope": "Only the direct inline-alias mode/state assertion is retired. Keep its input fixture and expanded-input scenario; the inline-query screenshot/setup is retired separately as checkPolish.inlineQueryCapture. The Rust runtime test proves a launcher alias resets a prior hotkey source and opens script.fixture as an inline editor, while polish-original-process checks selection, active editor, row 0, no form and exact Unicode input. Escape restoration has its own crosswalk.",
             "nativeSteps": ["unit", "polish-original-process"],
             "nativeCases": ["runtime::inline_tests::interactive_alias_capture_resets_hotkey_source", "ui_completion::polish_original"],
             "originalAssertions": ["The echo-inline alias opens script.fixture as the active inline editor in launcher-origin mode with the exact Unicode input and no form."],
@@ -1963,7 +1963,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift expanded inline-input assertion retired",
-            "scope": "Only the duplicate Swift expanded-inline-input assertion and its result-summary field are retired. Alias mode is crosswalked separately as checkPolish.inlineAliasMode; inline-query capture, editor captures and --check-polish remain active. Escape restoration has its own crosswalk.",
+            "scope": "Only the duplicate Swift expanded-inline-input assertion and its result-summary field are retired. Alias mode is crosswalked separately as checkPolish.inlineAliasMode; the inline-query screenshot/setup has its own retirement crosswalk, and --check-polish remains active. Escape restoration has its own crosswalk.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Expanding the echo-inline input preserves `First line` in the form without replacing the editor token."],
@@ -1972,7 +1972,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEscape"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift inline-alias Escape assertion retired",
-            "scope": "Only the Swift assertion that Escape closes inline alias input and restores its alias query is retired. The fixture, cancellation call, inline-query capture, expanded-input scenario and --check-polish route remain active; the existing polish-original-process now checks Escape before submission, then reopens the alias for the existing Enter scenario.",
+            "scope": "Only the Swift assertion that Escape closes inline alias input and restores its alias query is retired. The inline-query preview setup/capture has its own retirement crosswalk; the input fixture and expanded-input scenario remain. The existing polish-original-process checks Escape before submission, then reopens the alias for the existing Enter scenario.",
             "nativeSteps": ["polish-original-process"],
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["Escape closes inline alias input, clears the inline command, restores the `echo-inline` query, and does not execute the script."],
@@ -2061,6 +2061,16 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "nativeCases": ["ui_completion::polish_original"],
             "originalAssertions": ["The General settings preview shows Theme and Menu Bar Icon in system, light, dark and graphite themes."],
             "compatibilityNotes": ["Swift used Vision OCR on offscreen 980×680 ManagementView images. Rust checks both labels in actual native screen text, verifies the settings window remains hidden and retains native captures in the same four themes."],
+            "productionAccepted": false
+        });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineQueryCapture"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift inline-query preview capture retired",
+            "scope": "Only the Swift hotkey-source setup, one inline-query Vision capture and its related cancellation are retired. The subsequent form/query reset remains. Rust polish-original-process retains the exact Unicode inline text, selected command/editor, visible action label, native captures, Escape restoration, Enter submission and expanded-input behavior; action and snippet captures remain.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["The inline alias query displays Inline Input and Café in the selected action preview."],
+            "compatibilityNotes": ["Swift used Vision OCR on one offscreen 760×490 palette image. Rust verifies exact `Café & spaces` input and the Inline Input/Run labels in native screen text, and captures the equivalent state in the light/dark subset of the four-theme process route."],
             "productionAccepted": false
         });
     }
@@ -8213,8 +8223,8 @@ mod tests {
         assert!(!source.contains("inlineAliasAndEnter"));
         assert!(!source.contains("inlineSubmitOnce"));
         assert!(!source.contains("Alias argument did not enter inline mode"));
-        assert!(source.contains("inline-query"));
-        assert!(source.contains("state.cancelPaletteInput()"));
+        assert!(!source.contains("inline-query"));
+        assert!(!source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("snippet-bindings-"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineAliasEnter"];
@@ -8242,9 +8252,9 @@ mod tests {
     fn polish_inline_alias_mode_assertion_is_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Alias argument did not enter inline mode"));
-        assert!(source.contains("state.inlineSource=\"hotkey\";state.selection=4;state.query=\"echo-inline Café & spaces\""));
-        assert!(source.contains("inline-query"));
-        assert!(source.contains("state.cancelPaletteInput()"));
+        assert!(!source.contains("state.inlineSource=\"hotkey\";state.selection=4;state.query=\"echo-inline Café & spaces\""));
+        assert!(!source.contains("inline-query"));
+        assert!(!source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("snippet-bindings-"));
 
         let mapping = inventory("settings").unwrap();
@@ -8275,8 +8285,8 @@ mod tests {
     fn polish_inline_alias_escape_assertion_is_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Escape did not restore search"));
-        assert!(source.contains("state.cancelPaletteInput()"));
-        assert!(source.contains("inline-query"));
+        assert!(!source.contains("state.cancelPaletteInput()"));
+        assert!(!source.contains("inline-query"));
         assert!(source.contains("snippet-bindings-"));
 
         let mapping = inventory("settings").unwrap();
@@ -8303,8 +8313,8 @@ mod tests {
         assert!(!source.contains("expandedInputPreserved"));
         assert!(!source.contains("state.expandInlineInput()"));
         assert!(!source.contains("Alias argument did not enter inline mode"));
-        assert!(source.contains("inline-query"));
-        assert!(source.contains("state.cancelPaletteInput()"));
+        assert!(!source.contains("inline-query"));
+        assert!(!source.contains("state.cancelPaletteInput()"));
         assert!(source.contains("snippet-bindings-"));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.expandedInlineInput"];
@@ -8357,7 +8367,7 @@ mod tests {
         for retired in ["date-valid", "date-invalid", "date-clear", "Deadline (YYYY-MM-DD of clear)"] {
             assert!(!source.contains(retired), "Swift date-preview setup remains: {retired}");
         }
-        for retained in ["inline-query", "action-inline-save-", "snippet-bindings-"] {
+        for retained in ["action-inline-save-", "snippet-bindings-"] {
             assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
         }
 
@@ -8638,6 +8648,49 @@ mod tests {
         assert_eq!(retired["productionAccepted"], false);
     }
     #[test]
+    fn polish_inline_query_capture_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("\"inline-query\""));
+        assert!(!source.contains("state.inlineSource=\"hotkey\""));
+        assert!(!source.contains("state.cancelPaletteInput()"));
+        assert!(source.contains("state.form=nil;state.query=\"\""));
+        for retained in ["action-inline-save-", "action-inline-busy-", "snippet-bindings-"] {
+            assert!(source.contains(retained), "Unrelated Swift capture was removed: {retained}");
+        }
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        let test = native
+            .split_once("fn polish_original(root: &Path) {")
+            .unwrap()
+            .1
+            .split_once("\nfn closed_creation(")
+            .unwrap()
+            .0;
+        for retained in [
+            "json!({\"op\":\"show\",\"mode\":\"commands\",\"query\":\"echo-inline Café & spaces\"})",
+            "assert_eq!(h.probe(false,\"run-inline-read\",json!({}))[\"text\"],\"Café & spaces\")",
+            "capture(false,&format!(\"polish-inline-query-{theme}\"),&[\"Inline Input\",\"Café & spaces\",\"Run\"],&[]);captures+=1;",
+            "assert!(!alias_marker.exists(),\"Escape executed the inline alias\");",
+            "key(36,0,\"\\r\")",
+            "assert_eq!(h.probe(false,\"run-input-read\",json!({}))[\"text\"],\"First line\")",
+        ] {
+            assert!(test.contains(retained), "Rust inline-query coverage changed: {retained}");
+        }
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.inlineQueryCapture"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["status"], "source-qualified-rust-case-crosswalk; Swift inline-query preview capture retired");
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["The inline alias query displays Inline Input and Café in the selected action preview."]));
+        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on one offscreen 760×490 palette image. Rust verifies exact `Café & spaces` input and the Inline Input/Run labels in native screen text, and captures the equivalent state in the light/dark subset of the four-theme process route."]));
+        assert_eq!(retired["productionAccepted"], false);
+    }
+    #[test]
     fn polish_configuration_error_health_assertion_is_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
         assert!(!source.contains("Runtime health ignored config failure"));
@@ -8814,7 +8867,7 @@ mod tests {
         ] {
             assert!(!source.contains(retired), "Swift clipboard preview capture remains: {retired}");
         }
-        for retained in ["inline-query", "action-inline-save-", "snippet-bindings-"] {
+        for retained in ["action-inline-save-", "snippet-bindings-"] {
             assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
         }
 

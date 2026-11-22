@@ -59,9 +59,6 @@ import LauncherModels
     }
     state.mode="commands";state.query=""
 #endif
-    state.inlineSource="hotkey";state.selection=4;state.query="echo-inline Café & spaces"
-    try capture(Palette(state:state),"inline-query",NSSize(width:760,height:490),required:["Inline Input","Café"])
-    state.cancelPaletteInput()
     state.form=nil;state.query=""
     state.mode="snippets";state.query="";state.config.commands=[
         Command(id:"fixture.greet",title:"Greeting",kind:"snippet",target:"Hello",aliases:["hello","greeting","salutation"],hotkey:"cmd+shift+g",keyword:";greetsnippet"),
