@@ -1906,6 +1906,15 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "originalAssertions": ["Submitting the frozen `morgen` date twice executes one child and records one usage."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.primaryActionSelection"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; duplicate Swift primary-action selection assertion retired",
+            "scope": "Only the Swift selectedCommand ID assertion is retired. The five action fixtures, theme/width variants, captures, and --check-polish route remain active.",
+            "nativeSteps": ["polish-original-process"],
+            "nativeCases": ["ui_completion::polish_original"],
+            "originalAssertions": ["Searching each app, snippet, inline-script, quick-note, and window title selects that fixture as the primary action."],
+            "productionAccepted": false
+        });
     }
     if kind == "check" {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/InteractionChecks.swift::checkRenderedUpdates"] = serde_json::json!({
@@ -8087,6 +8096,31 @@ mod tests {
         assert!(native.contains(r#"key(36,0,"\r");key(36,0,"\r");"#));
         assert!(native.contains(r#"assert_eq!(fs::read(&marker).unwrap(),b"run\n","Double Return executed the real child twice");"#));
         assert!(native.contains(r#"assert_eq!(h.rpc(json!({"op":"usage"}))["date.fixture"],1);"#));
+    }
+    #[test]
+    fn polish_primary_action_selection_assertion_is_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        assert!(!source.contains("Primary action fixture selection changed"));
+        for retained in ["app.finder", "snippet.greeting", "fixture.inline", "capture.quick-note", "fixture.window", "action-\\(command.kind", "for width in [600,760]"] {
+            assert!(source.contains(retained), "missing retained primary-action capture input: {retained}");
+        }
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.primaryActionSelection"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["polish-original-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::polish_original"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["Searching each app, snippet, inline-script, quick-note, and window title selects that fixture as the primary action."]));
+        assert_eq!(retired["productionAccepted"], false);
+        let gate = SETTINGS.iter().find(|gate| gate.id == "--check-polish").unwrap();
+        assert!(gate.required_native_steps.contains(&"polish-original-process"));
+        assert!(gate.native_cases.contains(&"ui_completion::polish_original"));
+        let native = include_str!("../../../examples/ui_completion.rs");
+        assert!(native.contains(r#"h.wait(|s|s["nativeUI"]["selectedId"]==id);"#));
+        assert!(native.contains(r#""app.fixture","Synthetic app","Open""#));
+        assert!(native.contains(r#""snippet.fixture","Synthetic snippet","Insert Snippet""#));
+        assert!(native.contains(r#""script.fixture","Inline Input","Run""#));
+        assert!(native.contains(r#""capture.quick-note","Quick Note","Save""#));
+        assert!(native.contains(r#""window.fixture","Left Half","Run""#));
     }
     #[test]
     fn polish_partial_date_assertion_is_retired_and_crosswalked() {

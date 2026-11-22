@@ -49,7 +49,6 @@ import LauncherModels
         for width in [600,760] {
             for command in actionFixtures {
                 state.query=command.title;state.selection=0
-                try require(state.selectedCommand?.id==command.id,"Primary action fixture selection changed")
                 try capture(Palette(state:state),"action-\(command.kind)-\(command.id)-\(theme)-\(width)",NSSize(width:width,height:490))
             }
             state.begin(actionFixtures[3]);state.inlineInput="Example note"
