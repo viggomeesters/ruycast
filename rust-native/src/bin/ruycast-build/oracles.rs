@@ -855,7 +855,7 @@ const ACTIONS_MENU_ORACLE_SHA256: &str = "7aa714222112b9d350949dc96992d9ac34f8af
 const RICH_RESOURCES_ORACLE_SHA256: &str = "5c2322b47bc436f51103e022a9878a53f4cb1565952d165e83aa63cd03e31eda";
 const APPLE_SHORTCUTS_ORACLE_SHA256: &str = "a5e0806bf33b5a4cbe365b4861e7c6143c5f7ca5a6c10ce347239af8da4fce74";
 const POLISH_ORACLE_SHA256: &str = "0f43dfcf6376d18d153ea857e40d27e3f4a27ca29bf5eea3c5a901120b38088b";
-const POLISH_CURRENT_SHA256: &str = "2bf5bcf84b943871a14d129c31c2c6941a889ed86104e27eb2e6016c98ac83fb";
+const POLISH_CURRENT_SHA256: &str = "142d7bb00239061dd7bc5265b89e70a14d7c2a97f9c5f5d60b803d2d7d0b801a";
 const SETTINGS_ORACLE_SHA256: &str = "cb2b26a91a94e7537d1db308b272945ea7002946100245e84c70954b18ce9e1d";
 const FEEDBACK_ORACLE_SHA256: &str = "03e96e9101f7a9045606962dbf23d3f1082f5e8adfa1ffaea84e37cd26ffadde";
 const SYSTEM_CHECKS_ORACLE_SHA256: &str = "c70cc5149a16a43102cc8a853bfb5a38bc6a9b3b542b4f6b7388339f1737ffa4";
@@ -864,7 +864,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
     match id {
         "--check-polish" => &[
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
             ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "fafca33b6a713b50ac212da4c9a49ebb8529e1a335ec5dc82f7262483752fedd"),
             ("rust-native/src/runtime_system.rs", include_bytes!("../../runtime_system.rs"), "8daf62239444738e7048795883bd8de625ae4bcbfcb7e73716c7063f68beefc7"),
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
@@ -914,7 +914,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -957,7 +957,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -981,7 +981,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "603e1d9dfaee17a7081b391a24ea34fe2139e2317f401219bfacdf6e0adecfd2"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -1196,7 +1196,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -1272,7 +1272,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
             ("rust-native/tests/support/status_rpc.rs", include_bytes!("../../../tests/support/status_rpc.rs"), "f3a3ef095dec610720d9685ed6f6ec439b8aa9dab9f1db1ffd8aad601f1ffc4b"),
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "38b71f98bde28e924c0e2ab20c2fa9953744f8dd8ca3430c32bb8f4d8ae810a7"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "610ffde03892c95e755de957f0119ef91e2fc6ee2f6426d87b8c6a4c510dff39"),
             ("rust-native/src/bin/snippet_probe.rs", include_bytes!("../../bin/snippet_probe.rs"), "e8322e4076b5ddfe71b0e79c3039f34c7fe1dcfcf3f66f42f512e0207387361a"),
             ("rust-native/src/clipboard_history.rs", include_bytes!("../../clipboard_history.rs"), "59bc0cc716ba16dea07bbd20d1f8951ed3b4580c7cc7ea9a56116156b9c17556"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -1835,7 +1835,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.partialDateValidity"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift Polish partial-date validity assertion retired",
-            "scope": "The earlier Swift validity assertion is retired; the `in 3` input and invalid-date preview capture remain active. The direct Swift submit/refusal assertion is retired under checkPolish.invalidDateSubmission. The frozen-date check and --check-polish route remain active.",
+            "scope": "The Swift `in 3` input and invalid-date preview capture are retired with the date-preview block. The Rust task-date process still renders `Datum niet herkend`, refuses submission without execution, and retains the frozen-date checks and --check-polish route.",
             "nativeSteps": ["unit", "task-date-process"],
             "nativeCases": ["task_date::tests::strict_absolute_roundtrip_year_bounds_invalid_and_frozen_clock", "ui_completion::task_date"],
             "originalAssertions": ["The partial date `in 3` is invalid."],
@@ -1844,7 +1844,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.invalidDateSubmission"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift invalid-date submission/refusal assertion retired",
-            "scope": "Only the direct Swift submission/refusal call and state assertion for `in 3` are retired. Keep the input, visible invalid-date preview capture, date-clear capture, frozen-date check and --check-polish route; the Rust task-date process sends Return and verifies editor-token/inline-mode retention with no child or usage.",
+            "scope": "The Swift `in 3` submission/refusal and preview captures are retired with the date-preview block. The Rust task-date process sends Return and verifies editor-token/inline-mode retention with no child or usage, while retaining invalid and clear preview captures in both themes.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["Submitting the invalid date keeps the inline command active and does not execute its target."],
@@ -1889,16 +1889,26 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.naturalDatePreviewValidity"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift natural-date validity assertion retired",
-            "scope": "Only the Swift `morgen` inline-preview validity assertion is retired. Input, non-null preview binding/capture, later frozen-value submission, other date captures, and --check-polish remain active.",
+            "scope": "The Swift `morgen` input, inline-preview capture, and date-preview setup are retired. Rust task-date checks the actual localized AppKit label against the resolver at timestamps bracketing native input; its native PNG capture and the remaining frozen submission, refusal, and clear assertions remain.",
             "nativeSteps": ["unit", "task-date-process"],
             "nativeCases": ["task_date::tests::original_natural_date_vectors_and_labels_match", "ui_completion::task_date"],
             "originalAssertions": ["Natural input `morgen` produces a valid inline date preview."],
             "productionAccepted": false
         });
+        inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.datePreviewCaptures"] = serde_json::json!({
+            "originalSourceSHA256": POLISH_ORACLE_SHA256,
+            "status": "source-qualified-rust-case-crosswalk; Swift task-date preview captures retired",
+            "scope": "Only the three Swift date-valid/date-invalid/date-clear Vision captures and their Swift-only fixture setup are retired. The --check-polish route and all other captures remain active; the Rust task-date process retains native PNG captures in both themes.",
+            "nativeSteps": ["task-date-process"],
+            "nativeCases": ["ui_completion::task_date"],
+            "originalAssertions": ["`morgen` shows the exact localized date label and hides YYYY-MM-DD.", "`in 3` shows Datum niet herkend.", "`clear` shows Datum wissen."],
+            "compatibilityNotes": ["Swift used Vision OCR on offscreen 760×480 PNGs. Rust reads actual AppKit screenText and retains native PNG captures in light and dark themes."],
+            "productionAccepted": false
+        });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.frozenDateSubmissionValue"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift frozen-date submission value assertion retired",
-            "scope": "Only the Swift file readback comparison is retired. The Swift date-writer fixture and double-submit assertions were subsequently retired under checkPolish.dateDoubleSubmit; the frozen preview, invalid-date refusal, captures, and --check-polish route remain active.",
+            "scope": "The Swift frozen-preview and date-valid/date-invalid/date-clear captures are retired with the date-preview block. Rust task-date retains a frozen preview capture and verifies that the actual child output equals its displayed date; the refusal checks and --check-polish route remain active.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["The script receives exactly the frozen date shown to the user."],
@@ -1961,7 +1971,7 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.dateDoubleSubmit"] = serde_json::json!({
             "originalSourceSHA256": POLISH_ORACLE_SHA256,
             "status": "source-qualified-rust-case-crosswalk; duplicate Swift task-date double-submit assertion retired",
-            "scope": "Only the duplicate Swift date-writer fixture and two-submit assertion are retired. Natural preview and date-valid/date-invalid/date-clear captures remain active; Rust task-date-process retains the invalid-date refusal check, mapped under checkPolish.invalidDateSubmission.",
+            "scope": "The Swift date-writer fixture, two-submit assertion, natural preview and date-valid/date-invalid/date-clear captures are retired. Rust task-date-process retains exact localized preview, invalid-date refusal, clear and single-execution checks.",
             "nativeSteps": ["task-date-process"],
             "nativeCases": ["ui_completion::task_date"],
             "originalAssertions": ["Submitting the frozen `morgen` date twice executes one child and records one usage."],
@@ -8267,12 +8277,12 @@ mod tests {
         assert!(!source.contains("Date Enter failed or ran twice"));
         assert!(!source.contains("fixture.date-write"));
         assert!(!source.contains("date-result.txt"));
-        for kept in ["date-valid", "date-invalid", "date-clear", "state.inlineInput=\"in 3\"", "Datum niet herkend"] {
-            assert!(source.contains(kept), "missing retained Polish date scenario: {kept}");
+        for retired in ["date-valid", "date-invalid", "date-clear", "state.inlineInput=\"morgen\"", "state.inlineInput=\"in 3\""] {
+            assert!(!source.contains(retired), "Swift date-preview scenario remains: {retired}");
         }
         assert!(!source.contains("Invalid date executed or discarded input"));
         assert!(!source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
-        assert!(source.contains("state.cancelInlineInput();state.message=\"\""));
+        assert!(!source.contains("state.cancelInlineInput();state.message=\"\""));
         let mapping = inventory("settings").unwrap();
         let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.dateDoubleSubmit"];
         assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
@@ -8284,9 +8294,44 @@ mod tests {
         assert!(gate.required_native_steps.contains(&"task-date-process"));
         assert!(gate.native_cases.contains(&"ui_completion::task_date"));
         let native = include_str!("../../../examples/ui_completion.rs");
+        for retained in [r#"type_value(true,"morgen");"#, r#"type_value(true,"in 3");"#, r#"type_value(true,"clear");"#, r#"capture("valid""#, r#"capture("invalid""#, r#"capture("clear""#] {
+            assert!(native.contains(retained), "missing retained Rust date-preview behavior: {retained}");
+        }
         assert!(native.contains(r#"key(36,0,"\r");key(36,0,"\r");"#));
         assert!(native.contains(r#"assert_eq!(fs::read(&marker).unwrap(),b"run\n","Double Return executed the real child twice");"#));
         assert!(native.contains(r#"assert_eq!(h.rpc(json!({"op":"usage"}))["date.fixture"],1);"#));
+    }
+    #[test]
+    fn polish_date_preview_captures_are_retired_and_crosswalked() {
+        let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
+        for retired in ["date-valid", "date-invalid", "date-clear", "Deadline (YYYY-MM-DD of clear)"] {
+            assert!(!source.contains(retired), "Swift date-preview setup remains: {retired}");
+        }
+        for retained in ["clipboard-large", "clipboard-small", "clipboard-cleared", "snippet-bindings-"] {
+            assert!(source.contains(retained), "unrelated Polish capture was removed: {retained}");
+        }
+
+        let native = include_str!("../../../examples/ui_completion.rs");
+        for retained in [
+            r#"type_value(true,"morgen");"#,
+            r#"type_value(true,"in 3");"#,
+            r#"type_value(true,"clear");"#,
+            r#"capture("valid""#,
+            r#"capture("invalid""#,
+            r#"capture("clear""#,
+            "expected.iter().any(|label|label==rendered)",
+            r#""taskDate":true"#,
+        ] {
+            assert!(native.contains(retained), "missing Rust date-preview behavior: {retained}");
+        }
+        let mapping = inventory("settings").unwrap();
+        let retired = &mapping["retiredSwiftChecks"]["Sources/RuycastApp/PolishChecks.swift::checkPolish.datePreviewCaptures"];
+        assert_eq!(retired["originalSourceSHA256"], POLISH_ORACLE_SHA256);
+        assert_eq!(retired["nativeSteps"], serde_json::json!(["task-date-process"]));
+        assert_eq!(retired["nativeCases"], serde_json::json!(["ui_completion::task_date"]));
+        assert_eq!(retired["originalAssertions"], serde_json::json!(["`morgen` shows the exact localized date label and hides YYYY-MM-DD.", "`in 3` shows Datum niet herkend.", "`clear` shows Datum wissen."]));
+        assert_eq!(retired["compatibilityNotes"], serde_json::json!(["Swift used Vision OCR on offscreen 760×480 PNGs. Rust reads actual AppKit screenText and retains native PNG captures in light and dark themes."]));
+        assert_eq!(retired["productionAccepted"], false);
     }
     #[test]
     fn polish_primary_action_selection_assertion_is_retired_and_crosswalked() {
@@ -8437,20 +8482,21 @@ mod tests {
         assert_eq!(partial_date["productionAccepted"], false);
         let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let polish_source = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
-        assert!(polish_source.contains("state.inlineInput=\"in 3\""));
+        assert!(!polish_source.contains("state.inlineInput=\"in 3\""));
         assert!(!polish_source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
         assert!(!polish_source.contains("Invalid date executed or discarded input"));
-        assert!(polish_source.contains("try capture(Palette(state:state),\"date-invalid\""));
+        assert!(!polish_source.contains("date-invalid"));
+        assert!(include_str!("../../../examples/ui_completion.rs").contains(r#"type_value(true,"in 3");"#));
         assert!(!polish_source.contains("Partial date accepted"));
     }
     #[test]
     fn polish_invalid_date_submission_assertion_is_retired_and_crosswalked() {
         let source = include_str!("../../../../Sources/RuycastApp/PolishChecks.swift");
-        assert!(source.contains("state.inlineInput=\"in 3\""));
+        assert!(!source.contains("state.inlineInput=\"in 3\""));
+        assert!(!source.contains("date-invalid"));
         assert!(!source.contains("Invalid date executed or discarded input"));
         assert!(!source.contains("state.submitInlineInput();try require(!state.busy && state.inlineCommand?.id==dateCommand.id"));
-        assert!(source.contains("try capture(Palette(state:state),\"date-invalid\""));
-        assert!(source.contains("state.cancelInlineInput();state.message=\"\""));
+        assert!(!source.contains("state.cancelInlineInput();state.message=\"\""));
 
         let native = include_str!("../../../examples/ui_completion.rs");
         for retained in [
@@ -8564,9 +8610,13 @@ mod tests {
         let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let polish = std::fs::read_to_string(repo.join("Sources/RuycastApp/PolishChecks.swift")).unwrap();
         assert!(!polish.contains("Natural date preview missing"));
-        assert!(polish.contains("state.inlineInput=\"morgen\""));
-        assert!(polish.contains("let frozen=state.inlineDatePreview!"));
-        assert!(polish.contains("date-valid"));
+        assert!(!polish.contains("state.inlineInput=\"morgen\""));
+        assert!(!polish.contains("let frozen=state.inlineDatePreview!"));
+        assert!(!polish.contains("date-valid"));
+        let native = include_str!("../../../examples/ui_completion.rs");
+        assert!(native.contains("let preview_started=SystemTime::now()"));
+        assert!(native.contains("ruycast_native::task_date::resolve(\"morgen\",now)"));
+        assert!(native.contains("expected.iter().any(|label|label==rendered)"));
     }
     #[test]
     fn polish_frozen_date_submission_value_is_retired_and_crosswalked() {
@@ -8582,8 +8632,11 @@ mod tests {
         assert!(!polish.contains("Enter did not send the displayed date"));
         assert!(!polish.contains("dateWriter.arguments"));
         assert!(!polish.contains("state.inlineDatePreview=frozenDate"));
-        assert!(polish.contains("let frozen=state.inlineDatePreview!"));
-        assert!(polish.contains("date-valid") && polish.contains("date-invalid") && polish.contains("date-clear"));
+        assert!(!polish.contains("let frozen=state.inlineDatePreview!"));
+        assert!(!polish.contains("date-valid") && !polish.contains("date-invalid") && !polish.contains("date-clear"));
+        let native = include_str!("../../../examples/ui_completion.rs");
+        assert!(native.contains("let frozen=h.rpc(json!({\"op\":\"native.test\",\"action\":\"date-reference\""));
+        assert!(native.contains("capture(\"frozen\""));
     }
     #[test]
     fn polish_catalog_source_pin_matches_current_catalog_bytes() {
