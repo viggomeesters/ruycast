@@ -63,7 +63,6 @@ Sources/RuycastApp/PaletteSearchField.swift
 Sources/RuycastApp/PerformanceChecks.swift
 Sources/RuycastApp/PerformanceSoak.swift
 Sources/RuycastApp/PerformanceTrace.swift
-Sources/RuycastApp/PolishChecks.swift
 Sources/RuycastApp/ProcessIcon.swift
 Sources/RuycastApp/PublicPreview.swift
 Sources/RuycastApp/ReplySink.swift
