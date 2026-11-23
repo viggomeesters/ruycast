@@ -686,8 +686,12 @@ impl Platform for Native {
             let index = send("getd", b, t, &property("pidx", &reference), None)?;
             let title = send("getd", b, t, &property("pnam", &reference), None)?;
             let url = send("getd", b, t, &property("pURL", &reference), None)?;
-            Ok(index.descriptorType() == code("long")
-                && index.int32Value() == tab.index
+            // Safari declares the index as a number. Compare the exact
+            // small integer position without rounding a fractional reply.
+            Ok(matches!(
+                &index.descriptorType().to_be_bytes(),
+                b"shor" | b"ushr" | b"long" | b"magn" | b"comp" | b"ucom" | b"sing" | b"doub"
+            ) && index.doubleValue() == f64::from(tab.index)
                 && title.stringValue().map(|s| s.to_string()).as_ref() == Some(&tab.title)
                 && url.stringValue().map(|s| s.to_string()).as_ref() == Some(&tab.url))
         })

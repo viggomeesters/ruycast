@@ -85,8 +85,12 @@ pub(super) fn event(
             list(&[D::descriptorWithInt32(51)])
         } else if current {
             if key == code(b"pidx") {
-                let selected = state.data.lock().unwrap().selected;
-                D::descriptorWithInt32(selected)
+                let data = state.data.lock().unwrap();
+                match data.mode.as_str() {
+                    "numeric-tab-index" => D::descriptorWithDouble(f64::from(data.selected)),
+                    "fractional-tab-index" => D::descriptorWithDouble(f64::from(data.selected) + 0.25),
+                    _ => D::descriptorWithInt32(data.selected),
+                }
             } else if key == code(b"pnam") {
                 D::descriptorWithString(&NSString::from_str(title))
             } else {

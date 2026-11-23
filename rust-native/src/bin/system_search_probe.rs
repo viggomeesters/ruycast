@@ -79,14 +79,23 @@ fn run() -> Result<serde_json::Value, String> {
         return Err("Owned Safari existing-tab write/raise/activate mismatch".into());
     }
     unsafe {
-        mode(c"mutate-selection".as_ptr());
+        mode(c"numeric-tab-index".as_ptr());
     }
-    if provider
-        .execute(&tabs.commands[0].id, None, &ticket(), &activate)
-        .is_ok()
-        || unsafe { effects() } != 1
-    {
-        return Err("Safari selection mismatch caused foreground effect".into());
+    provider.execute(&tabs.commands[0].id, None, &ticket(), &activate)?;
+    if unsafe { effects() } != 3 {
+        return Err("Numeric Safari tab index should allow the same select/raise/activate effects".into());
+    }
+    for bad_reply in [c"fractional-tab-index", c"mutate-selection"] {
+        unsafe {
+            mode(bad_reply.as_ptr());
+        }
+        if provider
+            .execute(&tabs.commands[0].id, None, &ticket(), &activate)
+            .is_ok()
+            || unsafe { effects() } != 1
+        {
+            return Err("Safari selection mismatch caused foreground effect".into());
+        }
     }
     provider.refresh();
     unsafe {
