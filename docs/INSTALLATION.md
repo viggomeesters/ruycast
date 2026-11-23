@@ -1,8 +1,8 @@
 # Installation
 
-The native host, CLI, build tool and installer are implemented in Rust. The current public Rust beta is source-only; it has not completed full product, installation or release acceptance. Keep the working 0.8.26 app and configuration until a replacement passes those gates. Developer ID/notarization is deferred. Building or verifying a candidate does not install it.
+Build the current Ruycast app and CLI from source on macOS. The public 0.9.0 prereleases contain source archives. Verification of the combined app, installation, and running status is still pending under [issue #100](https://github.com/viggomeesters/ruycast/issues/100). Keep your existing installation and profile available until you have verified the replacement and know how to roll back. For the separate local beta, see [its update and recovery instructions](RELEASING.md#maintaining-an-existing-local-beta).
 
-After the combined candidate is accepted for your use, build and install locally:
+When the candidate has passed the checks for your intended use, build and install locally:
 
 ```sh
 cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
@@ -18,7 +18,7 @@ The installer builds a release and installs it with `--build`. To install an exi
 - Rust/Cargo 1.92 or later, with locked dependencies cached for offline builds.
 - OpenSSL for initial local certificate preparation. The signer prefers Homebrew OpenSSL when available and otherwise the system tool.
 
-Development builds have been checked on Apple silicon. This does not establish clean-Mac or physical desktop acceptance of the complete rewrite; Intel execution is untested. Full Xcode is optional for builds; Instruments profiling requires it.
+Development builds have been checked on Apple silicon. Clean Mac installation, physical desktop behavior, and Intel execution still need their own checks. Full Xcode is optional for builds; Instruments profiling requires it.
 
 ## Locations and configuration
 

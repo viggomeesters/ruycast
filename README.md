@@ -4,7 +4,7 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 ![Ruycast's native launcher and Settings](assets/hero.png)
 
-**Rust native beta · macOS 14+**
+**macOS 14+**
 
 ## Your everyday shortcuts
 
@@ -20,13 +20,11 @@ A native keyboard launcher for your Mac. Open apps, run your commands and make i
 
 ## Install
 
-The app host, CLI, build receipts and packaging are implemented in Rust. Current source betas are available on the [Releases page](https://github.com/viggomeesters/ruycast/releases). A notarized app download remains deferred.
-
-The application, CLI, build tools, helpers, and tests are implemented in Rust. The former Swift package is preserved in Git history. The [source export guide](docs/SOURCE-EXPORT.md) records its exact revision.
+Build Ruycast from source with the instructions below. The [Releases page](https://github.com/viggomeesters/ruycast/releases) has source betas and older releases. See the [release guide](docs/RELEASING.md) for what each release contains.
 
 Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Dependencies must already be cached for the offline build.
 
-Build and verify the Rust pair directly through the Rust build tool:
+Build and verify the app host and CLI:
 
 ```sh
 cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$(pwd -P)" -- build --configuration release
@@ -80,13 +78,13 @@ cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --ta
 
 `disk-status` reports available bytes and the current headroom estimate for each producer. `clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. The Rust build tool runs the `check` and `settings` pipelines. Their source-qualified gate inventory describes the required coverage. Successful local runs and verified receipts establish execution evidence.
 
-The previous full Swift-comparison and F1 measurement campaign was discontinued on 10 November 2026. Current work uses focused checks for each change and separate short launcher-time and memory measurements. Historical comparison measurements remain available in the performance notes.
+Ruycast is written in Rust, including its build tools and tests. Start with the smallest relevant test for the behavior you change.
 
 [Contributing](CONTRIBUTING.md) · [Performance](docs/PERFORMANCE.md) · [Product contract](docs/vision.json)
 
 ## Releases
 
-The [current releases](https://github.com/viggomeesters/ruycast/releases) include the 0.9.0 Rust source betas. They are distinct from the older 0.8.x releases and do not include a notarized app download. Final rewrite acceptance remains tracked in [issue #86](https://github.com/viggomeesters/ruycast/issues/86); the remaining repository-wide language migration is tracked separately in [issue #157](https://github.com/viggomeesters/ruycast/issues/157).
+The [0.9.0 prereleases](https://github.com/viggomeesters/ruycast/releases) provide source archives and checksums. A notarized 0.9.0 app download is pending. See the [release guide](docs/RELEASING.md) for build, verification, and installation requirements.
 
 [Changelog](CHANGELOG.md)
 
