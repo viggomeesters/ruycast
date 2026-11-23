@@ -697,6 +697,20 @@ impl Controller {
     fn performance_field(&self) -> u64 {
         (&*self.ivars().input as *const NSTextField as usize) as u64
     }
+    fn focus_launcher_search(&self) -> bool {
+        let state = self.ivars();
+        let has_focus = || {
+            state
+                .input
+                .currentEditor()
+                .zip(state.panel.firstResponder())
+                .is_some_and(|(editor, responder)| {
+                    std::ptr::eq(&*responder, &*editor as &NSResponder)
+                })
+        };
+        has_focus() || (state.panel.makeFirstResponder(Some(&state.input)) && has_focus())
+    }
+
     fn cancel_performance_input(&self) {
         ruycast_native::performance_trace::shared().cancel_input(Some(self.performance_field()));
     }
@@ -1092,6 +1106,7 @@ impl Controller {
             // Allocate the standard field editor and its input context while
             // the panel is still hidden. AppKit activates it on real focus.
             let state = controller.ivars();
+            state.panel.setInitialFirstResponder(Some(&state.input));
             let editor = unsafe { state.panel.fieldEditor_forObject(true, Some(&state.input)) };
             if let Some(editor) = editor {
                 let _ = editor.inputContext();
@@ -1864,7 +1879,14 @@ pub fn check(
         )?;
         // Attach the native field editor to our offscreen, never-shown panel.
         assert!(!state.panel.isVisible());
-        if !state.panel.makeFirstResponder(Some(&state.input)) {
+        if !state
+            .panel
+            .initialFirstResponder()
+            .is_some_and(|responder| std::ptr::eq(&*responder, &*state.input as &NSView))
+        {
+            return Err("launcher search is not the initial responder".into());
+        }
+        if !controller.focus_launcher_search() {
             return Err("native first responder failed".into());
         }
         state.session.borrow_mut().set_visible(true);
@@ -3970,7 +3992,11 @@ fn apply_view(
                 } else if next.dashboard.is_some() {
                     state.panel.makeFirstResponder(Some(&state.dashboard.scroll));
                 } else if next.editor.is_none() {
-                    open_ready = state.panel.makeFirstResponder(Some(&state.input));
+                    open_ready = if !connection.is_management && next.clipboard.is_none() {
+                        controller.focus_launcher_search()
+                    } else {
+                        state.panel.makeFirstResponder(Some(&state.input))
+                    };
                 }
             } else if !next.visible {
                 connection.finish_open_trace(next.show_serial, false);
