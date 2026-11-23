@@ -4,6 +4,7 @@ use objc2::rc::{Retained, Weak};
 use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadOnly};
 use objc2_app_kit::*;
 use objc2_foundation::{NSObject, NSPoint, NSRect, NSSize, NSString};
+use ruycast_native::performance_trace::{shared, Stage};
 use std::cell::{Cell, RefCell};
 struct Binding {
     owner: Weak<Controller>,
@@ -21,6 +22,7 @@ pub struct Service {
     menu: RefCell<Option<Retained<NSMenu>>>,
     target: RefCell<Option<Retained<Target>>>,
     serial: Cell<u64>,
+    requested: RefCell<Option<ruycast_native::menu_bar::State>>,
     state: RefCell<Option<ruycast_native::menu_bar::State>>,
     hidden: Cell<bool>,
     registrations: Cell<u64>,
@@ -34,6 +36,7 @@ impl Default for Service {
             menu: RefCell::new(None),
             target: RefCell::new(None),
             serial: Cell::new(1),
+            requested: RefCell::new(None),
             state: RefCell::new(None),
             hidden: Cell::new(true),
             registrations: Cell::new(0),
@@ -49,23 +52,36 @@ impl Service {
         state: Option<ruycast_native::menu_bar::State>,
         hidden: bool,
     ) {
+        if self.hidden.get() == hidden && *self.requested.borrow() == state {
+            return;
+        }
+        self.update(owner, state, hidden);
+    }
+    fn update(
+        &self,
+        owner: &Controller,
+        state: Option<ruycast_native::menu_bar::State>,
+        hidden: bool,
+    ) {
+        self.hidden.set(hidden);
+        *self.requested.borrow_mut() = state.clone();
         let mut state = state;
         if !hidden {
             if let Some(s) = &mut state {
-                if s.requires_input {
-                    s.healthy &=
-                        unsafe { AXIsProcessTrusted() != 0 && CGPreflightListenEventAccess() }
+                if s.visible && s.requires_input && s.healthy {
+                    s.healthy = shared().measure(Stage::MenuHealth, || {
+                        (unsafe { AXIsProcessTrusted() != 0 && CGPreflightListenEventAccess() })
                             && NSRunningApplication::runningApplicationsWithBundleIdentifier(
                                 &NSString::from_str("com.raycast.macos"),
                             )
-                            .is_empty();
+                            .is_empty()
+                    });
                 }
             }
         }
         if *self.state.borrow() == state {
             return;
         }
-        self.hidden.set(hidden);
         let visible = state.as_ref().is_some_and(|s| s.visible);
         if !visible {
             self.retire();
@@ -126,7 +142,7 @@ impl Service {
     }
     pub fn refresh(&self, owner: &Controller) {
         let state = owner.menu_bar_state();
-        self.apply(owner, state, self.hidden.get());
+        self.update(owner, state, self.hidden.get());
     }
     pub fn live(&self, serial: u64) -> bool {
         serial != 0
@@ -151,6 +167,7 @@ impl Service {
         }
     }
     pub fn cleanup(&self) {
+        self.requested.borrow_mut().take();
         self.state.borrow_mut().take();
         self.retire();
     }

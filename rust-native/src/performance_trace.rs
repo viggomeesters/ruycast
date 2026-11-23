@@ -27,9 +27,12 @@ pub enum Stage {
     OpenKeyWindow,
     OpenActivate,
     OpenFocus,
+    MenuHealth,
+    LauncherBecomeKey,
+    LauncherOutsideMonitors,
 }
 impl Stage {
-    const ALL: [Self; 15] = [
+    const ALL: [Self; 18] = [
         Self::SearchModel,
         Self::InputModel,
         Self::InputReconcile,
@@ -45,6 +48,9 @@ impl Stage {
         Self::OpenKeyWindow,
         Self::OpenActivate,
         Self::OpenFocus,
+        Self::MenuHealth,
+        Self::LauncherBecomeKey,
+        Self::LauncherOutsideMonitors,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -63,6 +69,9 @@ impl Stage {
             Self::OpenKeyWindow => "open.keyWindow",
             Self::OpenActivate => "open.activate",
             Self::OpenFocus => "open.focus",
+            Self::MenuHealth => "menu.health",
+            Self::LauncherBecomeKey => "launcher.becomeKey",
+            Self::LauncherOutsideMonitors => "launcher.outsideMonitors",
         }
     }
     fn index(self) -> usize {

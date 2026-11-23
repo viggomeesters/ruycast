@@ -39,6 +39,9 @@ log_literal!(OPEN_RECONCILE, b"Palette reconcile\0");
 log_literal!(OPEN_KEY_WINDOW, b"Palette key window\0");
 log_literal!(OPEN_ACTIVATE, b"Palette app activation\0");
 log_literal!(OPEN_FOCUS, b"Palette focus\0");
+log_literal!(MENU_HEALTH, b"Menu health preflight\0");
+log_literal!(LAUNCHER_BECOME_KEY, b"Launcher AppKit become key\0");
+log_literal!(LAUNCHER_OUTSIDE_MONITORS, b"Launcher outside monitor registration\0");
 
 fn name(stage: Stage) -> Option<&'static [u8]> {
     Some(match stage {
@@ -57,6 +60,9 @@ fn name(stage: Stage) -> Option<&'static [u8]> {
         Stage::OpenKeyWindow => &OPEN_KEY_WINDOW,
         Stage::OpenActivate => &OPEN_ACTIVATE,
         Stage::OpenFocus => &OPEN_FOCUS,
+        Stage::MenuHealth => &MENU_HEALTH,
+        Stage::LauncherBecomeKey => &LAUNCHER_BECOME_KEY,
+        Stage::LauncherOutsideMonitors => &LAUNCHER_OUTSIDE_MONITORS,
     })
 }
 
@@ -155,6 +161,9 @@ mod tests {
             (Stage::OpenKeyWindow, b"Palette key window\0".as_slice()),
             (Stage::OpenActivate, b"Palette app activation\0".as_slice()),
             (Stage::OpenFocus, b"Palette focus\0".as_slice()),
+            (Stage::MenuHealth, b"Menu health preflight\0".as_slice()),
+            (Stage::LauncherBecomeKey, b"Launcher AppKit become key\0".as_slice()),
+            (Stage::LauncherOutsideMonitors, b"Launcher outside monitor registration\0".as_slice()),
         ] { assert_eq!(name(stage), Some(expected)); }
         assert_eq!(name(Stage::HotkeyQueue), None);
     }
