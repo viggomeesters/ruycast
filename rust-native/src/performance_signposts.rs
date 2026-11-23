@@ -1,4 +1,4 @@
-//! Six fixed, zero-payload Instruments intervals. No initialization on import.
+//! Fixed, zero-payload Instruments intervals. No initialization on import.
 //! ABI evidence: .go/evidence/full-rust-native/parallel/integration/
 //! resume-startup-sdk/performance-signposts/ABI.md. Not yet runtime-qualified.
 use crate::performance_trace::Stage;
@@ -31,16 +31,23 @@ log_literal!(INPUT_RECONCILE, b"Input to field reconciliation\0");
 log_literal!(OPEN_READY, b"Palette ready\0");
 log_literal!(HOST_DRAW, b"Host draw callback\0");
 log_literal!(HOTKEY_HANDLER, b"Hotkey handler\0");
+log_literal!(OPEN_PUBLISH, b"Palette publish\0");
+log_literal!(OPEN_QUEUE, b"Palette main queue\0");
+log_literal!(OPEN_APPKIT, b"Palette AppKit apply\0");
 
-fn name(stage: Stage) -> &'static [u8] {
-    match stage {
+fn name(stage: Stage) -> Option<&'static [u8]> {
+    Some(match stage {
         Stage::SearchModel => &SEARCH_MODEL,
         Stage::InputModel => &INPUT_MODEL,
         Stage::InputReconcile => &INPUT_RECONCILE,
         Stage::OpenReady => &OPEN_READY,
         Stage::HostDraw => &HOST_DRAW,
         Stage::HotkeyHandler => &HOTKEY_HANDLER,
-    }
+        Stage::HotkeyQueue => return None,
+        Stage::OpenPublish => &OPEN_PUBLISH,
+        Stage::OpenMainQueue => &OPEN_QUEUE,
+        Stage::OpenAppKit => &OPEN_APPKIT,
+    })
 }
 
 // os_log's no-argument encoding is exactly summary=0, argument-count=0.
@@ -84,6 +91,7 @@ pub(crate) fn end(interval: Interval) { drop(interval); }
 fn emit(log: LogHandle, id: u64, stage: Stage, boundary: Boundary) -> bool {
     // Match the SDK macro's exact ID and enablement checks for begin AND end.
     if !valid_id(id) || !unsafe { os_signpost_enabled(log.0.as_ptr()) } { return false; }
+    let Some(name) = name(stage) else { return false; };
     let mut buffer = EmptyFormat([0, 0]);
     // SAFETY: SDK exact fixed-arity ABI. DSO is the linker's current image
     // header, literals remain in __oslogstring, and only the two initialized
@@ -91,7 +99,7 @@ fn emit(log: LogHandle, id: u64, stage: Stage, boundary: Boundary) -> bool {
     unsafe {
         _os_signpost_emit_with_name_impl(
             (&raw const __dso_handle).cast_mut().cast(), log.0.as_ptr(),
-            boundary as u8, id, name(stage).as_ptr().cast(),
+            boundary as u8, id, name.as_ptr().cast(),
             EMPTY_FORMAT.as_ptr().cast(), buffer.0.as_mut_ptr(), 2,
         );
     }
@@ -121,7 +129,7 @@ mod tests {
         assert!(!valid_id(0)); assert!(!valid_id(u64::MAX)); assert!(valid_id(1));
     }
     #[test]
-    fn stages_have_only_the_six_original_fixed_names() {
+    fn signposted_stages_use_fixed_names() {
         for (stage, expected) in [
             (Stage::SearchModel, b"Search model\0".as_slice()),
             (Stage::InputModel, b"Input model\0".as_slice()),
@@ -129,6 +137,10 @@ mod tests {
             (Stage::OpenReady, b"Palette ready\0".as_slice()),
             (Stage::HostDraw, b"Host draw callback\0".as_slice()),
             (Stage::HotkeyHandler, b"Hotkey handler\0".as_slice()),
-        ] { assert_eq!(name(stage), expected); }
+            (Stage::OpenPublish, b"Palette publish\0".as_slice()),
+            (Stage::OpenMainQueue, b"Palette main queue\0".as_slice()),
+            (Stage::OpenAppKit, b"Palette AppKit apply\0".as_slice()),
+        ] { assert_eq!(name(stage), Some(expected)); }
+        assert_eq!(name(Stage::HotkeyQueue), None);
     }
 }

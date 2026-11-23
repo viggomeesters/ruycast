@@ -1,6 +1,11 @@
 //! Plain-data connection between the single runtime owner and the main-thread
 //! view. No AppKit handles or second search/session model cross this boundary.
-use crate::{control::HostEvent, presentation, session::Session};
+use crate::{
+    control::HostEvent,
+    performance_trace::{self, Span, Stage},
+    presentation,
+    session::Session,
+};
 use std::{
     collections::VecDeque,
     sync::{
@@ -348,9 +353,22 @@ pub struct HideToken {
     pub ui: std::sync::Weak<Connection>,
     pub key: HideKey,
 }
+struct OpenTrace {
+    serial: u64,
+    ready: Span,
+    phase: Stage,
+    span: Span,
+}
+impl OpenTrace {
+    fn finish(self, cancelled: bool) {
+        let trace = performance_trace::shared();
+        trace.finish(self.span, cancelled || self.phase != Stage::OpenAppKit);
+        trace.finish(self.ready, cancelled);
+    }
+}
 pub struct Connection {
     open_hide: Mutex<Option<(HideKey, u8)>>,
-    performance_open: Mutex<Option<(u64, crate::performance_trace::Span)>>,
+    performance_open: Mutex<Option<OpenTrace>>,
     sender: SyncSender<HostEvent>,
     inputs: Mutex<Inputs>,
     epoch: AtomicU64,
@@ -430,22 +448,43 @@ impl Connection {
     pub fn begin_open_trace(&self, serial: u64) {
         let mut pending = self.performance_open.lock().unwrap_or_else(|p| p.into_inner());
         if self.stop_requested() || self.stopped() { return; }
-        let span = crate::performance_trace::shared().begin(crate::performance_trace::Stage::OpenReady);
-        let previous = pending.replace((serial, span));
-        drop(pending);
-        if let Some((_, previous)) = previous { crate::performance_trace::shared().finish(previous, true); }
+        if let Some(previous) = pending.take() {
+            previous.finish(true);
+        }
+        let (ready, span) = performance_trace::shared().begin_open();
+        *pending = Some(OpenTrace {
+            serial,
+            ready,
+            phase: Stage::OpenPublish,
+            span,
+        });
+    }
+    fn advance_open_trace(&self, serial: u64, phase: Stage, next: Stage) {
+        let mut pending = self.performance_open.lock().unwrap_or_else(|p| p.into_inner());
+        if let Some(open) = pending.as_mut().filter(|open| open.serial == serial && open.phase == phase) {
+            let trace = performance_trace::shared();
+            if let Some(span) = trace.advance(open.ready, open.span, next) {
+                open.phase = next;
+                open.span = span;
+            }
+        }
+    }
+    pub fn apply_open_trace(&self, serial: u64) {
+        self.advance_open_trace(serial, Stage::OpenMainQueue, Stage::OpenAppKit);
     }
     pub fn finish_open_trace(&self, serial: u64, ready: bool) {
         let mut pending = self.performance_open.lock().unwrap_or_else(|p| p.into_inner());
-        let span = if pending.as_ref().is_some_and(|(current, _)| *current == serial) {
-            pending.take().map(|(_, span)| span)
+        let open = if pending.as_ref().is_some_and(|open| open.serial == serial) {
+            pending.take()
         } else { None };
         drop(pending);
-        if let Some(span) = span { crate::performance_trace::shared().finish(span, !ready); }
+        if let Some(open) = open {
+            open.finish(!ready);
+        }
     }
     pub fn cancel_open_trace(&self) {
-        let span = self.performance_open.lock().unwrap_or_else(|p| p.into_inner()).take();
-        if let Some((_, span)) = span { crate::performance_trace::shared().finish(span, true); }
+        let open = self.performance_open.lock().unwrap_or_else(|p| p.into_inner()).take();
+        if let Some(open) = open { open.finish(true); }
     }
     pub fn forward_probe(&self, request: crate::control::Envelope) {
         let mut probes = self.probes.lock().unwrap_or_else(|p| p.into_inner());
@@ -983,6 +1022,9 @@ impl Connection {
             return;
         }
         next.revision = next.revision.wrapping_add(1);
+        if next.visible && next.show_serial != view.show_serial {
+            self.advance_open_trace(next.show_serial, Stage::OpenPublish, Stage::OpenMainQueue);
+        }
         self.palette_visible.store(next.visible, Ordering::Release);
         *view = next;
         drop(view);
@@ -1054,8 +1096,8 @@ impl Connection {
 
 impl Drop for Connection {
     fn drop(&mut self) {
-        if let Some((_, span)) = self.performance_open.get_mut().unwrap_or_else(|p| p.into_inner()).take() {
-            crate::performance_trace::shared().finish(span, true);
+        if let Some(open) = self.performance_open.get_mut().unwrap_or_else(|p| p.into_inner()).take() {
+            open.finish(true);
         }
     }
 }
@@ -1070,7 +1112,11 @@ mod tests {
         ui.begin_open_trace(1);
         ui.begin_open_trace(2);
         ui.finish_open_trace(1, true);
-        assert_eq!(ui.performance_open.lock().unwrap().as_ref().map(|(serial, _)| *serial), Some(2));
+        ui.publish(View { visible: true, show_serial: 2, ..View::default() });
+        ui.apply_open_trace(1);
+        assert_eq!(ui.performance_open.lock().unwrap().as_ref().map(|open| (open.serial, open.phase)), Some((2, Stage::OpenMainQueue)));
+        ui.apply_open_trace(2);
+        assert_eq!(ui.performance_open.lock().unwrap().as_ref().map(|open| open.phase), Some(Stage::OpenAppKit));
         ui.finish_open_trace(2, false);
         assert!(ui.performance_open.lock().unwrap().is_none());
         ui.begin_open_trace(3);

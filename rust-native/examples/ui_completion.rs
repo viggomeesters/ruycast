@@ -2794,9 +2794,17 @@ fn interaction_trace(root: &Path) {
     fs::write(h.profile.join("config.json"),serde_json::to_vec(&config).unwrap()).unwrap();
     h.wait(|status|status["configurationUpdating"]!=true&&h.rpc(json!({"op":"commands"})).as_array().unwrap().len()==500);
     h.settled();h.rpc(json!({"op":"clipboard.pause","paused":true}));
+    h.rpc(json!({"op":"performance.reset"}));
     h.rpc(json!({"op":"show","mode":"commands","query":""}));
     h.wait(|status|status["nativeUI"]["visible"]==true);
-    h.settled();h.probe(false,"dashboard-size",json!({"width":760,"height":490}));
+    h.settled();
+    let opening = h.rpc(json!({"op":"performance"}));
+    for stage in ["open.publish", "open.mainQueue", "open.appKit", "open.ready"] {
+        assert_eq!(opening["stages"][stage]["count"], 1, "{stage}: {opening}");
+    }
+    assert_eq!(h.probe(false,"read",json!({}))["input"], "");
+    h.capture(false, "interaction-trace-empty");
+    h.probe(false,"dashboard-size",json!({"width":760,"height":490}));
     let baseline=fs::read(h.profile.join("config.json")).unwrap();
     let initial=h.probe(false,"read",json!({}));
     for flag in ["windowShown","windowKey","windowMain"] {assert_eq!(initial[flag],false);}

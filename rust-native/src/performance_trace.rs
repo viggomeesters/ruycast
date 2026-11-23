@@ -3,14 +3,14 @@ use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::{Mutex, OnceLock},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 const ACTIVE_LIMIT: usize = 32;
 const SAMPLE_LIMIT: usize = 256;
-const SCOPE: &str = "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey timing begins at handler delivery";
+const SCOPE: &str = "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt";
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
     SearchModel,
     InputModel,
@@ -18,15 +18,23 @@ pub enum Stage {
     OpenReady,
     HostDraw,
     HotkeyHandler,
+    HotkeyQueue,
+    OpenPublish,
+    OpenMainQueue,
+    OpenAppKit,
 }
 impl Stage {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 10] = [
         Self::SearchModel,
         Self::InputModel,
         Self::InputReconcile,
         Self::OpenReady,
         Self::HostDraw,
         Self::HotkeyHandler,
+        Self::HotkeyQueue,
+        Self::OpenPublish,
+        Self::OpenMainQueue,
+        Self::OpenAppKit,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -36,6 +44,10 @@ impl Stage {
             Self::OpenReady => "open.ready",
             Self::HostDraw => "host.drawCallback",
             Self::HotkeyHandler => "hotkey.handler",
+            Self::HotkeyQueue => "hotkey.queue",
+            Self::OpenPublish => "open.publish",
+            Self::OpenMainQueue => "open.mainQueue",
+            Self::OpenAppKit => "open.appKit",
         }
     }
     fn index(self) -> usize {
@@ -76,7 +88,7 @@ impl Metric {
 struct State {
     sequence: u64,
     active: BTreeMap<u64, Entry>,
-    metrics: [Metric; 6],
+    metrics: [Metric; Stage::ALL.len()],
     pending_input: Option<(Span, u64)>,
 }
 impl State {
@@ -147,6 +159,24 @@ impl Trace {
     }
     pub fn finish(&self, span: Span, cancelled: bool) {
         self.lock().finish(span, cancelled);
+    }
+    pub(crate) fn begin_open(&self) -> (Span, Span) {
+        crate::performance_signposts::prepare();
+        let mut state = self.lock();
+        (state.begin(Stage::OpenReady), state.begin(Stage::OpenPublish))
+    }
+    pub(crate) fn advance(&self, parent: Span, previous: Span, next: Stage) -> Option<Span> {
+        let mut state = self.lock();
+        if !parent.id.is_some_and(|id| state.active.contains_key(&id))
+            || !previous.id.is_some_and(|id| state.active.contains_key(&id))
+        {
+            return None;
+        }
+        state.finish(previous, false);
+        Some(state.begin(next))
+    }
+    pub fn record(&self, stage: Stage, elapsed: Duration) {
+        self.lock().metrics[stage.index()].finish(elapsed.as_secs_f64() * 1000., false);
     }
     pub fn scope(&self, stage: Stage) -> Guard<'_> {
         Guard {
@@ -257,7 +287,7 @@ mod tests {
         let empty = trace.snapshot();
         assert_eq!(empty["schema"], 2);
         assert_eq!(empty["scope"], SCOPE);
-        assert_eq!(empty["stages"].as_object().unwrap().len(), 6);
+        assert_eq!(empty["stages"].as_object().unwrap().len(), Stage::ALL.len());
         for metric in empty["stages"].as_object().unwrap().values() {
             assert_eq!(metric["count"], 0);
             assert!(metric["p50MS"].is_null());
@@ -287,5 +317,19 @@ mod tests {
         assert!(!trace.snapshot().to_string().contains(&u64::MAX.to_string()));
         trace.reset();
         assert!(trace.snapshot()["stages"]["host.drawCallback"]["p50MS"].is_null());
+    }
+    #[test]
+    fn reset_cannot_start_another_phase_of_an_old_open() {
+        let trace = Trace::default();
+        let ready = trace.begin(Stage::OpenReady);
+        let publish = trace.begin(Stage::OpenPublish);
+        let queued = trace.advance(ready, publish, Stage::OpenMainQueue).unwrap();
+        trace.reset();
+        assert!(trace.advance(ready, queued, Stage::OpenAppKit).is_none());
+        trace.finish(ready, false);
+        let value = trace.snapshot();
+        assert_eq!(value["activeIntervals"], 0);
+        assert_eq!(value["stages"]["open.ready"]["count"], 0);
+        assert_eq!(value["stages"]["open.appKit"]["count"], 0);
     }
 }

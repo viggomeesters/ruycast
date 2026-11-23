@@ -151,7 +151,9 @@ The historical Swift-host comparison used the pre-migration Python runner. That 
 `ruycast performance` reports bounded in-memory software timings (last256 durations per fixed stage, count, cancellations, p50/p95/max). `ruycast performance reset --confirm` clears them. No query text, command identifiers, snippet bodies or clipboard data is recorded or written. Signposts use only fixed stage names in `nl.viggomeesters.ruycast/Interaction` and can be inspected with Instruments.
 
 - `hotkey.handler`: handler delivery to callback return; excludes hardware/OS delivery before the handler.
+- `hotkey.queue`: elapsed time from the registered shortcut callback to the runtime handler for a valid launcher shortcut, including toggling it closed.
 - `open.ready`: show request through the queued native focus request; excludes compositor/display presentation. Closing or superseding an open cancels the interval.
+- `open.publish`, `open.mainQueue` and `open.appKit`: show request to model publication, publication to AppKit processing, and AppKit processing through the field focus request. These stages help locate delay in the same software path as `open.ready`. A completed earlier phase may still appear when the opening is later cancelled.
 - `input.model`: native text-field delegate through synchronous model publication.
 - `search.model`: the shared Rust catalog/index search and local result projection.
 - `host.drawCallback`: native palette hosting-view draw hook. Offscreen `cacheDisplay` fixtures invoke it; zero means this sample observed no callback, not that no presentation occurred.
