@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub const FREE_SPACE_FLOOR: u64 = 50_000_000_000;
+pub const FREE_SPACE_FLOOR: u64 = 35_000_000_000;
 pub const DEBUG_BUILD_PEAK: u64 = 2_000_000_000;
 pub const RELEASE_BUILD_PEAK: u64 = 3_000_000_000;
 pub const VALIDATION_PEAK: u64 = 8_000_000_000;
@@ -80,7 +80,7 @@ pub fn require_capacity(path: &Path, estimated_peak: u64, operation: &str) -> Re
     let status = capacity(path, estimated_peak)?;
     if status["canStart"] != true {
         return Err(format!(
-            "Insufficient disk headroom for {operation}: {} bytes available, {} required (50 GB floor plus estimated peak).",
+            "Insufficient disk headroom for {operation}: {} bytes available, {} required (disk floor plus estimated peak).",
             status["availableBytes"], status["requiredBytes"]
         ));
     }

@@ -7,7 +7,7 @@ This guide uses the current code on `main`. The documented setup is for **Apple 
 - Install the Apple Command Line Tools with `xcode-select --install` if `xcode-select -p` reports no active developer tools. Finish the installation before continuing.
 - Install Rust with [rustup](https://rustup.rs/). The checkout selects Rust 1.92.0 through `rust-toolchain.toml`.
 - Install [Homebrew](https://brew.sh/) in its default Apple silicon location, then run `brew install openssl@3`. The local installer uses `/opt/homebrew/opt/openssl@3/bin/openssl` to create its initial signing certificate.
-- Allow at least **53 GB of free space** for the release build's disk check, and an internet connection to fetch the Rust toolchain and dependencies.
+- Allow at least **38 GB of free space** for the release build's disk check, and an internet connection to fetch the Rust toolchain and dependencies.
 
 ## 2. Clone, build and install
 
