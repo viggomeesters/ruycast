@@ -56,12 +56,26 @@ struct PaletteStyle {
     launcher: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ResidentWindow {
+    Unordered,
+    Parked,
+    Revealing,
+}
+
+#[derive(PartialEq, Eq)]
+enum LauncherOpening {
+    Ordered,
+    Reused,
+    Dismissed,
+}
+
 struct PanelState {
     failed: Cell<bool>,
     owner: RefCell<Option<Weak<Controller>>>,
     management: bool,
     ordering_allowed: bool,
-    resident: Cell<bool>,
+    resident: Cell<ResidentWindow>,
     blocked_orders: Cell<u64>,
     #[cfg(feature = "test-tools")]
     hidden_repairs: Cell<u64>,
@@ -157,7 +171,7 @@ define_class!(
             if let Some(owner) = owner.as_ref() { owner.cancel_performance_input(); }
             if let Some(owner)=owner{owner.ivars().dashboard.retire_dialog();owner.ivars().settings.retire_dialog();owner.ivars().settings.stop_recording();owner.ivars().surface.stop();}
             unsafe{let _:()=msg_send![super(self),orderOut:sender];}
-            if self.ivars().resident.replace(false) {
+            if self.ivars().resident.replace(ResidentWindow::Unordered) != ResidentWindow::Unordered {
                 self.restore_resident_surface();
             }
         }
@@ -185,14 +199,22 @@ define_class!(
         }
         #[unsafe(method(canBecomeKeyWindow))]
         fn can_become_key(&self) -> bool {
-            self.ivars().ordering_allowed && !self.ivars().resident.get()
+            self.ivars().ordering_allowed && self.ivars().resident.get() != ResidentWindow::Parked
         }
         #[unsafe(method(canBecomeMainWindow))]
         fn can_become_main(&self) -> bool {self.ivars().management && self.ivars().ordering_allowed}
         #[unsafe(method(close))]
         fn close_window(&self){
             let owner=self.ivars().owner.borrow().as_ref().and_then(Weak::load);
-            if let Some(owner)=owner{owner.guard_callback(||{owner.ivars().session.borrow_mut().hide_palette();owner.ivars().surface.stop();owner.reconcile();});}
+            if let Some(owner)=owner{owner.guard_callback(||{
+                owner.cancel_resident_preparation();
+                owner.ivars().session.borrow_mut().hide_palette();
+                owner.ivars().surface.stop();
+                owner.reconcile();
+            });}
+            if self.ivars().resident.get() != ResidentWindow::Unordered {
+                self.orderOut(None);
+            }
             unsafe{let _:()=msg_send![super(self),close];}
         }
     }
@@ -227,7 +249,7 @@ impl PalettePanel {
         if !state.ordering_allowed || state.management || self.isVisible() || self.isKeyWindow() {
             return;
         }
-        state.resident.set(true);
+        state.resident.set(ResidentWindow::Parked);
         self.setAlphaValue(0.);
         self.setIgnoresMouseEvents(true);
         if let Some(content) = self.contentView() {
@@ -239,22 +261,35 @@ impl PalettePanel {
         }
     }
 
-    fn show_launcher(&self, search: bool) {
-        if self.ivars().resident.get() {
+    fn show_launcher(&self, search: bool) -> LauncherOpening {
+        let state = self.ivars();
+        if state.resident.get() == ResidentWindow::Parked {
             if search && self.isVisible() && self.isOnActiveSpace() {
-                self.ivars().resident.set(false);
+                state.resident.set(ResidentWindow::Revealing);
                 self.makeKeyWindow();
-                if self.isKeyWindow() {
-                    self.restore_resident_surface();
-                    return;
+                // A synchronous window callback may already have dismissed it.
+                if state.resident.get() != ResidentWindow::Revealing {
+                    return LauncherOpening::Dismissed;
                 }
-                self.ivars().resident.set(true);
+                if self.isKeyWindow() {
+                    state.resident.set(ResidentWindow::Unordered);
+                    self.restore_resident_surface();
+                    return LauncherOpening::Reused;
+                }
             }
-            // There is no open surface to dismiss. Keep the newly reconciled
-            // editor and monitor leases intact if reuse falls back to ordering.
+            // This is the hidden window only. Preserve the newly reconciled
+            // views and outside-click monitor for the ordinary open below.
             unsafe { let _: () = msg_send![super(self), orderOut:Option::<&NSObject>::None]; }
-            self.ivars().resident.set(false);
+            state.resident.set(ResidentWindow::Unordered);
             self.restore_resident_surface();
+        }
+        self.makeKeyAndOrderFront(None);
+        LauncherOpening::Ordered
+    }
+
+    fn reorder_launcher(&self) {
+        if !self.isOnActiveSpace() {
+            unsafe { let _: () = msg_send![super(self), orderOut:Option::<&NSObject>::None]; }
         }
         self.makeKeyAndOrderFront(None);
     }
@@ -410,8 +445,8 @@ pub(crate) struct State {
     scroll: Retained<NSScrollView>,
     reconciling: Cell<bool>,
     restore_result_focus: Cell<bool>,
-    resident_trial: Cell<bool>,
     resident_timer: RefCell<Option<crate::main_loop::Timer>>,
+    resident_due: Cell<Option<(u64, u64)>>,
     keyboard: RefCell<Option<ruycast_native::keyboard_service::Client>>,
     run_inline_token: Cell<u64>,
     run_inline_disabled: Cell<bool>,
@@ -550,7 +585,8 @@ define_class!(
                     self.ivars().session.borrow_mut().set_query(&self.ivars().input.stringValue().to_string());
                 }
                 let can_prepare_resident = selector == sel!(cancelOperation:)
-                    && self.ivars().resident_trial.get()
+                    && self.ivars().panel.ivars().ordering_allowed
+                    && !self.ivars().panel.ivars().management
                     && self.ivars().session.borrow().visible()
                     && self.ivars().session.borrow().clipboard().is_none();
                 let handled = self
@@ -787,31 +823,54 @@ impl Controller {
     fn performance_field(&self) -> u64 {
         (&*self.ivars().input as *const NSTextField as usize) as u64
     }
+    fn cancel_resident_preparation(&self) {
+        self.ivars().resident_due.set(None);
+        self.ivars().resident_timer.borrow_mut().take();
+    }
+
     fn schedule_resident_launcher(&self) {
         let state = self.ivars();
-        if !state.resident_trial.get() {
+        let Some(keyboard) = state.keyboard.borrow().as_ref().cloned().filter(|k| !k.paused()) else {
             return;
-        }
+        };
+        let generation = {
+            let model = state.session.borrow();
+            let Some(connection) = model.os_connection() else { return; };
+            (model.show_serial(), connection.latest_dismissal())
+        };
+        self.cancel_resident_preparation();
         let weak = Weak::new(self);
         if let Ok(timer) = crate::main_loop::Timer::new_default(self.mtm(), 0.75, move || {
             if let Some(owner) = weak.load() {
-                owner.guard_callback(|| {
-                    let state = owner.ivars();
-                    let ready = match &*state.session.borrow() {
-                        Model::Live { view, connection } => {
-                            !view.visible && !connection.view().visible && !connection.stop_requested()
-                        }
-                        _ => false,
-                    };
-                    let management_open = state.peer.borrow().as_ref().and_then(Weak::load)
-                        .is_some_and(|peer| peer.ivars().session.borrow().visible());
-                    if ready && !management_open {
-                        state.panel.prepare_resident();
-                    }
-                });
+                owner.ivars().resident_due.set(Some(generation));
+                keyboard.wake_main();
             }
         }) {
             *state.resident_timer.borrow_mut() = Some(timer);
+        }
+    }
+
+    fn pump_resident_launcher(&self, connection: &ruycast_native::connected::Connection, management_open: bool) {
+        let state = self.ivars();
+        if management_open || state.keyboard.borrow().as_ref().is_none_or(|k| k.paused()) {
+            self.cancel_resident_preparation();
+            if state.panel.ivars().resident.get() != ResidentWindow::Unordered {
+                state.panel.orderOut(None);
+            }
+            return;
+        }
+        let Some((show, dismissal)) = state.resident_due.take() else { return; };
+        state.resident_timer.borrow_mut().take();
+        let published = connection.view();
+        let ready = {
+            let model = state.session.borrow();
+            !model.visible() && model.show_serial() == show
+        };
+        if ready && !published.visible && published.show_serial == show
+            && published.dismissal == dismissal && connection.latest_dismissal() == dismissal
+            && !connection.stop_requested()
+        {
+            state.panel.prepare_resident();
         }
     }
 
@@ -959,7 +1018,7 @@ impl Controller {
                 owner: RefCell::new(None),
                 management,
                 ordering_allowed: matches!(&session,Model::Live{connection,..} if !connection.hidden_tests),
-                resident: Cell::new(false),
+                resident: Cell::new(ResidentWindow::Unordered),
                 blocked_orders: Cell::new(0),
                 #[cfg(feature = "test-tools")]
                 hidden_repairs: Cell::new(0),
@@ -1178,8 +1237,8 @@ impl Controller {
             scroll,
             reconciling: Cell::new(false),
             restore_result_focus: Cell::new(false),
-            resident_trial: Cell::new(false),
             resident_timer: RefCell::new(None),
+            resident_due: Cell::new(None),
             keyboard: RefCell::new(None),
             run_inline_token: Cell::new(0),
             #[cfg(feature = "test-tools")]
@@ -1984,7 +2043,7 @@ pub fn check(
         let _cleanup = Cleanup(&controller);
         let state = controller.ivars();
         state.panel.prepare_resident();
-        if state.panel.isVisible() || state.panel.ivars().resident.get() {
+        if state.panel.isVisible() || state.panel.ivars().resident.get() != ResidentWindow::Unordered {
             return Err("resident launcher must leave hidden fixtures unordered".into());
         }
         if state.panel.animationBehavior() != NSWindowAnimationBehavior::None {
@@ -2735,7 +2794,6 @@ fn run_graph(
 ) -> Result<serde_json::Value, String> {
     #[cfg(not(feature = "test-tools"))]
     let _ = owned;
-    let resident_trial = !hidden && paths.root.join(".resident-launcher-1892").is_file();
     if hidden && !cfg!(feature = "test-tools") {
         return Err("Hidden native runtime requires the test-tools feature.".into());
     }
@@ -2973,6 +3031,7 @@ fn run_graph(
                     let (current, _) = windows.iter().find(|(_, connected)| std::sync::Arc::ptr_eq(connected, &ui)).ok_or("Window owner changed.")?;
                     let before = current.ivars().panel.isVisible();
                     let result = ui.acknowledge_open_hide(&token.key, || {
+                        current.cancel_resident_preparation();
                         current.ivars().session.borrow_mut().set_visible(false);
                         current.ivars().panel.orderOut(None);
                         !current.ivars().panel.isVisible()
@@ -2994,6 +3053,7 @@ fn run_graph(
                         .ok_or("Window owner changed.")?;
                     let before=current.ivars().panel.isVisible();
                     let result=ui.acknowledge_open_hide(&token.key, || {
+                        current.cancel_resident_preparation();
                         current.ivars().session.borrow_mut().set_visible(false);
                         current.ivars().panel.orderOut(None);
                         !current.ivars().panel.isVisible()
@@ -3108,6 +3168,11 @@ fn run_graph(
                         connected.request_stop();
                     }
                 }
+                if !hidden {
+                    let management_open = windows[1].0.ivars().session.borrow().visible()
+                        || windows[1].1.palette_visible();
+                    windows[0].0.pump_resident_launcher(&windows[0].1, management_open);
+                }
                 if let Some(keyboard) = keyboard_owner.as_mut() {
                     keyboard.pump();
                 }
@@ -3195,8 +3260,7 @@ fn run_graph(
                 result
             }).map_err(|e|e.to_string())
         }).transpose()?;
-        if !hidden && resident_trial {
-            controller.ivars().resident_trial.set(true);
+        if !hidden {
             controller.schedule_resident_launcher();
         }
         app.run();
@@ -4113,8 +4177,12 @@ fn apply_view(
             }
             drop(reconcile_timing);
             if opening {
-                state.resident_timer.borrow_mut().take();
+                controller.cancel_resident_preparation();
                 state.inline_autosave_allowed.set(true);
+                let mut presentation = LauncherOpening::Ordered;
+                let still_open = || {
+                    state.session.borrow().visible() && connection.latest_dismissal() == next.dismissal
+                };
                 if !hidden {
                     let search = !connection.is_management
                         && next.clipboard.is_none()
@@ -4124,11 +4192,15 @@ fn apply_view(
                         && next.utility_scope.is_none()
                         && next.script_result.is_none()
                         && next.editor.is_none();
-                    shared().measure(Stage::OpenKeyWindow, || state.panel.show_launcher(search));
-                    shared().measure(Stage::OpenActivate, || app.activate());
+                    presentation = shared().measure(Stage::OpenKeyWindow, || state.panel.show_launcher(search));
+                    if presentation != LauncherOpening::Dismissed && still_open() {
+                        shared().measure(Stage::OpenActivate, || app.activate());
+                    }
                 }
                 let _focus_timing = measure(Stage::OpenFocus);
-                if next
+                if presentation == LauncherOpening::Dismissed || !still_open() {
+                    // A synchronous AppKit callback already dismissed this opening.
+                } else if next
                     .script_result
                     .as_ref()
                     .is_some_and(|r| r.detail_visible)
@@ -4140,15 +4212,25 @@ fn apply_view(
                     state.panel.makeFirstResponder(Some(&state.dashboard.scroll));
                 } else if next.editor.is_none() {
                     open_ready = if !connection.is_management && next.clipboard.is_none() {
-                        controller.focus_launcher_search()
-                            && (!state.resident_trial.get() || state.panel.isKeyWindow())
+                        let focus_search = || {
+                            controller.focus_launcher_search()
+                                && (hidden || state.panel.isKeyWindow() && state.panel.isOnActiveSpace())
+                                && still_open()
+                        };
+                        let focused = focus_search();
+                        if presentation == LauncherOpening::Reused && !focused && still_open() {
+                            shared().measure(Stage::OpenKeyWindow, || state.panel.reorder_launcher());
+                            still_open() && focus_search()
+                        } else {
+                            focused
+                        }
                     } else {
                         state.panel.makeFirstResponder(Some(&state.input))
                     };
                 }
             } else if !next.visible {
                 connection.finish_open_trace(next.show_serial, false);
-                if !state.panel.ivars().resident.get() {
+                if state.panel.ivars().resident.get() == ResidentWindow::Unordered {
                     state.panel.orderOut(None);
                 }
             }
@@ -4184,6 +4266,7 @@ fn revoke_and_hide(owners: &[&Controller]) {
     for owner in owners {
         let state = owner.ivars();
         state.inline_autosave_allowed.set(false);
+        owner.cancel_resident_preparation();
         let autosave = state.inline_autosave.borrow_mut().take();
         let timers = std::mem::take(&mut *state.timers.borrow_mut());
         drop(autosave);
