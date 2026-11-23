@@ -110,14 +110,30 @@ define_class!(
             unsafe{let _:()=msg_send![super(self),orderFrontRegardless];}
         }
         #[unsafe(method(makeKeyWindow))]
-        fn make_key(&self){
-            if !self.ivars().ordering_allowed {self.ivars().blocked_orders.set(self.ivars().blocked_orders.get()+1);return;}
-            unsafe{let _:()=msg_send![super(self),makeKeyWindow];}
+        fn make_key(&self) {
+            let state = self.ivars();
+            if !state.ordering_allowed {
+                state.blocked_orders.set(state.blocked_orders.get() + 1);
+                return;
+            }
+            let _timing = (!state.management).then(|| {
+                use ruycast_native::performance_trace::{shared, Stage};
+                shared().scope(Stage::LauncherMakeKey)
+            });
+            unsafe { let _: () = msg_send![super(self), makeKeyWindow]; }
         }
         #[unsafe(method(orderWindow:relativeTo:))]
-        fn order(&self,place:NSWindowOrderingMode,relative:objc2_foundation::NSInteger){
-            if !self.ivars().ordering_allowed && place!=NSWindowOrderingMode::Out {self.ivars().blocked_orders.set(self.ivars().blocked_orders.get()+1);return;}
-            unsafe{let _:()=msg_send![super(self),orderWindow:place,relativeTo:relative];}
+        fn order(&self, place: NSWindowOrderingMode, relative: objc2_foundation::NSInteger) {
+            let state = self.ivars();
+            if !state.ordering_allowed && place != NSWindowOrderingMode::Out {
+                state.blocked_orders.set(state.blocked_orders.get() + 1);
+                return;
+            }
+            let _timing = (!state.management && place == NSWindowOrderingMode::Above).then(|| {
+                use ruycast_native::performance_trace::{shared, Stage};
+                shared().scope(Stage::LauncherOrderFront)
+            });
+            unsafe { let _: () = msg_send![super(self), orderWindow:place, relativeTo:relative]; }
         }
         #[unsafe(method(performKeyEquivalent:))]
         fn edit_key(&self, event: &NSEvent) -> bool {
@@ -876,6 +892,7 @@ impl Controller {
         panel.setHidesOnDeactivate(false);
         if !management {
             panel.setLevel(NSFloatingWindowLevel);
+            panel.setAnimationBehavior(NSWindowAnimationBehavior::None);
             panel.setMovableByWindowBackground(true);
             panel.setOpaque(false);
             panel.setHasShadow(true);
@@ -1875,6 +1892,9 @@ pub fn check(
         let controller = Controller::new(mtm, width, dark, Session::new(fixture(500)));
         let _cleanup = Cleanup(&controller);
         let state = controller.ivars();
+        if state.panel.animationBehavior() != NSWindowAnimationBehavior::None {
+            return Err("launcher must opt out of AppKit window animations".into());
+        }
         if state.table.numberOfRows() != 0
             || !state.empty.isHidden()
             || !state.footer.stringValue().is_empty()

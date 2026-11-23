@@ -30,9 +30,11 @@ pub enum Stage {
     MenuHealth,
     LauncherBecomeKey,
     LauncherOutsideMonitors,
+    LauncherMakeKey,
+    LauncherOrderFront,
 }
 impl Stage {
-    const ALL: [Self; 18] = [
+    const ALL: [Self; 20] = [
         Self::SearchModel,
         Self::InputModel,
         Self::InputReconcile,
@@ -51,6 +53,8 @@ impl Stage {
         Self::MenuHealth,
         Self::LauncherBecomeKey,
         Self::LauncherOutsideMonitors,
+        Self::LauncherMakeKey,
+        Self::LauncherOrderFront,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -72,6 +76,8 @@ impl Stage {
             Self::MenuHealth => "menu.health",
             Self::LauncherBecomeKey => "launcher.becomeKey",
             Self::LauncherOutsideMonitors => "launcher.outsideMonitors",
+            Self::LauncherMakeKey => "launcher.makeKey",
+            Self::LauncherOrderFront => "launcher.orderFront",
         }
     }
     fn index(self) -> usize {

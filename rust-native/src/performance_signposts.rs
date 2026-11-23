@@ -43,6 +43,9 @@ log_literal!(MENU_HEALTH, b"Menu health preflight\0");
 log_literal!(LAUNCHER_BECOME_KEY, b"Launcher AppKit become key\0");
 log_literal!(LAUNCHER_OUTSIDE_MONITORS, b"Launcher outside monitor registration\0");
 
+log_literal!(LAUNCHER_MAKE_KEY, b"Launcher AppKit make key\0");
+log_literal!(LAUNCHER_ORDER_FRONT, b"Launcher AppKit order front\0");
+
 fn name(stage: Stage) -> Option<&'static [u8]> {
     Some(match stage {
         Stage::SearchModel => &SEARCH_MODEL,
@@ -63,6 +66,8 @@ fn name(stage: Stage) -> Option<&'static [u8]> {
         Stage::MenuHealth => &MENU_HEALTH,
         Stage::LauncherBecomeKey => &LAUNCHER_BECOME_KEY,
         Stage::LauncherOutsideMonitors => &LAUNCHER_OUTSIDE_MONITORS,
+        Stage::LauncherMakeKey => &LAUNCHER_MAKE_KEY,
+        Stage::LauncherOrderFront => &LAUNCHER_ORDER_FRONT,
     })
 }
 
@@ -164,6 +169,8 @@ mod tests {
             (Stage::MenuHealth, b"Menu health preflight\0".as_slice()),
             (Stage::LauncherBecomeKey, b"Launcher AppKit become key\0".as_slice()),
             (Stage::LauncherOutsideMonitors, b"Launcher outside monitor registration\0".as_slice()),
+            (Stage::LauncherMakeKey, b"Launcher AppKit make key\0".as_slice()),
+            (Stage::LauncherOrderFront, b"Launcher AppKit order front\0".as_slice()),
         ] { assert_eq!(name(stage), Some(expected)); }
         assert_eq!(name(Stage::HotkeyQueue), None);
     }
