@@ -2802,7 +2802,7 @@ fn interaction_trace(root: &Path) {
     for stage in ["open.publish", "open.mainQueue", "open.appKit", "open.layout", "open.reconcile", "open.focus", "open.ready"] {
         assert_eq!(opening["stages"][stage]["count"], 1, "{stage}: {opening}");
     }
-    for stage in ["open.keyWindow", "open.activate"] {
+    for stage in ["open.keyWindow", "open.activate", "menu.health", "launcher.becomeKey", "launcher.outsideMonitors"] {
         assert_eq!(opening["stages"][stage]["count"], 0, "{stage}: {opening}");
     }
     assert_eq!(h.probe(false,"read",json!({}))["input"], "");

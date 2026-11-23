@@ -148,7 +148,21 @@ define_class!(
             unsafe{let _:()=msg_send![super(self),resignKeyWindow];}
         }
         #[unsafe(method(becomeKeyWindow))]
-        fn became_key(&self){if self.ivars().ordering_allowed{unsafe{let _:()=msg_send![super(self),becomeKeyWindow];}}else{self.ivars().blocked_orders.set(self.ivars().blocked_orders.get()+1);}let owner=self.ivars().owner.borrow().as_ref().and_then(Weak::load);if let Some(owner)=owner{owner.ivars().inline_autosave_allowed.set(true);}}
+        fn became_key(&self) {
+            let state = self.ivars();
+            if state.ordering_allowed {
+                let _timing = (!state.management).then(|| {
+                    use ruycast_native::performance_trace::{shared, Stage};
+                    shared().scope(Stage::LauncherBecomeKey)
+                });
+                unsafe { let _: () = msg_send![super(self), becomeKeyWindow]; }
+            } else {
+                state.blocked_orders.set(state.blocked_orders.get() + 1);
+            }
+            if let Some(owner) = state.owner.borrow().as_ref().and_then(Weak::load) {
+                owner.ivars().inline_autosave_allowed.set(true);
+            }
+        }
         #[unsafe(method(canBecomeKeyWindow))]
         fn can_become_key(&self) -> bool { self.ivars().ordering_allowed }
         #[unsafe(method(canBecomeMainWindow))]
@@ -1722,6 +1736,10 @@ impl Controller {
         // Offscreen fixtures exercise the same owned callback route, never OS
         // event subscriptions or somebody else's input/window inventory.
         if !self.ivars().panel.ivars().ordering_allowed { return; }
+        let _timing = {
+            use ruycast_native::performance_trace::{shared, Stage};
+            shared().scope(Stage::LauncherOutsideMonitors)
+        };
         let owner = Weak::new(self);
         let global = block2::RcBlock::new(move |_: std::ptr::NonNull<NSEvent>| {
             if MainThreadMarker::new().is_none() { return; }
