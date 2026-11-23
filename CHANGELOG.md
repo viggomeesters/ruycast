@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.0 — Rust candidate (unreleased)
+## 0.9.0 — current development
 
 - Recover Rust Preview updates with a separate persistent signing identity while preserving the original keychain, stable app, profile and signed rollback; report renewed macOS privacy grants explicitly.
 
@@ -10,8 +10,9 @@
 - Find the paired script helper when building the host and CLI in one shared developer target, with the existing trust checks.
 - Keep Caps Lock off after a successful Hyper start, including delayed latch changes, pauses and shutdown.
 - Move the native app, command-line interface, configuration and local storage to Rust, preserving the existing launcher, editors and macOS integration routes.
-- Build and package the app through Rust tooling. Historical Swift sources remain test references.
-- Complete performance, endurance, public-source and installation acceptance before publishing this candidate. The working 0.8.26/build66 installation remains in place.
+- Build and package the app through Rust tooling. The Swift package was retired. Historical source and reference outputs remain available for provenance.
+- Verify the locally signed Apple silicon installation and rollback. Public notarized distribution is deferred.
+- Document setup from a fresh checkout and use English for natural-date prompts, previews and errors. English and Dutch date inputs still parse to the same ISO values.
 
 ## 0.8.26 — native editing shortcuts
 

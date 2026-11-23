@@ -1,24 +1,40 @@
-# Installation
+# Install Ruycast from source
 
-Build the current Ruycast app and CLI from source on macOS. The public 0.9.0 prereleases contain source archives. Verification of the combined app, installation, and running status is still pending under [issue #100](https://github.com/viggomeesters/ruycast/issues/100). Keep your existing installation and profile available until you have verified the replacement and know how to roll back. For the separate local beta, see [its update and recovery instructions](RELEASING.md#maintaining-an-existing-local-beta).
+This guide uses the current code on `main`. The documented setup is for **Apple silicon Macs running macOS 14 or later**. Intel installation has yet to be verified. You can build and sign the app locally with your own Mac account. The [release page](https://github.com/viggomeesters/ruycast/releases) contains tagged source archives and checksums.
 
-When the candidate has passed the checks for your intended use, build and install locally:
+## 1. Set up your Mac
+
+- Install the Apple Command Line Tools with `xcode-select --install` if `xcode-select -p` reports no active developer tools. Finish the installation before continuing.
+- Install Rust with [rustup](https://rustup.rs/). The checkout selects Rust 1.92.0 through `rust-toolchain.toml`.
+- Install [Homebrew](https://brew.sh/) in its default Apple silicon location, then run `brew install openssl@3`. The local installer uses `/opt/homebrew/opt/openssl@3/bin/openssl` to create its initial signing certificate.
+- Allow at least **53 GB of free space** for the release build's disk check, and an internet connection to fetch the Rust toolchain and dependencies.
+
+## 2. Clone, build and install
+
+Run these commands from Terminal as the logged-in user. If you already use Ruycast, keep a backup of your current app, profile and local signing directory before updating. The installer also stores backups when it replaces a matching local installation.
 
 ```sh
-cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
-CARGO_INCREMENTAL=0 cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD" --build
+git clone https://github.com/viggomeesters/ruycast.git
+cd ruycast
+cargo fetch --locked --manifest-path rust/Cargo.toml
+cargo fetch --locked --manifest-path rust-native/Cargo.toml
+CARGO_INCREMENTAL=0 cargo run --locked --offline --release \
+  --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools \
+  --bin ruycast-install -- install --repo "$(pwd -P)" --build
+"$HOME/.local/bin/ruycast" status
 ```
 
-The installer builds a release and installs it with `--build`. To install an existing verified release build without rebuilding, invoke the same Rust command without `--build`: `cargo run --locked --offline --release --manifest-path rust-native/Cargo.toml --target-dir .build/installer-tools --bin ruycast-install -- install --repo "$PWD"`. No Python install wrapper remains. No Swift host/compiler/helper is used for production. The local signer prepares one persistent identity when absent and refuses silent rotation or ad-hoc fallback. The transaction preserves the profile and uses a per-user login service.
+The two fetch commands fill Cargo's cache for the locked offline build. The installer builds Ruycast, creates a persistent local signing identity on first use, installs the app and the CLI, and starts the app via a per-user login service. A new user gets the bundled default configuration.
 
-## Requirements
+## 3. Open the launcher and enable what you use
 
-- macOS 14 or later.
-- Apple's command-line developer tools, including the linker, `dsymutil`, `strip` and `codesign`.
-- Rust/Cargo 1.92 or later, with locked dependencies cached for offline builds.
-- OpenSSL for initial local certificate preparation. The signer prefers Homebrew OpenSSL when available and otherwise the system tool.
+Press **Control–Option–Space**, type an app name, and press Return. If the shortcut does not open the launcher, open Ruycast from Finder and check **Settings → General** for the configured shortcut.
 
-Development builds have been checked on Apple silicon. Clean Mac installation, physical desktop behavior, and Intel execution still need their own checks. Full Xcode is optional for builds; Instruments profiling requires it.
+- Enable **Accessibility** under **System Settings → Privacy & Security** for window management and pasting into other apps.
+- Enable **Input Monitoring** for keyboard features such as Hyper and automatic snippet expansion, then turn on the features you want in Ruycast Settings.
+- Add `~/.local/bin` to your shell's PATH to run `ruycast` without its full path.
+
+[Getting started](GETTING-STARTED.md) · [Configuration and CLI](CONFIG.md)
 
 ## Locations and configuration
 
@@ -46,8 +62,8 @@ The Rust installer accepts `install [--build] [--repo ABSOLUTE_ROOT]`. Signer ma
 
 Enable Accessibility in System Settings → Privacy & Security for window management, text delivery and Hyper. Some keyboard features also require Input Monitoring. Search and clipboard copying work without Accessibility. Ruycast does not edit the macOS privacy database.
 
-Updates retain the certificate/designated requirement and authored configuration. Keep the signing directory; replacing it or switching to Developer ID can require renewed permission approval. The transaction verifies release authority before stopping/replacing the app, holds the same artifact lease through its final consumer, and attempts restoration after a failed update. These contracts still require combined real installation/readback acceptance.
+Updates retain the certificate/designated requirement and authored configuration. Keep the signing directory; replacing it or switching to Developer ID can require renewed permission approval. The transaction verifies release authority before stopping/replacing the app, holds the same artifact lease through its final consumer, and attempts restoration after a failed update. The Apple silicon maintainer cutover and rollback were verified in [#100](https://github.com/viggomeesters/ruycast/issues/100) and [#133](https://github.com/viggomeesters/ruycast/issues/133).
 
 V4 release authority binds explicit native target paths, both prepared binaries and retained matching dSYM/originals under `.build/full-rust-release/symbols/`. Code/data sections and UUID remain identical after stripping. Debug and historical v3 receipts cannot authorize install. Keep local diagnostics for crash investigation; they are not bundled or uploaded.
 
-Local signing supports source builds on your own Mac. It is not Developer ID notarization for public downloads. See [release status](RELEASING.md).
+Local signing supports source builds on your own Mac. See the [release guide](RELEASING.md) for distribution requirements.

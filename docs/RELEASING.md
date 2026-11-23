@@ -1,6 +1,6 @@
 # Releasing Ruycast
 
-The [Releases page](https://github.com/viggomeesters/ruycast/releases) lists published artifacts. [v0.9.0-beta.17](https://github.com/viggomeesters/ruycast/releases/tag/v0.9.0-beta.17) is a source prerelease with a checksum. A notarized 0.9.0 app download is pending.
+The [Releases page](https://github.com/viggomeesters/ruycast/releases) lists published artifacts. [v0.9.0-beta.17](https://github.com/viggomeesters/ruycast/releases/tag/v0.9.0-beta.17) is a source prerelease with a checksum. The current source is on `main`. Public notarized app distribution is deferred.
 
 ## Build a release candidate
 
@@ -120,7 +120,7 @@ Follow [Build a release candidate](#build-a-release-candidate) from a reviewed p
 - The intended Apple Developer team and a working `notarytool` keychain profile. Provision credentials interactively with `xcrun notarytool store-credentials`; never put passwords, keys or keychain databases in scripts, issues, archives or Git.
 - A clean macOS test environment and an upgrade fixture. Record exact macOS versions and CPU architectures actually tested. Apple silicon development builds do not establish Intel support.
 
-These are open acceptance gates for issue #1, not completed checks. See Apple's [notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) and [custom workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
+Revisit these checks when [public app distribution](https://github.com/viggomeesters/ruycast/issues/1) is scheduled. See Apple's [notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) and [custom workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
 
 ### Signing and notarization procedure (pending live validation)
 

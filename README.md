@@ -1,93 +1,46 @@
 # Ruycast
 
-A native keyboard launcher for your Mac. Open apps, run your commands and make it yours through a CLI and readable files.
+Ruycast is an open-source keyboard launcher for macOS, written in Rust. Launch apps, search windows and Safari tabs, and run your own commands. Configure it in Settings or through the CLI and a JSON file.
 
-![Ruycast's native launcher and Settings](assets/hero.png)
+![Ruycast's native launcher showing search results](docs/screenshots/launcher-results.png)
 
-**macOS 14+**
+## Install from source
 
-## Your everyday shortcuts
+The current source-build guide is for **Apple silicon Macs running macOS 14 or later**. It covers dependencies, local signing, installation and the first launch. The current 0.9.0 code is available on `main`. The [Releases page](https://github.com/viggomeesters/ruycast/releases) offers tagged source archives and checksums. Public notarized app distribution is deferred.
 
-- **Launch anything.** Apps, websites, folders and scripts, with your own aliases and hotkeys.
-- **Type less.** Snippets with automatic keyword expansion, parameterized quicklinks and Caps Lock as Hyper.
-- **Keep useful copies.** Search text, images and file references in clipboard history, with previews and retention controls.
-- **Find app actions.** Search the active app’s menus, see their shortcuts and run available actions.
-- **Find Safari tabs.** Search open tabs by title or address alongside apps and commands. An exact alias match appears above tabs.
-- **Find open windows.** Search by document or app name and switch to the selected existing window.
-- **Arrange your windows.** Halves, thirds, maximize, restore and move between displays.
-- **Stay in control.** Native Settings, a system monitor, and a local Dashboard for usage, errors and timings.
-- **Work with your AI tools.** Coding agents can inspect status, edit configuration and run actions in the background. Configuration lives in files you can read and version.
+[Install Ruycast](docs/INSTALLATION.md) · [Take the first steps](docs/GETTING-STARTED.md)
 
-## Install
+## What you can do
 
-Build Ruycast from source with the instructions below. The [Releases page](https://github.com/viggomeesters/ruycast/releases) has source betas and older releases. See the [release guide](docs/RELEASING.md) for what each release contains.
+- **Launch apps and commands.** Press **Control–Option–Space**, type an app name or alias, and press Return. Open websites and folders or run your own scripts.
+- **Find what is already open.** Search Safari tabs and open windows, or look up actions in the active app's menus.
+- **Reuse text and links.** Create snippets and quicklinks with inputs. Press **Control–Option–V** for clipboard history, including previews, retention controls and exclusions.
+- **Set up keyboard shortcuts.** Assign a shortcut to a command, use Caps Lock as Hyper, or tile and move windows between displays.
+- **Quit idle apps automatically.** Set a timeout per app in Settings → Applications and explicitly opt in to quitting when Ruycast cannot determine activity.
+- **Inspect activity locally.** Use Dashboard for command usage and errors, or open System Monitor for CPU, memory and other resource usage.
 
-Build with macOS command-line developer tools and Rust/Cargo 1.92 or later. Dependencies must already be cached for the offline build.
+## Make it yours
 
-Build and verify the app host and CLI:
+Open Settings from the menu bar or search for **Ruycast Settings**. Commands, aliases and shortcuts live in `~/.config/ruycast/config.json` by default. You can select another configuration folder in Settings → Advanced. Edits reload automatically, and an invalid edit keeps the last working configuration.
 
-```sh
-cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$(pwd -P)" -- build --configuration release
-cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify
-```
-
-These commands build and verify the Rust pair under `.build/full-rust-release`. They do not install, sign or publish it. Follow the [installation procedure](docs/INSTALLATION.md) when the candidate is accepted for your intended use.
-
-Allow Ruycast in **System Settings → Privacy & Security → Accessibility** for window management, Hyper, snippet expansion and pasting into other apps. Enable Hyper and snippet expansion in Settings when you want them.
-
-[Build requirements and signing](docs/INSTALLATION.md) · [Getting started](docs/GETTING-STARTED.md)
-
-## Usage
-
-Choose your theme and menu bar visibility in Settings → General. Enable **Separate Left and Right Command** there to assign different app shortcuts to `L⌘` and `R⌘`.
-
-Press **Control–Option–Space**, type an app name or alias, then Return. Open clipboard history with **Control–Option–V**. Command–K opens actions; arrow keys navigate them.
-
-For a quicklink with one input, type its alias followed by a space and your query, then Return.
-
-Create quicklinks in Settings or through the CLI:
+Use the same configuration from the CLI. For example, inspect the running app and preview a command:
 
 ```sh
-ruycast config add '{"id":"link.project-docs","title":"Project Docs","kind":"url","target":"https://example.com/docs","aliases":["projectdocs"]}'
-ruycast search projectdocs
-ruycast run projectdocs --dry-run
-ruycast run projectdocs
+ruycast status
+ruycast search safari
+ruycast run app.safari --dry-run
 ```
 
-Your configuration defaults to `~/.config/ruycast/config.json`. Choose another folder in Settings → Advanced or with `ruycast config directory /absolute/folder`. Your choice persists across app updates; clipboard history and runtime files stay local. File edits reload automatically; an invalid edit keeps the last working configuration.
-
-[Configuration and CLI reference](docs/CONFIG.md) · [Architecture](docs/ARCHITECTURE.md)
+[Configuration and CLI reference](docs/CONFIG.md) · [Troubleshooting](docs/DIAGNOSTICS.md)
 
 ## Privacy and security
 
-Clipboard history and analytics stay on your Mac. Analytics records counts, durations and fixed error categories; it excludes typed queries, clipboard contents and script input. Pause or reset it in Dashboard, and export an aggregate summary when needed.
+Clipboard history and analytics stay on your Mac. Dashboard analytics record counts, timings and fixed error categories. You can pause collection or reset it. Website icons are fetched from the relevant sites and cached locally. Review any script or configuration you import before running it.
 
-Website icons contact the relevant websites and use a local cache. Only add scripts and command definitions you trust.
+[Security and data storage](SECURITY.md) · [Analytics](docs/ANALYTICS.md)
 
-[Security and data storage](SECURITY.md) · [Analytics](docs/ANALYTICS.md) · [Command errors](docs/DIAGNOSTICS.md)
+## Contribute
 
-## Development
+[Report a bug or suggest a feature](https://github.com/viggomeesters/ruycast/issues/new/choose) · [Development and testing](CONTRIBUTING.md) · [Architecture](docs/ARCHITECTURE.md) · [Changelog](CHANGELOG.md)
 
-```sh
-cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
-cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- clean-build-caches --repo "$PWD"
-cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat build-receipt --repo "$PWD" -- check
-cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat build-receipt --repo "$PWD" -- settings
-cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- compat build-receipt --repo "$PWD" -- verify-check
-```
-
-`disk-status` reports available bytes and the current headroom estimate for each producer. `clean-build-caches` removes only named Cargo caches in this checkout while holding its artifact lease; see [Contributing](CONTRIBUTING.md) before cleaning another worktree. The Rust build tool runs the `check` and `settings` pipelines. Their source-qualified gate inventory describes the required coverage. Successful local runs and verified receipts establish execution evidence.
-
-Ruycast is written in Rust, including its build tools and tests. Start with the smallest relevant test for the behavior you change.
-
-[Contributing](CONTRIBUTING.md) · [Performance](docs/PERFORMANCE.md) · [Product contract](docs/vision.json)
-
-## Releases
-
-The [0.9.0 prereleases](https://github.com/viggomeesters/ruycast/releases) provide source archives and checksums. A notarized 0.9.0 app download is pending. See the [release guide](docs/RELEASING.md) for build, verification, and installation requirements.
-
-[Changelog](CHANGELOG.md)
-
-## License
-
-[MIT](LICENSE). Ruycast is an independent project. It is not affiliated with Raycast.
+Ruycast is available under the [MIT license](LICENSE).

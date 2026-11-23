@@ -6,7 +6,7 @@ Ruycast is the native macOS app, CLI, and build tools in this repository. The ap
 
 ## Build and check
 
-Install the [build requirements](docs/INSTALLATION.md). For a focused change, run its affected Rust test target and case with `cargo test`; use the existing test target's command in `rust-native/src/bin/ruycast-build/validation.rs` when it has a native fixture or timeout wrapper. Check disk headroom before producer builds:
+Follow the [setup and dependency fetch steps](docs/INSTALLATION.md) before running locked offline commands. For a focused change, run its affected Rust test target and case with `cargo test`; use the existing test target's command in `rust-native/src/bin/ruycast-build/validation.rs` when it has a native fixture or timeout wrapper. Check disk headroom before producer builds:
 
 ```sh
 cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --target-dir .build/delivery-tools --bin ruycast-build -- disk-status --repo "$PWD"
