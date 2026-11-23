@@ -52,7 +52,17 @@ The lease descriptor is inherited by synchronous consumers. If the controller is
 
 Keep each change focused on a user-visible outcome. Describe the trigger, resulting behavior and relevant validation in your pull request. Preserve CLI/configuration compatibility, atomic writes, permission boundaries and clear error feedback.
 
-Use named pasteboards, hidden native views and complete owned SDK/process fixtures in tests. Never send global keys, move the contributor's windows or kill real processes as part of an automated check. Fixtures must replace every selected SDK effect before initialization; a hidden flag alone is not a safety boundary. The validator removes inherited profile/SDK overrides and supplies a fresh owned fixture parent (or an explicitly supplied absolute `RUYCAST_NATIVE_TEST_FIXTURE_DIR`). Measure release builds and label model/offscreen timing separately from physical display latency.
+Use named pasteboards, hidden native views and complete owned SDK/process fixtures in tests. Never send global keys, move the contributor's windows or kill real processes as part of an automated check. Fixtures must replace every selected SDK effect before initialization; a hidden flag alone is not a safety boundary. The validator removes inherited profile/SDK overrides and supplies a fresh owned fixture parent (or an explicitly supplied absolute `RUYCAST_NATIVE_TEST_FIXTURE_DIR`).
+
+For direct native tests, create a fresh, short, owner-only fixture directory. Some socket tests deliberately reject a parent with group or other access, including a directory created with the default mode `0755`.
+
+```sh
+export RUYCAST_NATIVE_TEST_FIXTURE_DIR="$(mktemp -d /private/tmp/ruycast-test.XXXXXX)"
+```
+
+Use that directory for the test run and remove it when the run is finished.
+
+Measure release builds and label model/offscreen timing separately from physical display latency.
 
 All validation runs locally; this project does not use GitHub Actions.
 

@@ -64,7 +64,11 @@ mod tests {
             let m = fs::symlink_metadata(&parent).unwrap();
             assert!(parent.is_absolute() && m.is_dir() && !m.file_type().is_symlink());
             assert_eq!(m.uid(), unsafe { libc::geteuid() });
-            assert_eq!(m.mode() & 0o077, 0);
+            assert_eq!(
+                m.mode() & 0o077,
+                0,
+                "RUYCAST_NATIVE_TEST_FIXTURE_DIR must be private to its owner (mode 0700). Use a fresh directory from `mktemp -d /private/tmp/ruycast-test.XXXXXX`."
+            );
             assert_eq!(fs::canonicalize(&parent).unwrap(), parent);
             let directory = parent.join(format!(
                 "ready-{}-{}",
