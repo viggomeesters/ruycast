@@ -121,8 +121,9 @@ when macOS delivers the key event to the app's keyboard filter.
 Use `ruycast config import-commands SOURCE --dry-run` to preview a local
 import of URL and file quicklinks and scripts from another Ruycast
 `config.json`. Remove `--dry-run` to apply it. The CLI uses the destination
-profile selected by `RUYCAST_HOME`. For the Rust beta, point that variable at
-`~/Library/Application Support/Ruycast Rust Preview` and use the Rust CLI.
+profile selected by `RUYCAST_HOME`. If you still use the separate local beta,
+point that variable at its existing profile,
+`~/Library/Application Support/Ruycast Rust Preview`, and use its CLI.
 Unset `RUYCAST_CONFIG_DIR` and `RUSTCAST_CONFIG_DIR` for these commands and
 check `ruycast config path` before applying the import.
 

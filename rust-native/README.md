@@ -1,4 +1,4 @@
-# Rust native host migration
+# Ruycast native host
 
 ## Current build and validation routes
 
@@ -12,11 +12,15 @@ The remaining-macOS candidate implements file search with a bounded literal `mdf
 
 `tests/system_search_cli_process.rs` covers owned system-search providers, hidden native modes, synthetic effects, permission recovery and shortcut bindings; its renders remain under `rust-native/target/system-search-evidence`.
 
-Issue [86](https://github.com/viggomeesters/ruycast/issues/86) implements the maintainer's 30 October 2026 decision to move the complete Ruycast product into Rust. It supersedes the older hybrid language target. AppKit remains the native UI API, called directly through objc2; no Swift helper or server is used by this crate.
+Ruycast uses AppKit through the Rust objc2 bindings. Use the [installation guide](../docs/INSTALLATION.md) for the app and CLI and [Contributing](../CONTRIBUTING.md) for development checks.
+
+## Runtime and test notes
+
+The sections below include historical implementation notes. Use the build and validation routes above for current commands.
 
 Production entry planning accepts no arguments or `--native`, and `--headless`, with `RUYCAST_HOME` / `RUSTCAST_HOME` overrides or the default `~/.config/ruycast`; configuration aliases and the existing selector still apply. Hidden and test probes require an explicit profile and retain their owned-fixture checks. `--version` is independent of profile and native services. Status reports nonprompting accessibility/input-monitoring booleans and known functional health; `productionReady: false` remains a separate acceptance gate. This wiring is tested through pure launch plans and owned headless processes; normal personal-profile AppKit startup has not been executed in this slice.
 
-**Incomplete development host. Do not install as Ruycast.** The current slice owns a command catalog, bounded navigation, query results and activation intent in Rust, plus an AppKit panel/text field/delegate and a native scrollable results table. The normal check uses synthetic commands; an explicit-profile hidden check reads the migrated HostState and ranking without executing actions. A separate headless entry exposes the migrated control/model contracts described below. The connected development runtime now includes Actions and direct alias/hotkey forms; complete execution, visual details and other existing features remain to migrate. A fixture-only executable is not comparable to full app functionality or size.
+Use an isolated profile for development probes and the documented installer for an app you intend to keep.
 
 ```sh
 cargo test --manifest-path rust-native/Cargo.toml --locked
