@@ -2063,8 +2063,21 @@ fn handle_hotkey(
         keyboard.note_dropped();
         return;
     };
+    admit_hotkey_command(state, window, ui, command);
+}
+fn admit_hotkey_command(
+    state: &mut SharedState,
+    window: &mut WindowRuntime,
+    ui: &Arc<Connection>,
+    command: rustcast_core::Command,
+) {
     if state.execution.any(|c|matches!(&c.destination,ExecutionDestination::Native{ui:owner,..} if owner.ptr_eq(&Arc::downgrade(ui)))) {
         window.notify("A command is already running in this window.".into(),false);return;
+    }
+    if command.kind == "window" && window.system.action_running() {
+        // A rejected repeat must leave the accepted window action live.
+        window.notify("A system action is already running.".into(), false);
+        return;
     }
     window.input_intent = ui.global_action();
     window.dismissal = ui.latest_dismissal();
