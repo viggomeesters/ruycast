@@ -1088,6 +1088,15 @@ impl Controller {
         }
         *controller.ivars().panel.ivars().owner.borrow_mut() = Some(Weak::new(&*controller));
         controller.ivars().surface.bind(&controller);
+        if !management {
+            // Allocate the standard field editor and its input context while
+            // the panel is still hidden. AppKit activates it on real focus.
+            let state = controller.ivars();
+            let editor = unsafe { state.panel.fieldEditor_forObject(true, Some(&state.input)) };
+            if let Some(editor) = editor {
+                let _ = editor.inputContext();
+            }
+        }
         if management {
             unsafe { NSNotificationCenter::defaultCenter().addObserver_selector_name_object(&controller,sel!(managementResized:),Some(ns_string!("NSWindowDidResizeNotification")),Some(&*controller.ivars().panel)); }
         }
@@ -1195,7 +1204,10 @@ impl Controller {
                 if !hidden{let size=state.panel.frame().size;state.panel.setFrameOrigin(NSPoint::new(frame.origin.x+(frame.size.width-size.width)/2.,frame.origin.y+(frame.size.height-size.height)/2.));}
             }else{
                 let [x,y,w,h]=presentation::palette_frame([frame.origin.x,frame.origin.y,frame.size.width,frame.size.height],clipboard,compact);
-                state.panel.setFrame_display(rect(x,y,w,h),false);
+                let frame = rect(x, y, w, h);
+                if state.panel.frame() != frame {
+                    state.panel.setFrame_display(frame, false);
+                }
                 state.launcher_compact.set(compact);
                 if let Some(content)=state.panel.contentView(){let size=content.bounds().size;state.input.setFrame(rect(24.,size.height-70.,size.width-48.,44.));state.heading.setFrame(rect(24.,size.height-110.,size.width-48.,20.));state.scroll.setFrame(rect(16.,50.,size.width-32.,(size.height-168.).max(1.)));state.footer.setFrame(rect(24.,14.,size.width-48.,22.));state.notice.setFrame(rect(24.,42.,size.width-48.,24.));state.empty.setFrame(rect(24.,presentation::empty_results_y(size.height),size.width-48.,24.));state.result_panel.layout(size.width,size.height);}
             }
@@ -3858,6 +3870,9 @@ fn apply_view(
     }
     controller
         .guard_callback(|| {
+            use ruycast_native::performance_trace::{shared, Stage};
+            let measure = |stage| opening.then(|| shared().scope(stage));
+            let layout_timing = measure(Stage::OpenLayout);
             let mut open_ready = false;
             if next
                 .script_result
@@ -3912,6 +3927,8 @@ fn apply_view(
             {
                 state.input.setStringValue(&NSString::from_str(&next.query));
             }
+            drop(layout_timing);
+            let reconcile_timing = measure(Stage::OpenReconcile);
             controller.reconcile();
             if leaving_detail
                 && next.visible
@@ -3934,12 +3951,14 @@ fn apply_view(
                     state.panel.makeFirstResponder(Some(&state.input));
                 }
             }
-            if next.visible && (!visible || repeated_show) {
+            drop(reconcile_timing);
+            if opening {
                 state.inline_autosave_allowed.set(true);
                 if !hidden {
-                    state.panel.makeKeyAndOrderFront(None);
-                    app.activate();
+                    shared().measure(Stage::OpenKeyWindow, || state.panel.makeKeyAndOrderFront(None));
+                    shared().measure(Stage::OpenActivate, || app.activate());
                 }
+                let _focus_timing = measure(Stage::OpenFocus);
                 if next
                     .script_result
                     .as_ref()

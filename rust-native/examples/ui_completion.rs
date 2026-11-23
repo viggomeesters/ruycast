@@ -2799,8 +2799,11 @@ fn interaction_trace(root: &Path) {
     h.wait(|status|status["nativeUI"]["visible"]==true);
     h.settled();
     let opening = h.rpc(json!({"op":"performance"}));
-    for stage in ["open.publish", "open.mainQueue", "open.appKit", "open.ready"] {
+    for stage in ["open.publish", "open.mainQueue", "open.appKit", "open.layout", "open.reconcile", "open.focus", "open.ready"] {
         assert_eq!(opening["stages"][stage]["count"], 1, "{stage}: {opening}");
+    }
+    for stage in ["open.keyWindow", "open.activate"] {
+        assert_eq!(opening["stages"][stage]["count"], 0, "{stage}: {opening}");
     }
     assert_eq!(h.probe(false,"read",json!({}))["input"], "");
     h.capture(false, "interaction-trace-empty");

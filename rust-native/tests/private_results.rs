@@ -850,7 +850,7 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
         assert_eq!(result["sampleLimitPerStage"], 256);
         assert_eq!(result["scope"], "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt");
         let stages = result["stages"].as_object().unwrap();
-        assert_eq!(stages.len(), 10);
+        assert_eq!(stages.len(), 15);
         for name in [
             "search.model",
             "input.model",
@@ -862,6 +862,11 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
             "open.publish",
             "open.mainQueue",
             "open.appKit",
+            "open.layout",
+            "open.reconcile",
+            "open.keyWindow",
+            "open.activate",
+            "open.focus",
         ] {
             let metric = &stages[name];
             assert!(metric["count"].is_u64() && metric["cancelled"].is_u64());

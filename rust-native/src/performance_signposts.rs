@@ -34,6 +34,11 @@ log_literal!(HOTKEY_HANDLER, b"Hotkey handler\0");
 log_literal!(OPEN_PUBLISH, b"Palette publish\0");
 log_literal!(OPEN_QUEUE, b"Palette main queue\0");
 log_literal!(OPEN_APPKIT, b"Palette AppKit apply\0");
+log_literal!(OPEN_LAYOUT, b"Palette layout\0");
+log_literal!(OPEN_RECONCILE, b"Palette reconcile\0");
+log_literal!(OPEN_KEY_WINDOW, b"Palette key window\0");
+log_literal!(OPEN_ACTIVATE, b"Palette app activation\0");
+log_literal!(OPEN_FOCUS, b"Palette focus\0");
 
 fn name(stage: Stage) -> Option<&'static [u8]> {
     Some(match stage {
@@ -47,6 +52,11 @@ fn name(stage: Stage) -> Option<&'static [u8]> {
         Stage::OpenPublish => &OPEN_PUBLISH,
         Stage::OpenMainQueue => &OPEN_QUEUE,
         Stage::OpenAppKit => &OPEN_APPKIT,
+        Stage::OpenLayout => &OPEN_LAYOUT,
+        Stage::OpenReconcile => &OPEN_RECONCILE,
+        Stage::OpenKeyWindow => &OPEN_KEY_WINDOW,
+        Stage::OpenActivate => &OPEN_ACTIVATE,
+        Stage::OpenFocus => &OPEN_FOCUS,
     })
 }
 
@@ -140,6 +150,11 @@ mod tests {
             (Stage::OpenPublish, b"Palette publish\0".as_slice()),
             (Stage::OpenMainQueue, b"Palette main queue\0".as_slice()),
             (Stage::OpenAppKit, b"Palette AppKit apply\0".as_slice()),
+            (Stage::OpenLayout, b"Palette layout\0".as_slice()),
+            (Stage::OpenReconcile, b"Palette reconcile\0".as_slice()),
+            (Stage::OpenKeyWindow, b"Palette key window\0".as_slice()),
+            (Stage::OpenActivate, b"Palette app activation\0".as_slice()),
+            (Stage::OpenFocus, b"Palette focus\0".as_slice()),
         ] { assert_eq!(name(stage), Some(expected)); }
         assert_eq!(name(Stage::HotkeyQueue), None);
     }

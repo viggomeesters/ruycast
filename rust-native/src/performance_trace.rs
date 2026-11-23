@@ -22,9 +22,14 @@ pub enum Stage {
     OpenPublish,
     OpenMainQueue,
     OpenAppKit,
+    OpenLayout,
+    OpenReconcile,
+    OpenKeyWindow,
+    OpenActivate,
+    OpenFocus,
 }
 impl Stage {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 15] = [
         Self::SearchModel,
         Self::InputModel,
         Self::InputReconcile,
@@ -35,6 +40,11 @@ impl Stage {
         Self::OpenPublish,
         Self::OpenMainQueue,
         Self::OpenAppKit,
+        Self::OpenLayout,
+        Self::OpenReconcile,
+        Self::OpenKeyWindow,
+        Self::OpenActivate,
+        Self::OpenFocus,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -48,6 +58,11 @@ impl Stage {
             Self::OpenPublish => "open.publish",
             Self::OpenMainQueue => "open.mainQueue",
             Self::OpenAppKit => "open.appKit",
+            Self::OpenLayout => "open.layout",
+            Self::OpenReconcile => "open.reconcile",
+            Self::OpenKeyWindow => "open.keyWindow",
+            Self::OpenActivate => "open.activate",
+            Self::OpenFocus => "open.focus",
         }
     }
     fn index(self) -> usize {
