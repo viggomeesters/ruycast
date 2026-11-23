@@ -35,7 +35,7 @@ pub fn apply(target: Frame, io: &mut impl Transport) -> Result<Frame> {
     if !valid(target) {
         return Err("Cannot apply an invalid window frame.".into());
     }
-    for attempt in 0..3 {
+    for _ in 0..3 {
         // Shrink before crossing displays, then resize again at the new origin:
         // macOS can clamp a taller window at its original position.
         io.check()?;
@@ -44,14 +44,18 @@ pub fn apply(target: Frame, io: &mut impl Transport) -> Result<Frame> {
         io.position(target)?;
         io.check()?;
         io.resize(target)?;
-        io.check()?;
-        let actual = io.read()?;
-        io.check()?;
-        if matches(actual, target) {
-            return Ok(actual);
-        }
-        if attempt < 2 {
-            io.pause(0.02)?;
+        // Some apps report AX writes before updating their frame. Give the
+        // position a short chance to settle before another write can reset it.
+        for delay in [None, Some(0.02), Some(0.04)] {
+            if let Some(seconds) = delay {
+                io.pause(seconds)?;
+            }
+            io.check()?;
+            let actual = io.read()?;
+            io.check()?;
+            if matches(actual, target) {
+                return Ok(actual);
+            }
         }
     }
     Err(CONSTRAINED.into())
@@ -122,6 +126,8 @@ mod tests {
         checks: usize,
         revoke_at: usize,
         reads_before_match: usize,
+        settle_after_write_ms: u64,
+        remaining_settle_ms: u64,
     }
     impl Transport for Io {
         fn check(&mut self) -> Result<()> {
@@ -137,21 +143,26 @@ mod tests {
             if self.reads_before_match > 0 {
                 self.reads_before_match -= 1;
                 Ok(frame(0., 0., 200., 100.))
+            } else if self.remaining_settle_ms > 0 {
+                Ok(frame(0., 0., 200., 100.))
             } else {
                 Ok(self.result)
             }
         }
         fn resize(&mut self, _: Frame) -> Result<()> {
             self.calls.push("resize");
+            self.remaining_settle_ms = self.settle_after_write_ms;
             Ok(())
         }
         fn position(&mut self, _: Frame) -> Result<()> {
             self.calls.push("position");
+            self.remaining_settle_ms = self.settle_after_write_ms;
             Ok(())
         }
         fn pause(&mut self, seconds: f64) -> Result<()> {
-            assert_eq!(seconds, 0.02);
+            assert!(seconds == 0.02 || seconds == 0.04);
             self.calls.push("pause");
+            self.remaining_settle_ms = self.remaining_settle_ms.saturating_sub((seconds * 1000.) as u64);
             Ok(())
         }
     }
@@ -162,6 +173,8 @@ mod tests {
             checks: 0,
             revoke_at: usize::MAX,
             reads_before_match: reads,
+            settle_after_write_ms: 0,
+            remaining_settle_ms: 0,
         }
     }
     #[test]
@@ -172,20 +185,29 @@ mod tests {
         assert_eq!(
             io.calls,
             [
-                "resize", "position", "resize", "read", "pause", "resize", "position", "resize",
-                "read", "pause", "resize", "position", "resize", "read"
+                "resize", "position", "resize", "read", "pause", "read", "pause", "read"
             ]
         );
-        let mut constrained = self::io(3);
+        let mut constrained = self::io(9);
         assert_eq!(
             apply(constrained.result, &mut constrained).unwrap_err(),
             CONSTRAINED
         );
         assert_eq!(
             constrained.calls.iter().filter(|c| **c == "read").count(),
-            3
+            9
         );
     }
+    #[test]
+    fn asynchronous_geometry_settles_before_the_next_write() {
+        let mut io = io(0);
+        io.settle_after_write_ms = 60;
+        assert!(matches(apply(io.result, &mut io).unwrap(), io.result));
+        assert_eq!(io.calls.iter().filter(|c| **c == "resize").count(), 2);
+        assert_eq!(io.calls.iter().filter(|c| **c == "position").count(), 1);
+        assert_eq!(io.calls.iter().filter(|c| **c == "read").count(), 3);
+    }
+
     #[test]
     fn original_window_placement_clamping_transient_failure_and_hard_error() {
         #[derive(Clone, Copy)]
@@ -231,7 +253,7 @@ mod tests {
                 Ok(())
             }
             fn pause(&mut self, seconds: f64) -> Result<()> {
-                assert_eq!(seconds, 0.02);
+                assert!(seconds == 0.02 || seconds == 0.04);
                 Ok(())
             }
         }
@@ -283,8 +305,9 @@ mod tests {
             (3, vec!["resize", "position"]),
             (4, vec!["resize", "position", "resize"]),
             (5, vec!["resize", "position", "resize", "read"]),
+            (6, vec!["resize", "position", "resize", "read", "pause"]),
         ] {
-            let mut io = io(0);
+            let mut io = io(1);
             io.revoke_at = at;
             assert!(apply(io.result, &mut io).is_err());
             assert_eq!(io.calls, expected);

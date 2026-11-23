@@ -811,11 +811,14 @@ pub(super) fn poll_native(state: &mut SharedState, w: &mut WindowRuntime, ui: &A
     };
     let main_consent=action.consent && w.system.scope==Scope::MainTabs;
     let interaction_clear=!w.session.actions_open && w.editing.token().is_none() && w.results.token().is_none() && w.creation_request.is_none() && w.field_request.is_none();
+    // A global layout can run while an earlier palette mode is still cached.
+    let background_layout = !w.session.visible
+        && matches!(action.pending, ActionPending::Layout(_))
+        && action.record.as_ref().is_some_and(|r| r.source == "hotkey");
     let current = action.scope_live.load(Ordering::Acquire)
-        && w.utility.mode.is_none()
-        && !w.session.clipboard_mode
-        && w.session.launcher_scope.is_none()
-        && if main_consent {w.session.visible}else{action.epoch==ui.latest_epoch() && action.intent==ui.latest_intent()}
+        && (background_layout
+            || (w.utility.mode.is_none() && !w.session.clipboard_mode && w.session.launcher_scope.is_none()))
+        && (if main_consent {w.session.visible}else{action.epoch==ui.latest_epoch() && action.intent==ui.latest_intent()})
         && action.dismissal == ui.latest_dismissal()
         && (action.allow_revision || action.revision == state.configuration.revision)
         && !ui.stop_requested();
@@ -1440,6 +1443,67 @@ pub(super) fn fixture(state: &SharedState, request: &Value) -> Value {
 #[cfg(test)]
 mod shortcut_budget_tests {
     use super::*;
+    #[test]
+    fn window_hotkey_survives_closed_clipboard() {
+        check_window_hotkey(true);
+    }
+
+    #[test]
+    fn window_hotkey_survives_rejected_repeat() {
+        check_window_hotkey(false);
+    }
+
+    fn check_window_hotkey(clipboard_closed: bool) {
+        let (_temp, mut state, _, _, _) = super::super::inline_tests::setup();
+        let fixture = Arc::new(os::fixture::Fixture::default());
+        state.system.service = os::service::Service::new(fixture.clone());
+        state.system.fixture = Some(fixture.clone());
+        let (services, main) = crate::main_services::channel();
+        state.services = Some(services);
+        let (events, _receive) = mpsc::sync_channel(8);
+        let ui = Connection::new(events, true);
+        let command = os::command("fixture.layout".into(), "Owned layout".into(), None);
+        let mut serialized = serde_json::to_value(command).unwrap();
+        serialized["kind"] = json!("window");
+        serialized["target"] = json!("left-half");
+        let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+        config["commands"].as_array_mut().unwrap().push(serialized);
+        state.configuration.save(&config).unwrap();
+        let command = state.configuration.current().commands.iter()
+            .find(|c| c.id == "fixture.layout").unwrap().clone();
+        let mut window = WindowRuntime::new(
+            crate::session::Session::new(vec![]), Default::default(), &state
+        );
+        window.session.visible = false;
+        window.session.clipboard_mode = clipboard_closed;
+        super::super::admit_hotkey_command(&mut state, &mut window, &ui, command.clone());
+        assert!(window.system.action_running(), "layout hotkey must be admitted");
+
+        if !clipboard_closed {
+            let intent = ui.latest_intent();
+            super::super::admit_hotkey_command(&mut state, &mut window, &ui, command);
+            assert_eq!(ui.latest_intent(), intent, "rejected repeat changed the accepted intent");
+        }
+        poll_native(&mut state, &mut window, &ui);
+        assert!(window.system.action_running(), "pending layout was cancelled");
+
+        let screen = rustcast_core::Frame { x: 0., y: 0., width: 1000., height: 800. };
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while window.system.action_running() {
+            main.system.drain_with_screens(
+                || panic!("fixture already supplies foreground identity"),
+                |_, _| panic!("layout should not activate an app"),
+                || Ok(vec![screen]),
+            );
+            poll_native(&mut state, &mut window, &ui);
+            assert!(Instant::now() < deadline, "owned layout failed to settle");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(*fixture.effects.lock().unwrap(), ["resize", "position", "resize"]);
+        assert!(window.message.is_empty());
+        assert!(!window.session.visible);
+    }
+
     #[test]
     fn typo_fallback_matches_palette_and_local_cli_without_disabled_items() {
         use std::io::{BufRead, BufReader, Write};
