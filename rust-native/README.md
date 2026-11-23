@@ -2,6 +2,8 @@
 
 ## Current build and validation routes
 
+Native code, helpers and tests follow the [Rust-only source policy](../CONTRIBUTING.md#rust-only-source-policy). Use the existing Rust AppKit bindings for macOS integration.
+
 The native app host, CLI, build receipts, packaging checks and source exporter are implemented in Rust. `cargo run --quiet --locked --offline --target-dir .build/delivery-tools --manifest-path rust-native/Cargo.toml --bin ruycast-build -- compat build-receipt --repo "$PWD" -- build --configuration release` builds an unsigned host/CLI pair with receipts under `.build/full-rust-release`; it does not create an `.app` bundle or install/publish the app. App staging is a separate `ruycast-build stage` operation. Direct Cargo `disk-status` and `clean-build-caches` commands report free space and clean only named Cargo caches under the checkout's artifact lease, preserving receipts, recovery records, validation evidence and lock files. The exact cleanup scope and the 50 GB free-space floor are documented in the root [Contributing guide](../CONTRIBUTING.md).
 
 Run `cargo run --quiet --locked --offline --manifest-path rust-native/Cargo.toml --bin ruycast-build -- check-native --repo "$PWD"` for the Rust native validation route. The full matrix requires the 50 GB disk floor plus its estimated peak. The `settings` and Core inventories retain historical selector and assertion provenance. Current receipts bind Rust sources, the Rust-only source policy and their actual validation results. See the [source export guide](../docs/SOURCE-EXPORT.md) for the retired Swift package revision.
