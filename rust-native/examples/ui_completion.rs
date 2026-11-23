@@ -836,7 +836,7 @@ fn task_date(root: &Path) {
         };
         let visible_date = |view: &Value| {
             view["screenText"].as_array().unwrap().iter().filter_map(Value::as_str).any(|label| {
-                ["maandag ","dinsdag ","woensdag ","donderdag ","vrijdag ","zaterdag ","zondag "].iter().any(|day|label.starts_with(*day))
+                ["Monday ","Tuesday ","Wednesday ","Thursday ","Friday ","Saturday ","Sunday "].iter().any(|day|label.starts_with(*day))
                     && label.split_whitespace().last().is_some_and(|year|year.len()==4&&year.bytes().all(|b|b.is_ascii_digit()))
             })
         };
@@ -863,15 +863,15 @@ fn task_date(root: &Path) {
         let preview_started=SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
         type_value(true,"morgen");
         let preview_finished=SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64();
-        let valid=capture("valid",&["Task Deadline"],&["YYYY-MM-DD","Datum niet herkend"]);
+        let valid=capture("valid",&["Task Deadline"],&["YYYY-MM-DD","Date not recognized"]);
         require_visible_date(&valid);
         let expected=[preview_started,preview_finished].map(|now|ruycast_native::task_date::resolve("morgen",now).unwrap().label);
         let rendered=valid["screenText"].as_array().unwrap().iter().filter_map(Value::as_str)
-            .find(|label|["maandag ","dinsdag ","woensdag ","donderdag ","vrijdag ","zaterdag ","zondag "].iter().any(|day|label.starts_with(*day)))
+            .find(|label|["Monday ","Tuesday ","Wednesday ","Thursday ","Friday ","Saturday ","Sunday "].iter().any(|day|label.starts_with(*day)))
             .expect("Actual native natural-date preview label is missing");
         assert!(expected.iter().any(|label|label==rendered),"Natural date preview differs from the localized resolver: expected {expected:?}, actual {rendered}; view: {valid}");
         type_value(true,"in 3");
-        let invalid = capture("invalid",&["Datum niet herkend"],&["YYYY-MM-DD"]);
+        let invalid = capture("invalid",&["Date not recognized"],&["YYYY-MM-DD"]);
         key(36,0,"\r");
         h.settled();
         let retained=h.probe(false,"read",json!({}));
@@ -880,18 +880,18 @@ fn task_date(root: &Path) {
         assert!(!marker.exists());
         assert_eq!(h.rpc(json!({"op":"usage"})),json!({}));
         type_value(true,"morgen");
-        require_visible_date(&capture("valid-after-error",&["Task Deadline"],&["Datum niet herkend","YYYY-MM-DD"]));
+        require_visible_date(&capture("valid-after-error",&["Task Deadline"],&["Date not recognized","YYYY-MM-DD"]));
         type_value(true,"clear");
-        capture("clear",&["Datum wissen"],&["YYYY-MM-DD"]);
+        capture("clear",&["Clear date"],&["YYYY-MM-DD"]);
         key(36,1 << 20,"\r");
         h.wait(|_| {let v=h.probe(false,"read",json!({}));v["formVisible"]==true&&v["runInputInline"]==false});
         type_value(false,"in 3");
-        let invalid=capture("expanded-invalid",&["Datum","Datum niet herkend"],&["YYYY-MM-DD"]);
-        assert!(invalid["screenText"].as_array().unwrap().iter().any(|text|text=="Datum"), "Actual expanded field label must be Datum, separately from the error label: {invalid}");
+        let invalid=capture("expanded-invalid",&["Date","Date not recognized"],&["YYYY-MM-DD"]);
+        assert!(invalid["screenText"].as_array().unwrap().iter().any(|text|text=="Date"), "Actual expanded field label must be Date, separately from the error label: {invalid}");
         assert_eq!(invalid["saveEnabled"],false);
         type_value(false,"morgen");
-        let valid=capture("expanded-valid",&["Datum"],&["Datum niet herkend","YYYY-MM-DD"]);
-        assert!(valid["screenText"].as_array().unwrap().iter().any(|text|text=="Datum"), "Actual expanded field label must remain Datum: {valid}");
+        let valid=capture("expanded-valid",&["Date"],&["Date not recognized","YYYY-MM-DD"]);
+        assert!(valid["screenText"].as_array().unwrap().iter().any(|text|text=="Date"), "Actual expanded field label must remain Date: {valid}");
         require_visible_date(&valid);
         assert_eq!(valid["saveEnabled"],true);
         h.probe(false,"cancel-editor",json!({}));

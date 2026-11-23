@@ -575,7 +575,7 @@ impl Editing {
         self.editor.as_ref().and_then(|draft| draft.view.task_date.as_ref())
             .filter(|preview| preview.input == value)
             .and_then(|preview| preview.value.clone())
-            .ok_or_else(|| "Datum niet herkend".to_owned())
+            .ok_or_else(|| "Date not recognized".to_owned())
     }
     pub fn fail(&mut self, error: String) {
         if let Some(d) = &mut self.editor {
@@ -1293,7 +1293,7 @@ mod tests {
         assert!(edit.update_input_at(token, 4, "tomorrow", f64::NAN).is_err());
         assert_eq!(edit.view(), Some(before));
         edit.update_input_at(token, 5, "in 3", 1_800_000_000.0).unwrap();
-        assert_eq!(edit.input_execution_value(token).unwrap_err(), "Datum niet herkend");
+        assert_eq!(edit.input_execution_value(token).unwrap_err(), "Date not recognized");
         assert!(!edit.view().unwrap().task_date.unwrap().is_valid());
         edit.update_input_at(token, 6, "clear", 1_800_000_000.0).unwrap();
         assert_eq!(edit.input_execution_value(token).unwrap(), "clear");

@@ -930,7 +930,7 @@ impl Surface {
                 } else if editor.mode == Mode::Input {
                     self.command.load_input(
                         self.form.mtm(),
-                        if editor.task_date.is_some() { "Datum" } else { editor.command["inputPrompt"].as_str().unwrap_or("Input") },
+                        if editor.task_date.is_some() { "Date" } else { editor.command["inputPrompt"].as_str().unwrap_or("Input") },
                         editor.command["input"].as_str().unwrap_or(""),
                         editor.command["captureInput"]==true,
                     );

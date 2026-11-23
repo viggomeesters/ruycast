@@ -1414,7 +1414,7 @@ impl Controller {
                 state.pending_input_menu.set(None);
             }
             let prompt = NSString::from_str(if editor.task_date.is_some() {
-                "Datum, bijv. morgen of in 3 days"
+                "Date, e.g. tomorrow"
             } else {editor.command["inputPrompt"].as_str().unwrap_or("Input")});
             state.input.setPlaceholderString(Some(&prompt));
             state.input.setAccessibilityLabel(Some(&prompt));

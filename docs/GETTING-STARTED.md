@@ -1,6 +1,6 @@
 # Getting started
 
-Press **Control–Option–Space**, search for an app and press Return. Ruycast discovers installed apps and displays their native icons.
+After [installing Ruycast](INSTALLATION.md), press **Control–Option–Space**, search for an app and press Return. Ruycast discovers installed apps and displays their native icons.
 
 ## Make a command yours
 
@@ -40,4 +40,4 @@ Open Dashboard from search or the menu bar for local command usage, errors and r
 
 System Monitor opens a separate native window for CPU, memory, disk, power and network information. Sampling stops when the monitor closes or minimizes.
 
-[Full CLI/configuration reference](CONFIG.md) · [Security](../SECURITY.md)
+[Full configuration and CLI reference](CONFIG.md) · [Security](../SECURITY.md)

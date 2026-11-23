@@ -129,10 +129,10 @@ pub fn resolve(input: &str, now: f64) -> Result<TaskDate, String> {
             .collect::<Vec<_>>()
             .join(" ");
         if ["clear", "wissen", "wis", "verwijderen"].contains(&text.as_str()) {
-            return Ok(result(Some("clear".into()), "Datum wissen"));
+            return Ok(result(Some("clear".into()), "Clear date"));
         }
         if text.is_empty() {
-            return Ok(result(None, "Bijv. morgen, next month of in 3 days"));
+            return Ok(result(None, "Try tomorrow or in 3 days"));
         }
         let calendar = NSCalendar::calendarWithIdentifier(unsafe { NSCalendarIdentifierGregorian })
             .ok_or("Gregorian task date calendar is unavailable.")?;
@@ -199,15 +199,15 @@ pub fn resolve(input: &str, now: f64) -> Result<TaskDate, String> {
             }
         }
         let Some(date) = date else {
-            return Ok(result(None, "Datum niet herkend"));
+            return Ok(result(None, "Date not recognized"));
         };
         if !(1..=9999).contains(&calendar.component_fromDate(NSCalendarUnit::Year, &date)) {
-            return Ok(result(None, "Datum niet herkend"));
+            return Ok(result(None, "Date not recognized"));
         }
         let iso = formatter(&calendar, &zone, "en_US_POSIX", "yyyy-MM-dd")
             .stringFromDate(&date)
             .to_string();
-        let display = formatter(&calendar, &zone, "nl_NL", "EEEE d MMMM yyyy")
+        let display = formatter(&calendar, &zone, "en_GB", "EEEE d MMMM yyyy")
             .stringFromDate(&date)
             .to_string();
         Ok(result(Some(iso), &display))
@@ -259,12 +259,12 @@ mod tests {
         }
         assert_eq!(
             resolve("morgen", now).unwrap().label,
-            "dinsdag 27 oktober 2026"
+            "Tuesday 27 October 2026"
         );
-        assert_eq!(resolve("clear", now).unwrap().label, "Datum wissen");
+        assert_eq!(resolve("clear", now).unwrap().label, "Clear date");
         assert_eq!(
             resolve("", now).unwrap().label,
-            "Bijv. morgen, next month of in 3 days"
+            "Try tomorrow or in 3 days"
         );
     }
     #[test]
@@ -308,7 +308,7 @@ mod tests {
             let value = resolve(input, now).unwrap();
             assert!(!value.is_valid(), "{input}");
             if !input.is_empty() {
-                assert_eq!(value.label, "Datum niet herkend");
+                assert_eq!(value.label, "Date not recognized");
             }
         }
         for input in ["0001-01-01", "9999-12-31"] {

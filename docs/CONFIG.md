@@ -231,7 +231,7 @@ The choice is tied to the original app. Switching apps, clicking outside or typi
 
 ### Natural dates for script inputs
 
-Script commands whose `inputPrompt` includes the existing `YYYY-MM-DD` hint accept natural dates in the launcher. The launcher shows a live calendar date and passes that exact ISO value to the script on Enter. Examples: `tomorrow`, `morgen`, `next month`, `in 3 days`, `over 3 dagen`, `vrijdag`, `5 november` and `2026-11-05`. `clear` or `wissen` removes a date. Partial or unrecognized dates keep the input open without running the command. Relative dates use the Europe/Amsterdam calendar; “next month” means the same day next month, clipped to the last day when needed. Weekdays select the next occurrence.
+Script commands whose `inputPrompt` includes the existing `YYYY-MM-DD` hint accept natural dates in the launcher. The launcher previews the date in English and passes its corresponding ISO value to the script on Enter. Examples include `tomorrow`, `next month`, `in 3 days`, `Friday`, `5 November` and `2026-11-05`. Dutch date inputs are also accepted. `clear` or `wissen` removes a date. Partial or unrecognized dates keep the input open without running the command. Relative dates use the Europe/Amsterdam calendar; “next month” means the same day next month, clipped to the last day when needed. Weekdays select the next occurrence.
 
 ### Interactive script choices
 
