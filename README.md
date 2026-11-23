@@ -41,6 +41,8 @@ Clipboard history and analytics stay on your Mac. Dashboard analytics record cou
 
 ## Contribute
 
+Ruycast keeps all repository-owned executable code in Rust, including tests, helpers and build tools. Read the [Rust-only source policy](CONTRIBUTING.md#rust-only-source-policy) before contributing.
+
 [Report a bug or suggest a feature](https://github.com/viggomeesters/ruycast/issues/new/choose) · [Development and testing](CONTRIBUTING.md) · [Architecture](docs/ARCHITECTURE.md) · [Changelog](CHANGELOG.md)
 
 Ruycast is available under the [MIT license](LICENSE).

@@ -4,6 +4,23 @@ Saved native script commands can opt into invocation provenance by putting the l
 
 Ruycast is the native macOS app, CLI, and build tools in this repository. The app uses AppKit through Rust bindings. Start with the [architecture](docs/ARCHITECTURE.md), [product contract](docs/vision.json), and [release guide](docs/RELEASING.md). Write public issue titles, descriptions, pull requests, and documentation in English.
 
+## Rust-only source policy
+
+Ruycast must stay 100% Rust. All executable code maintained in this repository must be written in Rust. This applies to the app, CLI, helpers, test fixtures that execute code, benchmarks, build and release tooling, and temporary migration tooling checked into the repository.
+
+- Keep implementation in Rust, including when an external script or second language would be quicker. Do not ship generated or vendored foreign-language code as a substitute for a Rust implementation.
+- Reject workarounds that hide executable code, including renamed extensions, archived source copies, embedded programs in Rust strings or data files, and Rust wrappers around non-Rust implementations. Do not change Linguist rules or export exclusions to conceal a violation.
+- Use Rust bindings to call macOS APIs. Existing platform utilities such as `codesign` and `gzip` may perform their standard platform functions. User-authored scripts run by Ruycast, shell commands shown in documentation, and non-executable configuration, fixtures and assets are outside the owned-code rule.
+
+For changes that add or move code, run the local policy check from the repository root after fetching dependencies:
+
+```sh
+cargo run --locked --offline --manifest-path rust-native/Cargo.toml \
+  --target-dir .build/delivery-tools --bin rust-only-policy -- --root "$(pwd -P)"
+```
+
+Review what each executable actually runs. A passing check or the GitHub language bar alone cannot prove that code is free of workarounds.
+
 ## Build and check
 
 Follow the [setup and dependency fetch steps](docs/INSTALLATION.md) before running locked offline commands. For a focused change, run its affected Rust test target and case with `cargo test`; use the existing test target's command in `rust-native/src/bin/ruycast-build/validation.rs` when it has a native fixture or timeout wrapper. Check disk headroom before producer builds:
@@ -42,7 +59,7 @@ The Core gate builds the Rust static library, links it to a Rust ABI probe, and 
 
 Production release builds use explicit host-target output paths and v4 receipts. A release receipt requires matching retained originals/dSYM, unchanged backed sections/UUID and the hashed release-preparation record. Debug receipts have `releasePreparation: null` and cannot authorize packaging or installation. V2/v3 build receipts and historical candidate 67 remain historical evidence. Failed release builds invalidate their previous build receipt.
 
-Build, install, version, source export and compatibility check entrypoints use Rust tools. The Core receipt binds the Rust ABI probe and current source policy. The product version comes from `rust/src/product_version.rs`. Use Rust for executable source; keep parity fixtures as data.
+Build, install, version, source export and compatibility check entrypoints use Rust tools. The Core receipt binds the Rust ABI probe and current source policy. The product version comes from `rust/src/product_version.rs`. Keep parity fixtures as non-executable data.
 
 The lease descriptor is inherited by synchronous consumers. If the controller is interrupted, a still-running child keeps the lease until it exits; another build can therefore keep waiting after cancellation. Avoid deleting `.build/artifacts.lock` or invoking the internal helpers directly. Separate checkouts have separate leases and can still contend for CPU during measurements.
 
