@@ -376,14 +376,21 @@ fn combine(
     if scope == Scope::MainTabs {
         let tabs = &results.commands;
         let ids: std::collections::HashSet<_> = tabs.iter().map(|c| &c.id).collect();
-        let mut combined: Vec<_> = tabs
-            .iter()
-            .cloned()
-            .chain(
-                local(state, query, local_limit)
-                    .into_iter()
-                    .filter(|c| !ids.contains(&c.id)),
-            )
+        let exact_query = query.trim().to_lowercase();
+        let (exact_aliases, other_local): (Vec<_>, Vec<_>) = local(state, query, local_limit)
+            .into_iter()
+            .filter(|command| !ids.contains(&command.id))
+            .partition(|command| {
+                !exact_query.is_empty()
+                    && command
+                        .aliases
+                        .iter()
+                        .any(|alias| alias.to_lowercase() == exact_query)
+            });
+        let mut combined: Vec<_> = exact_aliases
+            .into_iter()
+            .chain(tabs.iter().cloned())
+            .chain(other_local)
             .collect();
         if limit > 0 {
             combined.truncate(limit);
@@ -2055,6 +2062,28 @@ mod shortcut_budget_tests {
         assert!(elapsed<Duration::from_millis(900),"optional busy worker delayed CLI locals: {elapsed:?}");
         assert_eq!(extra,0,"late provider must not produce a second wire response");
         assert!(case.state.system.cli.is_empty());assert!(case.fixture.effects.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn exact_alias_stays_first_when_safari_tabs_arrive_late() {
+        let mut case = BrowserCase::new();
+        case.state.applications[0].aliases.push("owned".into());
+        let (entered, release) = case.hold();
+        case.query("  OwNeD  ");
+        entered.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(case.window.session.rows().next().unwrap().id, "fixture.local");
+        assert_eq!(case.window.session.selected().unwrap().id, "fixture.local");
+
+        release.send(()).unwrap();
+        case.settle();
+        let rows: Vec<_> = case.window.session.rows().map(|row| row.id.as_str()).collect();
+        assert_eq!(rows[0], "fixture.local");
+        assert!(rows[1].starts_with("system.tab:root."));
+        assert_eq!(case.window.session.selected().unwrap().id, "fixture.local");
+        assert!(case.fixture.effects.lock().unwrap().is_empty());
+
+        case.query("");
+        assert_eq!(case.window.session.row_count(), 0);
     }
 
     #[test]

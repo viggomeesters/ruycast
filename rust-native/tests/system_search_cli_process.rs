@@ -224,11 +224,16 @@ fn cli_real_provider_routes_metadata_order_and_exact_effects() {
     let h = host();
     assert_eq!(fixture(&h, "read", json!({}))["reads"], 0);
     let main = search(&h, "commands", "owned")["result"].clone();
-    assert!(main[0]["id"]
+    assert_eq!(main[0]["id"], "fixture.alias");
+    assert!(main[1]["id"]
         .as_str()
         .unwrap()
         .starts_with("system.tab:root."));
-    assert_eq!(main[1]["id"], "fixture.alias");
+    let partial = search(&h, "commands", "owne")["result"].clone();
+    assert!(partial[0]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("system.tab:root."));
     assert!(!main
         .as_array()
         .unwrap()
