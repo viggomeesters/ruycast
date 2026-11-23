@@ -1944,6 +1944,7 @@ fn handle_hotkey(
     ui: &Arc<Connection>,
     event: crate::hotkeys::RoutedPress,
 ) {
+    let queued = event.received.elapsed();
     let _performance = crate::performance_trace::shared()
         .scope(crate::performance_trace::Stage::HotkeyHandler);
     let Some(keyboard) = state.keyboard.clone() else {
@@ -2001,6 +2002,8 @@ fn handle_hotkey(
         return;
     }
     if press.action == "@launcher" {
+        crate::performance_trace::shared()
+            .record(crate::performance_trace::Stage::HotkeyQueue, queued);
         window.input_intent = ui.global_action();
         window.dismissal = ui.latest_dismissal();
         if window.session.visible && window.results.token().is_none()
