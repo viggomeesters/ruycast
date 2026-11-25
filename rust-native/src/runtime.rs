@@ -719,6 +719,11 @@ impl WindowRuntime {
                     .any(|saved| saved.id == c.id)
             }),
         );
+        if self.utility.mode.is_some() {
+            for item in &mut view.action_items {
+                if item.id == "edit" { item.shortcut = None; }
+            }
+        }
         system::extend_items(&mut view.action_items,self);
         if self.editing.run_inline() {
             view.action_items = input_items(&self.editing);

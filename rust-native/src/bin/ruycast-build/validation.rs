@@ -183,6 +183,7 @@ task-date-process|c|run --manifest-path rust-native/Cargo.toml --features test-t
 utility-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test utility_process --locked
 applications-discovery-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test applications_discovery_process --locked
 actions-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test actions_process --locked
+direct-edit-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test direct_edit_process --locked
 editor-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test editor_process --locked
 creation-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test creation_process --locked
 library-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test library_lifecycle_process --locked
