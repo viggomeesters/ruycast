@@ -2,7 +2,7 @@
 use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, VecDeque},
-    sync::{Mutex, OnceLock},
+    sync::{atomic::{AtomicBool, Ordering}, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
@@ -37,9 +37,16 @@ pub enum Stage {
     ScriptDispatch,
     ScriptResponse,
     ScriptFinalize,
+    LauncherOpenFirst,
+    LauncherOpenLater,
+    LauncherFieldFocus,
+    LauncherActiveSpace,
+    LauncherFocusFallback,
+    LauncherParkedCheck,
+    LauncherParkedFallback,
 }
 impl Stage {
-    const ALL: [Self; 25] = [
+    const ALL: [Self; 32] = [
         Self::SearchModel,
         Self::InputModel,
         Self::InputReconcile,
@@ -65,6 +72,13 @@ impl Stage {
         Self::ScriptDispatch,
         Self::ScriptResponse,
         Self::ScriptFinalize,
+        Self::LauncherOpenFirst,
+        Self::LauncherOpenLater,
+        Self::LauncherFieldFocus,
+        Self::LauncherActiveSpace,
+        Self::LauncherFocusFallback,
+        Self::LauncherParkedCheck,
+        Self::LauncherParkedFallback,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -93,6 +107,13 @@ impl Stage {
             Self::ScriptDispatch => "script.dispatch",
             Self::ScriptResponse => "script.response",
             Self::ScriptFinalize => "script.finalize",
+            Self::LauncherOpenFirst => "launcher.openFirst",
+            Self::LauncherOpenLater => "launcher.openLater",
+            Self::LauncherFieldFocus => "launcher.fieldFocus",
+            Self::LauncherActiveSpace => "launcher.activeSpace",
+            Self::LauncherFocusFallback => "launcher.focusFallback",
+            Self::LauncherParkedCheck => "launcher.parkedCheck",
+            Self::LauncherParkedFallback => "launcher.parkedFallback",
         }
     }
     fn index(self) -> usize {
@@ -179,6 +200,7 @@ impl State {
 #[derive(Default)]
 pub struct Trace {
     state: Mutex<State>,
+    launcher_open_seen: AtomicBool,
 }
 pub fn shared() -> &'static Trace {
     static TRACE: OnceLock<Trace> = OnceLock::new();
@@ -194,6 +216,14 @@ impl Drop for Guard<'_> {
     }
 }
 impl Trace {
+    pub fn launcher_open(&self) -> Guard<'_> {
+        let stage = if self.launcher_open_seen.swap(true, Ordering::Relaxed) {
+            Stage::LauncherOpenLater
+        } else {
+            Stage::LauncherOpenFirst
+        };
+        self.scope(stage)
+    }
     fn lock(&self) -> std::sync::MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(|p| p.into_inner())
     }
@@ -279,7 +309,7 @@ impl Trace {
             samples.sort_by(f64::total_cmp);
             let percentile = |fraction: f64| {
                 samples
-                    .get(((samples.len().saturating_sub(1)) as f64 * fraction) as usize)
+                    .get(((samples.len() as f64 * fraction).ceil() as usize).saturating_sub(1))
                     .copied()
             };
             stages.insert(stage.name().into(), json!({"count":metric.total,"retainedSamples":samples.len(),"cancelled":metric.cancelled,"p50MS":percentile(0.5),"p95MS":percentile(0.95),"maxMS":samples.last()}));
@@ -327,7 +357,7 @@ mod tests {
         assert_eq!(trace.snapshot()["activeIntervals"], 0);
     }
     #[test]
-    fn schema_floor_percentiles_real_completion_and_reset_are_separate_from_analytics() {
+    fn schema_nearest_rank_percentiles_real_completion_and_reset_are_separate_from_analytics() {
         let trace = Trace::default();
         let empty = trace.snapshot();
         assert_eq!(empty["schema"], 2);
@@ -350,8 +380,11 @@ mod tests {
         let result = trace.snapshot();
         let metric = &result["stages"]["host.drawCallback"];
         assert_eq!(metric["p50MS"], 5.);
-        assert_eq!(metric["p95MS"], 9.);
+        assert_eq!(metric["p95MS"], 10.);
         assert_eq!(metric["maxMS"], 10.);
+        trace.record(Stage::LauncherFieldFocus, Duration::from_millis(54));
+        trace.record(Stage::LauncherFieldFocus, Duration::from_millis(1459));
+        assert_eq!(trace.snapshot()["stages"]["launcher.fieldFocus"]["p95MS"], 1459.);
         trace.input_changed(u64::MAX);
         trace.did_reconcile_field(u64::MAX);
         assert_eq!(trace.snapshot()["stages"]["input.reconcile"]["count"], 1);
@@ -376,5 +409,19 @@ mod tests {
         assert_eq!(value["activeIntervals"], 0);
         assert_eq!(value["stages"]["open.ready"]["count"], 0);
         assert_eq!(value["stages"]["open.appKit"]["count"], 0);
+    }
+    #[test]
+    fn first_launcher_open_is_per_process_and_survives_measurement_reset() {
+        let trace = Trace::default();
+        drop(trace.launcher_open());
+        drop(trace.launcher_open());
+        let snapshot = trace.snapshot();
+        assert_eq!(snapshot["stages"]["launcher.openFirst"]["count"], 1);
+        assert_eq!(snapshot["stages"]["launcher.openLater"]["count"], 1);
+        trace.reset();
+        drop(trace.launcher_open());
+        let after = trace.snapshot();
+        assert_eq!(after["stages"]["launcher.openFirst"]["count"], 0);
+        assert_eq!(after["stages"]["launcher.openLater"]["count"], 1);
     }
 }
