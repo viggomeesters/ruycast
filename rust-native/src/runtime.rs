@@ -655,8 +655,9 @@ impl WindowRuntime {
         };
         if self.session.clipboard_mode {
             if let Some(store) = &state.clipboard {
+                let clips = clipboard_lookup(&store.items, view.rows.len());
                 for row in Arc::make_mut(&mut view.rows) {
-                    if let Some(clip) = row.id.strip_prefix("clipboard:").and_then(|id| store.items.iter().find(|c| c.id == id)) {
+                    if let Some(clip) = row.id.strip_prefix("clipboard:").and_then(|id| lookup_clip(&store.items, clips.as_ref(), id)) {
                         row.icon = crate::presentation::Icon::Symbol(match clip.content_type.as_deref() { Some("image")=>"photo", Some("files")=>"doc", _=>"doc.text" });
                         row.detail = Some(clip.date.clone());
                     }
@@ -5958,13 +5959,23 @@ fn perform_named(
 }
 
 
+fn clipboard_lookup(items: &[rustcast_core::Clip], row_count: usize) -> Option<std::collections::HashMap<&str, &rustcast_core::Clip>> {
+    (row_count.saturating_mul(items.len()) >= 32_768).then(|| {
+        let mut index = std::collections::HashMap::with_capacity(items.len());
+        for clip in items { index.entry(clip.id.as_str()).or_insert(clip); }
+        index
+    })
+}
+fn lookup_clip<'a>(items: &'a [rustcast_core::Clip], index: Option<&std::collections::HashMap<&str, &'a rustcast_core::Clip>>, id: &str) -> Option<&'a rustcast_core::Clip> {
+    match index { Some(index) => index.get(id).copied(), None => items.iter().find(|clip| clip.id == id) }
+}
 fn clipboard_command(c:&rustcast_core::Clip)->rustcast_core::Command {
     let title=if c.content_type.as_deref()==Some("image"){String::from("Image")}
     else if let Some(files)=c.file_urls.as_ref().filter(|_|c.content_type.as_deref()==Some("files")){
         let name=files.first().and_then(|raw|objc2_foundation::NSURL::URLWithString(&objc2_foundation::NSString::from_str(raw))).and_then(|url|url.lastPathComponent()).map(|s|s.to_string()).unwrap_or_else(||c.text.clone());
         format!("{name}{}",if files.len()>1{format!(" +{}",files.len()-1)}else{String::new()})
-    }else{c.text.replace(['\n','\r']," ").chars().take(240).collect::<String>()};
-    serde_json::from_value(json!({"id":format!("clipboard:{}",c.id),"title":title,"kind":"snippet","target":c.text,"aliases":[]})).expect("clipboard command schema")
+    }else{c.text.chars().take(240).map(|ch| if ch == '\n' || ch == '\r' { ' ' } else { ch }).collect::<String>()};
+    rustcast_core::Command { id: format!("clipboard:{}",c.id), title, kind: "snippet".into(), target: c.text.clone(), aliases: vec![], arguments: vec![], hotkey: None, imported_hotkey: None, timeout: None, input_prompt: None, keyword: None, application_id: None, enabled: None, snippet_output: None }
 }
 fn show_launcher_scope(window: &mut WindowRuntime, ui: &Connection, mode: &str, query: Option<&str>, received: Instant) -> Result<(), String> {
     let scope = crate::session::LauncherScope::parse(mode).ok_or("Unknown launcher mode.")?;
