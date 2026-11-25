@@ -508,13 +508,130 @@ fn settings_presentation_ignores_palette_navigation_and_clears_configuration_err
 }
 
 #[test]
+fn clipboard_escape_retires_pending_search_and_keeps_return_query() {
+    let (_temp, mut state, mut window, ui, _) = private_fixture("script.fixture", false);
+    let settings = state.configuration.current().clipboard.clone();
+    let mut store = crate::clipboard_history::Store::open(&state.configuration.paths.root, &settings).unwrap();
+    store.import(&json!([{"id":"raycast-owned-a","text":"owned first","date":crate::clipboard_history::now(),"source":"fixture"}]), &settings, || true).unwrap();
+    state.clipboard = Some(store);
+    window.show(Some("finder"), Instant::now(), &ui).unwrap();
+    show_clipboard(&state, &mut window, &ui, Instant::now()).unwrap();
+    window.begin_clipboard_scan("owned", None);
+    ui.action(Action::Key("cancelOperation:".into()));
+    process_inputs(&mut state, &mut window, &ui); window.publish(&state, &ui);
+    assert!(!window.session.visible);
+    assert!(window.clipboard_scan.is_none() && !window.clipboard_unpublished);
+    assert_eq!(window.session.catalog.len(), 0);
+    let intent = window.query_intent;
+    ui.query("retired hidden input"); process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(window.query_intent, intent);
+    show_clipboard(&state, &mut window, &ui, Instant::now()).unwrap();
+    let revision=state.clipboard.as_ref().unwrap().revision;
+    let id=window.session.selected().and_then(|c|c.id.strip_prefix("clipboard:")).map(str::to_owned);
+    ui.action(Action::Clipboard { operation:"back".into(), id, revision, epoch:window.epoch, dismissal:window.dismissal });
+    process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(window.session.query, "finder");
+}
+#[test]
+fn clipboard_pending_search_keeps_pause_and_back_available() {
+    let (_temp, mut state, mut window, ui, _) = private_fixture("script.fixture", false);
+    let settings = state.configuration.current().clipboard.clone();
+    let mut store = crate::clipboard_history::Store::open(&state.configuration.paths.root, &settings).unwrap();
+    store.import(&json!([{"id":"raycast-owned-a","text":"owned first","date":crate::clipboard_history::now(),"source":"fixture"}]), &settings, || true).unwrap();
+    state.clipboard = Some(store);
+    window.show(Some("finder"), Instant::now(), &ui).unwrap();
+    show_clipboard(&state, &mut window, &ui, Instant::now()).unwrap();
+    window.begin_clipboard_scan("owned", None);
+    let revision=state.clipboard.as_ref().unwrap().revision;
+    ui.action(Action::Clipboard { operation:"pause".into(), id:None, revision, epoch:window.epoch, dismissal:window.dismissal });
+    process_inputs(&mut state, &mut window, &ui);
+    assert!(state.clipboard.as_ref().unwrap().paused);
+    let revision=state.clipboard.as_ref().unwrap().revision;
+    ui.action(Action::Clipboard { operation:"back".into(), id:None, revision, epoch:window.epoch, dismissal:window.dismissal });
+    process_inputs(&mut state, &mut window, &ui);
+    assert!(!window.session.clipboard_mode);
+    assert_eq!(window.session.query, "finder");
+}
+#[test]
+fn clipboard_hidden_reopen_preserves_identity_and_empty_query_selects_new_match() {
+    let (_temp, mut state, mut window, ui, _) = private_fixture("script.fixture", false);
+    let settings = state.configuration.current().clipboard.clone();
+    let mut store = crate::clipboard_history::Store::open(&state.configuration.paths.root, &settings).unwrap();
+    let clips: Vec<_> = (0..3).map(|i| json!({"id":format!("raycast-owned-{i}"),"text":format!("shared {i}"),"date":crate::clipboard_history::now(),"source":"fixture"})).collect();
+    store.import(&json!(clips), &settings, || true).unwrap();
+    state.clipboard = Some(store);
+    show_clipboard(&state, &mut window, &ui, Instant::now()).unwrap();
+    ui.query("shared"); process_inputs(&mut state, &mut window, &ui);
+    while window.clipboard_scan.is_some() { window.advance_clipboard_scan(&ui); }
+    window.session.select_row(Some(1)); window.capture_clipboard_results();
+    let selected = window.session.selected().unwrap().id.clone();
+    let first = window.session.row(0).unwrap().id.strip_prefix("clipboard:").unwrap().to_string();
+    window.execution_effect = Some((ui.latest_intent(), true));
+    window.session.visible = false; window.sync(&state);
+    state.clipboard.as_mut().unwrap().delete(Some(&first), &settings, || true).unwrap();
+    window.sync(&state);
+    ui.action(Action::Key("owned-noop:".into())); process_inputs(&mut state, &mut window, &ui);
+    while window.clipboard_scan.is_some() { window.advance_clipboard_scan(&ui); }
+    assert_eq!(window.session.selected().unwrap().id, selected);
+    ui.query("rare unique"); process_inputs(&mut state, &mut window, &ui);
+    while window.clipboard_scan.is_some() { window.advance_clipboard_scan(&ui); }
+    assert_eq!(window.clipboard_selection, 0);
+    state.clipboard.as_mut().unwrap().capture(crate::clipboard_history::Payload::Text("rare unique".into()), "fixture".into(), crate::clipboard_history::now(), &settings, || true).unwrap();
+    window.sync(&state);
+    while window.clipboard_scan.is_some() { window.advance_clipboard_scan(&ui); }
+    assert_eq!(window.session.selected().unwrap().target, "rare unique");
+}
+#[test]
+fn deferred_clipboard_key_cannot_cross_mode_or_data_revision() {
+    let (_temp, mut state, mut window, ui, _) = private_fixture("script.fixture", false);
+    let settings = state.configuration.current().clipboard.clone();
+    let mut store = crate::clipboard_history::Store::open(&state.configuration.paths.root, &settings).unwrap();
+    store.import(&json!([{"id":"raycast-owned-a","text":"owned first","date":crate::clipboard_history::now(),"source":"fixture"}]), &settings, || true).unwrap();
+    state.clipboard = Some(store);
+    show_clipboard(&state, &mut window, &ui, Instant::now()).unwrap();
+    window.publish(&state, &ui);
+    window.begin_clipboard_scan("owned", None);
+    ui.action(Action::Key("insertNewline:".into()));
+    process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(window.clipboard_deferred.len(), 1);
+    while window.clipboard_scan.is_some() { window.advance_clipboard_scan(&ui); }
+    assert_eq!(window.session.row_count(), 1);
+    window.show(Some("commands"), Instant::now(), &ui).unwrap();
+    process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(state.execution.count(), 0);
+    assert!(!window.session.clipboard_mode);
+
+    show_clipboard(&state, &mut window, &ui, Instant::now()).unwrap();
+    window.begin_clipboard_scan("owned", None);
+    ui.action(Action::Key("insertNewline:".into()));
+    process_inputs(&mut state, &mut window, &ui);
+    while window.clipboard_scan.is_some() { window.advance_clipboard_scan(&ui); }
+    assert_eq!(window.session.row_count(), 1);
+    state.clipboard.as_mut().unwrap().capture(crate::clipboard_history::Payload::Text("owned second".into()), "fixture".into(), crate::clipboard_history::now(), &settings, || true).unwrap();
+    process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(state.execution.count(), 0);
+}
+#[test]
 fn clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_real_owner() {
+    fn finish_scan(window: &mut WindowRuntime, ui: &Connection) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut durations = Vec::new();
+        while window.clipboard_scan.is_some() {
+            assert!(Instant::now() < deadline);
+            let start=Instant::now(); window.advance_clipboard_scan(ui); durations.push(start.elapsed().as_micros());
+        }
+        if !durations.is_empty() {
+            durations.sort_unstable();
+            let p95 = (durations.len() * 95).div_ceil(100) - 1;
+            eprintln!("owned clipboard search slices: count={} p95={}us max={}us", durations.len(), durations[p95], durations[durations.len()-1]);
+        }
+    }
     let (_temp, mut state, mut window, ui, _) = private_fixture("script.fixture", false);
     let mut config = serde_json::to_value(state.configuration.current()).unwrap();
     config["clipboard"]["limit"] = json!(500);
     state.configuration.save(&config).unwrap();
     let settings = state.configuration.current().clipboard.clone();
-    let large = "Über CAFÉ Ω ".repeat(600);
+    let large = "Über CAFÉ Ω ".repeat(4000);
     let items = (0..200).map(|i| json!({"id":format!("raycast-fixture-{i}"),
         "text":format!("Fixture {i}: {large}"),"date":crate::clipboard_history::now(),"source":"fixture"})).collect::<Vec<_>>();
     let mut store =
@@ -526,8 +643,27 @@ fn clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_re
     show_clipboard(&state, &mut window, &ui, Instant::now()).unwrap();
     window.publish(&state, &ui);
     assert_eq!(window.session.row_count(), 200);
+    let previous = ui.view();
+    ui.query("definitely absent from every fixture");
+    process_inputs(&mut state, &mut window, &ui);
+    let scan = window.clipboard_scan.as_ref().expect("large query must yield");
+    assert!(scan.cursor > 0 && scan.cursor < window.session.catalog.len());
+    assert_eq!(window.session.row_count(), 0);
+    ui.action(Action::Key("insertNewline:".into()));
+    process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(window.clipboard_deferred.len(), 1);
+    ui.action(Action::Activate { id: previous.rows[0].id.clone(), catalog_revision: previous.catalog_revision, epoch: previous.epoch });
     ui.query("CAFÉ");
     process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(state.execution.count(), 0);
+    assert!(window.clipboard_deferred.is_empty());
+    assert!(window.clipboard_scan.is_some());
+    ui.action(Action::Key("moveDown:".into()));
+    process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(window.clipboard_deferred.len(), 1);
+    finish_scan(&mut window, &ui);
+    process_inputs(&mut state, &mut window, &ui);
+    assert_eq!(window.session.selection, Some(1));
     window.publish(&state, &ui);
     let reference = state
         .clipboard
@@ -568,6 +704,7 @@ fn clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_re
     }
     ui.query("Fixture 42:");
     process_inputs(&mut state, &mut window, &ui);
+    finish_scan(&mut window, &ui);
     window.publish(&state, &ui);
     assert_eq!(window.session.query, "Fixture 42:");
     assert_eq!(window.session.row_count(), 1);
@@ -591,6 +728,8 @@ fn clipboard_pipeline_unicode_latest_identity_hidden_mutation_and_reentry_use_re
             || true,
         )
         .unwrap();
+    window.publish(&state, &ui);
+    finish_scan(&mut window, &ui);
     window.publish(&state, &ui);
     assert_eq!(window.session.row_count(), 2);
     assert_eq!(window.session.selected().unwrap().id, selected);

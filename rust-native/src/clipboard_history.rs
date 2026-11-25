@@ -906,6 +906,7 @@ pub fn preview_asset(root: &Path, path: &str) -> Result<Vec<u8>> {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Surface {
+    pub searching: bool,
     pub revision: u64,
     pub selected_id: Option<String>,
     pub text: String,

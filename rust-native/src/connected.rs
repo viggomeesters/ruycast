@@ -225,6 +225,7 @@ pub enum InputOperation {
 }
 #[derive(Clone, Debug)]
 pub enum Action {
+    ClipboardDeferred { action: Box<Action>, show_serial: u64, store_revision: u64, results_revision: u64 },
     PreviewInput { token: u64, value: String },
     LauncherBack(crate::session::LauncherScope),
     Clipboard{operation:String,id:Option<String>,revision:u64,epoch:u64,dismissal:u64},
@@ -637,6 +638,16 @@ impl Connection {
     }
     fn notify(&self) {
         let _ = self.sender.try_send(HostEvent::UiWake);
+    }
+    pub(crate) fn requeue_clipboard_actions(&self, mut actions: VecDeque<Input>) {
+        if actions.is_empty() { return; }
+        let mut inputs = self.inputs.lock().unwrap_or_else(|p| p.into_inner());
+        while let Some(action) = actions.pop_back() {
+            if inputs.actions.len() < 128 { inputs.actions.push_front(action); }
+            else { inputs.overflow = true; }
+        }
+        drop(inputs);
+        self.notify();
     }
     pub fn query(&self, query: &str) {
         self.query_composing(query, false);

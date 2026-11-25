@@ -168,6 +168,28 @@ impl Session {
         self.actions_open = false;
         self.activated_id = None;
     }
+    /// Revoke actionable rows immediately while the runtime scans clipboard
+    /// entries cooperatively. Only the owning runtime may apply the result.
+    pub(crate) fn begin_clipboard_query(&mut self, query: &str) {
+        self.external = None;
+        self.query.clear();
+        self.query.push_str(query);
+        self.results.clear();
+        self.results_revision = self.results_revision.wrapping_add(1);
+        self.selection = None;
+        self.actions_open = false;
+        self.activated_id = None;
+    }
+    pub(crate) fn finish_clipboard_query(&mut self, rows: Vec<usize>, preserve: Option<Option<String>>) {
+        self.results = rows;
+        self.results_revision = self.results_revision.wrapping_add(1);
+        self.selection = match preserve {
+            Some(id) => id.and_then(|id| self.results.iter().position(|&i| self.catalog.command(i).id == id)),
+            None => (!self.results.is_empty()).then_some(0),
+        };
+        self.actions_open = false;
+        self.activated_id = None;
+    }
     pub fn replace_commands(&mut self, commands: Vec<Command>) {
         let selected = self.selected().map(|c| c.id.clone());
         if self.catalog.replace(commands) {
