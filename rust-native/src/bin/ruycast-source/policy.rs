@@ -385,6 +385,7 @@ rust-native/src/monitor.rs
 rust-native/src/native_monitor.rs
 rust-native/src/native_os_controls.rs
 rust-native/src/native_rows.rs
+rust-native/src/local_icons.rs
 rust-native/src/os_command.rs
 rust-native/src/permissions.rs
 rust-native/src/processes.rs
