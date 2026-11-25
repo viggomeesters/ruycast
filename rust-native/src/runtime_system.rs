@@ -344,6 +344,9 @@ fn base(state: &SharedState) -> Vec<rustcast_core::Command> {
     )
 }
 pub(super) fn local(state: &SharedState, query: &str, limit: usize) -> Vec<rustcast_core::Command> {
+    with_local(state, query, limit, |catalog, rows| rows.into_iter().map(|i| catalog.command(i).clone()).collect())
+}
+fn with_local<T>(state: &SharedState, query: &str, limit: usize, use_rows: impl FnOnce(&crate::catalog::Catalog, Vec<usize>) -> T) -> T {
     let mut slot = state.system.local_catalog.lock().unwrap_or_else(|p| p.into_inner());
     let prepared = slot.get_or_insert_with(|| {
         let mut catalog = crate::catalog::Catalog::new(base(state));
@@ -368,10 +371,7 @@ pub(super) fn local(state: &SharedState, query: &str, limit: usize) -> Vec<rustc
         prepared.catalog.set_usage(state.activity.counts.clone());
         prepared.usage_revision = state.activity.usage_revision;
     }
-    prepared.catalog.search(query, limit)
-        .into_iter()
-        .map(|i| prepared.catalog.command(i).clone())
-        .collect()
+    use_rows(&prepared.catalog, prepared.catalog.search(query, limit))
 }
 pub(super) fn cli_local_search(
     state: &SharedState,
@@ -399,28 +399,7 @@ fn combine(
     limit: usize,
 ) -> Vec<rustcast_core::Command> {
     if scope == Scope::MainTabs {
-        let tabs = &results.commands;
-        let ids: std::collections::HashSet<_> = tabs.iter().map(|c| &c.id).collect();
-        let exact_query = query.trim().to_lowercase();
-        let (exact_aliases, other_local): (Vec<_>, Vec<_>) = local(state, query, local_limit)
-            .into_iter()
-            .filter(|command| !ids.contains(&command.id))
-            .partition(|command| {
-                !exact_query.is_empty()
-                    && command
-                        .aliases
-                        .iter()
-                        .any(|alias| alias.to_lowercase() == exact_query)
-            });
-        let mut combined: Vec<_> = exact_aliases
-            .into_iter()
-            .chain(tabs.iter().cloned())
-            .chain(other_local)
-            .collect();
-        if limit > 0 {
-            combined.truncate(limit);
-        }
-        combined
+        with_local(state, query, local_limit, |catalog, rows| combine_local_rows(catalog, rows, query, &results.commands, limit))
     } else if scope == Scope::Shortcuts {
         os::apple_shortcuts::merged(
             &results.commands,
@@ -430,6 +409,14 @@ fn combine(
     } else {
         results.commands.clone()
     }
+}
+fn combine_local_rows(catalog: &crate::catalog::Catalog, rows: Vec<usize>, query: &str, tabs: &[rustcast_core::Command], limit: usize) -> Vec<rustcast_core::Command> {
+    let ids: std::collections::HashSet<_> = tabs.iter().map(|c| &c.id).collect();
+    let exact_query = query.trim().to_lowercase();
+    let (aliases, other): (Vec<_>, Vec<_>) = rows.into_iter().map(|i| catalog.command(i))
+        .filter(|command| !ids.contains(&command.id))
+        .partition(|command| !exact_query.is_empty() && command.aliases.iter().any(|alias| alias.to_lowercase() == exact_query));
+    aliases.into_iter().chain(tabs.iter()).chain(other).take(if limit == 0 { usize::MAX } else { limit }).cloned().collect()
 }
 pub(super) fn tick(w: &mut WindowRuntime, state: &SharedState, ui: &Arc<Connection>) {
     let revision = state.configuration.revision;
@@ -1497,6 +1484,63 @@ pub(super) fn fixture(state: &SharedState, request: &Value) -> Value {
 
 #[cfg(test)]
 mod shortcut_budget_tests {
+    #[test]
+    #[ignore = "manual synthetic combine benchmark"]
+    fn benchmark_combined_rows() {
+        use super::*;
+        use std::{hint::black_box, time::Instant};
+        for size in [500, 1_000, 10_000] {
+            let commands: Vec<rustcast_core::Command> = (0..size).map(|i| serde_json::from_value(json!({
+                "id": format!("item-{i}"), "title": format!("Sample item {i}"), "kind": "script", "target": "x".repeat(512),
+                "aliases": if i % 17 == 0 { vec!["sample"] } else { vec![] }
+            })).unwrap()).collect();
+            let catalog = crate::catalog::Catalog::new(commands.clone());
+            let tabs: Vec<_> = commands.iter().take(20).cloned().collect();
+            let rows = catalog.search("sample", 0);
+            let mut before = Vec::new();
+            let mut after = Vec::new();
+            for _ in 0..50 {
+                let start = Instant::now();
+                let ids: std::collections::HashSet<_> = tabs.iter().map(|c| &c.id).collect();
+                let (alias, other): (Vec<_>, Vec<_>) = rows.iter().map(|&i| catalog.command(i).clone()).filter(|c| !ids.contains(&c.id))
+                    .partition(|c| c.aliases.iter().any(|a| a.to_lowercase() == "sample"));
+                let mut old: Vec<_> = alias.into_iter().chain(tabs.iter().cloned()).chain(other).collect();
+                old.truncate(100);
+                before.push(start.elapsed().as_micros());
+                let start = Instant::now();
+                let new = combine_local_rows(&catalog, rows.clone(), "sample", &tabs, 100);
+                after.push(start.elapsed().as_micros());
+                assert_eq!(serde_json::to_value(black_box(old)).unwrap(), serde_json::to_value(black_box(new)).unwrap());
+            }
+            before.sort_unstable(); after.sort_unstable();
+            eprintln!("size={size} matches={} old_p50={}us old_p95={}us new_p50={}us new_p95={}us", rows.len(), before[24], before[47], after[24], after[47]);
+        }
+    }
+    #[test]
+    fn combined_rows_match_original_full_clone_merge() {
+        use super::*;
+        let commands: Vec<rustcast_core::Command> = (0..240).map(|i| serde_json::from_value(json!({
+            "id": format!("item-{i}"), "title": format!("Sample item {}", i % 20), "kind": "script", "target": format!("payload-{i}"),
+            "aliases": if i % 17 == 0 { vec!["sample"] } else { vec![] }
+        })).unwrap()).collect();
+        let catalog = crate::catalog::Catalog::new(commands.clone());
+        let tabs = vec![commands[3].clone(), commands[3].clone(), commands[150].clone()];
+        for query in ["", " ", "sample", "sampl", "smaple", "item-3", "not-found"] {
+            for local_limit in [0, 100] {
+                let rows = catalog.search(query, local_limit);
+                let ids: std::collections::HashSet<_> = tabs.iter().map(|c| &c.id).collect();
+                let q = query.trim().to_lowercase();
+                let (alias, other): (Vec<_>, Vec<_>) = rows.iter().map(|&i| catalog.command(i).clone()).filter(|c| !ids.contains(&c.id))
+                    .partition(|c| !q.is_empty() && c.aliases.iter().any(|a| a.to_lowercase() == q));
+                let reference: Vec<_> = alias.into_iter().chain(tabs.iter().cloned()).chain(other).collect();
+                for limit in [0, 1, 2, 20, 100, 1000] {
+                    let expected: Vec<_> = reference.iter().take(if limit == 0 { usize::MAX } else { limit }).collect();
+                    let actual = combine_local_rows(&catalog, rows.clone(), query, &tabs, limit);
+                    assert_eq!(serde_json::to_value(&actual).unwrap(), serde_json::to_value(expected).unwrap(), "query={query:?}, local_limit={local_limit}, limit={limit}");
+                }
+            }
+        }
+    }
     use super::*;
     #[test]
     fn interruption_reason_never_invents_a_single_cause_for_overlapping_changes() {
