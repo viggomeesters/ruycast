@@ -20,6 +20,95 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[test]
+fn clipboard_cli_snapshot_does_not_block_status_or_delete() {
+    let mut host = Host::new(Config::current(), false);
+    let clips = json!([
+        {"id":"raycast-owned-a","text":"owned alpha","date":current_rfc3339(),"source":"fixture"},
+        {"id":"raycast-owned-b","text":"owned beta","date":current_rfc3339(),"source":"fixture"}
+    ]);
+    fs::write(host.profile.join("clipboard.json"), serde_json::to_vec(&clips).unwrap()).unwrap();
+    host.start();
+    fs::write(host.profile.join("clipboard-query-hold"), b"owned").unwrap();
+    let mut first = host.connect(Duration::from_secs(5));
+    writeln!(first, "{}", json!({"op":"clipboard.list","query":"owned"})).unwrap();
+    first.shutdown(Shutdown::Write).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !host.profile.join("clipboard-query-entered").exists() {
+        assert!(Instant::now() < deadline); thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(host.rpc(&json!({"op":"status"}))["ok"], true);
+    assert_eq!(host.rpc(&json!({"op":"clipboard.delete","id":"raycast-owned-a"}))["ok"], true);
+    fs::remove_file(host.profile.join("clipboard-query-queued")).unwrap();
+    let mut second = host.connect(Duration::from_secs(5));
+    writeln!(second, "{}", json!({"op":"clipboard.list","query":"owned"})).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !host.profile.join("clipboard-query-queued").exists() {
+        assert!(Instant::now() < deadline); thread::sleep(Duration::from_millis(5));
+    }
+    let busy = host.rpc(&json!({"op":"clipboard.export","query":"owned"}));
+    assert_eq!(busy["ok"], false);
+    assert_eq!(busy["error"], "Clipboard search is busy. Try again.");
+    fs::remove_file(host.profile.join("clipboard-query-hold")).unwrap();
+    let mut line=String::new(); BufReader::new(first).read_line(&mut line).unwrap();
+    let old:Value=serde_json::from_str(&line).unwrap();
+    assert_eq!(old["result"].as_array().unwrap().len(), 2);
+    line.clear(); BufReader::new(second).read_line(&mut line).unwrap();
+    let current:Value=serde_json::from_str(&line).unwrap();
+    assert_eq!(current["result"].as_array().unwrap().len(), 1);
+    assert_eq!(current["result"][0]["id"], "raycast-owned-b");
+    // A disconnected reader must release the single worker for the next read.
+    fs::write(host.profile.join("clipboard-query-hold"), b"owned").unwrap();
+    fs::remove_file(host.profile.join("clipboard-query-entered")).unwrap();
+    let mut abandoned = host.connect(Duration::from_secs(5));
+    writeln!(abandoned, "{}", json!({"op":"clipboard.list","query":"owned"})).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !host.profile.join("clipboard-query-entered").exists() { assert!(Instant::now() < deadline); thread::sleep(Duration::from_millis(5)); }
+    drop(abandoned);
+    fs::remove_file(host.profile.join("clipboard-query-entered")).unwrap();
+    let mut after_disconnect = host.connect(Duration::from_secs(5));
+    writeln!(after_disconnect, "{}", json!({"op":"clipboard.list","query":"owned"})).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !host.profile.join("clipboard-query-entered").exists() { assert!(Instant::now() < deadline); thread::sleep(Duration::from_millis(5)); }
+    fs::remove_file(host.profile.join("clipboard-query-hold")).unwrap();
+    line.clear(); BufReader::new(after_disconnect).read_line(&mut line).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["ok"], true);
+
+    // Quit retires admission even with a query waiting at the owned barrier.
+    fs::write(host.profile.join("clipboard-query-hold"), b"owned").unwrap();
+    fs::remove_file(host.profile.join("clipboard-query-entered")).unwrap();
+    let mut during_quit = host.connect(Duration::from_secs(5));
+    writeln!(during_quit, "{}", json!({"op":"clipboard.list","query":"owned"})).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !host.profile.join("clipboard-query-entered").exists() { assert!(Instant::now() < deadline); thread::sleep(Duration::from_millis(5)); }
+    assert_eq!(host.rpc(&json!({"op":"quit"}))["ok"], true);
+    line.clear();
+    let received = BufReader::new(during_quit).read_line(&mut line).unwrap();
+    if received > 0 { assert_ne!(serde_json::from_str::<Value>(&line).unwrap()["ok"], true); }
+    assert!(host.wait_exit(Duration::from_secs(5), false).status.success());
+}
+#[test]
+fn clipboard_cli_slow_reader_holds_the_single_delivery_permit() {
+    let mut host = Host::new(Config::current(), false);
+    let clips:Vec<_> = (0..24).map(|i| json!({"id":format!("raycast-owned-{i}"),"text":format!("{} {i}","owned-data".repeat(8000)),"date":current_rfc3339(),"source":"fixture"})).collect();
+    fs::write(host.profile.join("clipboard.json"), serde_json::to_vec(&clips).unwrap()).unwrap();
+    host.start();
+    let mut first=host.connect(Duration::from_secs(5));
+    writeln!(first,"{}",json!({"op":"clipboard.export"})).unwrap();
+    let deadline=Instant::now()+Duration::from_secs(5);
+    while !host.profile.join("clipboard-query-reply").exists() { assert!(Instant::now()<deadline); thread::sleep(Duration::from_millis(2)); }
+    fs::remove_file(host.profile.join("clipboard-query-queued")).unwrap();
+    let mut second=host.connect(Duration::from_secs(5));
+    writeln!(second,"{}",json!({"op":"clipboard.list"})).unwrap();
+    let deadline=Instant::now()+Duration::from_secs(5);
+    while !host.profile.join("clipboard-query-queued").exists() { assert!(Instant::now()<deadline); thread::sleep(Duration::from_millis(2)); }
+    assert_eq!(host.rpc(&json!({"op":"status"}))["ok"],true);
+    assert_eq!(host.rpc(&json!({"op":"clipboard.list"}))["error"],"Clipboard search is busy. Try again.");
+    let mut line=String::new(); BufReader::new(first).read_line(&mut line).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["result"].as_array().unwrap().len(),24);
+    line.clear(); BufReader::new(second).read_line(&mut line).unwrap();
+    assert_eq!(serde_json::from_str::<Value>(&line).unwrap()["result"].as_array().unwrap().len(),24);
+}
 fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }

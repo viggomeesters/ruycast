@@ -373,7 +373,7 @@ impl Publication {
 pub struct Store {
     publication: Option<Arc<Publication>>,
     root: PathBuf,
-    pub items: Vec<Clip>,
+    pub items: Arc<Vec<Clip>>,
     pub paused: bool,
     pub revision: u64,
     pub cleanup_error: Option<String>,
@@ -393,7 +393,7 @@ impl Store {
     fn open_with_phase(root: &Path, settings: &ClipboardSettings, pending: Option<Arc<AtomicBool>>) -> Result<Self> {
         let mut s = Self {
             root: root.into(),
-            items: vec![],
+            items: Arc::new(vec![]),
             paused: false,
             revision: 0,
             cleanup_error: None,
@@ -403,7 +403,7 @@ impl Store {
             metadata_confirmed: false,
             retention_pending: pending,
         };
-        s.items = s.load()?.1;
+        s.items = Arc::new(s.load()?.1);
         match read(&root.join("paused.json"), 100).and_then(|bytes| {
             bytes
                 .map(|v| {
@@ -431,7 +431,7 @@ impl Store {
         publication: Option<Arc<crate::configuration_jobs::Publication>>,
     ) -> Result<SaveReceipt> {
         let mut stage = Self {
-            root: root.into(), items: vec![], paused: false, revision: 0,
+            root: root.into(), items: Arc::new(vec![]), paused: false, revision: 0,
             cleanup_error: None, pause_error: None, warning: None,
             publication: publication.map(|p|Arc::new(Publication::for_configuration(p))),
             metadata_confirmed: false,
@@ -599,11 +599,10 @@ impl Store {
                 warning: None,
             }
         };
-        if self.items.len() != next.len() || self.items.iter().zip(&next).any(|(a, b)| !same(a, b))
-        {
+        if self.items.len() != next.len() || self.items.iter().zip(&next).any(|(a, b)| !same(a, b)) {
             self.revision = self.revision.wrapping_add(1);
+            self.items = Arc::new(next);
         }
-        self.items = next;
         self.warning = receipt.warning.clone();
         Ok(receipt)
     }
@@ -892,7 +891,7 @@ impl Store {
 pub fn preview_asset(root: &Path, path: &str) -> Result<Vec<u8>> {
     let store = Store {
         root: root.into(),
-        items: vec![],
+        items: Arc::new(vec![]),
         paused: false,
         revision: 0,
         cleanup_error: None,
@@ -991,6 +990,18 @@ mod tests {
         rustcast_core::validate(&rustcast_core::default_config())
             .unwrap()
             .clipboard
+    }
+    #[test]
+    fn admitted_snapshot_is_immutable_across_confirmed_deletion() {
+        let root = temp(); let settings = settings();
+        let mut store = Store::open(&root.0, &settings).unwrap();
+        store.capture(Payload::Text("owned snapshot".into()), "fixture".into(), now(), &settings, || true).unwrap();
+        let snapshot = store.items.clone();
+        let id = snapshot[0].id.clone();
+        store.delete(Some(&id), &settings, || true).unwrap();
+        assert_eq!(snapshot[0].text, "owned snapshot");
+        assert!(store.items.is_empty());
+        assert!(!Arc::ptr_eq(&snapshot, &store.items));
     }
     fn assert_extended_acl_entries(path: &Path, expected: bool) {
         use std::os::fd::AsRawFd;
@@ -1236,7 +1247,7 @@ mod tests {
             store.payload("raycast-file-copy").unwrap(),
             Payload::Files(vec![file_url.into()])
         );
-        store.items[0].file_urls = Some(vec!["https://example.com/fixture".into()]);
+        Arc::make_mut(&mut store.items)[0].file_urls = Some(vec!["https://example.com/fixture".into()]);
         assert!(store.payload("raycast-file-copy").is_err());
     }
     #[test]
@@ -1267,7 +1278,7 @@ mod tests {
         assert!(matches!(store.payload(&id).unwrap(), Payload::Image(_)));
 
         for unsafe_path in ["clipboard-assets/../outside.png", "/etc/passwd"] {
-            store.items[0].data_file = Some(unsafe_path.into());
+            Arc::make_mut(&mut store.items)[0].data_file = Some(unsafe_path.into());
             assert!(store.payload(&id).is_err(), "accepted {unsafe_path}");
         }
 
@@ -1277,7 +1288,7 @@ mod tests {
         fs::write(&outside, &outside_bytes).unwrap();
         fs::remove_file(&asset).unwrap();
         symlink(&outside, &asset).unwrap();
-        store.items[0].data_file = Some(asset_path);
+            Arc::make_mut(&mut store.items)[0].data_file = Some(asset_path);
         assert!(store.payload(&id).is_err());
         assert_eq!(fs::read(&outside).unwrap(), outside_bytes);
     }
@@ -1417,11 +1428,11 @@ mod tests {
         fs::write(&outside, b"outside fixture").unwrap();
         let mut malicious = clip.clone();
         malicious.data_file = Some("clipboard-assets/../outside.png".into());
-        store.items.push(malicious);
+        Arc::make_mut(&mut store.items).push(malicious);
         store.prune().unwrap();
         assert!(dir.0.join(path).exists());
         assert_eq!(fs::read(&outside).unwrap(), b"outside fixture");
-        store.items.pop();
+        Arc::make_mut(&mut store.items).pop();
         settings.max_asset_bytes = Some(1);
         assert!(store
             .capture(
