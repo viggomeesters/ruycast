@@ -244,6 +244,9 @@ fn cancel_deadline_and_panic_keep_independent_group_cleanup() {
         );
         let result: Value = serde_json::from_slice(&out.stdout).unwrap();
         assert_eq!(result["noChildren"], true);
+        for stage in ["script.helperSpawn", "script.helperReady", "script.dispatch", "script.response"] {
+            assert_eq!(result["performance"]["stages"][stage]["count"], 1, "{option}: {result}");
+        }
         if option == "panicMs" {
             assert_eq!(result["result"]["panicCaught"], true);
         } else {

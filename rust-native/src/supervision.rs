@@ -329,8 +329,8 @@ pub(crate) fn run(
     unsafe {
         launcher.pre_exec(|| Ok(()));
     }
-    let child = launcher
-        .spawn()
+    let trace = crate::performance_trace::shared();
+    let child = trace.measure(crate::performance_trace::Stage::ScriptHelperSpawn, || launcher.spawn())
         .map_err(|_| "The script runner could not start. Check the app installation.")?;
     let mut helper = Helper {
         child: Some(child),
@@ -354,8 +354,12 @@ pub(crate) fn run(
             .ok_or("Script runner output unavailable")?
             .as_raw_fd(),
     )?;
-    let ready = line(&mut helper, 4096, Some(startup), &mut cancelled, false)?;
-    validate_ready(&ready)?;
+    {
+        let _timing = trace.scope(crate::performance_trace::Stage::ScriptHelperReady);
+        let ready = line(&mut helper, 4096, Some(startup), &mut cancelled, false)?;
+        validate_ready(&ready)?;
+    }
+    let dispatch_timing = trace.scope(crate::performance_trace::Stage::ScriptDispatch);
     let mut sent = 0;
     while sent < header.len() {
         if cancelled() || Instant::now() >= startup {
@@ -412,7 +416,12 @@ pub(crate) fn run(
             Err(_) => return Err(UNKNOWN.into()),
         }
     }
-    let response = line(&mut helper, RESPONSE_LIMIT, deadline, &mut cancelled, true)?;
+    drop(dispatch_timing);
+    let response = {
+        let _timing = trace.scope(crate::performance_trace::Stage::ScriptResponse);
+        line(&mut helper, RESPONSE_LIMIT, deadline, &mut cancelled, true)?
+    };
+    let _timing = trace.scope(crate::performance_trace::Stage::ScriptFinalize);
     let status = helper.wait()?;
     if !status.success() {
         return Err(UNKNOWN.into());

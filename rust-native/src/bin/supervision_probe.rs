@@ -83,7 +83,7 @@ fn main() {
     let clean = child == -1 && io::Error::last_os_error().raw_os_error() == Some(libc::ECHILD);
     println!(
         "{}",
-        json!({"result":value,"noChildren":clean,"elapsedMs":start.elapsed().as_millis()})
+        json!({"result":value,"noChildren":clean,"elapsedMs":start.elapsed().as_millis(),"performance":ruycast_native::performance_trace::shared().snapshot()})
     );
     assert!(clean, "supervisor left an owned helper");
 }

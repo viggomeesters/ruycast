@@ -34,6 +34,11 @@ fn supervised_work_failures_log_only_invocation_bound_source() {
         );
         assert!(!log.to_string().contains("Synthetic error at"));
     }
+    let performance = host.rpc(&json!({"op":"performance"}));
+    for stage in ["script.helperSpawn", "script.helperReady", "script.dispatch", "script.response", "script.finalize"] {
+        assert_eq!(performance["result"]["stages"][stage]["count"], 2, "{performance}");
+    }
+    assert!(!performance.to_string().contains("00-inbox/demo/note.md"));
     let analytics = host.rpc(&json!({"op":"analytics"}));
     assert_eq!(analytics["ok"], true);
     assert!(!analytics.to_string().contains("00-inbox/demo/note.md"));

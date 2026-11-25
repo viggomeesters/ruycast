@@ -32,9 +32,14 @@ pub enum Stage {
     LauncherOutsideMonitors,
     LauncherMakeKey,
     LauncherOrderFront,
+    ScriptHelperSpawn,
+    ScriptHelperReady,
+    ScriptDispatch,
+    ScriptResponse,
+    ScriptFinalize,
 }
 impl Stage {
-    const ALL: [Self; 20] = [
+    const ALL: [Self; 25] = [
         Self::SearchModel,
         Self::InputModel,
         Self::InputReconcile,
@@ -55,6 +60,11 @@ impl Stage {
         Self::LauncherOutsideMonitors,
         Self::LauncherMakeKey,
         Self::LauncherOrderFront,
+        Self::ScriptHelperSpawn,
+        Self::ScriptHelperReady,
+        Self::ScriptDispatch,
+        Self::ScriptResponse,
+        Self::ScriptFinalize,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -78,6 +88,11 @@ impl Stage {
             Self::LauncherOutsideMonitors => "launcher.outsideMonitors",
             Self::LauncherMakeKey => "launcher.makeKey",
             Self::LauncherOrderFront => "launcher.orderFront",
+            Self::ScriptHelperSpawn => "script.helperSpawn",
+            Self::ScriptHelperReady => "script.helperReady",
+            Self::ScriptDispatch => "script.dispatch",
+            Self::ScriptResponse => "script.response",
+            Self::ScriptFinalize => "script.finalize",
         }
     }
     fn index(self) -> usize {

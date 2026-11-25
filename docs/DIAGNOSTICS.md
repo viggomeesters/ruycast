@@ -12,6 +12,8 @@ The Rust runtime records a redacted command identifier, source, start/completion
 
 The owner-only `command-log.json` file lives in your profile. It is bounded to 500 entries, a seven-day window at pruning and a byte budget below 2 MB. Invalid existing data is preserved and reported rather than silently overwritten.
 
+`ruycast performance summary` reports bounded, in-memory software timings since the host started or the measurements were reset. For supervised scripts, `script.helperSpawn` covers the helper spawn call; `script.helperReady` waits for its ready message; `script.dispatch` sends the validated request; `script.response` waits from dispatch until the helper response ends; and `script.finalize` waits for the helper exit and validates its reply. Response time includes provider startup, execution, interaction and cancellation; it is not provider startup alone. Failed or cancelled attempts contribute elapsed samples for stages they entered. Cleanup after an early response error is outside these timings. These stage aggregates contain no command identity, arguments or contents and are not physical input-to-display measurements.
+
 ## Privacy
 
 Command diagnostics are separate from aggregate analytics. Payloads, stdout/stderr, capture input, command arguments, queries and clipboard bodies are not persisted in this log. Command IDs are bounded and redact known input values, the home path, URLs and common credential patterns. Current error responses can still contain provider-authored context, so review them before sharing. The analytics export does not include this operational log.

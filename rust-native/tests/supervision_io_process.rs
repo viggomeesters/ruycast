@@ -84,6 +84,10 @@ fn probe(name: &str, home: &Path, c: Value) -> Value {
         true,
     );
     assert_eq!(result["noChildren"], true);
+    let stages = &result["performance"]["stages"];
+    for stage in ["script.helperSpawn", "script.helperReady", "script.dispatch", "script.response", "script.finalize"] {
+        assert_eq!(stages[stage]["count"], 1, "{result}");
+    }
     result.get("result").unwrap().clone()
 }
 #[test]
@@ -104,6 +108,16 @@ fn success_failure_and_signal_preserve_legacy_response() {
         );
         assert_eq!(probe(mode, &home.0, c).get("response").unwrap(), &expected);
     }
+}
+#[test]
+fn actual_script_timeout_records_each_entered_stage() {
+    let home = runtime_host::OwnedDir::new();
+    let mut c = command(Path::new("/bin/sleep"), json!(["3"]));
+    c["timeout"] = json!(1);
+    let result = probe("timeout", &home.0, c);
+    assert_eq!(result["response"]["ok"], false);
+    assert_eq!(result["response"]["error"], "Script timed out after 1 seconds.");
+    assert!(result["response"].get("exitCode").is_none());
 }
 #[test]
 fn literal_null_stdin_and_explicit_home() {
