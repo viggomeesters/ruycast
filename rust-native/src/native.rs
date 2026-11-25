@@ -7846,7 +7846,14 @@ impl Controller {
                 }
                 return true;
             }
-            let binding = if event.keyCode() == 43
+            let edit_shortcut = flags == NSEventModifierFlags::Command
+                && event.charactersIgnoringModifiers().is_some_and(|s| s.to_string().eq_ignore_ascii_case("e"));
+            let marked = edit_shortcut && self.ivars().panel.firstResponder().and_then(|r| {
+                r.downcast_ref::<NSTextView>().map(|t| unsafe { msg_send![t, hasMarkedText] })
+            }).unwrap_or(false);
+            let binding = if edit_shortcut && !marked && data.items.iter().any(|item| item.id == "edit" && item.shortcut == Some("cmd+e")) {
+                Some("edit")
+            } else if event.keyCode() == 43
                 && flags == (NSEventModifierFlags::Command | NSEventModifierFlags::Option)
             {
                 Some("set-alias")
@@ -7862,7 +7869,7 @@ impl Controller {
                     self.sync_query();
                     self.ivars().session.borrow_mut().named(
                         binding,
-                        false,
+                        binding == "edit" && data.actions_open,
                         usize::try_from(self.ivars().table.selectedRow()).ok(),
                     );
                 }

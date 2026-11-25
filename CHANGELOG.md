@@ -2,6 +2,8 @@
 
 ## 0.9.0 — current development
 
+- Open the selected editable item with Command-E directly from its list or Actions menu.
+
 - Recover Rust Preview updates with a separate persistent signing identity while preserving the original keychain, stable app, profile and signed rollback; report renewed macOS privacy grants explicitly.
 
 - Connect Auto Quit background timers to native app observation and normal termination, with a separate per-app acknowledgement of incomplete recording/helper detection.

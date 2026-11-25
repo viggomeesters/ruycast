@@ -976,7 +976,7 @@ pub fn items(command: Option<&Command>, saved: bool) -> Vec<Item> {
         }
         if !c.id.starts_with("system.") {
             for (id, title, shortcut) in [
-                ("edit", "Edit", None),
+                ("edit", "Edit", Some("cmd+e")),
                 ("set-alias", "Set Alias…", Some("cmd+alt+,")),
                 ("set-hotkey", "Set Hotkey…", Some("cmd+shift+,")),
                 if c.enabled == Some(false) {
