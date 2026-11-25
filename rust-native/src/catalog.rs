@@ -118,7 +118,7 @@ impl Catalog {
             order
         } else {
             self.index
-                .search_with_recency(query, &self.weights)
+                .search_with_recency_limit(query, &self.weights, limit)
                 .expect("weights are prepared for this immutable catalog")
         };
         if limit > 0 {
