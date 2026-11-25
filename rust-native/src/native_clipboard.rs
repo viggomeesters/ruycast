@@ -38,6 +38,7 @@ pub struct Panel {
     text_scroll: Retained<NSScrollView>,
     image: Retained<NSImageView>,
     metadata: Retained<NSTextField>,
+    metadata_source: RefCell<Option<String>>,
     buttons: RefCell<Vec<Retained<ClipboardButton>>>,
     key: RefCell<Option<SurfaceKey>>,
     #[cfg(feature = "test-tools")]
@@ -46,6 +47,16 @@ pub struct Panel {
     height: f64,
 }
 impl Panel {
+    pub fn refresh_source(&self, surface: &Surface, hidden: bool) {
+        if surface.selected_id.is_none() { return; }
+        let old = self.metadata.stringValue().to_string();
+        let previous = self.metadata_source.borrow().clone();
+        if let Some(rest) = previous.as_ref().and_then(|value| old.strip_prefix(&format!("Source  {value}\n"))) {
+            let source = crate::native_rows::source_name(&surface.source, hidden);
+            self.metadata.setStringValue(&NSString::from_str(&format!("Source  {source}\n{rest}")));
+            *self.metadata_source.borrow_mut() = Some(source);
+        }
+    }
     pub fn new(main: MainThreadMarker, parent: &NSView, width: f64, height: f64) -> Self {
         let root = NSView::new(main);
         root.setFrame(rect(0., 0., width, height));
@@ -82,6 +93,7 @@ impl Panel {
             text_scroll,
             image,
             metadata,
+            metadata_source: RefCell::new(None),
             buttons: RefCell::new(vec![]),
             key: RefCell::new(None),
             #[cfg(feature = "test-tools")]
@@ -157,9 +169,11 @@ impl Panel {
             } else {
                 "Text"
             };
+            let source = crate::native_rows::source_name(&s.source, hidden);
+            *self.metadata_source.borrow_mut() = Some(source.clone());
             let mut value = format!(
                 "Source  {}\nType  {}",
-                crate::native_rows::source_name(&s.source, hidden),
+                source,
                 kind
             );
             if kind == "Text" {
