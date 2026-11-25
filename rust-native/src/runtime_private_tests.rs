@@ -1,4 +1,77 @@
 #[test]
+#[ignore = "owned performance benchmark"]
+fn benchmark_owned_clipboard_projection_and_lookup() {
+    let clips: Vec<rustcast_core::Clip> = (0..200).map(|i| serde_json::from_value(json!({"id":format!("owned-{i}"),"text":"abcdefgh\n".repeat(1800),"date":"2026-01-01T00:00:00Z","source":"fixture"})).unwrap()).collect();
+    let mut before = Vec::new(); let mut after = Vec::new();
+    for _ in 0..30 {
+        let start = Instant::now();
+        let rows: Vec<rustcast_core::Command> = clips.iter().map(|clip| {
+            let title: String = clip.text.replace(['\n','\r'], " ").chars().take(240).collect();
+            serde_json::from_value(json!({"id":format!("clipboard:{}",clip.id),"title":title,"kind":"snippet","target":clip.text,"aliases":[]})).unwrap()
+        }).collect();
+        std::hint::black_box(rows); before.push(start.elapsed().as_micros());
+        let start = Instant::now();
+        std::hint::black_box(clips.iter().map(clipboard_command).collect::<Vec<_>>()); after.push(start.elapsed().as_micros());
+    }
+    before.sort_unstable(); after.sort_unstable();
+    eprintln!("owned projection 200x16KiB: before p50={}us p95={}us; after p50={}us p95={}us", before[15], before[28], after[15], after[28]);
+    let ids: Vec<_> = (0..1000).map(|i| format!("owned-{i}")).collect();
+    let mut linear = Vec::new(); let mut indexed = Vec::new();
+    for _ in 0..30 {
+        let start = Instant::now();
+        let found: Vec<_> = ids.iter().map(|id| ids.iter().find(|candidate| *candidate == id)).collect();
+        std::hint::black_box(found); linear.push(start.elapsed().as_micros());
+        let start = Instant::now();
+        let mut index = std::collections::HashMap::new();
+        for id in &ids { index.entry(id.as_str()).or_insert(id); }
+        let found: Vec<_> = ids.iter().map(|id| index.get(id.as_str())).collect();
+        std::hint::black_box(found); indexed.push(start.elapsed().as_micros());
+    }
+    linear.sort_unstable(); indexed.sort_unstable();
+    eprintln!("owned lookup 1000x1000: linear p50={}us p95={}us; indexed p50={}us p95={}us", linear[15], linear[28], indexed[15], indexed[28]);
+    for n in [1, 8, 32, 64, 128] {
+        let mut linear = Vec::new(); let mut indexed = Vec::new();
+        for _ in 0..30 {
+            let start = Instant::now();
+            for id in &ids[ids.len()-n..] { std::hint::black_box(ids.iter().find(|candidate| *candidate == id)); }
+            linear.push(start.elapsed().as_micros());
+            let start = Instant::now();
+            let mut index = std::collections::HashMap::with_capacity(ids.len());
+            for id in &ids { index.entry(id.as_str()).or_insert(id); }
+            for id in &ids[ids.len()-n..] { std::hint::black_box(index.get(id.as_str())); }
+            indexed.push(start.elapsed().as_micros());
+        }
+        linear.sort_unstable(); indexed.sort_unstable();
+        eprintln!("owned lookup {n}/1000 late hits p50: linear={}us indexed={}us", linear[15], indexed[15]);
+    }
+}
+#[test]
+fn clipboard_lookup_keeps_first_duplicate_across_small_and_large_rows() {
+    let clips: Vec<rustcast_core::Clip> = ["first", "second"].into_iter().map(|date| serde_json::from_value(json!({"id":"duplicate","text":"owned","date":date,"source":"fixture"})).unwrap()).collect();
+    for row_count in [0, 1, 7, 8, 16_383, 16_384] {
+        let index = clipboard_lookup(&clips, row_count);
+        assert_eq!(index.is_some(), row_count >= 16_384);
+        assert_eq!(lookup_clip(&clips, index.as_ref(), "duplicate").unwrap().date, "first");
+        assert!(lookup_clip(&clips, index.as_ref(), "missing").is_none());
+    }
+}
+#[test]
+fn clipboard_projection_keeps_full_target_and_legacy_title() {
+    for text in ["short\nwith\rbreaks".to_owned(), format!("{}\n尾", "é".repeat(300))] {
+        let clip: rustcast_core::Clip = serde_json::from_value(json!({"id":"owned","text":text,"date":"2026-01-01T00:00:00Z","source":"fixture"})).unwrap();
+        let actual = clipboard_command(&clip);
+        let expected_title: String = clip.text.replace(['\n','\r'], " ").chars().take(240).collect();
+        let expected: rustcast_core::Command = serde_json::from_value(json!({"id":"clipboard:owned","title":expected_title,"kind":"snippet","target":clip.text,"aliases":[]})).unwrap();
+        assert_eq!(serde_json::to_value(actual).unwrap(), serde_json::to_value(expected).unwrap());
+    }
+    for (kind, urls, expected) in [("image", vec![], "Image"), ("files", vec!["file:///tmp/owned.txt", "file:///tmp/second.txt"], "owned.txt +1")] {
+        let clip: rustcast_core::Clip = serde_json::from_value(json!({"id":"owned","text":"original target","date":"2026-01-01T00:00:00Z","source":"fixture","contentType":kind,"fileURLs":urls})).unwrap();
+        let command = clipboard_command(&clip);
+        assert_eq!(command.title, expected);
+        assert_eq!(command.target, "original target");
+    }
+}
+#[test]
 fn original_exact_alias_title_multiterm_and_uppercase_resolution() {
     let (_temp, mut state, window, _, _) = setup();
     let mut config = serde_json::to_value(state.configuration.current()).unwrap();

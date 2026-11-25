@@ -89,10 +89,16 @@ pub fn same(a: &Clip, b: &Clip) -> bool {
         && a.file_urls == b.file_urls
 }
 pub fn matches(text: &str, query: &str) -> bool {
-    use objc2_foundation::NSString;
-    objc2::rc::autoreleasepool(|_| {
-        NSString::from_str(text).localizedCaseInsensitiveContainsString(&NSString::from_str(query))
-    })
+    Matcher::new(query).matches(text)
+}
+/// Retain one Foundation needle per scan, preserving the same locale-aware
+/// comparison while not retaining copies of clipboard entries.
+pub struct Matcher(objc2::rc::Retained<objc2_foundation::NSString>);
+impl Matcher {
+    pub fn new(query: &str) -> Self { Self(objc2::rc::autoreleasepool(|_| objc2_foundation::NSString::from_str(query))) }
+    pub fn matches(&self, text: &str) -> bool {
+        objc2::rc::autoreleasepool(|_| objc2_foundation::NSString::from_str(text).localizedCaseInsensitiveContainsString(&self.0))
+    }
 }
 fn asset_name(path: &str) -> Result<&str> {
     let name = path
@@ -847,10 +853,11 @@ impl Store {
         )
     }
     pub fn list(&self, query: &str) -> Value {
+        let matcher = (!query.is_empty()).then(|| Matcher::new(query));
         json!(self
             .items
             .iter()
-            .filter(|c| query.is_empty() || matches(&c.text, query))
+            .filter(|c| matcher.as_ref().is_none_or(|matcher| matcher.matches(&c.text)))
             .collect::<Vec<_>>())
     }
     pub fn prune(&self) -> Result<()> {
@@ -915,6 +922,47 @@ pub struct Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "owned performance benchmark"]
+    fn benchmark_owned_clipboard_search() {
+        let texts: Vec<_> = (0..200).map(|i| format!("{} sample {i} résumé İstanbul", "abc def ghi ".repeat(340))).collect();
+        let mut baseline = Vec::new();
+        let mut prepared = Vec::new();
+        for _ in 0..100 {
+            let start = std::time::Instant::now();
+            let count = texts.iter().filter(|text| objc2::rc::autoreleasepool(|_| objc2_foundation::NSString::from_str(text).localizedCaseInsensitiveContainsString(&objc2_foundation::NSString::from_str("not-present")))).count();
+            std::hint::black_box(count);
+            baseline.push(start.elapsed().as_micros());
+            let start = std::time::Instant::now();
+            let matcher = Matcher::new("not-present");
+            let count = texts.iter().filter(|text| matcher.matches(text)).count();
+            std::hint::black_box(count);
+            prepared.push(start.elapsed().as_micros());
+        }
+        baseline.sort_unstable(); prepared.sort_unstable();
+        eprintln!("owned clipboard 200x4KiB: baseline p50={}us p95={}us; prepared p50={}us p95={}us", baseline[49], baseline[94], prepared[49], prepared[94]);
+    }
+    #[test]
+    #[ignore = "bounded owned performance benchmark"]
+    fn benchmark_owned_clipboard_large_shared() {
+        // One shared string models the maximum bytes scanned without allocating
+        // a gigabyte of distinct user-machine memory.
+        let text = "abcdefghij".repeat(100_000);
+        let matcher = Matcher::new("not-present");
+        let started = std::time::Instant::now();
+        for _ in 0..1000 { std::hint::black_box(matcher.matches(&text)); }
+        eprintln!("owned worst-case 1000 x shared 1MB miss: {}ms", started.elapsed().as_millis());
+    }
+    #[test]
+    fn prepared_matcher_preserves_foundation_locale_and_full_text() {
+        let values = ["Résumé", "re\u{301}sume\u{301}", "İstanbul", "Straße", "first\nsecond", "emoji 👩‍💻 tail", ""];
+        for query in ["", "résumé", "RESUME", "istanbul", "STRASSE", "second", "👩‍💻", "missing"] {
+            let matcher = Matcher::new(query);
+            let expected: Vec<_> = values.iter().filter(|text| objc2::rc::autoreleasepool(|_| objc2_foundation::NSString::from_str(text).localizedCaseInsensitiveContainsString(&objc2_foundation::NSString::from_str(query)))).collect();
+            let actual: Vec<_> = values.iter().filter(|text| matcher.matches(text)).collect();
+            assert_eq!(actual, expected);
+        }
+    }
     struct Temp(PathBuf);
     impl Drop for Temp {
         fn drop(&mut self) {

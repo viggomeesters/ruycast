@@ -134,7 +134,10 @@ impl Session {
         Ok(())
     }
     fn search(&self) -> Vec<usize> {
-        if self.clipboard_mode { return (0..self.catalog.len()).filter(|&i|self.query.is_empty()||crate::clipboard_history::matches(&self.catalog.command(i).target,&self.query)).collect(); }
+        if self.clipboard_mode {
+            let matcher = (!self.query.is_empty()).then(|| crate::clipboard_history::Matcher::new(&self.query));
+            return (0..self.catalog.len()).filter(|&i|matcher.as_ref().is_none_or(|matcher| matcher.matches(&self.catalog.command(i).target))).collect();
+        }
         if self.query.is_empty() && self.library.is_none() && self.launcher_scope.is_none() {
             return vec![];
         }
