@@ -3022,7 +3022,28 @@ fn run_graph(
                 #[cfg(feature = "test-tools")]
                 source_f1_owner.borrow_mut().pump(&windows[0].0, &windows[0].1, false,services.owned_pending());
                 for (current, connected) in &windows {
-                    if icons_changed&&current.ivars().session.borrow().visible(){current.ivars().table.reloadData();current.reconcile();}
+                    let session = current.ivars().session.borrow();
+                    if session.visible() && (icons_changed.websites || icons_changed.progress) {
+                        if icons_changed.websites {
+                            drop(session); current.ivars().table.reloadData(); current.reconcile();
+                        } else {
+                            let indices = crate::native_rows::visible_indices(&session, current.ivars().table.rowsInRect(current.ivars().table.visibleRect()), &icons_changed);
+                            if let Some(clipboard) = session.clipboard() {
+                                if crate::native_rows::clipboard_changed(&clipboard.source, &icons_changed) {
+                                    current.ivars().clipboard_panel.refresh_source(clipboard, !current.ivars().panel.ivars().ordering_allowed);
+                                }
+                            }
+                            drop(session);
+                            if !indices.is_empty() {
+                                let rows = objc2_foundation::NSMutableIndexSet::new();
+                                for index in indices { rows.addIndex(index); }
+                                if let Some(column) = current.ivars().table.tableColumns().iter().position(|column| column.identifier().to_string() == "title") {
+                                    let columns = objc2_foundation::NSIndexSet::indexSetWithIndex(column);
+                                    current.ivars().table.reloadDataForRowIndexes_columnIndexes(&rows, &columns);
+                                }
+                            }
+                        }
+                    }
                     let view = connected.view();
                     if view.visible
                         && !current.ivars().session.borrow().visible()

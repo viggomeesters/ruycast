@@ -16,11 +16,13 @@ use std::{
 struct Cached {
     key: String,
     at: Instant,
+    ttl: Duration,
     image: Option<Retained<NSImage>>,
     name: String,
 }
 thread_local! {static CACHE:RefCell<Vec<Rc<Cached>>>=const {RefCell::new(Vec::new())};}
 thread_local! {static WEBSITES:RefCell<Option<ruycast_native::website_icons::Service>>=const {RefCell::new(None)};}
+thread_local! {static LOCAL_ICONS:RefCell<Option<ruycast_native::local_icons::Service>>=const {RefCell::new(None)};}
 pub struct Cleanup;
 impl Drop for Cleanup {
     fn drop(&mut self) {
@@ -31,6 +33,7 @@ pub fn start(wake: std::sync::Arc<dyn Fn() + Send + Sync>, hidden: bool) {
     if hidden {
         return;
     }
+    LOCAL_ICONS.with(|s| *s.borrow_mut() = Some(ruycast_native::local_icons::Service::new(std::sync::Arc::new(resolve_local_icon), wake.clone())));
     use objc2_foundation::{
         NSSearchPathDirectory, NSSearchPathDomainMask, NSSearchPathForDirectoriesInDomains,
     };
@@ -49,14 +52,97 @@ pub fn start(wake: std::sync::Arc<dyn Fn() + Send + Sync>, hidden: bool) {
         });
     }
 }
-pub fn poll() -> bool {
-    WEBSITES.with(|s| s.borrow_mut().as_mut().is_some_and(|s| s.poll()))
+pub struct Changes { pub websites: bool, pub keys: Vec<ruycast_native::local_icons::Key>, pub progress: bool }
+pub fn poll() -> Changes {
+    let websites = WEBSITES.with(|s| s.borrow_mut().as_mut().is_some_and(|s| s.poll()));
+    let mut keys = Vec::new();
+    let completed = LOCAL_ICONS.with(|s| s.borrow_mut().as_mut().map(|s| s.poll()).unwrap_or_default());
+    let progress = !completed.is_empty();
+    for item in completed {
+        use ruycast_native::local_icons::Key;
+        let key = match &item.key { Key::App(id) => format!("app:{id}"), Key::Path(path) => format!("path:{path}") };
+        let negative = matches!(item.key, Key::Path(_)) && item.value.image.is_none();
+        let ttl = if negative { Duration::from_secs(2) } else { Duration::from_secs(30) };
+        if negative || item.started.elapsed() < ttl {
+            let image = item.value.image.as_ref().and_then(|bytes| NSImage::initWithData(NSImage::alloc(), &objc2_foundation::NSData::with_bytes(bytes)));
+            publish_cache(&key, Some(Rc::new(Cached { key: key.clone(), at: if negative { Instant::now() } else { item.started }, ttl, image, name: item.value.name })));
+            keys.push(item.key);
+        } else {
+            LOCAL_ICONS.with(|s| if let Some(service) = s.borrow_mut().as_mut() { service.mark_retry(item.key); });
+        }
+    }
+    Changes { websites, keys, progress }
+}
+fn needs_retry(key: &ruycast_native::local_icons::Key) -> bool {
+    use ruycast_native::local_icons::Key;
+    let cache_key = match key { Key::App(id) => format!("app:{id}"), Key::Path(path) => format!("path:{path}") };
+    cached_at(&cache_key, Instant::now()).is_none() && LOCAL_ICONS.with(|s| s.borrow().as_ref().is_some_and(|s| s.needs_retry(key)))
+}
+pub fn visible_indices(model: &crate::native_model::Model, range: objc2_foundation::NSRange, changes: &Changes) -> Vec<usize> {
+    use ruycast_native::local_icons::Key;
+    let start = range.location.min(model.row_count());
+    let end = start.saturating_add(range.length).min(model.row_count());
+    (start..end).filter(|&i| model.row(i).is_some_and(|row| {
+        let key = match row.icon {
+            Icon::Application(id) | Icon::Website { application: Some(id), .. } => Some(Key::App(id)),
+            Icon::Path(path) => Some(Key::Path(path)), _ => None,
+        };
+        key.is_some_and(|key| changes.keys.contains(&key) || (changes.progress && needs_retry(&key)))
+    })).collect()
+}
+pub fn clipboard_changed(source: &str, changes: &Changes) -> bool {
+    let key = ruycast_native::local_icons::Key::App(source.into());
+    changes.keys.contains(&key) || (changes.progress && needs_retry(&key))
 }
 pub fn stop() {
     let websites = WEBSITES.with(|s| s.borrow_mut().take());
+    let local = LOCAL_ICONS.with(|s| s.borrow_mut().take());
     let cache = CACHE.with(|s| std::mem::take(&mut *s.borrow_mut()));
     drop(websites);
+    drop(local);
     drop(cache);
+}
+fn resolve_local_icon(key: &ruycast_native::local_icons::Key) -> ruycast_native::local_icons::Resolved {
+    use ruycast_native::local_icons::{Key, Resolved};
+    objc2::rc::autoreleasepool(|_| {
+        let (image, name) = match key {
+            Key::App(id) => {
+                let url = NSWorkspace::sharedWorkspace().URLForApplicationWithBundleIdentifier(&NSString::from_str(id));
+                let name = url.as_ref().and_then(|url| NSBundle::bundleWithURL(url)).and_then(|bundle| ["CFBundleDisplayName", "CFBundleName"].iter().find_map(|key| bundle.objectForInfoDictionaryKey(&NSString::from_str(key)).and_then(|v| v.downcast::<NSString>().ok()).map(|s| s.to_string()))).unwrap_or_else(|| id.clone());
+                let image = url.and_then(|u| u.path()).map(|p| NSWorkspace::sharedWorkspace().iconForFile(&p));
+                (image, name)
+            }
+            Key::Path(path) => {
+                let expanded = NSString::from_str(path).stringByExpandingTildeInPath();
+                let image = std::path::Path::new(&expanded.to_string()).exists().then(|| NSWorkspace::sharedWorkspace().iconForFile(&expanded));
+                (image, String::new())
+            }
+        };
+        let image = image.and_then(|image| raster_icon(&image));
+        Resolved { image, name }
+    })
+}
+fn raster_icon(image: &NSImage) -> Option<Vec<u8>> {
+    let size = image.size();
+    if !size.width.is_finite() || !size.height.is_finite() || size.width <= 0. || size.height <= 0. { return None; }
+    let bitmap = unsafe { NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+        NSBitmapImageRep::alloc(), std::ptr::null_mut(), 64, 64, 8, 4, true, false, NSDeviceRGBColorSpace, 256, 32,
+    ) }?;
+    let data = bitmap.bitmapData();
+    if data.is_null() || bitmap.bytesPerRow() != 256 { return None; }
+    unsafe { std::ptr::write_bytes(data, 0, 64 * 256) };
+    let context = NSGraphicsContext::graphicsContextWithBitmapImageRep(&bitmap)?;
+    NSGraphicsContext::saveGraphicsState_class();
+    struct RestoreGraphics;
+    impl Drop for RestoreGraphics { fn drop(&mut self) { NSGraphicsContext::restoreGraphicsState_class(); } }
+    let _restore = RestoreGraphics;
+    NSGraphicsContext::setCurrentContext(Some(&context));
+    let scale = (64. / size.width).min(64. / size.height);
+    let (width, height) = (size.width * scale, size.height * scale);
+    image.drawInRect_fromRect_operation_fraction(rect((64. - width) / 2., (64. - height) / 2., width, height), NSRect::ZERO, NSCompositingOperation::SourceOver, 1.);
+    context.flushGraphics();
+    let data = unsafe { bitmap.representationUsingType_properties(NSBitmapImageFileType::PNG, &objc2_foundation::NSDictionary::new()) }?;
+    (data.length() <= 131_072).then(|| unsafe { data.as_bytes_unchecked() }.to_vec())
 }
 define_class!(
  #[unsafe(super=NSView)] #[thread_kind=MainThreadOnly] #[ivars=bool]
@@ -105,35 +191,17 @@ fn application(id: &str, hidden: bool) -> (Option<Retained<NSImage>>, String) {
         }
         return (None, id.into());
     }
-    application_at(id, Instant::now, |id| {
-        let url = NSWorkspace::sharedWorkspace()
-            .URLForApplicationWithBundleIdentifier(&NSString::from_str(id));
-        let name = url
-            .as_ref()
-            .and_then(|url| NSBundle::bundleWithURL(url))
-            .and_then(|bundle| {
-                ["CFBundleDisplayName", "CFBundleName"]
-                    .iter()
-                    .find_map(|key| {
-                        bundle
-                            .objectForInfoDictionaryKey(&NSString::from_str(key))
-                            .and_then(|v| v.downcast::<NSString>().ok())
-                            .map(|s| s.to_string())
-                    })
-            })
-            .unwrap_or_else(|| id.into());
-        let image = url
-            .and_then(|u| u.path())
-            .map(|p| NSWorkspace::sharedWorkspace().iconForFile(&p));
-        (image, name)
-    })
+    let key = format!("app:{id}");
+    if let Some(entry) = cached_at(&key, Instant::now()) { return (entry.image.clone(), entry.name.clone()); }
+    LOCAL_ICONS.with(|s| if let Some(service) = s.borrow_mut().as_mut() { service.request(ruycast_native::local_icons::Key::App(id.into())); });
+    (None, id.into())
 }
 fn cached_at(key: &str, at: Instant) -> Option<Rc<Cached>> {
     CACHE.with(|cache| {
         cache
             .borrow()
             .iter()
-            .find(|e| e.key == key && at.saturating_duration_since(e.at) < Duration::from_secs(30))
+            .find(|e| e.key == key && at.saturating_duration_since(e.at) < e.ttl)
             .cloned()
     })
 }
@@ -158,6 +226,7 @@ fn publish_cache(key: &str, entry: Option<Rc<Cached>>) {
     });
     drop(retired);
 }
+#[cfg(feature = "test-tools")]
 fn application_at(
     id: &str,
     now: impl Fn() -> Instant,
@@ -174,6 +243,7 @@ fn application_at(
         Some(Rc::new(Cached {
             key: key.clone(),
             at,
+            ttl: Duration::from_secs(30),
             image: image.clone(),
             name: name.clone(),
         })),
@@ -191,15 +261,12 @@ fn path_image(path: &str, hidden: bool) -> Option<Retained<NSImage>> {
             return None;
         }
     }
-    path_image_at(path, Instant::now, |path| {
-        let expanded = NSString::from_str(path).stringByExpandingTildeInPath();
-        if !std::path::Path::new(&expanded.to_string()).exists() {
-            return None;
-        }
-        let image = NSWorkspace::sharedWorkspace().iconForFile(&expanded);
-        Some(image)
-    })
+    let key = format!("path:{path}");
+    if let Some(entry) = cached_at(&key, Instant::now()) { return entry.image.clone(); }
+    LOCAL_ICONS.with(|s| if let Some(service) = s.borrow_mut().as_mut() { service.request(ruycast_native::local_icons::Key::Path(path.into())); });
+    None
 }
+#[cfg(feature = "test-tools")]
 fn path_image_at(
     path: &str,
     now: impl Fn() -> Instant,
@@ -217,6 +284,7 @@ fn path_image_at(
             Rc::new(Cached {
                 key: key.clone(),
                 at,
+                ttl: Duration::from_secs(30),
                 image: Some(image.clone()),
                 name: String::new(),
             })
@@ -276,6 +344,102 @@ pub fn check_cache(main: MainThreadMarker) -> Result<(), String> {
         &objc2_foundation::NSData::with_bytes(&png),
     )
     .ok_or("Owned native icon image failed")?;
+    // Exercise the real row-facing asynchronous route with an owned slow
+    // resolver; never query the contributor's apps or filesystem here.
+    struct RestoreLocal(Option<ruycast_native::local_icons::Service>);
+    impl Drop for RestoreLocal {
+        fn drop(&mut self) {
+            let service = LOCAL_ICONS.with(|s| std::mem::replace(&mut *s.borrow_mut(), self.0.take()));
+            drop(service);
+        }
+    }
+    let _local_restore = RestoreLocal(LOCAL_ICONS.with(|s| s.borrow_mut().take()));
+    let bytes = png.to_vec();
+    let path_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let resolver_calls = path_calls.clone();
+    LOCAL_ICONS.with(|s| *s.borrow_mut() = Some(ruycast_native::local_icons::Service::new(
+        std::sync::Arc::new(move |key| { std::thread::sleep(Duration::from_millis(100)); objc2::rc::autoreleasepool(|_| {
+            if matches!(key, ruycast_native::local_icons::Key::Path(path) if path == "owned-retry")
+                && resolver_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                return ruycast_native::local_icons::Resolved { image: None, name: String::new() };
+            }
+            let image = NSImage::initWithData(NSImage::alloc(), &objc2_foundation::NSData::with_bytes(&bytes)).and_then(|image| raster_icon(&image)).filter(|png| {
+                NSBitmapImageRep::initWithData(NSBitmapImageRep::alloc(), &objc2_foundation::NSData::with_bytes(png)).is_some_and(|rep| {
+                    rep.pixelsWide() == 64 && rep.pixelsHigh() == 64 && !rep.bitmapData().is_null()
+                        && unsafe { std::slice::from_raw_parts(rep.bitmapData(), (rep.bytesPerRow() * rep.pixelsHigh()) as usize) }.iter().any(|byte| *byte != 0)
+                })
+            });
+            ruycast_native::local_icons::Resolved { image, name: "Owned async app".into() }
+        }) }),
+        std::sync::Arc::new(|| {}),
+    )));
+    let begun = Instant::now();
+    let (placeholder, name) = application("owned-async", false);
+    require(placeholder.is_none() && name == "owned-async", "Async icon did not return the placeholder")?;
+    require(begun.elapsed() < Duration::from_millis(80), "Row blocked on the slow icon resolver")?;
+    let mut pending_times = Vec::new();
+    for _ in 0..30 {
+        let at = Instant::now();
+        let _ = application("owned-async", false);
+        pending_times.push(at.elapsed().as_micros());
+    }
+    let mut cold_times = Vec::new();
+    for i in 0..30 {
+        let at = Instant::now();
+        let _ = application(&format!("owned-cold-{i}"), false);
+        cold_times.push(at.elapsed().as_micros());
+    }
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline && application("owned-async", false).1 != "Owned async app" {
+        std::thread::sleep(Duration::from_millis(5));
+        poll();
+    }
+    let (resolved, name) = application("owned-async", false);
+    require(resolved.is_some() && name == "Owned async app", "Async icon was not published")?;
+    let _ = path_image("owned-retry", false);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline && cached_at("path:owned-retry", Instant::now()).is_none() {
+        std::thread::sleep(Duration::from_millis(5)); poll();
+    }
+    require(cached_at("path:owned-retry", Instant::now()).is_some_and(|v| v.image.is_none()), "Missing icon was not negatively cached")?;
+    publish_cache("path:owned-retry", Some(Rc::new(Cached { key: "path:owned-retry".into(), at: Instant::now() - Duration::from_secs(3), ttl: Duration::from_secs(2), image: None, name: String::new() })));
+    let _ = path_image("owned-retry", false);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while Instant::now() < deadline && path_image("owned-retry", false).is_none() {
+        std::thread::sleep(Duration::from_millis(5)); poll();
+    }
+    require(path_image("owned-retry", false).is_some() && path_calls.load(std::sync::atomic::Ordering::SeqCst) == 2, "Recreated icon did not recover after the retry interval")?;
+    for i in 0..50 { let _ = path_image(&format!("owned-saturated-{i}"), false); }
+    let dropped = ruycast_native::local_icons::Key::Path("owned-saturated-49".into());
+    require(needs_retry(&dropped), "Saturation did not leave the later visible key retryable")?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        std::thread::sleep(Duration::from_millis(5));
+        let changed = poll();
+        if changed.keys.iter().any(|key| matches!(key, ruycast_native::local_icons::Key::Path(path) if path.starts_with("owned-saturated-"))) { break; }
+        require(Instant::now() < deadline, "Saturated worker did not release capacity")?;
+    }
+    let _ = path_image("owned-saturated-49", false);
+    require(LOCAL_ICONS.with(|s| s.borrow().as_ref().is_some_and(|s| s.is_pending(&dropped))), "Visible saturated key was not retried")?;
+    let mut commands = ruycast_native::session::fixture(2);
+    commands[0].title = "Alpha Owned".into(); commands[0].kind = "app".into(); commands[0].target = "owned.alpha".into();
+    commands[1].title = "Beta Owned".into(); commands[1].kind = "app".into(); commands[1].target = "owned.beta".into();
+    let changes = Changes { websites: false, keys: vec![ruycast_native::local_icons::Key::App("owned.beta".into())], progress: true };
+    let mut alpha = ruycast_native::session::Session::new(commands.clone()); alpha.set_query("Alpha");
+    let mut beta = ruycast_native::session::Session::new(commands); beta.set_query("Beta");
+    let alpha = crate::native_model::Model::from(alpha);
+    let beta = crate::native_model::Model::from(beta);
+    let range = objc2_foundation::NSRange::new(0, 10);
+    require(visible_indices(&alpha, range, &changes).is_empty(), "Stale icon changed another query")?;
+    require(visible_indices(&beta, range, &changes) == vec![0], "Current icon did not target the visible row")?;
+    let mut warm_times = Vec::new();
+    for _ in 0..30 {
+        let at = Instant::now();
+        let _ = application("owned-async", false);
+        warm_times.push(at.elapsed().as_micros());
+    }
+    pending_times.sort_unstable(); warm_times.sort_unstable(); cold_times.sort_unstable();
+    eprintln!("Owned 100ms resolver: cold row p50={}us p95={}us; pending row p50={}us p95={}us; warm row p50={}us p95={}us", cold_times[15], cold_times[28], pending_times[15], pending_times[28], warm_times[15], warm_times[28]);
     let start = Instant::now();
     let clock = Cell::new(start);
     let calls = Cell::new(0usize);

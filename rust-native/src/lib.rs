@@ -81,6 +81,7 @@ pub mod os_command;
 pub mod file_search;
 pub mod processes;
 pub mod resource_sampler;
+pub mod local_icons;
 pub mod monitor;
 pub mod management_rest;
 pub mod system_actions;
