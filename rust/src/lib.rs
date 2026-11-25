@@ -432,18 +432,26 @@ impl SearchIndex {
     /// Typed in-process entry for the Rust host. The C ABI remains available
     /// for the migration reference; invalid snapshots never reach the scorer.
     pub fn search_with_recency(&self, query: &str, recency: &[f64]) -> Result<Vec<usize>, String> {
+        self.search_with_recency_limit(query, recency, 0)
+    }
+    /// A zero limit returns all matches; nonzero limits preserve the exact prefix.
+    pub fn search_with_recency_limit(&self, query: &str, recency: &[f64], limit: usize) -> Result<Vec<usize>, String> {
         if !recency.is_empty()
             && (recency.len() != self.entries.len()
                 || recency.iter().any(|v| !v.is_finite() || *v < 0.0))
         {
             return Err("Invalid catalog recency snapshot".into());
         }
-        Ok(self.search_ranked(query, recency))
+        Ok(self.search_ranked_limited(query, recency, limit))
     }
     fn search_ranked(&self, query: &str, recency: &[f64]) -> Vec<usize> {
+        self.search_ranked_limited(query, recency, 0)
+    }
+    fn search_ranked_limited(&self, query: &str, recency: &[f64], limit: usize) -> Vec<usize> {
         let q = query.trim().to_lowercase();
         if q.is_empty() {
-            return (0..self.entries.len()).collect();
+            let count = if limit == 0 { self.entries.len() } else { limit.min(self.entries.len()) };
+            return (0..count).collect();
         }
         let terms = q.split_whitespace().collect::<Vec<_>>();
         let fuzzy = q.chars().nth(1).is_some();
@@ -506,7 +514,7 @@ impl SearchIndex {
                 Some((score, i))
             }));
         }
-        found.sort_by(|a, b| {
+        let compare = |a: &(i32, usize), b: &(i32, usize)| {
             a.0.cmp(&b.0)
                 .then_with(|| {
                     recency
@@ -519,7 +527,12 @@ impl SearchIndex {
                         .title_order
                         .cmp(&self.entries[b.1].title_order)
                 })
-        });
+        };
+        if limit > 0 && found.len() > limit {
+            found.select_nth_unstable_by(limit, compare);
+            found.truncate(limit);
+        }
+        if limit == 0 { found.sort_by(compare); } else { found.sort_unstable_by(compare); }
         found.into_iter().map(|(_, i)| i).collect()
     }
 }
@@ -810,6 +823,56 @@ pub unsafe extern "C" fn rustcast_free(ptr: *mut c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn limited_ranked_search_is_exact_prefix_including_ties_and_typos() {
+        let titles = ["Command", "Command", "Café", "Álpha test", "Quick Note", "Cot", "Cat", "Cut", "Cart", "Act", "cater", "a" ];
+        let commands: Vec<Command> = (0..720).map(|i| serde_json::from_value(json!({
+            "id": format!("entry-{i}"), "title": titles[i % titles.len()],
+            "kind": if i % 3 == 0 { "snippet" } else { "script" }, "target": "x",
+            "aliases": if i % 5 == 0 { vec!["alias"] } else { vec![] }
+        })).unwrap()).collect();
+        let index = SearchIndex::new(&commands);
+        let weights: Vec<f64> = (0..commands.len()).map(|i| match i % 4 { 0 => -0.0, 1 => 0.0, 2 => 5.0, _ => 10.0 }).collect();
+        for query in ["", " ", "c", "ca", "cat", "catt", "cart", "cta", "quik", "café", "alias", "entry-123", "missing", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] {
+            let expected = index.search_with_recency(query, &weights).unwrap();
+            for limit in [0, 1, 2, 7, 100, 719, 720, 1000] {
+                let take = if limit == 0 { expected.len() } else { limit };
+                assert_eq!(index.search_with_recency_limit(query, &weights, limit).unwrap(), expected.iter().copied().take(take).collect::<Vec<_>>(), "query={query:?}, limit={limit}");
+            }
+        }
+        assert!(index.search_with_recency_limit("cat", &[f64::NAN], 1).is_err());
+    }
+    #[test]
+    #[ignore = "manual synthetic search performance measurement"]
+    fn benchmark_search_scenarios() {
+        use std::{hint::black_box, time::Instant};
+        for size in [500, 1_000, 10_000] {
+            let commands: Vec<Command> = (0..size).map(|i| serde_json::from_value(json!({
+                "id": format!("command-{i}"), "title": format!("Command project {} item {i}", i % 31),
+                "kind": if i % 4 == 0 { "snippet" } else { "script" }, "target": "example",
+                "aliases": if i % 7 == 0 { vec!["alias"] } else { vec![] }
+            })).unwrap()).collect();
+            let index = SearchIndex::new(&commands);
+            let weights: Vec<f64> = (0..size).map(|i| (i % 13) as f64).collect();
+            for query in ["command", "project 482", "comamnd", "alias"] {
+                let expected = index.search_with_recency(query, &weights).unwrap();
+                assert_eq!(index.search_with_recency_limit(query, &weights, 100).unwrap(), expected.into_iter().take(100).collect::<Vec<_>>());
+                let mut full = Vec::new();
+                let mut limited = Vec::new();
+                for _ in 0..100 {
+                    let start = Instant::now();
+                    black_box(index.search_with_recency(black_box(query), &weights).unwrap());
+                    full.push(start.elapsed().as_micros());
+                    let start = Instant::now();
+                    black_box(index.search_with_recency_limit(black_box(query), &weights, 100).unwrap());
+                    limited.push(start.elapsed().as_micros());
+                }
+                full.sort_unstable();
+                limited.sort_unstable();
+                eprintln!("size={size} query={query:?} full_p50={}us full_p95={}us limit_p50={}us limit_p95={}us", full[49], full[94], limited[49], limited[94]);
+            }
+        }
+    }
     struct IndexGuard(*mut SearchIndex);
     impl Drop for IndexGuard {
         fn drop(&mut self) {
