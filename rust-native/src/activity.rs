@@ -92,6 +92,11 @@ struct LogEntry {
     details: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     affected_file: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cancellation_reason: Option<String>,
+}
+fn valid_interruption_reason(reason: &str) -> bool {
+    ["scope", "superseded", "visibility", "dismissed", "configuration", "shutdown", "multiple", "unknown"].contains(&reason)
 }
 
 pub struct Activity {
@@ -176,6 +181,7 @@ impl Activity {
                         || entry.message.as_ref().is_some_and(|s| s.len() > 4096)
                         || entry.details.as_ref().is_some_and(|d| d.len() > 6)
                         || entry.affected_file.as_ref().is_some_and(|s| s.len() > 1024)
+                        || entry.cancellation_reason.as_ref().is_some_and(|s| !valid_interruption_reason(s))
                     {
                         return Err("Invalid command log".into());
                     }
@@ -303,18 +309,26 @@ impl Activity {
         response: &Value,
         redaction: (&[String], &Path),
     ) {
-        self.record_response_context(trace, id, source, ms, response, redaction, None);
+        self.record_response_context(trace, id, source, ms, response, redaction, None, None);
+    }
+    pub(crate) fn record_interruption(&mut self, trace: &str, id: &str, source: &str, ms: f64, response: &Value, redaction: (&[String], &Path), reason: &str) {
+        self.record_response_context(trace, id, source, ms, response, redaction, None, Some(reason));
     }
     pub(crate) fn record_response_context(
         &mut self, trace: &str, id: &str, source: &str, ms: f64, response: &Value,
-        redaction: (&[String], &Path), work_context: Option<Option<&str>>,
+        redaction: (&[String], &Path), work_context: Option<Option<&str>>, interruption: Option<&str>,
     ) {
         let trusted_work = work_context.is_some();
         let (secrets, home) = redaction;
         let ok = response["ok"] == true;
         let error = response["error"].as_str().unwrap_or("Action failed");
         let code = if trusted_work { if ok { "success" } else { crate::analytics::failure_code(error) } } else { response["code"].as_str().unwrap_or_else(|| if ok { "success" } else { crate::analytics::failure_code(error) }) };
-        let mut metadata = json!({"code": if trusted_work { code.to_owned() } else { Self::clean(code, secrets, home, 80) }});
+        let mut metadata = json!({"code": if trusted_work || (interruption.is_some() && code == "interrupted") { code.to_owned() } else { Self::clean(code, secrets, home, 80) }});
+        if !ok && !trusted_work && code == "interrupted" {
+            if let Some(reason) = interruption.filter(|r| valid_interruption_reason(r)) {
+                metadata["cancellationReason"] = json!(reason);
+            }
+        }
         if !ok && !trusted_work {
             metadata["message"] = json!(Self::clean(error, secrets, home, 1800));
         }
@@ -455,6 +469,23 @@ impl Activity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn interruption_reason_is_allowlisted_in_local_log() {
+        let dir = temp();
+        let mut activity = Activity::open(&dir.0).unwrap();
+        let safe = json!({"ok":false,"code":"interrupted","error":"Action interrupted"});
+        activity.record_interruption("trace", "fixture", "hotkey", 1., &safe, (&[], &dir.0), "dismissed");
+        assert_eq!(activity.entries.last().unwrap()["cancellationReason"], "dismissed");
+        let mut reopened = Activity::open(&dir.0).unwrap();
+        assert_eq!(reopened.entries.last().unwrap()["cancellationReason"], "dismissed");
+        let unsafe_reason = json!({"ok":false,"code":"interrupted","error":"Action interrupted","cancellationReason":"private content"});
+        reopened.record_response("trace2", "fixture", "hotkey", 1., &unsafe_reason, (&[], &dir.0));
+        assert!(reopened.entries.last().unwrap().get("cancellationReason").is_none());
+        activity.record_interruption("trace3", "fixture", "hotkey", 1., &safe, (&[], &dir.0), "private content");
+        assert!(activity.entries.last().unwrap().get("cancellationReason").is_none());
+        activity.record_interruption("trace4", "fixture", "hotkey", 1., &safe, (&["interrupted".into()], &dir.0), "scope");
+        assert_eq!(activity.entries.last().unwrap()["code"], "interrupted");
+    }
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
     struct Temp(PathBuf);
@@ -482,13 +513,13 @@ mod tests {
         let dir = temp();
         let mut activity = Activity::open(&dir.0).unwrap();
         let response = json!({"ok":false,"error":"PRIVATE text","exitCode":1,"diagnostics":{"providerStderr":"PRIVATE stderr"}});
-        activity.record_response_context("trace", "task", "launcher", 1., &response, (&[], &dir.0), Some(Some("00-inbox/demo/note.md")));
+        activity.record_response_context("trace", "task", "launcher", 1., &response, (&[], &dir.0), Some(Some("00-inbox/demo/note.md")), None);
         let reopened = Activity::open(&dir.0).unwrap();
         let entries = reopened.entries(&json!({"errorsOnly":true}));
         assert_eq!(entries[0]["affectedFile"], "00-inbox/demo/note.md");
         let saved = fs::read_to_string(activity.path()).unwrap();
         assert!(!saved.contains("PRIVATE"));
-        activity.record_response_context("no-source", "task", "launcher", 1., &response, (&[], &dir.0), Some(None));
+        activity.record_response_context("no-source", "task", "launcher", 1., &response, (&[], &dir.0), Some(None), None);
         let no_source = &activity.entries(&json!({"errorsOnly":true}))[0];
         assert!(no_source.get("affectedFile").is_none());
         assert!(no_source.get("message").is_none());

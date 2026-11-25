@@ -1898,6 +1898,7 @@ fn run_graph(
     }
     palette.retire_creation();
     management.retire_creation();
+    shutdown_deliveries.extend(system::finish_shutdown(&mut state, &mut [&mut palette, &mut management]));
     if let Some(writer) = &state.writer {
         writer.stop();
     }
@@ -4244,6 +4245,7 @@ fn finish_executions(
             &response,
             (&context.log_secrets, &state.configuration.paths.home),
             work_context.as_ref().map(|path| path.as_deref()),
+            None,
         );}
         if success && !history_operation && !matches!(context.origin, ExecutionOrigin::Service(_)) {
             if current_configuration && origin_valid(state, &context) {

@@ -177,6 +177,32 @@ struct ActionRecord {
     span: Option<crate::analytics::Span>,
     secrets: Vec<String>,
 }
+// Only report a single cause when exactly one observed authority changed.
+// A revoked authority does not establish whether a native effect occurred.
+fn interruption_reason(flags: &[(&'static str, bool)]) -> &'static str {
+    let mut reasons = flags.iter().filter(|(_, changed)| *changed).map(|(name, _)| *name);
+    match (reasons.next(), reasons.next()) {
+        (Some(reason), None) => reason,
+        (Some(_), Some(_)) => "multiple",
+        _ => "unknown",
+    }
+}
+fn pending_action_response(done: Option<&Result<(), String>>, current: bool, changes: &[(&'static str, bool)]) -> Value {
+    match done {
+        Some(Ok(())) => json!({"ok":true}),
+        Some(Err(error)) if !current && error == os::CANCELLED => json!({"ok":false,"code":"interrupted","cancellationReason":"unknown","error":"Action interrupted; its outcome may be unknown. Check before retrying."}),
+        Some(Err(error)) => json!({"ok":false,"error":error}),
+        None => json!({"ok":false,"code":"interrupted","cancellationReason":interruption_reason(changes),"error":"Action interrupted; its outcome may be unknown. Check before retrying."}),
+    }
+}
+fn shutdown_cli_response(done: Option<Result<Value, String>>) -> Value {
+    match done {
+        Some(Ok(value)) => value,
+        Some(Err(error)) if error == os::CANCELLED => json!({"ok":false,"code":"interrupted","cancellationReason":"unknown","error":"Action interrupted; its outcome may be unknown. Check before retrying."}),
+        Some(Err(error)) => json!({"ok":false,"error":error}),
+        None => pending_action_response(None, false, &[("shutdown", true)]),
+    }
+}
 fn record_start(
     state: &mut SharedState,
     c: &rustcast_core::Command,
@@ -217,21 +243,20 @@ fn record_finish(
 ) -> Result<(), String> {
     let success = response["ok"] == true;
     if !success { response["diagnosticID"] = json!(record.trace); }
-    state.activity.record_response(
-        &record.trace,
-        &record.logged_id,
-        record.source,
-        record.started.elapsed().as_secs_f64() * 1000.,
-        response,
-        (&record.secrets, &state.configuration.paths.home),
-    );
+    let ms = record.started.elapsed().as_secs_f64() * 1000.;
+    let redaction = (record.secrets.as_slice(), state.configuration.paths.home.as_path());
+    if response["code"] == "interrupted" {
+        state.activity.record_interruption(&record.trace, &record.logged_id, record.source, ms, response, redaction, response["cancellationReason"].as_str().unwrap_or("unknown"));
+    } else {
+        state.activity.record_response(&record.trace, &record.logged_id, record.source, ms, response, redaction);
+    }
     if let Some(span) = record.span.take() {
         span.finish(
             success,
             if success {
                 "success"
             } else {
-                crate::analytics::failure_code(response["error"].as_str().unwrap_or(""))
+                if response["code"] == "interrupted" { "interrupted" } else { crate::analytics::failure_code(response["error"].as_str().unwrap_or("")) }
             },
         );
     }
@@ -815,19 +840,22 @@ pub(super) fn poll_native(state: &mut SharedState, w: &mut WindowRuntime, ui: &A
     let background_layout = !w.session.visible
         && matches!(action.pending, ActionPending::Layout(_))
         && action.record.as_ref().is_some_and(|r| r.source == "hotkey");
-    let current = action.scope_live.load(Ordering::Acquire)
-        && (background_layout
-            || (w.utility.mode.is_none() && !w.session.clipboard_mode && w.session.launcher_scope.is_none()))
-        && (if main_consent {w.session.visible}else{action.epoch==ui.latest_epoch() && action.intent==ui.latest_intent()})
-        && action.dismissal == ui.latest_dismissal()
-        && (action.allow_revision || action.revision == state.configuration.revision)
-        && !ui.stop_requested();
+    let dismissed = action.dismissal != ui.latest_dismissal();
+    let changes = [
+        ("scope", !action.scope_live.load(Ordering::Acquire) || !(background_layout || (w.utility.mode.is_none() && !w.session.clipboard_mode && w.session.launcher_scope.is_none()))),
+        ("superseded", !main_consent && (action.epoch != ui.latest_epoch() || (!dismissed && action.intent != ui.latest_intent()))),
+        ("visibility", main_consent && !w.session.visible),
+        ("dismissed", dismissed),
+        ("configuration", !action.allow_revision && action.revision != state.configuration.revision),
+        ("shutdown", ui.stop_requested()),
+    ];
+    let current = !changes.iter().any(|(_, changed)| *changed);
     let done = action.pending.poll();
     if !current || done.is_some() {
         let mut action = w.system.action.take().unwrap();
         if main_consent {w.stamp=None;}
         if let Some(record) = action.record.take() {
-            let mut response=match done.as_ref() {Some(Ok(()))=>json!({"ok":true}),Some(Err(error))=>json!({"ok":false,"error":error}),None=>json!({"ok":false,"error":"Configuration changed or request cancelled. Search again."})};
+            let mut response = pending_action_response(done.as_ref(), current, &changes);
             let _ = record_finish(
                 state,
                 record,
@@ -873,6 +901,34 @@ pub(super) fn poll_native(state: &mut SharedState, w: &mut WindowRuntime, ui: &A
             w.stamp = None;
         }
     }
+}
+pub(super) fn finish_shutdown(state: &mut SharedState, windows: &mut [&mut WindowRuntime]) -> Vec<mpsc::Receiver<bool>> {
+    let changes = [("shutdown", true)];
+    let mut deliveries = vec![];
+    for window in windows {
+        if let Some(mut action) = window.system.action.take() {
+            action.scope_live.store(false, Ordering::Release);
+            if let Some(record) = action.record.take() {
+                let done = action.pending.poll();
+                let mut response = pending_action_response(done.as_ref(), false, &changes);
+                let _ = record_finish(state, record, &mut response, false);
+            }
+        }
+    }
+    for mut job in std::mem::take(&mut state.system.cli) {
+        let done = match &job.pending {
+            CliPending::Builtin(p, label) => p.poll().map(|r| r.map(|_| json!({"ok":true,"result":{"state":label}}))),
+            CliPending::Action(p) => p.poll().map(|r| r.map(|_| json!({"ok":true,"result":{"state":"completed"}}))),
+            CliPending::Layout(p) => p.poll().map(|r| r.map(|frame| json!({"ok":true,"result":frame}))),
+            _ => None,
+        };
+        let mut response = shutdown_cli_response(done);
+        if let Some(record) = job.record.take() {
+            let _ = record_finish(state, record, &mut response, false);
+        }
+        deliveries.push(job.request.respond(response));
+    }
+    deliveries
 }
 struct Cli {
     request: crate::control::Envelope,
@@ -1090,14 +1146,13 @@ pub(super) fn poll_cli(state: &mut SharedState) {
     state.system.service.reap();
     let mut remaining = vec![];
     for mut job in std::mem::take(&mut state.system.cli) {
-        if !job.request.context.is_live() || (job.revision != state.configuration.revision && !matches!(job.pending,CliPending::Builtin(_,"reloaded"))) {
-            let shortcut = job.record.as_ref().is_some_and(|record| record.shortcut);
-            let error = if shortcut {
-                "Shortcut run was interrupted. Its result is unknown. Check Shortcuts before retrying."
-            } else {
-                "Configuration changed or request cancelled. Search again."
-            };
-            let mut response=json!({"ok":false,"error":error});
+        let changes = [
+            ("scope", !job.request.context.is_live()),
+            ("configuration", job.revision != state.configuration.revision && !matches!(job.pending,CliPending::Builtin(_,"reloaded"))),
+        ];
+        if changes.iter().any(|(_, changed)| *changed) {
+            let error = "Action interrupted; its outcome may be unknown. Check before retrying.";
+            let mut response=json!({"ok":false,"code":"interrupted","cancellationReason":interruption_reason(&changes),"error":error});
             if let Some(record)=job.record.take(){let _=record_finish(state,record,&mut response,false);}
             let _ = job.request.respond(response);
             continue;
@@ -1443,6 +1498,121 @@ pub(super) fn fixture(state: &SharedState, request: &Value) -> Value {
 #[cfg(test)]
 mod shortcut_budget_tests {
     use super::*;
+    #[test]
+    fn interruption_reason_never_invents_a_single_cause_for_overlapping_changes() {
+        assert_eq!(interruption_reason(&[("dismissed", true), ("configuration", false)]), "dismissed");
+        assert_eq!(interruption_reason(&[("dismissed", true), ("configuration", true)]), "multiple");
+        assert_eq!(interruption_reason(&[("scope", false)]), "unknown");
+        let changes = [("dismissed", true), ("configuration", true)];
+        assert_eq!(pending_action_response(None, false, &changes)["cancellationReason"], "multiple");
+        assert_eq!(pending_action_response(Some(&Err(os::CANCELLED.into())), false, &changes)["cancellationReason"], "unknown");
+        assert_eq!(pending_action_response(Some(&Err("Provider refused".into())), false, &changes)["error"], "Provider refused");
+        assert_eq!(pending_action_response(Some(&Ok(())), false, &changes)["ok"], true);
+        for value in [json!({"ok":true,"result":{"state":"completed"}}), json!({"ok":true,"result":{"x":1,"y":2,"width":3,"height":4}}), json!({"ok":true,"result":{"state":"reloaded"}})] {
+            assert_eq!(shutdown_cli_response(Some(Ok(value.clone()))), value);
+        }
+        assert_eq!(shutdown_cli_response(Some(Err(os::CANCELLED.into())))["cancellationReason"], "unknown");
+        assert_eq!(shutdown_cli_response(None)["cancellationReason"], "shutdown");
+    }
+    #[test]
+    fn revoked_pending_layout_records_interruption_without_claiming_effect() {
+        check_pending_layout_interruption("scope");
+    }
+    #[test]
+    fn shutdown_records_a_pending_layout_once_without_claiming_effect() {
+        check_pending_layout_interruption("shutdown");
+    }
+    #[test]
+    fn dismissal_is_not_double_counted_as_supersession() {
+        check_pending_layout_interruption("dismissed");
+    }
+    #[test]
+    fn query_change_and_dismissal_are_multiple_observed_changes() {
+        check_pending_layout_interruption("multiple");
+    }
+    fn check_pending_layout_interruption(reason: &str) {
+        let (_temp, mut state, _, _, _) = super::super::inline_tests::setup();
+        let fixture = Arc::new(os::fixture::Fixture::default());
+        state.system.service = os::service::Service::new(fixture.clone());
+        state.system.fixture = Some(fixture);
+        let (services, _main) = crate::main_services::channel();
+        state.services = Some(services);
+        let (events, _receive) = mpsc::sync_channel(8);
+        let ui = Connection::new(events, true);
+        let mut value = serde_json::to_value(os::command("fixture.layout".into(), "Owned layout".into(), None)).unwrap();
+        value["kind"] = json!("window");
+        value["target"] = json!("left-half");
+        let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+        config["commands"].as_array_mut().unwrap().push(value);
+        state.configuration.save(&config).unwrap();
+        let command = state.configuration.current().commands.iter().find(|c| c.id == "fixture.layout").unwrap().clone();
+        let mut window = WindowRuntime::new(crate::session::Session::new(vec![]), Default::default(), &state);
+        window.session.visible = false;
+        super::super::admit_hotkey_command(&mut state, &mut window, &ui, command);
+        if reason == "shutdown" {
+            finish_shutdown(&mut state, &mut [&mut window]);
+            finish_shutdown(&mut state, &mut [&mut window]);
+        } else if reason == "dismissed" || reason == "multiple" {
+            if reason == "multiple" { ui.query("a new query"); }
+            ui.action(crate::connected::Action::Key("cancelOperation:".into()));
+            poll_native(&mut state, &mut window, &ui);
+        } else {
+            window.system.action.as_ref().unwrap().scope_live.store(false, Ordering::Release);
+            poll_native(&mut state, &mut window, &ui);
+        }
+        let log = state.activity.entries(&json!({"commandID":"fixture.layout","errorsOnly":true}));
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0]["code"], "interrupted");
+        let observed = log[0]["cancellationReason"].as_str().unwrap();
+        assert!(observed == "unknown" || observed == reason, "{observed}");
+        assert!(log[0]["message"].as_str().unwrap().contains("outcome may be unknown"));
+        assert!(log[0].get("applied").is_none());
+        let analytics = state.analytics.client().snapshot();
+        assert_eq!(analytics.events.last().unwrap().code, "interrupted");
+    }
+    #[test]
+    fn started_provider_can_finish_after_interruption_without_a_false_outcome() {
+        let (_temp, mut state, _, _, _) = super::super::inline_tests::setup();
+        let fixture = Arc::new(os::fixture::Fixture::default());
+        state.system.service = os::service::Service::new(fixture.clone());
+        state.system.fixture = Some(fixture.clone());
+        let (services, _main) = crate::main_services::channel();
+        state.services = Some(services);
+        let (events, _receive) = mpsc::sync_channel(8);
+        let ui = Connection::new(events, true);
+        let mut value = serde_json::to_value(os::command("fixture.layout".into(), "Owned layout".into(), None)).unwrap();
+        value["kind"] = json!("window"); value["target"] = json!("left-half");
+        let mut config = serde_json::to_value(state.configuration.current()).unwrap();
+        config["commands"].as_array_mut().unwrap().push(value);
+        state.configuration.save(&config).unwrap();
+        let command = state.configuration.current().commands.iter().find(|c| c.id == "fixture.layout").unwrap().clone();
+        let mut window = WindowRuntime::new(crate::session::Session::new(vec![]), Default::default(), &state);
+        window.session.visible = false;
+        super::super::admit_hotkey_command(&mut state, &mut window, &ui, command);
+        let service = os::service::Service::new(fixture);
+        let (entered_tx, entered_rx) = mpsc::sync_channel(1);
+        let (release_tx, release_rx) = mpsc::sync_channel(1);
+        let (done_tx, done_rx) = mpsc::sync_channel(1);
+        let ticket = Ticket { deadline: Instant::now() + Duration::from_secs(3), live: Arc::new(|| true) };
+        let pending = service.effect(ticket, Arc::new(|| {}), move |_| {
+            entered_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+            done_tx.send(()).unwrap();
+            Ok(())
+        }).unwrap();
+        window.system.action.as_mut().unwrap().pending = ActionPending::Action(pending);
+        entered_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        window.system.action.as_ref().unwrap().scope_live.store(false, Ordering::Release);
+        poll_native(&mut state, &mut window, &ui);
+        let log = state.activity.entries(&json!({"commandID":"fixture.layout","errorsOnly":true}));
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0]["code"], "interrupted");
+        assert!(log[0]["message"].as_str().unwrap().contains("outcome may be unknown"));
+        assert!(log[0].get("applied").is_none());
+        release_tx.send(()).unwrap();
+        done_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert_eq!(state.activity.entries(&json!({"commandID":"fixture.layout","errorsOnly":true})).len(), 1);
+    }
     #[test]
     fn window_hotkey_survives_closed_clipboard() {
         check_window_hotkey(true);
