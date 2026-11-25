@@ -220,8 +220,37 @@ impl RequestContext {
             )
     }
 }
+enum ReplyBody {
+    Json(Value),
+    Clipboard { items: Arc<Vec<rustcast_core::Clip>>, indices: Vec<usize> },
+}
+impl serde::Serialize for ReplyBody {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Json(value) => serde::Serialize::serialize(value, serializer),
+            Self::Clipboard { items, indices } => {
+                use serde::ser::{SerializeSeq, SerializeStruct};
+                struct Rows<'a> { items: &'a [rustcast_core::Clip], indices: &'a [usize] }
+                impl serde::Serialize for Rows<'_> {
+                    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                        let mut seq = serializer.serialize_seq(Some(self.indices.len()))?;
+                        for &index in self.indices {
+                            let item = self.items.get(index).ok_or_else(|| serde::ser::Error::custom("Invalid clipboard snapshot index"))?;
+                            seq.serialize_element(item)?;
+                        }
+                        seq.end()
+                    }
+                }
+                let mut result = serializer.serialize_struct("ClipboardReply", 2)?;
+                result.serialize_field("ok", &true)?;
+                result.serialize_field("result", &Rows { items, indices })?;
+                result.end()
+            }
+        }
+    }
+}
 struct Reply {
-    value: Value,
+    value: ReplyBody,
     delivered: SyncSender<bool>,
 }
 pub struct Envelope {
@@ -237,9 +266,14 @@ impl Envelope {
         self.context.decorate_utility(&mut value);
         let (tx, rx) = mpsc::sync_channel(1);
         let _ = self.reply.as_ref().expect("reply sender").try_send(Reply {
-            value,
+            value: ReplyBody::Json(value),
             delivered: tx,
         });
+        rx
+    }
+    pub(crate) fn respond_clipboard(self, items: Arc<Vec<rustcast_core::Clip>>, indices: Vec<usize>) -> Receiver<bool> {
+        let (tx, rx) = mpsc::sync_channel(1);
+        let _ = self.reply.as_ref().expect("reply sender").try_send(Reply { value: ReplyBody::Clipboard { items, indices }, delivered: tx });
         rx
     }
 }
@@ -816,9 +850,9 @@ impl Write for Buffer<'_> {
         Ok(())
     }
 }
-fn send_wire(
+fn send_wire<T: serde::Serialize>(
     stream: &UnixStream,
-    value: &Value,
+    value: &T,
     shared: &Shared,
     limits: Limits,
 ) -> io::Result<()> {
@@ -874,6 +908,18 @@ fn send_wire(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn clipboard_reply_serializes_borrowed_rows_in_requested_order() {
+        let items: Vec<rustcast_core::Clip> = serde_json::from_value(serde_json::json!([
+            {"id":"owned-a","text":"α\nfirst","date":"2026-01-01T00:00:00Z","source":"fixture","contentType":"image","dataFile":"owned.png"},
+            {"id":"owned-b","text":"second","date":"2026-01-01T00:00:00Z","source":"fixture","contentType":"files","fileURLs":["file:///tmp/owned.txt"]}
+        ])).unwrap();
+        let expected = serde_json::json!({"ok":true,"result":[items[1].clone(),items[0].clone()]});
+        let reply = super::ReplyBody::Clipboard { items: std::sync::Arc::new(items), indices: vec![1,0] };
+        assert_eq!(serde_json::to_value(&reply).unwrap(), expected);
+        let bad = super::ReplyBody::Clipboard { items: std::sync::Arc::new(vec![]), indices: vec![0] };
+        assert!(serde_json::to_value(&bad).is_err());
+    }
     fn utility_context()->(super::RequestContext,std::os::unix::net::UnixStream,std::sync::Arc<std::os::unix::net::UnixStream>){
         let (socket,other)=std::os::unix::net::UnixStream::pair().unwrap();let peer=std::sync::Arc::new(socket);
         let context=super::RequestContext{deadline:std::time::Instant::now()+std::time::Duration::from_secs(2),received:std::time::Instant::now(),cancelled:Default::default(),running:std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),peer:std::sync::Arc::downgrade(&peer),native_dispatch:Default::default()};(context,other,peer)

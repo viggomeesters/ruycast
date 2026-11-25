@@ -13,6 +13,7 @@ pub mod catalog;
 pub mod clipboard_ownership;
 pub mod clipboard_import;
 pub mod clipboard_history;
+pub mod clipboard_queries;
 pub mod clipboard_image;
 pub mod command_identity;
 pub mod config_effects;

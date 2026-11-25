@@ -112,6 +112,7 @@ impl ExecutionContext {
 struct SharedState {
     permissions:crate::permissions::Source,
     clipboard: Option<crate::clipboard_history::Store>,
+    clipboard_queries: Option<crate::clipboard_queries::Worker>,
     system: system::Shared,
     utility:utilities::State,
     keyboard: Option<crate::keyboard_service::Client>,
@@ -1244,6 +1245,7 @@ fn run_graph(
     let mut state = SharedState {
         permissions:crate::permissions::Source::new(fixture),
         clipboard,
+        clipboard_queries: None,
         system,
         utility:utilities::State::new(&paths,fixture,Some(server.profile_lease()),tx.clone())?,
         keyboard,
@@ -1964,6 +1966,7 @@ fn run_graph(
                 }
                 quit = request.value["op"] == "quit";
                 if quit {
+                    if let Some(worker) = &mut state.clipboard_queries { worker.stop(); }
                     state.execution.cancel_all();
                     palette.retire_creation();
                     management.retire_creation();
@@ -1987,6 +1990,7 @@ fn run_graph(
             management.publish(&state, ui);
         }
     }
+    if let Some(worker) = &mut state.clipboard_queries { worker.stop(); }
     palette.retire_creation();
     management.retire_creation();
     shutdown_deliveries.extend(system::finish_shutdown(&mut state, &mut [&mut palette, &mut management]));
@@ -2017,6 +2021,7 @@ fn run_graph(
     discovery.stop();
     observer.stop();
     server.stop();
+    if let Some(worker) = &mut state.clipboard_queries { worker.finish(); }
     if quit
         || ui.as_ref().is_some_and(|ui| ui.stop_requested())
         || management_ui.as_ref().is_some_and(|ui| ui.stop_requested())
@@ -6108,16 +6113,30 @@ fn show_clipboard(state:&SharedState,window:&mut WindowRuntime,ui:&Connection,re
 }
 fn clipboard_request(state:&mut SharedState,window:&mut WindowRuntime,ui:Option<&Arc<Connection>>,request:crate::control::Envelope){
     let op=request.value["op"].as_str().unwrap_or("");
+    if matches!(op, "clipboard.list" | "clipboard.export") {
+        let Some(items) = state.clipboard.as_ref().map(|store| store.items.clone()) else {
+            let _ = request.respond(json!({"ok":false,"error":"Clipboard history unavailable."})); return;
+        };
+        let query = request.value["query"].as_str().unwrap_or("").to_owned();
+        if state.clipboard_queries.is_none() {
+            let fixture_root = state.fixture.then(|| state.configuration.paths.root.clone());
+            match crate::clipboard_queries::Worker::new(fixture_root) {
+                Ok(worker) => state.clipboard_queries = Some(worker),
+                Err(_) => { let _ = request.respond(json!({"ok":false,"error":"Clipboard search is unavailable."})); return; }
+            }
+        }
+        state.clipboard_queries.as_ref().unwrap().submit(request, items, query);
+        return;
+    }
     if matches!(op,"clipboard.copy"|"clipboard.paste") {
         let result=(||->Result<_,String>{let store=state.clipboard.as_ref().ok_or("Clipboard history unavailable.")?;let id=request.value["id"].as_str().ok_or("Missing clipboard id.")?;let clip=store.items.iter().find(|c|c.id==id).ok_or("Clipboard item not found.")?;let mut command=clipboard_command(clip);if op=="clipboard.copy"{command.target="copy-only".into();}Ok((command,store.revision))})();
         match result {Ok((command,revision))=>{let ctx=request.context.clone();let deadline=Some(ctx.deadline());let hide=if op=="clipboard.paste"{ui.map(|ui|SnippetHideOrigin::capture(ui,None))}else{None};let check=hide.clone();let live=Arc::new(move||ctx.is_live()&&check.as_ref().is_none_or(SnippetHideOrigin::live));let copy=op=="clipboard.copy";let _=start_snippet(state,command,json!({"_copyOnly":copy}),ExecutionDestination::Cli(request),ExecutionOrigin::Clipboard(revision),None,live,deadline,hide);},Err(error)=>{let _=request.respond(json!({"ok":false,"error":error}));}}return;
     }
-    if !matches!(op,"clipboard.list"|"clipboard.export"){if let Some(store)=&mut state.clipboard{store.bind_publication(Some(request.context.clipboard_publication()));}}
+    if let Some(store)=&mut state.clipboard{store.bind_publication(Some(request.context.clipboard_publication()));}
     let response=(||->Result<Value,String>{
         let settings=&state.configuration.current().clipboard;let store=state.clipboard.as_mut().ok_or("Clipboard history unavailable.")?;
         let live=||request.context.is_live();
         match op {
-            "clipboard.list"|"clipboard.export"=>Ok(json!({"ok":true,"result":store.list(request.value["query"].as_str().unwrap_or(""))})),
             "clipboard.import"=>store.import(&request.value["items"],settings,live),
             "clipboard.clear"|"clipboard.delete"=>{let id=if op=="clipboard.delete"{Some(request.value["id"].as_str().ok_or("Missing clipboard id.")?)}else{None};let receipt=store.delete(id,settings,live)?;Ok(json!({"ok":true,"result":{"count":store.items.len()},"durabilityWarning":receipt.warning,"cleanupError":store.cleanup_error}))},
             "clipboard.pause"=>{let receipt=store.pause(request.value["paused"].as_bool().unwrap_or(true),live)?;Ok(json!({"ok":true,"result":{"paused":store.paused},"durabilityWarning":receipt.warning}))},
@@ -6358,6 +6377,7 @@ mod inline_tests {
         let mut shared = SharedState {
             permissions:crate::permissions::Source::new(true),
             clipboard: None,
+            clipboard_queries: None,
             system: system::Shared::new(true),
             utility:utilities::State::new(&configuration.paths,true,None,execution_tx.clone()).unwrap(),
             keyboard: None,
