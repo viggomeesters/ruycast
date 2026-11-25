@@ -60,11 +60,27 @@ pub fn milliseconds(metric: &Timing) -> String {
     if samples.is_empty() {
         return "—".into();
     }
-    let v = samples[((samples.len() - 1) as f64 * 0.95) as usize];
+    let v = samples[(samples.len() * 95).div_ceil(100) - 1];
     if v < 1. {
         format!("{v:.2} ms")
     } else {
         format!("{v:.1} ms")
+    }
+}
+
+#[cfg(test)]
+mod percentile_tests {
+    use super::*;
+    #[test]
+    fn nearest_rank_keeps_slow_outlier_visible_for_small_samples() {
+        let mut metric = Timing::default();
+        assert_eq!(milliseconds(&metric), "—");
+        metric.samples = vec![54.0];
+        assert_eq!(milliseconds(&metric), "54.0 ms");
+        metric.samples.push(1459.0);
+        assert_eq!(milliseconds(&metric), "1459.0 ms");
+        metric.samples = (1..=20).map(f64::from).collect();
+        assert_eq!(milliseconds(&metric), "19.0 ms");
     }
 }
 pub fn title(name: &str) -> &str {
