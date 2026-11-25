@@ -850,9 +850,14 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
         assert_eq!(result["sampleLimitPerStage"], 256);
         assert_eq!(result["scope"], "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt");
         let stages = result["stages"].as_object().unwrap();
-        assert_eq!(stages.len(), 20);
+        assert_eq!(stages.len(), 25);
         for name in [
             "search.model",
+            "script.helperSpawn",
+            "script.helperReady",
+            "script.dispatch",
+            "script.response",
+            "script.finalize",
             "input.model",
             "input.reconcile",
             "open.ready",

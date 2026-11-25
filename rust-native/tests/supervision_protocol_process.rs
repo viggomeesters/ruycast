@@ -18,13 +18,19 @@ use std::{
     process::{Command, Stdio},
     time::Duration,
 };
-fn probe(mode: &str, deadline: Option<u64>) -> Value {
+fn probe(mode: &str, deadline: Option<u64>, cancel: Option<u64>) -> Value {
     let home = runtime_host::OwnedDir::new();
     let helper = env!("CARGO_BIN_EXE_supervision-io-fixture");
     let sentinel = home.0.join("must-not-launch");
     let mut input = json!({"helper":helper,"command":{"id":"script.fixture","title":"Fixture","kind":"script","target":"/usr/bin/touch","arguments":[sentinel],"timeout":2},"home":home.0});
+    if mode == "spawn-fail" {
+        input["helper"] = json!(home.0.join("missing-helper"));
+    }
     if let Some(deadline) = deadline {
         input["deadlineMs"] = json!(deadline);
+    }
+    if let Some(cancel) = cancel {
+        input["cancelMs"] = json!(cancel);
     }
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_supervision-probe"));
     cmd.stdin(Stdio::piped())
@@ -54,6 +60,17 @@ fn probe(mode: &str, deadline: Option<u64>) -> Value {
     );
     let result: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(result["noChildren"], true);
+    let stages = &result["performance"]["stages"];
+    assert_eq!(stages["script.helperSpawn"]["count"], 1);
+    assert_eq!(stages["script.helperReady"]["count"], if mode == "spawn-fail" { 0 } else { 1 });
+    if matches!(mode, "spawn-fail" | "old-ready" | "old-version" | "no-ready") {
+        assert_eq!(stages["script.dispatch"]["count"], 0);
+        assert_eq!(stages["script.response"]["count"], 0);
+    } else {
+        assert_eq!(stages["script.dispatch"]["count"], 1);
+        assert_eq!(stages["script.response"]["count"], 1);
+    }
+    assert!(!result["performance"].to_string().contains("must-not-launch"));
     assert!(!sentinel.exists());
     if let Some(folder) = std::env::var_os("RUYCAST_NATIVE_EVIDENCE_DIR") {
         let folder = PathBuf::from(folder);
@@ -64,17 +81,19 @@ fn probe(mode: &str, deadline: Option<u64>) -> Value {
 }
 #[test]
 fn bad_ready_or_no_ready_never_receives_a_command() {
+    assert!(probe("spawn-fail", None, None).get("error").is_some());
     for mode in ["old-ready", "old-version", "no-ready"] {
-        assert!(probe(mode, Some(100)).get("error").is_some());
+        assert!(probe(mode, Some(100), None).get("error").is_some());
     }
+    assert!(probe("no-ready", None, Some(100)).get("error").is_some());
 }
 #[test]
 fn partial_malformed_and_wrong_exit_response_are_unknown() {
     for mode in ["partial", "malformed", "missing-capture", "wrong-exit"] {
-        assert!(probe(mode, None).get("error").is_some());
+        assert!(probe(mode, None, None).get("error").is_some());
     }
 }
 #[test]
 fn oversized_final_response_closes_output_and_reaps_helper() {
-    assert!(probe("oversized-final", None).get("error").is_some());
+    assert!(probe("oversized-final", None, None).get("error").is_some());
 }
