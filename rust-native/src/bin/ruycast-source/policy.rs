@@ -379,6 +379,7 @@ rust-native/src/bin/macos_effects_probe.rs
 rust-native/src/bin/private_results_fixture.rs
 rust-native/src/builtin_effects.rs
 rust-native/src/file_search.rs
+rust-native/src/failure_context.rs
 rust-native/src/management_rest.rs
 rust-native/src/monitor.rs
 rust-native/src/native_monitor.rs
@@ -402,6 +403,8 @@ rust-native/src/website_icons.rs
 rust-native/src/window_layout.rs
 rust-native/src/window_placement.rs
 rust-native/tests/fixtures/utility_security_fixture.rs
+rust-native/tests/fixtures/work_failure_fixture.rs
+rust-native/tests/work_failure_context_process.rs
 rust-native/tests/private_results.rs
 rust-native/tests/remaining_macos_process.rs
 rust-native/tests/startup_config_repair.rs
