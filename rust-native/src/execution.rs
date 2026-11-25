@@ -187,6 +187,7 @@ impl<C> Manager<C> {
         &mut self,
         command: Command,
         invocation_id: Option<String>,
+        diagnostic_id: Option<String>,
         cli: bool,
         live: Live,
         deadline: Option<Instant>,
@@ -231,6 +232,7 @@ impl<C> Manager<C> {
                     &command,
                     &home,
                     invocation.as_ref(),
+                    diagnostic_id.as_deref(),
                     deadline,
                     || !live(),
                 )
@@ -903,7 +905,7 @@ mod tests {
             true
         });
         manager
-            .admit(command(), None, true, live, None, ())
+            .admit(command(), None, None, true, live, None, ())
             .unwrap();
         rx.recv_timeout(Duration::from_secs(2)).unwrap();
         let result = manager.harvest();

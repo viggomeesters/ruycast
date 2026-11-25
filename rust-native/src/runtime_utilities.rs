@@ -414,6 +414,7 @@ pub(super) fn start(
     let logged_id =
         crate::activity::Activity::log_id(&command.id, &values, &state.configuration.paths.home);
     let context = ExecutionContext {
+        diagnostic_id: None,
         capture_result: None,
         initial_result: None,
         analytics: crate::analytics::Span::new(
