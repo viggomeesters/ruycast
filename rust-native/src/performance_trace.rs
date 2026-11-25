@@ -13,6 +13,7 @@ const SCOPE: &str = "software stages; field reconciliation is not result drawing
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
     SearchModel,
+    ClipboardSearchSlice,
     InputModel,
     InputReconcile,
     OpenReady,
@@ -47,8 +48,9 @@ pub enum Stage {
     ScriptCapability,
 }
 impl Stage {
-    const ALL: [Self; 33] = [
+    const ALL: [Self; 34] = [
         Self::SearchModel,
+        Self::ClipboardSearchSlice,
         Self::InputModel,
         Self::InputReconcile,
         Self::OpenReady,
@@ -85,6 +87,7 @@ impl Stage {
     fn name(self) -> &'static str {
         match self {
             Self::SearchModel => "search.model",
+            Self::ClipboardSearchSlice => "clipboard.searchSlice",
             Self::InputModel => "input.model",
             Self::InputReconcile => "input.reconcile",
             Self::OpenReady => "open.ready",

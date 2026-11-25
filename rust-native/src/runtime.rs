@@ -353,7 +353,21 @@ struct CreationRequest {
     fixture_at: Option<Instant>,
     requested: bool,
 }
+struct ClipboardScan {
+    matcher: crate::clipboard_history::Matcher,
+    cursor: usize,
+    rows: Vec<usize>,
+    epoch: u64,
+    dismissal: u64,
+    revision: u64,
+    preserve: Option<Option<String>>,
+}
 struct WindowRuntime {
+    clipboard_scan: Option<ClipboardScan>,
+    clipboard_unpublished: bool,
+    clipboard_hidden_cleared: bool,
+    clipboard_hidden_selected: Option<Option<String>>,
+    clipboard_deferred: std::collections::VecDeque<crate::connected::Input>,
     clipboard_preview: Option<crate::clipboard_preview::Worker>,
     clipboard_preview_key: Option<(String,u64)>,
     system: system::Owner,
@@ -426,6 +440,11 @@ impl WindowRuntime {
             field_preparation,
             field_request: None,
             session,
+            clipboard_scan: None,
+            clipboard_unpublished: false,
+            clipboard_hidden_cleared: false,
+            clipboard_hidden_selected: None,
+            clipboard_deferred: std::collections::VecDeque::new(),
             editing,
             epoch: 0,
             visibility_intent: None,
@@ -467,8 +486,55 @@ impl WindowRuntime {
         let current=store.items.iter().map(|clip|(clip.id.as_str(),clip)).collect::<std::collections::HashMap<_,_>>();
         self.filtered_clip_ids.iter().filter_map(|id|current.get(id.as_str()).copied()).collect()
     }
+    fn begin_clipboard_scan(&mut self, query: &str, preserve: Option<Option<String>>) {
+        self.clipboard_scan = None;
+        self.clipboard_deferred.clear();
+        self.clipboard_unpublished = !query.is_empty();
+        if query.is_empty() {
+            self.session.set_query(query);
+        } else {
+            self.session.begin_clipboard_query(query);
+            self.clipboard_scan = Some(ClipboardScan { matcher: crate::clipboard_history::Matcher::new(query), cursor: 0, rows: Vec::new(), epoch: self.epoch, dismissal: self.dismissal, revision: self.clipboard_revision, preserve });
+        }
+        self.stamp = None;
+    }
+    fn advance_clipboard_scan(&mut self, ui: &Connection) {
+        let Some(scan) = self.clipboard_scan.as_mut() else { return; };
+        let _timing = crate::performance_trace::shared().scope(crate::performance_trace::Stage::ClipboardSearchSlice);
+        if !self.session.visible || !self.session.clipboard_mode || scan.epoch != ui.latest_epoch() || scan.dismissal != ui.latest_dismissal() || scan.revision != self.clipboard_revision {
+            self.clipboard_scan = None;
+            return;
+        }
+        let deadline = Instant::now() + Duration::from_millis(1);
+        while scan.cursor < self.session.catalog.len() {
+            let i = scan.cursor;
+            if scan.matcher.matches(&self.session.catalog.command(i).target) { scan.rows.push(i); }
+            scan.cursor += 1;
+            if scan.epoch != ui.latest_epoch() || scan.dismissal != ui.latest_dismissal() {
+                self.clipboard_scan = None;
+                return;
+            }
+            if Instant::now() >= deadline { break; }
+        }
+        if scan.cursor == self.session.catalog.len() {
+            let scan = self.clipboard_scan.take().expect("active clipboard scan");
+            let preserving = scan.preserve.is_some();
+            self.session.finish_clipboard_query(scan.rows, scan.preserve);
+            self.clipboard_unpublished = false;
+            self.capture_clipboard_results();
+            self.clipboard_selection = self.session.selection.map_or(if preserving {-1} else {0}, |index| index as isize);
+            if self.message == "Searching…" { self.message.clear(); }
+            let mut deferred = std::mem::take(&mut self.clipboard_deferred);
+            for input in &mut deferred {
+                input.action = Action::ClipboardDeferred { action: Box::new(input.action.clone()), show_serial: self.show_serial, store_revision: scan.revision, results_revision: self.session.results_revision() };
+            }
+            ui.requeue_clipboard_actions(deferred);
+            self.stamp = None;
+        }
+    }
     fn capture_clipboard_results(&mut self) {
         if !self.session.clipboard_mode {return;}
+        if self.clipboard_unpublished {return;}
         let revision=self.session.results_revision();
         if self.clipboard_results_revision!=Some(revision)||self.clipboard_data_revision!=self.clipboard_revision {
             self.filtered_clip_ids=self.session.rows().filter_map(|row|row.id.strip_prefix("clipboard:").map(str::to_owned)).collect();
@@ -495,17 +561,37 @@ impl WindowRuntime {
         state.system.invalidate_if_revision(state.configuration.revision);
         if self.utility.mode.is_some() { return; }
         if self.session.clipboard_mode {
+            if !self.session.visible {
+                if !self.clipboard_hidden_cleared {
+                    self.capture_clipboard_results();
+                    self.clipboard_hidden_selected = if self.clipboard_selection < 0 { Some(None) } else { self.filtered_clip_ids.get(self.clipboard_selection as usize).map(|id|Some(id.clone())) };
+                    self.session.set_query(""); self.session.replace_commands(Vec::new());
+                    self.clipboard_hidden_cleared=true;
+                }
+                self.clipboard_scan=None; self.clipboard_unpublished=false; self.clipboard_deferred.clear();
+                self.prune_hidden_clipboard_results(state); return;
+            }
+            if self.clipboard_hidden_cleared {
+                self.clipboard_hidden_cleared=false; self.clipboard_revision=u64::MAX;
+                self.clipboard_selection=match self.clipboard_hidden_selected.take() { Some(Some(id)) => self.filtered_clip_ids.iter().position(|value|value == &id).map_or(-1, |i|i as isize), Some(None) => -1, None => 0 };
+                self.session.set_query(&self.clipboard_query.clone());
+            }
             if let Some(store)=&state.clipboard {if self.clipboard_revision!=store.revision {
                 let query_changed=self.clipboard_query!=self.session.query;
                 if query_changed {self.clipboard_selection=0;}
-                let selected=(self.session.visible&&!query_changed&&self.clipboard_results_revision.is_some()).then(||usize::try_from(self.clipboard_selection).ok()
-                    .and_then(|i|self.filtered_clip_ids.get(i)).cloned()).flatten();
+                let preserve = self.clipboard_scan.as_ref().map(|scan| scan.preserve.clone()).unwrap_or_else(|| {
+                    if !self.session.visible || query_changed || self.clipboard_results_revision.is_none() { return None; }
+                    if self.clipboard_selection < 0 { return Some(None); }
+                    self.filtered_clip_ids.get(self.clipboard_selection as usize).map(|id|Some(format!("clipboard:{id}")))
+                });
+                let query = self.session.query.clone();
+                self.session.set_query("");
                 self.session.replace_commands(store.items.iter().map(clipboard_command).collect());
-                if let Some(selected)=selected {
-                    self.clipboard_selection=self.session.rows().position(|row|row.id.strip_prefix("clipboard:")==Some(selected.as_str())).map_or(-1,|i|i as isize);
-                }
-                self.session.select_row(usize::try_from(self.clipboard_selection).ok());
                 self.clipboard_revision=store.revision;self.stamp=None;
+                if query.is_empty() {
+                    if let Some(selected) = preserve { self.clipboard_selection=selected.and_then(|id|self.session.rows().position(|row|row.id==id)).map_or(-1,|i|i as isize); }
+                    self.session.select_row(usize::try_from(self.clipboard_selection).ok());
+                } else { self.begin_clipboard_scan(&query, preserve); }
             }}self.capture_clipboard_results();return;
         }
         if self.usage_revision != state.activity.usage_revision {
@@ -556,9 +642,10 @@ impl WindowRuntime {
     }
     fn publish(&mut self, state: &SharedState, ui: &Arc<Connection>) {
         self.sync(state);
+        self.advance_clipboard_scan(ui);
         let clipboard=if self.session.clipboard_mode && self.session.visible {
             state.clipboard.as_ref().map(|store|{
-                let clip=usize::try_from(self.clipboard_selection).ok().and_then(|i|self.filtered_clip_ids.get(i)).and_then(|id|store.items.iter().find(|c|&c.id==id));
+                let clip=if self.clipboard_unpublished{None}else{usize::try_from(self.clipboard_selection).ok().and_then(|i|self.filtered_clip_ids.get(i)).and_then(|id|store.items.iter().find(|c|&c.id==id))};
                 let key=clip.map(|c|(c.id.clone(),store.revision));
                 if self.clipboard_preview.is_none(){self.clipboard_preview=crate::clipboard_preview::Worker::new(state.fixture).ok();}
                 if self.clipboard_preview_key!=key {
@@ -567,7 +654,7 @@ impl WindowRuntime {
                 }
                 if let Some(preview)=&mut self.clipboard_preview{if preview.poll(){self.stamp=None;}}
                 let preview=self.clipboard_preview.as_ref();
-                crate::clipboard_history::Surface{revision:store.revision,selected_id:clip.map(|c|c.id.clone()),text:clip.map(|c|c.text.clone()).unwrap_or_default(),source:clip.map(|c|c.source.clone()).unwrap_or_default(),date:clip.map(|c|c.date.clone()).unwrap_or_default(),kind:clip.and_then(|c|c.content_type.clone()).unwrap_or_else(||"text".into()),files:clip.and_then(|c|c.file_urls.clone()).unwrap_or_default(),paused:store.paused,loading:preview.is_some_and(|p|p.loading),preview:preview.and_then(|p|p.image.clone()),error:preview.and_then(|p|p.error.clone())}
+                crate::clipboard_history::Surface{searching:self.clipboard_unpublished,revision:store.revision,selected_id:clip.map(|c|c.id.clone()),text:clip.map(|c|c.text.clone()).unwrap_or_default(),source:clip.map(|c|c.source.clone()).unwrap_or_default(),date:clip.map(|c|c.date.clone()).unwrap_or_default(),kind:clip.and_then(|c|c.content_type.clone()).unwrap_or_else(||"text".into()),files:clip.and_then(|c|c.file_urls.clone()).unwrap_or_default(),paused:store.paused,loading:preview.is_some_and(|p|p.loading),preview:preview.and_then(|p|p.image.clone()),error:preview.and_then(|p|p.error.clone())}
             })
         }else{if let Some(mut preview)=self.clipboard_preview.take(){preview.load(&state.configuration.paths.root,None);}self.clipboard_preview_key=None;None};
         let clipboard_status=state.clipboard.as_ref().map(|s|crate::settings_surface::ClipboardStatus{count:s.items.len(),paused:s.paused,pause_error:s.pause_error.clone(),cleanup_error:s.cleanup_error.clone(),warning:s.warning.clone()});
@@ -801,7 +888,7 @@ impl WindowRuntime {
             return Err("A newer palette action superseded this request.".into());
         }
         ui.begin_open_trace(self.show_serial.wrapping_add(1));
-        if self.session.clipboard_mode {self.capture_clipboard_results();self.session.clipboard_mode=false;self.config_revision=u64::MAX;}
+        if self.session.clipboard_mode {if !self.clipboard_hidden_cleared {self.capture_clipboard_results();}self.clipboard_scan=None;self.clipboard_unpublished=false;self.clipboard_hidden_cleared=false;self.clipboard_hidden_selected=None;self.clipboard_deferred.clear();self.session.clipboard_mode=false;self.config_revision=u64::MAX;}
         self.session.launcher_scope = None;
         self.native_source = "launcher";
         if !ui.is_management { self.system.enter(crate::system_search::Scope::MainTabs); }
@@ -1336,7 +1423,7 @@ fn run_graph(
                             "processResources":palette.system.snapshot.metadata.iter().filter_map(|(id,m)|if let crate::system_search::Metadata::Process{process}=m {Some((id,process))}else{None}).collect::<std::collections::BTreeMap<_,_>>(),
                             "message":palette.message,
                             "busy":state.execution.count()>0,
-                            "clipboardSearchBusy":false,
+                            "clipboardSearchBusy":palette.clipboard_unpublished,
                             "paletteVisible":palette.session.visible
                         },
                         "owners":{
@@ -1411,6 +1498,7 @@ fn run_graph(
             .chain(management.dashboard.wake())
             .chain(Some(last_clipboard_maintenance+Duration::from_secs(60)))
             .chain(palette.clipboard_preview.as_ref().is_some_and(|p|p.loading).then(||Instant::now()+Duration::from_millis(20)))
+            .chain(palette.clipboard_scan.is_some().then(||Instant::now()+Duration::from_millis(1)))
             .chain(state.diagnostics.busy().then(||Instant::now()+Duration::from_millis(20)))
             .chain(
                 palette
@@ -1533,6 +1621,7 @@ fn run_graph(
             ));
             break;
         }
+        if let Some(ui) = &ui { palette.advance_clipboard_scan(ui); }
         if let Some(ui) = &ui {
             finish_creation(&mut state, &mut palette, ui);
             finish_fields(&mut state, &mut palette, ui);
@@ -4714,6 +4803,7 @@ fn process_inputs(
             window.execution_effect = None;
             window.session.visible = visible;
             window.message.clear();
+            if visible && window.session.clipboard_mode && window.clipboard_hidden_cleared { window.sync(state); }
         }
     }
     let cancelled_active = if window.editing.cancelled(ui) {
@@ -4764,17 +4854,23 @@ fn process_inputs(
         }
     }
     if let Some((next, query, received, marked, result_token)) = query {
-        window.input_intent = ui.latest_intent();
-        window.query_intent = Some(received);
+        if window.session.clipboard_mode && window.session.visible { window.sync(state); }
         window.epoch = next;
-        if let Some(token) = result_token {
+        if window.session.clipboard_mode && !window.session.visible {
+            // A retired editor query must not supersede an explicit future show.
+        } else if let Some(token) = result_token {
+            window.input_intent = ui.latest_intent();
+            window.query_intent = Some(received);
             if window.results.token() == Some(token) && !ui.result_cancelled(token) {
                 if let Err(error) = window.results.query(token, &query) {
                     window.message = error;
                 }
             }
         } else if window.results.token().is_none() {
-            window.session.set_query(&query);
+            window.input_intent = ui.latest_intent();
+            window.query_intent = Some(received);
+            if window.session.clipboard_mode { window.begin_clipboard_scan(&query, None); window.advance_clipboard_scan(ui); }
+            else { window.session.set_query(&query); }
             if !marked && !window.session.clipboard_mode {
                 capture_inline_query(state, window, ui);
             }
@@ -4784,7 +4880,14 @@ fn process_inputs(
     if overflow {
         window.message = "Busy. Try again.".into();
     }
-    for input in actions {
+    for mut input in actions {
+        if let Action::ClipboardDeferred { action, show_serial, store_revision, results_revision } = &input.action {
+            if !window.session.clipboard_mode || !window.session.visible || window.clipboard_unpublished
+                || *show_serial != window.show_serial || *results_revision != window.session.results_revision()
+                || state.clipboard.as_ref().map(|s|s.revision) != Some(*store_revision)
+                || input.epoch != ui.latest_epoch() || input.dismissal != ui.latest_dismissal() { continue; }
+            input.action = *action.clone();
+        }
         // A native request can already be queued when its result is closed or
         // replaced. Retired tokens have no UI/message/intent authority.
         if matches!(&input.action, Action::Result { token, .. } if window.results.token() != Some(*token))
@@ -5290,6 +5393,18 @@ fn process_inputs(
             window.deferred_save = Some(input);
             continue;
         }
+        if window.session.clipboard_mode && window.clipboard_unpublished {
+            if matches!(&input.action, Action::Clipboard { id: None, operation, .. } if matches!(operation.as_str(), "copy" | "paste" | "delete")) {
+                window.message = "Searching…".into(); window.stamp = None; continue;
+            }
+            let deferred = matches!(&input.action, Action::ToggleActions)
+                || matches!(&input.action, Action::Key(key) if matches!(key.as_str(), "insertNewline:" | "moveDown:" | "moveUp:" | "insertTab:" | "insertBacktab:"));
+            if deferred {
+                if window.clipboard_deferred.len() < 32 { window.clipboard_deferred.push_back(input); }
+                else { window.message = "Busy. Try again.".into(); }
+                continue;
+            }
+        }
         if window.session.clipboard_mode && clipboard_input(state,window,ui,&input) {continue;}
         if let Action::LauncherBack(scope) = &input.action {
             if window.session.launcher_scope == Some(*scope) && window.editing.token().is_none() && window.results.token().is_none() {
@@ -5299,6 +5414,7 @@ fn process_inputs(
             continue;
         }
         match input.action {
+            Action::ClipboardDeferred { .. } => {},
             Action::LauncherBack(_) => {},
             Action::ProcessSort(sort)=>{if window.system.scope==crate::system_search::Scope::Processes && window.editing.token().is_none(){system::process_sort(window,sort);}},
             Action::InlineGlobal { name, previous } => {

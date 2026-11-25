@@ -211,7 +211,9 @@ impl Panel {
             ));
         }
         self.metadata.setStringValue(&NSString::from_str(&metadata));
-        let message = if s.selected_id.is_none() {
+        let message = if s.searching {
+            String::new()
+        } else if s.selected_id.is_none() {
             "Select an item".into()
         } else if s.loading {
             "Loading preview…".into()
