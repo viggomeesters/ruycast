@@ -90,6 +90,8 @@ struct LogEntry {
     applied: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    affected_file: Option<String>,
 }
 
 pub struct Activity {
@@ -173,6 +175,7 @@ impl Activity {
                         || chrono::DateTime::parse_from_rfc3339(&entry.date).is_err()
                         || entry.message.as_ref().is_some_and(|s| s.len() > 4096)
                         || entry.details.as_ref().is_some_and(|d| d.len() > 6)
+                        || entry.affected_file.as_ref().is_some_and(|s| s.len() > 1024)
                     {
                         return Err("Invalid command log".into());
                     }
@@ -300,12 +303,23 @@ impl Activity {
         response: &Value,
         redaction: (&[String], &Path),
     ) {
+        self.record_response_context(trace, id, source, ms, response, redaction, None);
+    }
+    pub(crate) fn record_response_context(
+        &mut self, trace: &str, id: &str, source: &str, ms: f64, response: &Value,
+        redaction: (&[String], &Path), work_context: Option<Option<&str>>,
+    ) {
+        let trusted_work = work_context.is_some();
         let (secrets, home) = redaction;
         let ok = response["ok"] == true;
         let error = response["error"].as_str().unwrap_or("Action failed");
-        let mut metadata = json!({"code": Self::clean(response["code"].as_str().unwrap_or_else(|| if ok { "success" } else { crate::analytics::failure_code(error) }), secrets, home, 80)});
-        if !ok {
+        let code = if trusted_work { if ok { "success" } else { crate::analytics::failure_code(error) } } else { response["code"].as_str().unwrap_or_else(|| if ok { "success" } else { crate::analytics::failure_code(error) }) };
+        let mut metadata = json!({"code": if trusted_work { code.to_owned() } else { Self::clean(code, secrets, home, 80) }});
+        if !ok && !trusted_work {
             metadata["message"] = json!(Self::clean(error, secrets, home, 1800));
+        }
+        if !ok && trusted_work {
+            if let Some(Some(path)) = work_context { metadata["affectedFile"] = json!(path); }
         }
         if let Some(applied) = response["applied"]
             .as_bool()
@@ -314,7 +328,7 @@ impl Activity {
             metadata["applied"] = json!(applied);
         }
         let mut details = serde_json::Map::new();
-        if let Some(raw) = response["diagnostics"].as_object() {
+        if let Some(raw) = response["diagnostics"].as_object().filter(|_| !trusted_work) {
             for key in [
                 "provider",
                 "providerExitCode",
@@ -462,6 +476,22 @@ mod tests {
     fn entry() -> Value {
         json!({"date":chrono::DateTime::<chrono::Utc>::from_timestamp(now() as i64,0).unwrap().to_rfc3339(),
             "traceID":"trace","commandID":"fixture","source":"cli","phase":"command.finish","success":true})
+    }
+    #[test]
+    fn trusted_work_failure_retains_only_bound_file_and_safe_metadata() {
+        let dir = temp();
+        let mut activity = Activity::open(&dir.0).unwrap();
+        let response = json!({"ok":false,"error":"PRIVATE text","exitCode":1,"diagnostics":{"providerStderr":"PRIVATE stderr"}});
+        activity.record_response_context("trace", "task", "launcher", 1., &response, (&[], &dir.0), Some(Some("00-inbox/demo/note.md")));
+        let reopened = Activity::open(&dir.0).unwrap();
+        let entries = reopened.entries(&json!({"errorsOnly":true}));
+        assert_eq!(entries[0]["affectedFile"], "00-inbox/demo/note.md");
+        let saved = fs::read_to_string(activity.path()).unwrap();
+        assert!(!saved.contains("PRIVATE"));
+        activity.record_response_context("no-source", "task", "launcher", 1., &response, (&[], &dir.0), Some(None));
+        let no_source = &activity.entries(&json!({"errorsOnly":true}))[0];
+        assert!(no_source.get("affectedFile").is_none());
+        assert!(no_source.get("message").is_none());
     }
     #[test]
     fn complete_metadata_budget_survives_save_reopen_and_retains_newest_entries() {

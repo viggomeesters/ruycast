@@ -58,6 +58,7 @@ fn log_secrets(values: &Value) -> Vec<String> {
     values.as_object().into_iter().flat_map(|v| v.values()).filter_map(Value::as_str).map(str::to_owned).collect()
 }
 struct ExecutionContext {
+    diagnostic_id: Option<String>,
     capture_result: Option<Value>,
     initial_result: Option<u64>,
     analytics: Option<crate::analytics::Span>,
@@ -2767,6 +2768,7 @@ fn start_snippet(
     let source = destination.source();
     let history_operation=matches!(origin,ExecutionOrigin::Clipboard(_));
     let context = ExecutionContext {
+        diagnostic_id: None,
         capture_result: None,
         initial_result: None,
         analytics: if history_operation {None}else{crate::analytics::Span::new(
@@ -2942,6 +2944,7 @@ fn start_cli_open(
     let revoked = services_permit.live();
     let services = state.services.clone();
     let context = ExecutionContext {
+        diagnostic_id: None,
         capture_result: None,
         initial_result: None,
         analytics: crate::analytics::Span::new(
@@ -3092,6 +3095,7 @@ fn start_native_open(
     let logged_id =
         crate::activity::Activity::log_id(analytics_id(&command), &values, &state.configuration.paths.home);
     let context = ExecutionContext {
+        diagnostic_id: None,
         capture_result: None,
         initial_result: None,
         analytics: crate::analytics::Span::new(
@@ -3206,7 +3210,9 @@ fn start_execution(
         crate::activity::Activity::log_id(&command.id, values, &state.configuration.paths.home);
     let source = destination.source();
     let invocation_id = crate::execution::invocation_id(&command, &prepared);
+    let diagnostic_id = crate::failure_context::invocation(&command, &prepared, &state.configuration.paths.home);
     let context = ExecutionContext {
+        diagnostic_id: diagnostic_id.clone(),
         capture_result: None,
         initial_result,
         analytics: crate::analytics::Span::new(
@@ -3228,7 +3234,7 @@ fn start_execution(
     };
     match state
         .execution
-        .admit(prepared, invocation_id, source == "cli", live, deadline, context)
+        .admit(prepared, invocation_id, diagnostic_id, source == "cli", live, deadline, context)
     {
         Ok(_) => {
             state.activity.record(&trace, &logged_id, source, None);
@@ -4145,6 +4151,7 @@ fn finish_executions(
             Ok(crate::execution::Outcome::Snippet(result)) => (result.response, None, false),
             Err(error) => (json!({"ok":false,"error":error}), None, true),
         };
+        let work_context = context.diagnostic_id.as_deref().and_then(|id| crate::failure_context::take(&mut response, capture.as_ref(), id));
         let saved_capture = context.capture_result.take();
         if let Some(saved) = saved_capture.as_ref() {
             response = crate::script_result::capture_open_finished(saved.clone(), &response);
@@ -4229,13 +4236,14 @@ fn finish_executions(
             );
         }
         let history_operation=matches!(context.origin,ExecutionOrigin::Clipboard(_));
-        if !history_operation {state.activity.record_response(
+        if !history_operation {state.activity.record_response_context(
             &context.trace,
             &context.logged_id,
             context.source(),
             context.started.elapsed().as_secs_f64() * 1000.,
             &response,
             (&context.log_secrets, &state.configuration.paths.home),
+            work_context.as_ref().map(|path| path.as_deref()),
         );}
         if success && !history_operation && !matches!(context.origin, ExecutionOrigin::Service(_)) {
             if current_configuration && origin_valid(state, &context) {

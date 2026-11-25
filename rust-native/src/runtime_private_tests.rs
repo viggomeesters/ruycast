@@ -909,6 +909,7 @@ fn private_finished(
     crate::execution::Finished {
         id: 1,
         context: ExecutionContext {
+            diagnostic_id: None,
             capture_result: None,
             initial_result,
             analytics: None,

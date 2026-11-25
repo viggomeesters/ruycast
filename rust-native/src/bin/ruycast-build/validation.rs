@@ -172,6 +172,7 @@ remaining-workspace-sdk-build|c|build --manifest-path rust-native/Cargo.toml --f
 remaining-macos-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test remaining_macos_process --locked
 startup-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test startup_process --locked
 private-results-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test private_results --locked
+work-failure-context-process|c|test --manifest-path rust-native/Cargo.toml --features test-tools --test work_failure_context_process --locked
 cli-contract-process|c|test --manifest-path rust/Cargo.toml --bin ruycast startup_discovery_tests::current_cli_ --locked -- --ignored
 render-updates-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --render-updates-only
 polish-bindings-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --polish-bindings-only

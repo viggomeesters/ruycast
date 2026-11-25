@@ -16,6 +16,8 @@ The owner-only `command-log.json` file lives in your profile. It is bounded to 5
 
 Command diagnostics are separate from aggregate analytics. Payloads, stdout/stderr, capture input, command arguments, queries and clipboard bodies are not persisted in this log. Command IDs are bounded and redact known input values, the home path, URLs and common credential patterns. Current error responses can still contain provider-authored context, so review them before sharing. The analytics export does not include this operational log.
 
+For a failed Work task-router action, a verified provider can attach the original Work-relative Markdown path as `affectedFile` in the local command log. The path is tied to that invocation, never to a later active editor. It uses the same retention as other command-log entries and is not added to aggregate analytics or its exports. If the source was not verified, the field is absent. Source text and selections are not included.
+
 Clear the log explicitly:
 
 ```sh

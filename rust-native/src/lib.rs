@@ -112,3 +112,5 @@ pub mod native_callback_roster;
 pub mod test_fixtures;
 
 pub mod raycast_import;
+
+mod failure_context;

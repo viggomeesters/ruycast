@@ -277,6 +277,7 @@ pub(crate) fn run(
     command: &Command,
     home: &Path,
     invocation: Option<&Invocation>,
+    diagnostic_id: Option<&str>,
     deadline: Option<Instant>,
     mut cancelled: impl FnMut() -> bool,
 ) -> Result<Outcome, String> {
@@ -309,7 +310,9 @@ pub(crate) fn run(
     launcher
         .env_remove(INVOCATION_ID)
         .env_remove(INVOCATION_AT)
-        .env_remove(INVOCATION_LAUNCHER);
+        .env_remove(INVOCATION_LAUNCHER)
+        .env_remove(crate::failure_context::ENV);
+    if let Some(id) = diagnostic_id { launcher.env(crate::failure_context::ENV, id); }
     if let Some(invocation) = invocation {
         launcher
             .env(INVOCATION_ID, &invocation.id)
@@ -425,7 +428,7 @@ pub fn probe(
     deadline: Option<Instant>,
     cancelled: impl FnMut() -> bool,
 ) -> Result<Value, String> {
-    let outcome = run(path, command, home, None, deadline, cancelled)?;
+    let outcome = run(path, command, home, None, None, deadline, cancelled)?;
     Ok(json!({"response":outcome.response,"capture":outcome.capture}))
 }
 
