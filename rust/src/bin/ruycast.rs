@@ -615,6 +615,10 @@ fn supervised_script() -> Result<Value> {
     struct Request {
         command: Action,
         home_bytes: Vec<u8>,
+        #[serde(default)]
+        admission_fd: Option<i32>,
+        #[serde(default)]
+        writer_identity: Option<rustcast_core::script::WriterIdentity>,
     }
     let flags = unsafe { libc::fcntl(0, libc::F_GETFL) };
     if flags < 0 || unsafe { libc::fcntl(0, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
@@ -687,7 +691,15 @@ fn supervised_script() -> Result<Value> {
         Err(error) => (json!({"ok":false,"error":error}), None),
         Ok(request) => {
             let home = PathBuf::from(std::ffi::OsString::from_vec(request.home_bytes));
-            rustcast_core::script::run(&request.command, &home, None, || {
+            let admission = if let Some(fd) = request.admission_fd {
+                use std::os::fd::{FromRawFd, OwnedFd};
+                let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
+                if fd < 3 || flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
+                    return Err("Invalid writer admission descriptor.".into());
+                }
+                Some(unsafe { OwnedFd::from_raw_fd(fd) })
+            } else { None };
+            rustcast_core::script::run_with_admission(&request.command, &home, None, admission, request.writer_identity, || {
                 let mut byte = 0u8;
                 for _ in 0..4 {
                     let count = unsafe { libc::read(0, (&mut byte as *mut u8).cast(), 1) };

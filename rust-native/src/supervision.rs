@@ -13,6 +13,8 @@ use std::{
     },
     path::{Path, PathBuf},
     process::{Child, ChildStdin, ChildStdout, Command as Process, Stdio},
+    os::unix::net::UnixStream,
+    sync::{atomic::AtomicBool, Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -206,14 +208,39 @@ fn line(
     deadline: Option<Instant>,
     cancel: &mut dyn FnMut() -> bool,
     final_line: bool,
+    mut grant: Option<&mut GrantChannel>,
 ) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
     let mut buffer = [0; 16384];
     loop {
         if cancel() || deadline.is_some_and(|d| Instant::now() >= d) {
             helper.cancel();
+            if let Some(channel) = grant.as_deref_mut().filter(|channel| channel.active) {
+                channel.active = false;
+                channel.decision = GrantDecision::Rejected;
+                let _ = channel.socket.shutdown(std::net::Shutdown::Both);
+            }
             if !helper.may_commit {
                 return Err(CANCEL.into());
+            }
+        }
+        if let Some(channel) = grant.as_deref_mut().filter(|c| c.active) {
+            let mut message = [0u8; 1];
+            match channel.socket.read(&mut message) {
+                Ok(0) => { channel.active = false; channel.decision = GrantDecision::Missing; },
+                Ok(1) if message == [b'D'] => { channel.active = false; channel.decision = GrantDecision::Declined; },
+                Ok(1) if message == [b'W'] => {
+                    channel.active = false;
+                    if (channel.authority.authorize)(&mut channel.socket, &channel.authority.granted).is_err() {
+                        channel.decision = GrantDecision::Rejected;
+                        helper.cancel();
+                    } else {
+                        channel.decision = GrantDecision::Granted;
+                    }
+                }
+                Ok(_) => { helper.cancel(); channel.active = false; channel.decision = GrantDecision::Rejected; }
+                Err(error) if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::Interrupted) => {},
+                Err(_) => { helper.cancel(); channel.active = false; channel.decision = GrantDecision::Rejected; }
             }
         }
         let result = helper.output.as_mut().ok_or(UNKNOWN)?.read(&mut buffer);
@@ -252,12 +279,13 @@ fn line(
                 } else {
                     None
                 };
+                let grant_fd = grant.as_deref().filter(|c| c.active).map_or(-1, |c| c.socket.as_raw_fd());
                 rustcast_core::script::wait_pipe_readiness(
                     &mut [libc::pollfd {
                         fd: helper.output.as_ref().ok_or(UNKNOWN)?.as_raw_fd(),
                         events: libc::POLLIN,
                         revents: 0,
-                    }],
+                    }, libc::pollfd { fd: grant_fd, events: libc::POLLIN, revents: 0 }],
                     wait_deadline,
                 )
                 .map_err(|_| UNKNOWN.to_string())?;
@@ -271,6 +299,62 @@ pub(crate) struct Invocation {
     pub id: String,
     pub at: String,
 }
+#[derive(Clone)]
+pub struct Admission {
+    pub granted: Arc<AtomicBool>,
+    pub authorize: Arc<dyn Fn(&mut UnixStream, &AtomicBool) -> io::Result<()> + Send + Sync>,
+    pub hard_stop: Arc<AtomicBool>,
+    pub gate: Arc<Mutex<()>>,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GrantDecision { Pending, Granted, Declined, Missing, Rejected }
+struct GrantChannel { socket: UnixStream, authority: Admission, active: bool, decision: GrantDecision }
+
+// Probe an exact trusted writer with a read-only command before arming the
+// protocol. Older writers reject the unknown command before any mutation.
+fn writer_supports_admission(command: &Command, home: &Path, cancelled: &mut dyn FnMut() -> bool) -> Result<(bool, rustcast_core::script::WriterIdentity), String> {
+    let target = command.target.strip_prefix("~/").map(|tail| home.join(tail)).unwrap_or_else(|| PathBuf::from(&command.target));
+    let before = fs::symlink_metadata(&target).map_err(|_| "The writer capability could not be verified.")?;
+    if !before.is_file() || before.file_type().is_symlink() || before.uid() != unsafe { libc::getuid() } || before.mode() & 0o6022 != 0 || before.mode() & 0o111 == 0 || fs::canonicalize(&target).ok().as_deref() != Some(target.as_path()) {
+        return Err("The writer capability could not be verified.".into());
+    }
+    let mut child = Process::new(&target).arg("--ruycast-writer-capability-v1")
+        .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()
+        .map_err(|_| "The writer capability could not be verified.")?;
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let status = loop {
+        if cancelled() || Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("The writer capability could not be verified before cancellation or timeout.".into());
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => thread::sleep(Duration::from_millis(5)),
+            Err(_) => { let _ = child.kill(); let _ = child.wait(); return Err("The writer capability could not be verified.".into()); }
+        }
+    };
+    let mut bytes = Vec::new();
+    let mut out = child.stdout.take().ok_or("The writer capability could not be verified.")?;
+    nonblocking(out.as_raw_fd())?;
+    let mut chunk = [0; 1024];
+    loop {
+        match out.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) if bytes.len() + n <= 4096 => bytes.extend_from_slice(&chunk[..n]),
+            _ => return Err("The writer capability could not be verified.".into()),
+        }
+    }
+    let after = fs::symlink_metadata(&target).map_err(|_| "The writer capability could not be verified.")?;
+    if before.dev() != after.dev() || before.ino() != after.ino() || before.size() != after.size() || before.mtime() != after.mtime() || before.mtime_nsec() != after.mtime_nsec() || before.mode() != after.mode() || before.uid() != after.uid() || bytes.len() > 4096 {
+        return Err("The writer changed while checking its capability.".into());
+    }
+    let value: Value = serde_json::from_slice(&bytes).map_err(|_| "The writer capability could not be verified.")?;
+    let identity = rustcast_core::script::WriterIdentity { dev: after.dev(), ino: after.ino() };
+    if status.success() && value == serde_json::json!({"ok":true,"workStatusAdmission":1}) { return Ok((true, identity)); }
+    if !status.success() && value["ok"] == false && value["error"] == "Gebruik: viggo-work-writer capture ROOT note|task REQUEST-ID TEKST" { return Ok((false, identity)); }
+    Err("The writer capability could not be verified.".into())
+}
 
 pub(crate) fn run(
     path: &Path,
@@ -278,6 +362,7 @@ pub(crate) fn run(
     home: &Path,
     invocation: Option<&Invocation>,
     diagnostic_id: Option<&str>,
+    admission: Option<Admission>,
     deadline: Option<Instant>,
     mut cancelled: impl FnMut() -> bool,
 ) -> Result<Outcome, String> {
@@ -292,10 +377,28 @@ pub(crate) fn run(
     struct Header<'a> {
         command: &'a Command,
         home_bytes: &'a [u8],
+        #[serde(skip_serializing_if = "Option::is_none")]
+        admission_fd: Option<i32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        writer_identity: Option<rustcast_core::script::WriterIdentity>,
     }
+    let (admission, writer_identity) = match admission {
+        Some(authority) => {
+            let (supported, identity) = crate::performance_trace::shared().measure(crate::performance_trace::Stage::ScriptCapability, || writer_supports_admission(command, home, &mut cancelled))?;
+            (supported.then_some(authority), Some(identity))
+        }
+        None => (None, None),
+    };
+    let (grant, inherited) = if let Some(authority) = admission {
+        let (parent, child) = UnixStream::pair().map_err(|_| "Could not prepare writer admission.")?;
+        parent.set_nonblocking(true).map_err(|_| "Could not prepare writer admission.")?;
+        (Some(GrantChannel { socket: parent, authority, active: true, decision: GrantDecision::Pending }), Some(child))
+    } else { (None, None) };
     let header = serde_json::to_vec(&Header {
         command,
         home_bytes: home.as_os_str().as_bytes(),
+        admission_fd: inherited.as_ref().map(AsRawFd::as_raw_fd),
+        writer_identity,
     })
     .map_err(|e| e.to_string())?;
     if header.len() >= HEADER_LIMIT {
@@ -327,11 +430,22 @@ pub(crate) fn run(
         .process_group(0);
     // Same validated std fork/exec error-pipe path as the shared script runner.
     unsafe {
-        launcher.pre_exec(|| Ok(()));
+        let fd = inherited.as_ref().map(AsRawFd::as_raw_fd);
+        launcher.pre_exec(move || {
+            if let Some(fd) = fd {
+                let flags = libc::fcntl(fd, libc::F_GETFD);
+                if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                    return Err(io::Error::last_os_error());
+                }
+            }
+            Ok(())
+        });
     }
     let trace = crate::performance_trace::shared();
     let child = trace.measure(crate::performance_trace::Stage::ScriptHelperSpawn, || launcher.spawn())
         .map_err(|_| "The script runner could not start. Check the app installation.")?;
+    drop(inherited);
+    let mut grant = grant;
     let mut helper = Helper {
         child: Some(child),
         input: None,
@@ -356,7 +470,7 @@ pub(crate) fn run(
     )?;
     {
         let _timing = trace.scope(crate::performance_trace::Stage::ScriptHelperReady);
-        let ready = line(&mut helper, 4096, Some(startup), &mut cancelled, false)?;
+        let ready = line(&mut helper, 4096, Some(startup), &mut cancelled, false, None)?;
         validate_ready(&ready)?;
     }
     let dispatch_timing = trace.scope(crate::performance_trace::Stage::ScriptDispatch);
@@ -419,14 +533,29 @@ pub(crate) fn run(
     drop(dispatch_timing);
     let response = {
         let _timing = trace.scope(crate::performance_trace::Stage::ScriptResponse);
-        line(&mut helper, RESPONSE_LIMIT, deadline, &mut cancelled, true)?
+        line(&mut helper, RESPONSE_LIMIT, deadline, &mut cancelled, true, grant.as_mut())?
     };
     let _timing = trace.scope(crate::performance_trace::Stage::ScriptFinalize);
     let status = helper.wait()?;
     if !status.success() {
         return Err(UNKNOWN.into());
     }
-    decode_reply(&response)
+    let outcome = decode_reply(&response)?;
+    if grant.as_ref().is_some_and(|channel| !matches!(channel.decision, GrantDecision::Granted | GrantDecision::Declined)) && outcome.response["ok"] == true {
+        return Err("The writer did not confirm its admission; its outcome is unknown. Check before retrying.".into());
+    }
+    if grant.as_ref().is_some_and(|channel| channel.authority.granted.load(std::sync::atomic::Ordering::Acquire)) {
+        let complete = outcome.capture.as_ref().is_some_and(|capture| {
+            [&capture.stdout, &capture.stderr].iter().all(|stream| stream.eof && !stream.truncated && stream.valid_utf8)
+        });
+        let stdout = outcome.response.get("result").and_then(|v| v.get("stdout")).or_else(|| outcome.response.get("stdout")).and_then(Value::as_str);
+        let payload = stdout.and_then(|text| serde_json::from_str::<Value>(text).ok());
+        let result_ok = payload.as_ref().and_then(|value| value.get("ok")).and_then(Value::as_bool);
+        if !complete || result_ok.is_none() || result_ok != outcome.response["ok"].as_bool() {
+            return Err("Work writer response is incomplete; its outcome is unknown. Check before retrying.".into());
+        }
+    }
+    Ok(outcome)
 }
 
 #[cfg(feature = "test-tools")]
@@ -437,7 +566,7 @@ pub fn probe(
     deadline: Option<Instant>,
     cancelled: impl FnMut() -> bool,
 ) -> Result<Value, String> {
-    let outcome = run(path, command, home, None, None, deadline, cancelled)?;
+    let outcome = run(path, command, home, None, None, None, deadline, cancelled)?;
     Ok(json!({"response":outcome.response,"capture":outcome.capture}))
 }
 
@@ -488,7 +617,7 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
     #[test]
     fn ready_frame_rejects_old_duplicate_unknown_and_mistyped_fields() {
-        assert!(validate_ready(br#"{"scriptSupervisor":3,"ready":true}"#).is_ok());
+        assert!(validate_ready(br#"{"scriptSupervisor":4,"ready":true}"#).is_ok());
         for raw in [
             br#"{"scriptSupervisor":1,"ready":true}"#.as_slice(),
             br#"{"scriptSupervisor":3,"ready":false}"#,
@@ -500,7 +629,7 @@ mod tests {
         }
     }
     #[test]
-    fn version_three_reply_requires_known_capture_for_completed_processes() {
+    fn version_four_reply_requires_known_capture_for_completed_processes() {
         let raw = json!({"ok":true,"scriptSupervisor":rustcast_core::script::SUPERVISOR_VERSION,
             "response":{"ok":true,"result":{"exitCode":0,"stdout":"","stderr":""}},
             "capture":rustcast_core::script::Capture::empty()});
@@ -529,7 +658,7 @@ mod tests {
         let bytes = serde_json::to_string(&raw).unwrap();
         let duplicate = bytes.replacen("{", "{\"capture\":null,", 1);
         assert!(decode_reply(duplicate.as_bytes()).is_err());
-        let failure = json!({"ok":true,"scriptSupervisor":3,"response":{"ok":false,"error":"start failed"},"capture":null});
+        let failure = json!({"ok":true,"scriptSupervisor":4,"response":{"ok":false,"error":"start failed"},"capture":null});
         assert!(decode_reply(&serde_json::to_vec(&failure).unwrap()).is_ok());
         let mut bad = failure;
         bad["response"] = json!({"ok":false,"error":"exit7","exitCode":7,"stdout":"","stderr":""});

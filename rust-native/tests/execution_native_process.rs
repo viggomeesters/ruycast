@@ -10,10 +10,142 @@ use actions::native_bridge::{
 use serde_json::{json, Value};
 use std::{
     fs,
+    os::unix::fs::PermissionsExt,
     path::Path,
     thread,
     time::{Duration, Instant},
 };
+
+fn work_status_host(mode: &str) -> Bridge {
+    let mut host = Bridge::new(Config::current(), false);
+    fs::write(host.base.join("owned-work-writer-fixture"), b"fixture").unwrap();
+    if mode == "legacy" { fs::write(host.base.join("legacy-writer"), b"fixture").unwrap(); }
+    let dir = host.base.join(".local/libexec");
+    fs::create_dir_all(&dir).unwrap();
+    let writer = dir.join("viggo-work-writer");
+    fs::copy(env!("CARGO_BIN_EXE_work-failure-fixture"), &writer).unwrap();
+    fs::set_permissions(&writer, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().push(json!({
+        "id":"task.status.todo", "title":"Owned Work Status", "aliases":["workstatusfixture"],
+        "kind":"script", "target":writer, "arguments":["task-active","todo","{uuid}",mode], "timeout":3
+    }));
+    host.replace(&config, None);
+    host.start();
+    host.settled(|_| true);
+    actions::show(&host, "workstatusfixture");
+    host
+}
+
+#[test]
+fn work_status_cancel_before_admission_does_not_write() {
+    let host = work_status_host("before");
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&host.base.join("before-grant"), "ready");
+    actions::key(&host, 53, 0, "", false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert!(!host.base.join("postimage").exists());
+    assert!(!host.base.join("receipt").exists());
+}
+
+#[test]
+fn work_status_finishes_after_admission_without_reopening_stale_ui() {
+    let host = work_status_host("after");
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&host.base.join("postimage"), "written");
+    actions::key(&host, 53, 0, "", false);
+    host.wait(|s| s["nativeUI"]["visible"] == false);
+    actions::show(&host, "workstatusfixture");
+    fs::write(host.base.join("release-after"), b"go").unwrap();
+    host.wait(|s| s["scriptsRunning"] == 0);
+    wait_marker(&host.base.join("receipt"), "committed");
+    assert_eq!(host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"], true);
+    let logs = host.rpc(&json!({"op":"logs","commandID":"task.status.todo"}));
+    let entries = logs["result"].as_array().unwrap();
+    assert_eq!(entries.iter().filter(|e| e["phase"] == "command.finish").count(), 1);
+    assert_eq!(entries.iter().find(|e| e["phase"] == "command.finish").unwrap()["success"], true);
+    let performance = host.rpc(&json!({"op":"performance"}));
+    assert_eq!(performance["result"]["stages"]["script.writerCapability"]["count"], 1);
+}
+
+#[test]
+fn private_status_keeps_ordinary_cancellation() {
+    let host = work_status_host("private");
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&host.base.join("private-started"), "ready");
+    actions::key(&host, 53, 0, "", false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert!(!host.base.join("receipt").exists());
+}
+#[test]
+fn private_status_decline_keeps_success_behavior() {
+    let host = work_status_host("private-success");
+    actions::key(&host, 36, 0, "\r", false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let logs = host.rpc(&json!({"op":"logs","commandID":"task.status.todo"}));
+    assert_eq!(logs["result"][0]["success"], true);
+}
+#[test]
+fn older_writer_falls_back_to_existing_cancellation_without_sentinel() {
+    let host = work_status_host("legacy");
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&host.base.join("legacy-started"), "ready");
+    actions::key(&host, 53, 0, "", false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+}
+
+#[test]
+fn granted_work_status_is_still_stopped_by_host_shutdown_or_death() {
+    for graceful in [true, false] {
+        let mut host = work_status_host("after");
+        actions::key(&host, 36, 0, "\r", false);
+        wait_marker(&host.base.join("postimage"), "written");
+        let pid: i32 = fs::read_to_string(host.base.join("writer-pid")).unwrap().parse().unwrap();
+        host.host.stop(graceful);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while unsafe { libc::kill(pid, 0) } == 0 {
+            assert!(Instant::now() < deadline, "writer survived host stop");
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_dead(pid);
+        assert!(!host.base.join("receipt").exists());
+    }
+}
+#[test]
+fn granted_work_status_with_invalid_result_is_never_reported_successful() {
+    let host = work_status_host("malformed");
+    actions::key(&host, 36, 0, "\r", false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let logs = host.rpc(&json!({"op":"logs","commandID":"task.status.todo","errorsOnly":true}));
+    let entries = logs["result"].as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["success"], false);
+    assert!(entries[0]["message"].as_str().unwrap().contains("outcome is unknown"));
+    assert!(entries[0].get("applied").is_none());
+}
+#[test]
+fn capable_writer_without_handshake_cannot_report_success() {
+    let host = work_status_host("silent");
+    actions::key(&host, 36, 0, "\r", false);
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let logs = host.rpc(&json!({"op":"logs","commandID":"task.status.todo","errorsOnly":true}));
+    let entry = &logs["result"][0];
+    assert_eq!(entry["success"], false);
+    assert!(entry["message"].as_str().unwrap().contains("outcome is unknown"));
+}
+#[test]
+fn granted_work_status_timeout_does_not_claim_a_receipt() {
+    let host = work_status_host("after");
+    actions::key(&host, 36, 0, "\r", false);
+    wait_marker(&host.base.join("postimage"), "written");
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert!(!host.base.join("receipt").exists());
+    let logs = host.rpc(&json!({"op":"logs","commandID":"task.status.todo","errorsOnly":true}));
+    let entry = &logs["result"][0];
+    assert_eq!(entry["success"], false);
+    assert!(entry["message"].as_str().unwrap().contains("outcome is unknown"));
+    assert!(entry.get("applied").is_none());
+}
 
 fn host(marker: &str) -> Bridge {
     configured_host(marker, false)

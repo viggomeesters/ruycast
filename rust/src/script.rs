@@ -4,7 +4,7 @@ use crate::Command;
 use serde_json::{json, Value};
 use std::{
     io::{self, Read},
-    os::{fd::AsRawFd, unix::process::CommandExt},
+    os::{fd::{AsRawFd, OwnedFd}, unix::{ffi::OsStrExt, fs::MetadataExt, process::CommandExt}},
     path::{Path, PathBuf},
     process::{Child, Command as Process, ExitStatus, Stdio},
     time::{Duration, Instant},
@@ -21,7 +21,10 @@ pub enum End {
 }
 
 /// Internal supervisor metadata, never merged into the legacy CLI response.
-pub const SUPERVISOR_VERSION: u64 = 3;
+pub const SUPERVISOR_VERSION: u64 = 4;
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WriterIdentity { pub dev: u64, pub ino: u64 }
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StreamCapture {
@@ -332,6 +335,18 @@ pub fn run(
     command: &Command,
     home: &Path,
     deadline: Option<Instant>,
+    cancelled: impl FnMut() -> bool,
+) -> Result<Completion, String> {
+    run_with_admission(command, home, deadline, None, None, cancelled)
+}
+
+/// Only the trusted supervisor supplies an inherited admission descriptor.
+pub fn run_with_admission(
+    command: &Command,
+    home: &Path,
+    deadline: Option<Instant>,
+    admission: Option<OwnedFd>,
+    writer_identity: Option<WriterIdentity>,
     mut cancelled: impl FnMut() -> bool,
 ) -> Result<Completion, String> {
     let timeout = command.timeout.unwrap_or(30.);
@@ -366,11 +381,39 @@ pub fn run(
         .strip_prefix("~/")
         .map(|tail| home.join(tail))
         .unwrap_or_else(|| PathBuf::from(&command.target));
+    let check_path = if let Some(expected) = writer_identity {
+        let meta = std::fs::symlink_metadata(&path).map_err(|_| "The writer changed after capability verification.")?;
+        if !meta.is_file() || meta.file_type().is_symlink() || meta.dev() != expected.dev || meta.ino() != expected.ino {
+            return Err("The writer changed after capability verification.".into());
+        }
+        Some(std::ffi::CString::new(path.as_os_str().as_bytes()).map_err(|_| "Invalid writer path.")?)
+    } else { None };
     let mut launcher = Process::new(path);
+    let admission_fd = admission.as_ref().map(AsRawFd::as_raw_fd);
+    if let Some(fd) = admission_fd {
+        if fd < 3 || unsafe { libc::fcntl(fd, libc::F_GETFD) } < 0 {
+            return Err("Invalid writer admission descriptor.".into());
+        }
+        launcher.arg("--ruycast-writer-grant-v1").arg(fd.to_string());
+    }
     // Use the fork/exec error-pipe path so a failed exec is reaped by std.
     // The child hook performs no allocation, locks or non-async-safe calls.
     unsafe {
-        launcher.pre_exec(|| Ok(()));
+        launcher.pre_exec(move || {
+            if let (Some(expected), Some(path)) = (writer_identity, check_path.as_ref()) {
+                let mut info: libc::stat = std::mem::zeroed();
+                if libc::lstat(path.as_ptr(), &mut info) != 0 || info.st_dev as u64 != expected.dev || info.st_ino as u64 != expected.ino || (info.st_mode & libc::S_IFMT) != libc::S_IFREG {
+                    return Err(io::Error::from_raw_os_error(libc::ESTALE));
+                }
+            }
+            if let Some(fd) = admission_fd {
+                let flags = libc::fcntl(fd, libc::F_GETFD);
+                if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                    return Err(io::Error::last_os_error());
+                }
+            }
+            Ok(())
+        });
     }
     let child = launcher
         .args(&command.arguments)
@@ -378,8 +421,11 @@ pub fn run(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
-        .spawn()
-        .map_err(|e| e.to_string())?;
+        .spawn();
+    // Only the writer may retain the capability after fork/exec. In
+    // particular the helper must not hide a private-router decline as EOF.
+    drop(admission);
+    let child = child.map_err(|e| e.to_string())?;
     let mut process = OwnedProcess { child, armed: true };
     let mut out = process
         .child
@@ -549,5 +595,14 @@ mod tests {
             ))
             .is_err());
         }
+    }
+    #[test]
+    fn verified_writer_identity_refuses_a_different_executable_before_spawn() {
+        let command: Command = serde_json::from_value(json!({"id":"fixture","title":"Fixture","kind":"script","target":"/usr/bin/true"})).unwrap();
+        let meta = std::fs::symlink_metadata("/usr/bin/true").unwrap();
+        assert!(meta.is_file() && !meta.file_type().is_symlink());
+        let expected = WriterIdentity { dev: meta.dev(), ino: meta.ino().wrapping_add(1) };
+        let result = run_with_admission(&command, Path::new("/tmp"), None, None, Some(expected), || false);
+        assert!(result.is_err());
     }
 }
