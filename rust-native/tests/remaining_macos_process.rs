@@ -351,6 +351,7 @@ fn real_cli_window_files_processes_and_monitor_data_use_owned_backends() {
     assert_eq!(processes["result"].as_array().unwrap().len(), 1);
     let sample = host.ok(json!({"op":"monitor"}));
     assert_eq!(sample["result"]["hostname"], "owned.invalid");
+    assert_eq!(sample["result"]["memoryAvailable"], true);
     assert_eq!(sample["result"]["batteryPercent"], 75);
     assert_eq!(
         host.rpc(json!({"op":"execute","id":"builtin.system-monitor"}))["ok"],
@@ -368,6 +369,10 @@ fn real_read_only_resource_sample_satisfies_original_bounds_without_serializing_
     let snapshot = ruycast_native::resource_sampler::Sampler::default()
         .sample(&ruycast_native::resource_sampler::Native);
     assert!(snapshot.memory_total > 0);
+    assert!(snapshot.memory_available);
+    assert!(snapshot.memory_wired > 0);
+    assert!(snapshot.memory_used >= snapshot.memory_wired);
+    assert!(snapshot.memory_used <= snapshot.memory_total);
     assert!(snapshot.disk_total > 0);
     assert!(snapshot.disk_available <= snapshot.disk_total);
     assert!(snapshot.process_count > 0);
@@ -402,6 +407,7 @@ fn actual_cli_monitor_and_process_query_use_the_owned_running_host() {
         assert_eq!(reply["ok"], true, "{reply}");
         if args[0] == "monitor" {
             assert_eq!(reply["result"]["hostname"], "owned.invalid");
+            assert_eq!(reply["result"]["memoryAvailable"], true);
             assert_eq!(reply["result"]["batteryPercent"], 75);
         } else {
             let rows = reply["result"].as_array().unwrap();
@@ -483,7 +489,7 @@ fn native_monitor_six_tabs_light_dark_minimum_wide_and_no_ordering() {
             }
         }
         host.ok(json!({"op":"native.test","action":"monitor-size","width":740.,"height":500.}));
-        for state in ["loading", "error", "long", "no-battery"] {
+        for state in ["loading", "error", "long", "no-battery", "memory-unavailable"] {
             let read =
                 host.ok(json!({"op":"native.test","action":"monitor-render-state","state":state}));
             let out = native().join("target/remaining-macos-evidence");
@@ -499,6 +505,10 @@ fn native_monitor_six_tabs_light_dark_minimum_wide_and_no_ordering() {
             )
             .unwrap();
             assert_eq!(read["result"]["windowShown"], false);
+            if state == "memory-unavailable" {
+                assert_eq!(read["result"]["tab"], "Memory");
+                assert_eq!(read["result"]["screenText"].as_array().unwrap().iter().filter(|v| *v == "Unavailable").count(), 4);
+            }
         }
     }
 }
