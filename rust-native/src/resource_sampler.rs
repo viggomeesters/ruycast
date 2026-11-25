@@ -32,6 +32,8 @@ pub struct Snapshot {
     pub uptime: f64,
     pub process_count: usize,
     pub memory_total: u64,
+    #[serde(default)]
+    pub memory_available: bool,
     pub memory_used: u64,
     pub memory_wired: u64,
     pub memory_compressed: u64,
@@ -274,18 +276,26 @@ fn collect(io: &Io) -> Raw {
         };
         let mut vm = MaybeUninit::<libc::vm_statistics64>::zeroed();
         let mut count = libc::HOST_VM_INFO64_COUNT;
+        // Mach returns a revision-dependent count of 32-bit words. Only read
+        // fields included in the returned prefix, never an oversized result.
+        let required_words = (std::mem::offset_of!(libc::vm_statistics64, compressor_page_count)
+            + std::mem::size_of::<libc::natural_t>())
+        .div_ceil(std::mem::size_of::<libc::integer_t>()) as u32;
         if unsafe { (io.vm)(host, vm.as_mut_ptr().cast(), &mut count) } == 0
-            && count == libc::HOST_VM_INFO64_COUNT
+            && (required_words..=libc::HOST_VM_INFO64_COUNT).contains(&count)
         {
             let vm = unsafe { vm.assume_init() };
             let page = unsafe { (io.page)() }.max(0) as u64;
-            snapshot.memory_wired = u64::from(vm.wire_count).saturating_mul(page);
-            snapshot.memory_compressed = u64::from(vm.compressor_page_count).saturating_mul(page);
-            snapshot.memory_used = u64::from(vm.active_count)
-                .saturating_mul(page)
-                .saturating_add(snapshot.memory_wired)
-                .saturating_add(snapshot.memory_compressed)
-                .min(snapshot.memory_total);
+            if page > 0 && snapshot.memory_total > 0 {
+                snapshot.memory_wired = u64::from(vm.wire_count).saturating_mul(page);
+                snapshot.memory_compressed = u64::from(vm.compressor_page_count).saturating_mul(page);
+                snapshot.memory_used = u64::from(vm.active_count)
+                    .saturating_mul(page)
+                    .saturating_add(snapshot.memory_wired)
+                    .saturating_add(snapshot.memory_compressed)
+                    .min(snapshot.memory_total);
+                snapshot.memory_available = true;
+            }
         }
         let swap: libc::xsw_usage =
             sysctl_value(io, c"vm.swapusage", unsafe { std::mem::zeroed() });
@@ -442,6 +452,7 @@ impl Source for Fixture {
                 uptime: 90000.,
                 process_count: 2,
                 memory_total: 16 * 1_073_741_824,
+                memory_available: true,
                 memory_used: 8 * 1_073_741_824,
                 memory_wired: 1_073_741_824,
                 memory_compressed: 512 * 1_048_576,
@@ -823,6 +834,58 @@ mod tests {
         assert!(bad.snapshot.interfaces.is_empty());
         assert_eq!(bad.snapshot.chip, "Unavailable");
         assert_eq!(RELEASED.load(Ordering::Acquire), before + 2);
+    }
+    #[test]
+    fn vm_revision_prefix_must_contain_every_read_field() {
+        unsafe fn prefix<const N: u32>(_: u32, out: Ptr, count: &mut u32) -> i32 {
+            let vm = out.cast::<libc::vm_statistics64>();
+            unsafe {
+                std::ptr::addr_of_mut!((*vm).active_count).write(3);
+                std::ptr::addr_of_mut!((*vm).wire_count).write(2);
+                if N >= 33 {
+                    std::ptr::addr_of_mut!((*vm).compressor_page_count).write(1);
+                }
+            }
+            *count = N;
+            0
+        }
+        for vm in [
+            prefix::<33>,
+            prefix::<38>,
+            prefix::<40>,
+            prefix::<{ libc::HOST_VM_INFO64_COUNT }>,
+        ] as [unsafe fn(u32, Ptr, &mut u32) -> i32; 4]
+        {
+            let mut io = owned_io();
+            io.release_host = |_| {};
+            io.vm = vm;
+            let snapshot = collect(&io).snapshot;
+            assert!(snapshot.memory_available);
+            assert_eq!(
+                (
+                    snapshot.memory_used,
+                    snapshot.memory_wired,
+                    snapshot.memory_compressed
+                ),
+                (24576, 8192, 4096)
+            );
+        }
+        for vm in [
+            prefix::<32>,
+            prefix::<{ libc::HOST_VM_INFO64_COUNT + 1 }>,
+            |_, _, _| -1,
+        ] as [unsafe fn(u32, Ptr, &mut u32) -> i32; 3]
+        {
+            let mut io = owned_io();
+            io.release_host = |_| {};
+            io.vm = vm;
+            io.page = || panic!("Invalid VM result must not read page size");
+            assert!(!collect(&io).snapshot.memory_available);
+        }
+        let mut io = owned_io();
+        io.release_host = |_| {};
+        io.page = || 0;
+        assert!(!collect(&io).snapshot.memory_available);
     }
     struct OwnedSource {
         time: f64,

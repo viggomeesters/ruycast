@@ -393,7 +393,7 @@ impl Monitor {
                     .map(|s| match Tab::ALL[index] {
                         Tab::Cpu => ruycast_native::monitor::percent(s.cpu_percent),
                         Tab::Memory => {
-                            if s.memory_total > 0 {
+                            if s.memory_available && s.memory_total > 0 {
                                 format!(
                                     "{}%",
                                     (s.memory_used as f64 * 100. / s.memory_total as f64) as u64
@@ -634,6 +634,12 @@ impl Monitor {
                 owned.error.clear();
             }
             "error" => owned.error = "Could not sample system resources. Try again.".into(),
+            "memory-unavailable" => {
+                owned.tab = Tab::Memory;
+                if let Some(s) = owned.snapshot.as_mut() {
+                    s.memory_available = false;
+                }
+            }
             "long" => {
                 owned.tab = Tab::System;
                 if let Some(s) = owned.snapshot.as_mut() {

@@ -275,10 +275,28 @@ pub fn rows(snapshot: &Snapshot, tab: Tab) -> Vec<(String, String)> {
             ("Physical Memory", memory(snapshot.memory_total)),
             (
                 "Available",
-                memory(snapshot.memory_total.saturating_sub(snapshot.memory_used)),
+                if snapshot.memory_available {
+                    memory(snapshot.memory_total.saturating_sub(snapshot.memory_used))
+                } else {
+                    "Unavailable".into()
+                },
             ),
-            ("Wired", memory(snapshot.memory_wired)),
-            ("Compressed", memory(snapshot.memory_compressed)),
+            (
+                "Wired",
+                if snapshot.memory_available {
+                    memory(snapshot.memory_wired)
+                } else {
+                    "Unavailable".into()
+                },
+            ),
+            (
+                "Compressed",
+                if snapshot.memory_available {
+                    memory(snapshot.memory_compressed)
+                } else {
+                    "Unavailable".into()
+                },
+            ),
             ("Swap Used", memory(snapshot.swap_used)),
         ],
         Tab::Disk => vec![
@@ -328,7 +346,14 @@ pub fn metric(snapshot: &Snapshot, tab: Tab) -> Option<(String, &'static str)> {
     Some(match tab {
         Tab::System => return None,
         Tab::Cpu => (percent(snapshot.cpu_percent), "CPU Usage"),
-        Tab::Memory => (memory(snapshot.memory_used), "Memory Used"),
+        Tab::Memory => (
+            if snapshot.memory_available {
+                memory(snapshot.memory_used)
+            } else {
+                "Unavailable".into()
+            },
+            "Memory Used",
+        ),
         Tab::Disk => (memory(snapshot.disk_available), "Available"),
         Tab::Power => (
             snapshot
@@ -349,7 +374,9 @@ pub fn metric(snapshot: &Snapshot, tab: Tab) -> Option<(String, &'static str)> {
 pub fn graph(snapshot: &Snapshot, tab: Tab) -> Option<f64> {
     match tab {
         Tab::Cpu => snapshot.cpu_percent,
-        Tab::Memory => Some(snapshot.memory_used as f64 / 1_073_741_824.),
+        Tab::Memory => snapshot
+            .memory_available
+            .then_some(snapshot.memory_used as f64 / 1_073_741_824.),
         Tab::Network => snapshot.download_bytes_per_second.map(|v| v / 1024.),
         _ => None,
     }
@@ -357,6 +384,22 @@ pub fn graph(snapshot: &Snapshot, tab: Tab) -> Option<f64> {
 #[cfg(test)]
 mod lifecycle_tests {
     use super::*;
+    #[test]
+    fn unavailable_memory_never_appears_as_zero_or_full_available() {
+        let snapshot = Snapshot {
+            memory_total: 16 * 1_073_741_824,
+            ..Default::default()
+        };
+        let rows = rows(&snapshot, Tab::Memory);
+        for label in ["Available", "Wired", "Compressed"] {
+            assert_eq!(
+                rows.iter().find(|(key, _)| key == label).unwrap().1,
+                "Unavailable"
+            );
+        }
+        assert_eq!(metric(&snapshot, Tab::Memory).unwrap().0, "Unavailable");
+        assert!(graph(&snapshot, Tab::Memory).is_none());
+    }
     fn service() -> Service {
         Service::new(Arc::new(crate::system_search::fixture::Fixture::default()))
     }
