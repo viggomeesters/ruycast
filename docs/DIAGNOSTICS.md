@@ -16,6 +16,8 @@ The owner-only `command-log.json` file lives in your profile. It is bounded to 5
 
 Launcher timings distinguish the first visible search-opening callback in a process from later ones, including layout, window ordering, activation and focus. Field focus, key-window/active-Space checks, parked-window checks and later focus fallback are measured separately. Parked fallback covers restoring the parked surface; the subsequent order call is part of `open.keyWindow`, not that fallback measurement. A reset clears samples but does not restart the process or its first-opening marker. Percentiles use nearest-rank over retained samples: with two observations p95 is the larger one. Sample counts remain essential when interpreting small sets.
 
+The analytics dashboard also uses nearest-rank p95. It retains up to 32 recent duration samples per command and 256 per aggregate measurement. A p95 from a small sample is descriptive of those retained observations, not a reliable prediction.
+
 ## Privacy
 
 Command diagnostics are separate from aggregate analytics. Payloads, stdout/stderr, capture input, command arguments, queries and clipboard bodies are not persisted in this log. Command IDs are bounded and redact known input values, the home path, URLs and common credential patterns. Current error responses can still contain provider-authored context, so review them before sharing. The analytics export does not include this operational log.

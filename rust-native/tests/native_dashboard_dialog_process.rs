@@ -68,6 +68,29 @@ fn capture(h: &Bridge, name: &str) {
     }
 }
 #[test]
+fn dashboard_shows_nearest_rank_for_two_real_samples() {
+    let h = host();
+    open(&h);
+    for _ in 0..2 {
+        assert_eq!(h.rpc(&json!({"op":"execute","id":"analytics.fixture"}))["ok"], true);
+    }
+    let data = h.rpc(&json!({"op":"analytics"}));
+    let commands = data["result"]["commands"].as_object().unwrap();
+    let metric = commands.values().find(|v| v["attempts"] == 2).unwrap();
+    let mut samples: Vec<f64> = metric["timing"]["samples"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    samples.sort_by(f64::total_cmp);
+    assert_eq!(samples.len(), 2);
+    let value = samples[1];
+    let expected = if value < 1.0 { format!("{value:.2} ms") } else { format!("{value:.1} ms") };
+    let view = wait(&h, |v| v["surface"]["commands"].as_array().unwrap().iter().any(|row| row["name"] == "Own analytics fixture" && row["uses"] == 2));
+    let row = view["surface"]["commands"].as_array().unwrap().iter().find(|row| row["name"] == "Own analytics fixture").unwrap();
+    assert_eq!(row["p95"], expected);
+    let rendered = probe(&h, "dashboard-screenshot", json!({}));
+    assert!(rendered["accessibility"].as_array().unwrap().contains(&json!(expected)));
+    assert!(rendered["accessibility"].as_array().unwrap().contains(&json!(format!("{expected} p95"))));
+    capture(&h, "two-sample-p95");
+}
+#[test]
 fn populated_paused_errors_confirmation_roles_values_and_local_key_loop() {
     for theme in ["light", "dark"] {
         let h = host_with_data(Some(theme), None, Some(json!({"analytics.fixture":42})));

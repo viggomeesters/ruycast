@@ -71,8 +71,27 @@ fn compare(case: &Value) -> Value {
     for error in rust["errors"].as_array_mut().unwrap() {
         assert!(error.as_object_mut().unwrap().remove("id").is_some());
     }
-    let expected = case["expected"].as_object().unwrap();
-    for (key, value) in expected {
+    // Preserve the captured Swift reference and override only its known
+    // floor-index percentiles for the intentional nearest-rank change.
+    let mut current = case["expected"].clone();
+    for row in current["commands"].as_array_mut().unwrap() {
+        match row["p95"].as_str().unwrap() {
+            "0.70 ms" => {
+                assert!(["Last wins disabled", "Discovered app", "Decomposed", "Ruycast Dashboard"].contains(&row["name"].as_str().unwrap()));
+                row["p95"] = json!("100.0 ms");
+            }
+            "0.01 ms" => row["p95"] = json!("1.0 ms"),
+            _ => {}
+        }
+    }
+    for timing in current["timings"].as_array_mut().unwrap() {
+        match (timing[0].as_str().unwrap(), timing[1].as_str().unwrap()) {
+            ("Search", "25.6 ms") => timing[1] = json!("25.7 ms"),
+            ("Commands", "0.01 ms") => timing[1] = json!("1.0 ms"),
+            _ => {}
+        }
+    }
+    for (key, value) in current.as_object().unwrap() {
         assert!(
             equivalent(&rust[key], value),
             "dashboard field {key}: actual={} expected={value}",
@@ -94,6 +113,7 @@ fn populated_top30_hash_ties_names_samples_errors_and_legacy() {
     assert_eq!(commands.len(), 30);
     assert_eq!(r["errors"].as_array().unwrap().len(), 20);
     assert_eq!(r["prior_successes"], 14);
+    assert_eq!(r["timings"], json!([["Commands", "100.0 ms"], ["Search", "25.7 ms"]]));
     assert!(commands
         .iter()
         .any(|row| row["name"] == "Last wins disabled"));
@@ -103,7 +123,7 @@ fn populated_top30_hash_ties_names_samples_errors_and_legacy() {
             .iter()
             .find(|row| row["name"] == "Last wins disabled")
             .unwrap()["p95"],
-        "0.70 ms"
+        "100.0 ms"
     );
 }
 #[test]
@@ -116,6 +136,8 @@ fn elapsed_hours_retention_dst_and_calendar_year() {
     assert_eq!(cases.len(), 14);
     for case in &cases[1..13] {
         let r = compare(case);
+        assert_eq!(r["commands"][0]["p95"], "1.0 ms");
+        assert_eq!(r["timings"], json!([["Commands", "1.0 ms"]]));
         let hours = r["hours"].as_array().unwrap();
         assert_eq!(hours.len(), 24);
         assert_eq!(r["days"].as_array().unwrap().len(), 5);
