@@ -264,7 +264,11 @@ impl PalettePanel {
     fn show_launcher(&self, search: bool) -> LauncherOpening {
         let state = self.ivars();
         if state.resident.get() == ResidentWindow::Parked {
-            if search && self.isVisible() && self.isOnActiveSpace() {
+            let eligible = ruycast_native::performance_trace::shared().measure(
+                ruycast_native::performance_trace::Stage::LauncherParkedCheck,
+                || search && self.isVisible() && self.isOnActiveSpace(),
+            );
+            if eligible {
                 state.resident.set(ResidentWindow::Revealing);
                 self.makeKeyWindow();
                 // A synchronous window callback may already have dismissed it.
@@ -279,9 +283,11 @@ impl PalettePanel {
             }
             // This is the hidden window only. Preserve the newly reconciled
             // views and outside-click monitor for the ordinary open below.
-            unsafe { let _: () = msg_send![super(self), orderOut:Option::<&NSObject>::None]; }
-            state.resident.set(ResidentWindow::Unordered);
-            self.restore_resident_surface();
+            ruycast_native::performance_trace::shared().measure(ruycast_native::performance_trace::Stage::LauncherParkedFallback, || {
+                unsafe { let _: () = msg_send![super(self), orderOut:Option::<&NSObject>::None]; }
+                state.resident.set(ResidentWindow::Unordered);
+                self.restore_resident_surface();
+            });
         }
         self.makeKeyAndOrderFront(None);
         LauncherOpening::Ordered
@@ -4095,6 +4101,11 @@ fn apply_view(
     controller
         .guard_callback(|| {
             use ruycast_native::performance_trace::{shared, Stage};
+            let search_opening = opening && !hidden && !connection.is_management
+                && next.clipboard.is_none() && next.dashboard.is_none() && next.settings.is_none()
+                && next.monitor.is_none() && next.utility_scope.is_none()
+                && next.script_result.is_none() && next.editor.is_none();
+            let _opening_sample = search_opening.then(|| shared().launcher_open());
             let measure = |stage| opening.then(|| shared().scope(stage));
             let layout_timing = measure(Stage::OpenLayout);
             let mut open_ready = false;
@@ -4213,14 +4224,16 @@ fn apply_view(
                 } else if next.editor.is_none() {
                     open_ready = if !connection.is_management && next.clipboard.is_none() {
                         let focus_search = || {
-                            controller.focus_launcher_search()
-                                && (hidden || state.panel.isKeyWindow() && state.panel.isOnActiveSpace())
+                            shared().measure(Stage::LauncherFieldFocus, || controller.focus_launcher_search())
+                                && (hidden || shared().measure(Stage::LauncherActiveSpace, || state.panel.isKeyWindow() && state.panel.isOnActiveSpace()))
                                 && still_open()
                         };
                         let focused = focus_search();
                         if presentation == LauncherOpening::Reused && !focused && still_open() {
-                            shared().measure(Stage::OpenKeyWindow, || state.panel.reorder_launcher());
-                            still_open() && focus_search()
+                            shared().measure(Stage::LauncherFocusFallback, || {
+                                shared().measure(Stage::OpenKeyWindow, || state.panel.reorder_launcher());
+                                still_open() && focus_search()
+                            })
                         } else {
                             focused
                         }

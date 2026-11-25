@@ -19,6 +19,17 @@ use std::{
 fn host(command: Value) -> Bridge {
     host_with_apps(command, false, false, None)
 }
+#[test]
+fn offscreen_search_measures_field_focus_without_counting_visible_opening() {
+    let h = host(command("url", "ruycast-fixture://example"));
+    show(&h, "nativeopen");
+    let performance = h.rpc(&json!({"op":"performance"}));
+    let stages = &performance["result"]["stages"];
+    assert!(stages["launcher.fieldFocus"]["count"].as_u64().unwrap() >= 1, "{performance}");
+    for stage in ["launcher.openFirst", "launcher.openLater", "launcher.activeSpace", "launcher.parkedCheck", "launcher.parkedFallback"] {
+        assert_eq!(stages[stage]["count"], 0, "{performance}");
+    }
+}
 fn host_with_picker(command: Value, picker: bool) -> Bridge {
     host_with_apps(command, picker, false, None)
 }
