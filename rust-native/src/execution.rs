@@ -107,6 +107,7 @@ struct Job<C> {
     id: u64,
     context: Option<C>,
     stop: Arc<AtomicBool>,
+    admission_gate: Option<(Arc<Mutex<()>>, Arc<AtomicBool>)>,
     result: ResultSlot,
     kind: Kind,
     deadline: Option<Instant>,
@@ -188,6 +189,7 @@ impl<C> Manager<C> {
         command: Command,
         invocation_id: Option<String>,
         diagnostic_id: Option<String>,
+        admission: Option<crate::supervision::Admission>,
         cli: bool,
         live: Live,
         deadline: Option<Instant>,
@@ -219,7 +221,8 @@ impl<C> Manager<C> {
             at: chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
                 .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         });
-        self.admit_job(
+        let gate = admission.as_ref().map(|a| (a.gate.clone(), a.hard_stop.clone()));
+        let result = self.admit_job(
             cli,
             live,
             deadline,
@@ -233,12 +236,17 @@ impl<C> Manager<C> {
                     &home,
                     invocation.as_ref(),
                     diagnostic_id.as_deref(),
+                    admission,
                     deadline,
                     || !live(),
                 )
                 .map(Outcome::Script)
             },
-        )
+        );
+        if let Ok(id) = result.as_ref() {
+            if let Some(job) = self.jobs.iter_mut().find(|job| job.id == *id) { job.admission_gate = gate; }
+        }
+        result
     }
     /// Prepared literal target only. The real runtime must still provide bound
     /// origin/revalidation and native intent-specific hide acknowledgement.
@@ -432,6 +440,7 @@ impl<C> Manager<C> {
             id,
             context: Some(context),
             stop,
+            admission_gate: None,
             result,
             kind,
             deadline,
@@ -530,7 +539,13 @@ impl<C> Manager<C> {
             if let Kind::Snippet(dispatch) = &job.kind {
                 let _ = dispatch.retire();
             }
-            job.stop.store(true, Ordering::Release);
+            if let Some((gate, hard_stop)) = &job.admission_gate {
+                let _guard = gate.lock().unwrap_or_else(|p| p.into_inner());
+                hard_stop.store(true, Ordering::Release);
+                job.stop.store(true, Ordering::Release);
+            } else {
+                job.stop.store(true, Ordering::Release);
+            }
         }
     }
     pub fn shutdown(&mut self) -> Vec<Finished<C>> {
@@ -828,6 +843,7 @@ mod tests {
         });
         manager.jobs.push(Job {
             id: 1,
+            admission_gate: None,
             context: Some(7),
             kind: Kind::Script,
             deadline: None,
@@ -905,7 +921,7 @@ mod tests {
             true
         });
         manager
-            .admit(command(), None, None, true, live, None, ())
+            .admit(command(), None, None, None, true, live, None, ())
             .unwrap();
         rx.recv_timeout(Duration::from_secs(2)).unwrap();
         let result = manager.harvest();

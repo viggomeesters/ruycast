@@ -51,3 +51,23 @@ A failed startup exits with a nonzero status after releasing its own resources. 
 Ruycast preserves an existing regular file or symlink at `control.sock`. It also preserves an existing socket if a nonblocking connection succeeds or its stale state cannot be established. An owned socket that refuses connections is recovered automatically. When stopping or rolling back, Ruycast removes the socket only while its filesystem identity still matches the one created at startup.
 
 If startup reports an occupied or unexpected path, first determine which process or file owns it. Stop that process deliberately, or preserve the unexpected file and resolve its location before retrying. Do not blindly delete the profile or its control files: they may belong to a running instance or contain unrelated data. These checks coordinate normal Ruycast peers through the private profile and instance lock; they do not provide atomic protection against hostile concurrent namespace changes by another process running as the same user.
+## Work status admission
+
+For a compatible, verified Work status writer, a native status action may ask
+the host for admission after its source is bound and before it publishes a
+task binding or editor request. Closing the launcher before admission cancels
+the action; after admission, closing it detaches the stale UI while the writer
+finishes. Timeout and host shutdown still stop the writer, and an incomplete
+post-admission result is reported as unknown. A private-vault status route
+declines admission and keeps its prior behavior. Status actions started from an
+existing result surface, CLI calls, older writers and other operations retain
+their prior cancellation behavior. No automatic replay is performed.
+The local `script.writerCapability` timing measures the compatibility probe;
+it is separate from helper startup and provider execution.
+An explicit Work error after admission can also follow a partial write; inspect
+the Work writer journal and recover if needed before any manual retry.
+
+The compatibility probe and pre-exec identity checks detect ordinary writer
+replacement, but are not an atomic guarantee against a malicious same-user
+process or a replacement between the final path check and exec. Install and
+verify the compatible writer before updating the paired Ruycast host/helper.

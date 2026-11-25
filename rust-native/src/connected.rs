@@ -1070,12 +1070,23 @@ impl Connection {
             .is_some_and(|at| at >= start && at <= end)
     }
     pub fn request_stop(&self) {
-        self.stop.store(true, Ordering::Release);
+        {
+            let _inputs = self.inputs.lock().unwrap_or_else(|p| p.into_inner());
+            self.stop.store(true, Ordering::Release);
+        }
         self.cancel_open_trace();
         self.notify();
     }
     pub fn stop_requested(&self) -> bool {
         self.stop.load(Ordering::Acquire)
+    }
+    pub(crate) fn authorize_writer(&self, live: &dyn Fn() -> bool, socket: &mut std::os::unix::net::UnixStream, granted: &std::sync::atomic::AtomicBool) -> std::io::Result<()> {
+        use std::io::Write;
+        let _inputs = self.inputs.lock().unwrap_or_else(|p| p.into_inner());
+        if !live() || self.stop_requested() { return Err(std::io::ErrorKind::Interrupted.into()); }
+        socket.write_all(b"A")?;
+        granted.store(true, Ordering::Release);
+        Ok(())
     }
     pub fn finish(&self, result: Result<serde_json::Value, String>) {
         *self.outcome.lock().unwrap_or_else(|p| p.into_inner()) = Some(result);
@@ -1105,6 +1116,48 @@ impl Drop for Connection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn writer_grant_is_serialized_with_dismissal_and_stop() {
+        use std::{io::Read, os::unix::net::UnixStream};
+        for stopped in [false, true] {
+            let (sender, _) = std::sync::mpsc::sync_channel(4);
+            let ui = Connection::new(sender, true);
+            let dismissal = ui.latest_dismissal();
+            let (mut writer, mut peer) = UnixStream::pair().unwrap();
+            peer.set_nonblocking(true).unwrap();
+            let granted = std::sync::atomic::AtomicBool::new(false);
+            if stopped { ui.request_stop(); } else { ui.action(Action::Key("cancelOperation:".into())); }
+            let live = || !ui.stop_requested() && ui.latest_dismissal() == dismissal;
+            assert!(ui.authorize_writer(&live, &mut writer, &granted).is_err());
+            assert!(!granted.load(Ordering::Acquire));
+            let mut byte = [0];
+            assert_eq!(peer.read(&mut byte).unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+        }
+    }
+    #[test]
+    fn writer_grant_rechecks_deadline_after_waiting_for_input_lock() {
+        use std::{io::Read, os::unix::net::UnixStream};
+        let (sender, _) = std::sync::mpsc::sync_channel(4);
+        let ui = Connection::new(sender, true);
+        let lock = ui.inputs.lock().unwrap();
+        let (mut writer, mut peer) = UnixStream::pair().unwrap();
+        peer.set_nonblocking(true).unwrap();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        let worker_ui = ui.clone();
+        let deadline = Instant::now() + Duration::from_millis(40);
+        let worker = std::thread::spawn(move || {
+            let granted = std::sync::atomic::AtomicBool::new(false);
+            ready_tx.send(()).unwrap();
+            let result = worker_ui.authorize_writer(&|| Instant::now() < deadline, &mut writer, &granted);
+            (result.is_err(), granted.load(Ordering::Acquire))
+        });
+        ready_rx.recv().unwrap();
+        std::thread::sleep(Duration::from_millis(80));
+        drop(lock);
+        assert_eq!(worker.join().unwrap(), (true, false));
+        let mut byte = [0];
+        assert_eq!(peer.read(&mut byte).unwrap(), 0);
+    }
     #[test]
     fn open_trace_late_serial_cannot_finish_replacement_and_stop_retires_it() {
         let (sender, _) = std::sync::mpsc::sync_channel(4);

@@ -1874,6 +1874,7 @@ fn run_graph(
                 }
                 quit = request.value["op"] == "quit";
                 if quit {
+                    state.execution.cancel_all();
                     palette.retire_creation();
                     management.retire_creation();
                     if let Some(writer) = &state.writer {
@@ -3212,6 +3213,33 @@ fn start_execution(
     let source = destination.source();
     let invocation_id = crate::execution::invocation_id(&command, &prepared);
     let diagnostic_id = crate::failure_context::invocation(&command, &prepared, &state.configuration.paths.home);
+    // Only the exact trusted task-status router gets the private admission
+    // channel. The writer itself grants only after identifying a Work source.
+    let eligible = diagnostic_id.is_some() && matches!(prepared.arguments.get(1).map(String::as_str), Some("todo" | "backlog" | "in-progress" | "waiting" | "done" | "cancelled"));
+    let (live, admission) = if let (true, ExecutionDestination::Native { ui, result_origin: None, .. }) = (eligible, &destination) {
+        let granted = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let admitted = granted.clone();
+        let hard_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let gate = Arc::new(std::sync::Mutex::new(()));
+        let guard_gate = gate.clone();
+        let stopped = hard_stop.clone();
+        let seconds = prepared.timeout.filter(|value| value.is_finite() && (0.1..=300.).contains(value)).unwrap_or(30.);
+        let time_limit = Instant::now() + Duration::from_secs_f64(seconds);
+        let time_limit = deadline.map_or(time_limit, |end| end.min(time_limit));
+        let soft_live = live.clone();
+        let weak = ui.clone();
+        let authorize = Arc::new(move |socket: &mut std::os::unix::net::UnixStream, flag: &std::sync::atomic::AtomicBool| {
+            let _guard = guard_gate.lock().unwrap_or_else(|p| p.into_inner());
+            if stopped.load(std::sync::atomic::Ordering::Acquire) || Instant::now() >= time_limit {
+                return Err(std::io::ErrorKind::Interrupted.into());
+            }
+            let ui = weak.upgrade().ok_or(std::io::ErrorKind::Interrupted)?;
+            ui.authorize_writer(&|| soft_live() && !stopped.load(std::sync::atomic::Ordering::Acquire) && Instant::now() < time_limit, socket, flag)
+        });
+        let watched = live.clone();
+        let protected: crate::execution::Live = Arc::new(move || admitted.load(std::sync::atomic::Ordering::Acquire) || watched());
+        (protected, Some(crate::supervision::Admission { granted, authorize, hard_stop, gate }))
+    } else { (live, None) };
     let context = ExecutionContext {
         diagnostic_id: diagnostic_id.clone(),
         capture_result: None,
@@ -3235,7 +3263,7 @@ fn start_execution(
     };
     match state
         .execution
-        .admit(prepared, invocation_id, diagnostic_id, source == "cli", live, deadline, context)
+        .admit(prepared, invocation_id, diagnostic_id, admission, source == "cli", live, deadline, context)
     {
         Ok(_) => {
             state.activity.record(&trace, &logged_id, source, None);

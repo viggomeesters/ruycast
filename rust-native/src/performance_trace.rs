@@ -44,9 +44,10 @@ pub enum Stage {
     LauncherFocusFallback,
     LauncherParkedCheck,
     LauncherParkedFallback,
+    ScriptCapability,
 }
 impl Stage {
-    const ALL: [Self; 32] = [
+    const ALL: [Self; 33] = [
         Self::SearchModel,
         Self::InputModel,
         Self::InputReconcile,
@@ -79,6 +80,7 @@ impl Stage {
         Self::LauncherFocusFallback,
         Self::LauncherParkedCheck,
         Self::LauncherParkedFallback,
+        Self::ScriptCapability,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -114,6 +116,7 @@ impl Stage {
             Self::LauncherFocusFallback => "launcher.focusFallback",
             Self::LauncherParkedCheck => "launcher.parkedCheck",
             Self::LauncherParkedFallback => "launcher.parkedFallback",
+            Self::ScriptCapability => "script.writerCapability",
         }
     }
     fn index(self) -> usize {
@@ -150,12 +153,16 @@ impl Metric {
         self.samples.push_back(milliseconds);
     }
 }
-#[derive(Default)]
 struct State {
     sequence: u64,
     active: BTreeMap<u64, Entry>,
     metrics: [Metric; Stage::ALL.len()],
     pending_input: Option<(Span, u64)>,
+}
+impl Default for State {
+    fn default() -> Self {
+        Self { sequence: 0, active: BTreeMap::new(), metrics: std::array::from_fn(|_| Metric::default()), pending_input: None }
+    }
 }
 impl State {
     fn begin(&mut self, stage: Stage) -> Span {
@@ -294,7 +301,7 @@ impl Trace {
     pub fn reset(&self) {
         let mut state = self.lock();
         state.active.clear();
-        state.metrics = Default::default();
+        state.metrics = std::array::from_fn(|_| Metric::default());
         state.pending_input = None;
     }
     pub fn snapshot(&self) -> Value {

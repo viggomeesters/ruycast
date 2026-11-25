@@ -127,10 +127,10 @@ fn direct(name: &str, payload: Vec<u8>) -> Value {
     let mut child = PendingChild(Some(spawn(&cli(), &["__run-script-supervised"])));
     let ready: Value =
         serde_json::from_slice(&ready_line(child.0.as_mut().unwrap()).unwrap()).unwrap();
-    assert_eq!(ready, json!({"scriptSupervisor":3,"ready":true}));
+    assert_eq!(ready, json!({"scriptSupervisor":4,"ready":true}));
     let input = payload.clone();
     let envelope = finish(child.0.take().unwrap(), payload, Duration::from_secs(6));
-    assert_eq!(envelope["scriptSupervisor"], 3);
+    assert_eq!(envelope["scriptSupervisor"], 4);
     assert_eq!(envelope["ok"], true);
     evidence(name, &input, &envelope);
     envelope.get("response").unwrap().clone()
