@@ -241,6 +241,18 @@ fn real_work_status_admission_and_recovery_fixture() {
 fn real_work_capture_journal_recovery_fixture() {
     use sha2::{Digest, Sha256};
     use std::{io::{Read, Write}, os::{fd::AsRawFd, unix::{fs::{MetadataExt, OpenOptionsExt}, process::ExitStatusExt}}, path::PathBuf, process::{Command, Stdio}};
+    fn publish_release(capsule: &Path, point: &str) {
+        let folder = capsule.join("control");
+        let staged = folder.join(format!("capture-{point}.release-staged"));
+        let release = folder.join(format!("capture-{point}.release"));
+        assert!(!release.exists());
+        let mut file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&staged).unwrap();
+        file.write_all(b"release").unwrap();
+        file.sync_all().unwrap();
+        drop(file);
+        fs::rename(staged, release).unwrap();
+        fs::File::open(folder).unwrap().sync_all().unwrap();
+    }
     let capsule = PathBuf::from(std::env::var_os("VIGGO_CAPTURE_FIXTURE_CAPSULE").expect("prepared capsule"));
     let base = Path::new("/Users/viggomeesters/Dev/obsidian-test-vault/.tmp");
     assert_eq!(base.canonicalize().unwrap(), base);
@@ -287,6 +299,7 @@ fn real_work_capture_journal_recovery_fixture() {
     let marker = capsule.join(format!("control/capture-{stage}.ready"));
     assert!(!marker.exists());
     assert!(!capsule.join(format!("control/capture-{stage}.release")).exists());
+    assert!(!capsule.join(format!("control/capture-{stage}.release-staged")).exists());
     assert!(!capsule.join(format!("control/capture-{stage}.refused")).exists());
     assert!(!capsule.join("control/capture-invocation.json").exists());
     assert!(!capsule.join("control/capture-journal.json").exists());
@@ -302,7 +315,11 @@ fn real_work_capture_journal_recovery_fixture() {
     host.probe("run-input-type", json!({"text":"Fictional capture\n\nOwned body."}));
     actions::key(&host, 36, actions::CMD, "\r", false);
     let deadline = Instant::now() + Duration::from_secs(40);
-    while !marker.is_file() {
+    while !fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&marker).and_then(|file| {
+        let mut bytes = Vec::new();
+        file.take(33).read_to_end(&mut bytes)?;
+        Ok(!bytes.is_empty() && bytes.len() <= 32 && bytes.iter().all(u8::is_ascii_digit))
+    }).unwrap_or(false) {
         if Instant::now() >= deadline {
             let logs = host.rpc(&json!({"op":"logs","commandID":id}));
             panic!("capture did not reach its barrier: {logs}");
@@ -311,8 +328,7 @@ fn real_work_capture_journal_recovery_fixture() {
     }
     if stage == "before-grant" {
         if case == "refuse-before-grant" {
-            fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
-                .open(capsule.join("control/capture-before-grant.release")).unwrap().write_all(b"release").unwrap();
+            publish_release(&capsule, "before-grant");
         } else {
             actions::key(&host, 53, 0, "", false);
         }
@@ -356,8 +372,7 @@ fn real_work_capture_journal_recovery_fixture() {
     if case == "host-loss" {
         assert_eq!(host.host.stop(false).unwrap().status.signal(), Some(libc::SIGKILL));
     } else {
-        fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
-            .open(capsule.join("control/capture-journal.release")).unwrap().write_all(b"release").unwrap();
+        publish_release(&capsule, "journal");
         host.wait(|s| s["scriptsRunning"] == 0);
         assert_eq!(fs::read(capsule.join("control/capture-journal.refused")).unwrap(), b"refused");
         assert_eq!(Sha256::digest(fs::read(&pending).unwrap()), pending_hash);
