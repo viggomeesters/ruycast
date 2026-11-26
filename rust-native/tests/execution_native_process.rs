@@ -545,6 +545,14 @@ fn real_work_capture_journal_recovery_fixture() {
     assert!(case == "host-loss" || (stage == "journal" && matches!(case.as_str(), "refuse-publication" | "pending-same-bytes")) || (stage == "before-grant" && case == "refuse-before-grant"));
     let host_loss = matches!(case.as_str(), "host-loss" | "pending-same-bytes");
     assert!(case != "pending-same-bytes" || cfg!(target_os = "macos"));
+    const SIGNALS_SHA_ENV: &str = "VIGGO_CAPTURE_FIXTURE_SIGNALS_SHA256";
+    let signals_sha = std::env::var_os(SIGNALS_SHA_ENV).map(|raw| {
+        assert!(cfg!(target_os = "macos"), "prepared capture signals require macOS");
+        let sha = raw.into_string().expect("capture signals SHA-256 must be Unicode");
+        assert!(sha.len() == 64 && sha.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')),
+            "capture signals SHA-256 must be 64 lowercase hex digits");
+        sha
+    });
     let engine = std::env::var("VIGGO_STATUS_FIXTURE_ENGINE_SHA256").unwrap();
     let formatter = std::env::var("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256").unwrap();
     let source_path = PathBuf::from(std::env::var_os("VIGGO_CAPTURE_FIXTURE_WRITER").unwrap());
@@ -560,6 +568,9 @@ fn real_work_capture_journal_recovery_fixture() {
     assert_eq!(format!("{:x}", Sha256::digest(&bytes)), std::env::var("VIGGO_CAPTURE_FIXTURE_WRITER_SHA256").unwrap());
     let mut host = Bridge::new(Config::current(), false);
     for (key, value) in [("VIGGO_STATUS_FIXTURE_CAPSULE", capsule.as_os_str().to_owned()), ("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", engine.clone().into()), ("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", formatter.clone().into()), ("VIGGO_STATUS_FIXTURE_CHECKPOINT", stage.clone().into())] { host.env.insert(key.into(), value); }
+    if let Some(sha) = signals_sha.as_deref() {
+        host.env.insert(SIGNALS_SHA_ENV.into(), sha.into());
+    }
     let directory = host.base.join(".local/libexec");
     fs::create_dir_all(&directory).unwrap();
     let writer = directory.join("viggo-work-writer");
@@ -570,9 +581,25 @@ fn real_work_capture_journal_recovery_fixture() {
         .env("VIGGO_STATUS_FIXTURE_CAPSULE", &capsule).env("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", &engine)
         .env("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", &formatter).env("VIGGO_STATUS_FIXTURE_CHECKPOINT", &stage)
         .arg("--fixture-capture-identity-v1").stdout(Stdio::piped()).stderr(Stdio::piped());
+    if let Some(sha) = signals_sha.as_deref() {
+        identity.env(SIGNALS_SHA_ENV, sha);
+    }
     let identity = child_output::wait(identity.spawn().unwrap(), Duration::from_secs(10));
     assert!(identity.status.success());
-    assert_eq!(serde_json::from_slice::<Value>(&identity.stdout).unwrap(), json!({"ok":true,"schema":"viggo.work-capture-fixture.v1","capsule":capsule,"root":root}));
+    let mut expected_identity = json!({"ok":true,"schema":"viggo.work-capture-fixture.v1","capsule":capsule,"root":root});
+    if let Some(sha) = signals_sha.as_deref() {
+        let directory_identity = |path: &Path| {
+            let metadata = fs::symlink_metadata(path).unwrap();
+            assert!(metadata.is_dir() && !metadata.file_type().is_symlink());
+            assert_eq!(metadata.uid(), unsafe { libc::getuid() });
+            assert_eq!(metadata.mode() & 0o7777, 0o700);
+            [metadata.dev(), metadata.ino()]
+        };
+        expected_identity["signals"] = json!({"sha256":sha,
+            "capsule_identity":directory_identity(&capsule),
+            "directory_identity":directory_identity(&capsule.join("capture-signals"))});
+    }
+    assert_eq!(serde_json::from_slice::<Value>(&identity.stdout).unwrap(), expected_identity);
     assert!(!state.exists(), "fresh fixture required");
     let marker = capsule.join(format!("control/capture-{stage}.ready"));
     assert!(!marker.exists());
@@ -680,6 +707,9 @@ fn real_work_capture_journal_recovery_fixture() {
         .env("VIGGO_STATUS_FIXTURE_CAPSULE", &capsule).env("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", engine)
         .env("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", formatter).arg("recover").arg(&root)
         .stdout(Stdio::piped()).stderr(Stdio::piped());
+    if let Some(sha) = signals_sha.as_deref() {
+        recovery.env(SIGNALS_SHA_ENV, sha);
+    }
     #[cfg(target_os = "macos")]
     if case == "pending-same-bytes" {
         let mut pinned = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW_ANY | libc::O_NONBLOCK).open(&writer).unwrap();
