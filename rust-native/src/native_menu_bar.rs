@@ -4,7 +4,7 @@ use objc2::rc::{Retained, Weak};
 use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadOnly};
 use objc2_app_kit::*;
 use objc2_foundation::{NSObject, NSPoint, NSRect, NSSize, NSString};
-use ruycast_native::performance_trace::{shared, Stage};
+use ruycast_native::performance_trace::{shared, MenuHealthTrigger};
 use std::cell::{Cell, RefCell};
 struct Binding {
     owner: Weak<Controller>,
@@ -55,13 +55,14 @@ impl Service {
         if self.hidden.get() == hidden && *self.requested.borrow() == state {
             return;
         }
-        self.update(owner, state, hidden);
+        self.update(owner, state, hidden, MenuHealthTrigger::State);
     }
     fn update(
         &self,
         owner: &Controller,
         state: Option<ruycast_native::menu_bar::State>,
         hidden: bool,
+        reason: MenuHealthTrigger,
     ) {
         self.hidden.set(hidden);
         *self.requested.borrow_mut() = state.clone();
@@ -69,13 +70,13 @@ impl Service {
         if !hidden {
             if let Some(s) = &mut state {
                 if s.visible && s.requires_input && s.healthy {
-                    s.healthy = shared().measure(Stage::MenuHealth, || {
-                        (unsafe { AXIsProcessTrusted() != 0 && CGPreflightListenEventAccess() })
-                            && NSRunningApplication::runningApplicationsWithBundleIdentifier(
+                    s.healthy = shared().measure_menu_health(reason,
+                            || unsafe { AXIsProcessTrusted() != 0 },
+                            || unsafe { CGPreflightListenEventAccess() },
+                            || NSRunningApplication::runningApplicationsWithBundleIdentifier(
                                 &NSString::from_str("com.raycast.macos"),
-                            )
-                            .is_empty()
-                    });
+                            ).is_empty(),
+                        );
                 }
             }
         }
@@ -140,9 +141,9 @@ impl Service {
         }
         *self.state.borrow_mut() = state;
     }
-    pub fn refresh(&self, owner: &Controller) {
+    pub fn refresh(&self, owner: &Controller, reason: MenuHealthTrigger) {
         let state = owner.menu_bar_state();
-        self.update(owner, state, self.hidden.get());
+        self.update(owner, state, self.hidden.get(), reason);
     }
     pub fn live(&self, serial: u64) -> bool {
         serial != 0
