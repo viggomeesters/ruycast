@@ -152,6 +152,8 @@ The historical Swift-host comparison used the pre-migration Python runner. That 
 
 `ruycast performance` reports bounded in-memory software timings (last256 durations per fixed stage, count, cancellations, p50/p95/max). `ruycast performance reset --confirm` clears them. No query text, command identifiers, snippet bodies or clipboard data is recorded or written. Signposts use only fixed stage names in `nl.viggomeesters.ruycast/Interaction` and can be inspected with Instruments.
 
+`menu.health` and its trigger stages measure the AppKit-thread Accessibility and Input Monitoring preflights. `menu.health.raycast` measures the separate cached-result check; `menu.health.raycastLookup` measures the actual running-app lookup on the worker. These are independent samples, so a reset between phases can leave a cache sample without its earlier preflight sample. They do not establish physical display latency.
+
 - `hotkey.handler`: handler delivery to callback return; excludes hardware/OS delivery before the handler.
 - `hotkey.queue`: elapsed time from the registered shortcut callback to the runtime handler for a valid launcher shortcut, including toggling it closed.
 - `open.ready`: show request through the queued native focus request; excludes compositor/display presentation. Closing or superseding an open cancels the interval.

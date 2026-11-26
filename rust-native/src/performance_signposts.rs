@@ -66,7 +66,7 @@ fn name(stage: Stage) -> Option<&'static [u8]> {
         Stage::OpenFocus => &OPEN_FOCUS,
         Stage::MenuHealth => &MENU_HEALTH,
         Stage::MenuHealthState | Stage::MenuHealthActivation | Stage::MenuHealthLaunch | Stage::MenuHealthTerminate
-        | Stage::MenuHealthAccessibility | Stage::MenuHealthInputMonitoring | Stage::MenuHealthRaycast => return None,
+        | Stage::MenuHealthAccessibility | Stage::MenuHealthInputMonitoring | Stage::MenuHealthRaycast | Stage::MenuHealthRaycastLookup => return None,
         Stage::LauncherBecomeKey => &LAUNCHER_BECOME_KEY,
         Stage::LauncherOutsideMonitors => &LAUNCHER_OUTSIDE_MONITORS,
         Stage::LauncherMakeKey => &LAUNCHER_MAKE_KEY,

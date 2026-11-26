@@ -62,12 +62,31 @@ impl PresenceRefresh {
     pub fn known(&self) -> Option<bool> {
         self.known
     }
+    pub fn waiting(&self) -> bool {
+        !self.closed && (self.active.is_some() || self.pending)
+    }
+    /// Retire the current answer and any queued replacement without waiting for
+    /// an in-flight lookup. A later invalidation can schedule a fresh result.
+    pub fn suspend(&mut self) {
+        self.known = None;
+        self.pending = false;
+        match self.generation.checked_add(1) {
+            Some(next) => self.generation = next,
+            None => self.close(),
+        }
+    }
     /// A failed submission cannot produce a reply. Retire this owner rather
     /// than leave an active generation that can never finish.
     pub fn submission_failed(&mut self, generation: u64) {
         if self.active == Some(generation) {
             self.active = None;
             self.close();
+        }
+    }
+    pub fn submission_cancelled(&mut self, generation: u64) {
+        if self.active == Some(generation) {
+            self.active = None;
+            self.suspend();
         }
     }
     pub fn close(&mut self) {
@@ -91,35 +110,37 @@ impl PresenceWorker {
     pub fn start(
         probe: std::sync::Arc<dyn Fn() -> Option<bool> + Send + Sync>,
         wake: std::sync::Arc<dyn Fn() + Send + Sync>,
-    ) -> Self {
+    ) -> std::io::Result<Self> {
         use std::sync::{Arc, atomic::Ordering, mpsc};
         let (request_tx, request_rx) = mpsc::sync_channel(1);
         let (reply_tx, reply_rx) = mpsc::sync_channel(1);
         let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let worker_closed = closed.clone();
-        std::thread::spawn(move || {
-            while let Ok(generation) = request_rx.recv() {
-                if worker_closed.load(Ordering::Acquire) {
-                    break;
+        std::thread::Builder::new()
+            .name("menu-health".into())
+            .spawn(move || {
+                while let Ok(generation) = request_rx.recv() {
+                    if worker_closed.load(Ordering::Acquire) {
+                        break;
+                    }
+                    let answer = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| probe()))
+                        .unwrap_or(None);
+                    if worker_closed.load(Ordering::Acquire) {
+                        break;
+                    }
+                    if reply_tx.send((generation, answer)).is_err() {
+                        break;
+                    }
+                    if !worker_closed.load(Ordering::Acquire) {
+                        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| wake()));
+                    }
                 }
-                let answer = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| probe()))
-                    .unwrap_or(None);
-                if worker_closed.load(Ordering::Acquire) {
-                    break;
-                }
-                if reply_tx.send((generation, answer)).is_err() {
-                    break;
-                }
-                if !worker_closed.load(Ordering::Acquire) {
-                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| wake()));
-                }
-            }
-        });
-        Self {
+            })?;
+        Ok(Self {
             requests: Some(request_tx),
             replies: reply_rx,
             closed,
-        }
+        })
     }
 
     pub fn request(&self, generation: u64) -> bool {
@@ -128,8 +149,12 @@ impl PresenceWorker {
             .is_some_and(|sender| sender.try_send(generation).is_ok())
     }
 
-    pub fn poll(&self) -> Option<(u64, Option<bool>)> {
-        self.replies.try_recv().ok()
+    pub fn poll(&self) -> Result<Option<(u64, Option<bool>)>, std::sync::mpsc::TryRecvError> {
+        match self.replies.try_recv() {
+            Ok(reply) => Ok(Some(reply)),
+            Err(std::sync::mpsc::TryRecvError::Empty) => Ok(None),
+            Err(error) => Err(error),
+        }
     }
 }
 
@@ -189,6 +214,31 @@ mod tests {
     }
 
     #[test]
+    fn cancelled_unsubmitted_generation_can_be_retried_after_grant() {
+        let mut state = PresenceRefresh::default();
+        let current = state.invalidate().unwrap();
+        state.submission_cancelled(current);
+        assert_eq!(state.known(), None);
+        let next = state.invalidate().unwrap();
+        assert_ne!(next, current);
+        assert_eq!(state.complete(next, Some(true)), None);
+        assert_eq!(state.known(), Some(true));
+    }
+
+    #[test]
+    fn suspended_in_flight_result_cannot_restore_a_hidden_owner() {
+        let mut state = PresenceRefresh::default();
+        let first = state.invalidate().unwrap();
+        state.suspend();
+        assert_eq!(state.complete(first, Some(true)), None);
+        assert_eq!(state.known(), None);
+        let next = state.invalidate().unwrap();
+        assert_ne!(next, first);
+        assert_eq!(state.complete(next, Some(false)), None);
+        assert_eq!(state.known(), Some(false));
+    }
+
+    #[test]
     fn blocked_probe_never_blocks_owner_and_late_result_is_discarded_on_drop() {
         use std::sync::{
             Arc, Mutex,
@@ -219,10 +269,11 @@ mod tests {
             Arc::new(move || {
                 wakes_for_worker.fetch_add(1, Ordering::SeqCst);
             }),
-        );
+        )
+        .unwrap();
         assert!(worker.request(1));
         started_rx.recv_timeout(Duration::from_secs(2)).unwrap();
-        assert_eq!(worker.poll(), None);
+        assert_eq!(worker.poll().unwrap(), None);
         let (dropped_tx, dropped_rx) = mpsc::channel();
         let drop_thread = std::thread::spawn(move || {
             drop(worker);
@@ -257,12 +308,29 @@ mod tests {
             Arc::new(move || {
                 let _ = wake_tx.send(());
             }),
-        );
+        )
+        .unwrap();
         assert!(worker.request(1));
         wake_rx.recv_timeout(Duration::from_secs(2)).unwrap();
-        assert_eq!(worker.poll(), Some((1, None)));
+        assert_eq!(worker.poll().unwrap(), Some((1, None)));
         assert!(worker.request(2));
         wake_rx.recv_timeout(Duration::from_secs(2)).unwrap();
-        assert_eq!(worker.poll(), Some((2, Some(false))));
+        assert_eq!(worker.poll().unwrap(), Some((2, Some(false))));
+    }
+
+    #[test]
+    fn disconnected_reply_channel_is_distinct_from_empty() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = PresenceWorker {
+            requests: None,
+            replies: rx,
+            closed: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        };
+        assert_eq!(worker.poll().unwrap(), None);
+        drop(tx);
+        assert!(matches!(
+            worker.poll(),
+            Err(std::sync::mpsc::TryRecvError::Disconnected)
+        ));
     }
 }

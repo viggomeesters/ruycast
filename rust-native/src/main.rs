@@ -6,6 +6,7 @@ use ruycast_native::native_f1;
 mod native_dashboard;
 mod native_settings;
 mod native_menu_bar;
+mod native_presence;
 mod native_choice;
 mod native_edit;
 mod native_edit_menu;
