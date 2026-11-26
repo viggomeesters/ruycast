@@ -1,10 +1,14 @@
 #![cfg(feature = "test-tools")]
+#[path = "support/child_output.rs"]
+mod child_output;
 use serde_json::Value;
 use std::{
     fs,
     os::unix::fs::{DirBuilderExt, PermissionsExt},
     path::{Path, PathBuf},
+    process::{Command, Stdio},
     sync::atomic::{AtomicU64, Ordering},
+    time::Duration,
 };
 
 struct Fixture(PathBuf);
@@ -78,6 +82,30 @@ fn run(mode: &str, active: &str, idle: &str, timeout: &str) -> (DriverOutput, Va
     .into_iter()
     .map(str::to_owned)
     .collect::<Vec<_>>();
+    if mode == "guard" {
+        let modern = fixture.path().join("modern-override");
+        let legacy = fixture.path().join("legacy-override");
+        fs::create_dir(&modern).unwrap();
+        fs::create_dir(&legacy).unwrap();
+        let child = Command::new(env!("CARGO_BIN_EXE_ruycast-build"))
+            .args(&arguments)
+            .env("RUYCAST_CONFIG_DIR", &modern)
+            .env("RUSTCAST_CONFIG_DIR", &legacy)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let completion = child_output::wait(child, Duration::from_secs(30));
+        assert_eq!(fs::read_dir(&modern).unwrap().count(), 0);
+        assert_eq!(fs::read_dir(&legacy).unwrap().count(), 0);
+        let output = DriverOutput {
+            success: completion.status.success(),
+            stderr: String::from_utf8_lossy(&completion.stderr).into_owned(),
+        };
+        assert!(report.is_file(), "{}", output.stderr);
+        let value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
+        return (output, value, fixture);
+    }
     let specification: rustcast_core::Command = serde_json::from_value(serde_json::json!({
         "id":"owned.benchmark-driver","title":"Owned benchmark driver","kind":"script",
         "target":env!("CARGO_BIN_EXE_ruycast-build"),"arguments":arguments,"timeout":30.0
@@ -94,6 +122,18 @@ fn run(mode: &str, active: &str, idle: &str, timeout: &str) -> (DriverOutput, Va
     assert!(report.is_file(), "{}", output.stderr);
     let value = serde_json::from_slice(&fs::read(report).unwrap()).unwrap();
     (output, value, fixture)
+}
+
+#[test]
+fn benchmark_children_never_inherit_config_overrides() {
+    let (output, report, _) = run("guard", "0.05", "0.05", "2");
+    assert!(output.success, "{}", output.stderr);
+    assert_eq!(report["ok"], true);
+    assert_eq!(report["idleEndpoint"]["statusVerified"], true);
+    assert_eq!(report["idleEndpoint"]["searchVerified"], true);
+    assert_eq!(report["idleEndpoint"]["commandID"], "fixture.42");
+    assert_eq!(report["idleEndpoint"]["clipboardCount"], 200);
+    assert_eq!(report["finalShutdown"]["graceful"], true);
 }
 
 fn events(fixture: &Fixture) -> Vec<String> {
