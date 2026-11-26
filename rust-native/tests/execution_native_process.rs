@@ -1,5 +1,7 @@
 //! Native launcher execution on a real isolated hidden host.
 #![cfg(feature = "test-tools")]
+#[path = "support/child_output.rs"]
+mod child_output;
 #[allow(dead_code)]
 #[path = "support/native_actions.rs"]
 mod actions;
@@ -15,6 +17,224 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
+#[test]
+#[ignore = "requires an explicitly prepared synthetic Work capsule and fixture writer"]
+fn real_work_status_admission_and_recovery_fixture() {
+    use sha2::{Digest, Sha256};
+    use std::{io::{Read, Write}, os::{fd::AsRawFd, unix::fs::{MetadataExt, OpenOptionsExt}}, path::PathBuf, process::{Command, Stdio}};
+
+    let capsule = PathBuf::from(std::env::var_os("VIGGO_STATUS_FIXTURE_CAPSULE").expect("prepared capsule"));
+    let base = Path::new("/Users/viggomeesters/Dev/obsidian-test-vault/.tmp");
+    assert_eq!(base.canonicalize().unwrap(), base);
+    assert_eq!(capsule.parent(), Some(base));
+    assert_eq!(capsule.canonicalize().unwrap(), capsule);
+    let root = capsule.join("work");
+    let note = root.join("00-inbox/20261126-status-fixture/20261126-status-fixture.md");
+    let state = root.join(".work-command-state");
+    let writer_source = PathBuf::from(std::env::var_os("VIGGO_STATUS_FIXTURE_WRITER").expect("fixture writer"));
+    let meta = fs::symlink_metadata(&writer_source).unwrap();
+    assert!(meta.is_file() && !meta.file_type().is_symlink() && meta.uid() == unsafe { libc::getuid() } && meta.nlink() == 1 && meta.len() < 128 * 1024 * 1024);
+    assert_eq!(writer_source.canonicalize().unwrap(), writer_source);
+    let mut source = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&writer_source).unwrap();
+    let opened = source.metadata().unwrap();
+    assert_eq!((opened.dev(), opened.ino()), (meta.dev(), meta.ino()));
+    let mut writer_bytes = Vec::new();
+    Read::by_ref(&mut source).take(128 * 1024 * 1024 + 1).read_to_end(&mut writer_bytes).unwrap();
+    assert!(writer_bytes.len() <= 128 * 1024 * 1024);
+    assert_eq!(format!("{:x}", Sha256::digest(&writer_bytes)), std::env::var("VIGGO_STATUS_FIXTURE_WRITER_SHA256").unwrap());
+    let engine_sha = std::env::var("VIGGO_STATUS_FIXTURE_ENGINE_SHA256").unwrap();
+    let formatter_sha = std::env::var("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256").unwrap();
+    let stage = std::env::var("VIGGO_STATUS_FIXTURE_STAGE").unwrap_or_else(|_| "journal".into());
+    let mode = std::env::var("VIGGO_STATUS_FIXTURE_CASE").unwrap_or_else(|_| "host-loss".into());
+    assert!(["before-grant", "journal", "postimage", "receipt"].contains(&stage.as_str()));
+    assert!(["host-loss", "dismiss", "drift"].contains(&mode.as_str()));
+    assert!(matches!((stage.as_str(), mode.as_str()),
+        ("before-grant", "dismiss") | ("journal", "host-loss") |
+        ("postimage", "host-loss") | ("postimage", "dismiss") | ("postimage", "drift") | ("receipt", "host-loss")));
+    let mut host = Bridge::new(Config::current(), false);
+    host.env.insert("VIGGO_STATUS_FIXTURE_CAPSULE".into(), capsule.as_os_str().to_owned());
+    host.env.insert("VIGGO_STATUS_FIXTURE_ENGINE_SHA256".into(), engine_sha.clone().into());
+    host.env.insert("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256".into(), formatter_sha.clone().into());
+    host.env.insert("VIGGO_STATUS_FIXTURE_CHECKPOINT".into(), stage.clone().into());
+    let dir = host.base.join(".local/libexec");
+    fs::create_dir_all(&dir).unwrap();
+    let writer = dir.join("viggo-work-writer");
+    fs::OpenOptions::new().write(true).create_new(true).mode(0o700).open(&writer).unwrap().write_all(&writer_bytes).unwrap();
+    fs::set_permissions(&writer, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut identity = Command::new(&writer);
+    identity.env_clear().env("PATH", "/usr/bin:/bin").env("TMPDIR", capsule.join("control")).current_dir(&capsule)
+        .env("VIGGO_STATUS_FIXTURE_CAPSULE", &capsule)
+        .env("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", &engine_sha)
+        .env("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", &formatter_sha)
+        .arg("--fixture-identity-v1").stdout(Stdio::piped()).stderr(Stdio::piped());
+    let identity = child_output::wait(identity.spawn().unwrap(), Duration::from_secs(10));
+    assert!(identity.status.success(), "fixture identity refused");
+    assert_eq!(serde_json::from_slice::<Value>(&identity.stdout).unwrap(), json!({"ok":true,"schema":"viggo.work-status-fixture.v1","capsule":capsule,"root":root,"note":"00-inbox/20261126-status-fixture/20261126-status-fixture.md"}));
+    assert_eq!(root.canonicalize().unwrap(), root);
+    assert_eq!(note.canonicalize().unwrap(), note);
+    let meta = fs::symlink_metadata(&note).unwrap();
+    assert!(meta.is_file() && !meta.file_type().is_symlink() && meta.nlink() == 1 && meta.uid() == unsafe { libc::getuid() });
+    let original = fs::read(&note).unwrap();
+    let task_seed = b"---\ntype: task\ncategory: general\ntask-id: task:fictional-status-fixture\nstatus: \"\xf0\x9f\x9f\xa3 backlog\"\n---\n# Fictional task\n\nOwned body.\n".as_slice();
+    let note_seed = b"# Fictional note\n\nOwned body.\n".as_slice();
+    let expected = match std::env::var("VIGGO_STATUS_FIXTURE_SEED").as_deref() {
+        Ok("note") => note_seed,
+        Ok("task") | Err(_) => task_seed,
+        _ => panic!("unknown fixture seed"),
+    };
+    assert_eq!(Sha256::digest(&original), Sha256::digest(expected));
+    assert!(!state.exists(), "use a fresh fixture");
+    assert!(!capsule.join(format!("control/{stage}.ready")).exists());
+    assert!(!capsule.join(format!("control/{stage}.release")).exists());
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().push(json!({
+        "id":"task.status.todo", "title":"Fictional Work Status", "aliases":["workstatusfixture"],
+        "kind":"script", "target":writer,
+        "arguments":["{invocation-provenance}","task-active","todo","{uuid}",""], "timeout":60
+    }));
+    host.replace(&config, None);
+    host.start();
+    host.settled(|_| true);
+    actions::show(&host, "workstatusfixture");
+    actions::key(&host, 36, 0, "\r", false);
+    let marker = capsule.join(format!("control/{stage}.ready"));
+    let deadline = Instant::now() + Duration::from_secs(40);
+    while !marker.is_file() {
+        if Instant::now() >= deadline {
+            let logs = host.rpc(&json!({"op":"logs","commandID":"task.status.todo"}));
+            panic!("writer did not reach the {stage} barrier: {logs}");
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    if stage == "before-grant" {
+        assert_eq!(mode, "dismiss");
+        actions::key(&host, 53, 0, "", false);
+        host.wait(|s| s["scriptsRunning"] == 0);
+        assert_eq!(Sha256::digest(fs::read(&note).unwrap()), Sha256::digest(&original));
+        assert!(!state.exists(), "pre-admission dismissal must not create Work state");
+        assert!(!state.join("pending.json").exists());
+        assert!(!state.join("editor-request.json").exists());
+        assert_eq!(fs::read_dir(capsule.join("router")).unwrap().filter(|entry| entry.as_ref().unwrap().path().extension().is_some_and(|ext| ext == "json")).count(), 0);
+        let entries = host.rpc(&json!({"op":"logs","commandID":"task.status.todo"}));
+        let finishes: Vec<_> = entries["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.finish").collect();
+        assert_eq!(finishes.len(), 1);
+        assert_eq!(finishes[0]["success"], false);
+        return;
+    }
+    let pending = state.join("pending.json");
+    let plan: Value = serde_json::from_slice(&fs::read(&pending).unwrap()).unwrap();
+    assert_eq!(plan["schema"], "viggo.work-edit.v1");
+    assert_eq!(plan["path"], "00-inbox/20261126-status-fixture/20261126-status-fixture.md");
+    let postimage_text = plan["updated"].as_str().expect("journal postimage");
+    let scalar = |key: &str| postimage_text.lines().find_map(|line| line.strip_prefix(key))
+        .map(|value| value.trim().trim_matches('"'));
+    assert_eq!(scalar("type:"), Some("task"));
+    assert_eq!(scalar("status:"), Some("🔴 to-do"));
+    let bindings: Vec<_> = fs::read_dir(capsule.join("router")).unwrap().map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "json")).collect();
+    assert_eq!(bindings.len(), 1);
+    let expected_id = if expected == note_seed {
+        format!("task:{}", bindings[0].file_stem().unwrap().to_str().unwrap())
+    } else {
+        "task:fictional-status-fixture".to_owned()
+    };
+    assert_eq!(scalar("task-id:"), Some(expected_id.as_str()));
+    assert_eq!(postimage_text.matches("Owned body.").count(), 1);
+    assert_eq!(postimage_text.matches("[!activity-message|").count(), 1);
+    assert!(postimage_text.contains(if expected == note_seed { "# Fictional note" } else { "# Fictional task" }));
+    let postimage = postimage_text.as_bytes();
+    let expected_before_stop = if stage == "journal" { Sha256::digest(&original) } else { Sha256::digest(postimage) };
+    assert_eq!(Sha256::digest(fs::read(&note).unwrap()), expected_before_stop);
+    if stage == "postimage" { assert!(state.join("editor-request.json").is_file()); }
+    let receipt_name = plan["receipt"].as_str().unwrap();
+    assert!(receipt_name.len() == 74 && receipt_name.is_ascii() && receipt_name.starts_with("edit-") && receipt_name.ends_with(".json")
+        && receipt_name[5..69].bytes().all(|byte| byte.is_ascii_hexdigit()));
+    let receipt = state.join(receipt_name);
+    assert_eq!(receipt.is_file(), stage == "receipt");
+    if mode == "dismiss" {
+        assert_eq!(stage, "postimage");
+        actions::key(&host, 53, 0, "", false);
+        host.wait(|s| s["nativeUI"]["visible"] == false);
+        fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
+            .open(capsule.join(format!("control/{stage}.release"))).unwrap().write_all(b"release").unwrap();
+        host.wait(|s| s["scriptsRunning"] == 0);
+        assert!(receipt.is_file());
+        assert!(!pending.exists());
+        assert_eq!(Sha256::digest(fs::read(&note).unwrap()), Sha256::digest(postimage));
+        assert_eq!(host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"], false);
+        let entries = host.rpc(&json!({"op":"logs","commandID":"task.status.todo"}));
+        let finishes: Vec<_> = entries["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.finish").collect();
+        assert_eq!(finishes.len(), 1);
+        assert_eq!(finishes[0]["success"], true);
+        return;
+    }
+    let pending_hash = Sha256::digest(fs::read(&pending).unwrap());
+    let binding_hash = Sha256::digest(fs::read(&bindings[0]).unwrap());
+    let starts_before = host.rpc(&json!({"op":"logs","commandID":"task.status.todo"}))["result"]
+        .as_array().unwrap().iter().filter(|row| row["phase"] == "command.start").count();
+    assert_eq!(starts_before, 1);
+    let stopped = host.host.stop(false).expect("owned host must stop");
+    use std::os::unix::process::ExitStatusExt;
+    assert_eq!(stopped.status.signal(), Some(libc::SIGKILL));
+    let lock = fs::OpenOptions::new().read(true).write(true).open(state.join("lock")).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 { break; }
+        assert_eq!(std::io::Error::last_os_error().kind(), std::io::ErrorKind::WouldBlock);
+        assert!(Instant::now() < deadline, "writer did not release its own lock");
+        thread::sleep(Duration::from_millis(20));
+    }
+    drop(lock);
+    host.start();
+    host.settled(|s| s["scriptsRunning"] == 0);
+    assert_eq!(Sha256::digest(fs::read(&note).unwrap()), expected_before_stop);
+    assert!(pending.is_file(), "restarting the host must not replay the write");
+    assert_eq!(Sha256::digest(fs::read(&pending).unwrap()), pending_hash);
+    let after_bindings: Vec<_> = fs::read_dir(capsule.join("router")).unwrap().map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "json")).collect();
+    assert_eq!(after_bindings, bindings);
+    assert_eq!(Sha256::digest(fs::read(&bindings[0]).unwrap()), binding_hash);
+    let starts_after = host.rpc(&json!({"op":"logs","commandID":"task.status.todo"}))["result"]
+        .as_array().unwrap().iter().filter(|row| row["phase"] == "command.start").count();
+    assert_eq!(starts_after, starts_before, "host restarted the action");
+    let drifted_hash = if mode == "drift" {
+        let mut file = fs::OpenOptions::new().append(true).custom_flags(libc::O_NOFOLLOW).open(&note).unwrap();
+        file.write_all(b"\nFictional concurrent edit.\n").unwrap();
+        file.sync_all().unwrap();
+        Some(Sha256::digest(fs::read(&note).unwrap()))
+    } else { None };
+    let mut recovery = Command::new(&writer);
+    recovery.env_clear().env("PATH", "/usr/bin:/bin").env("TMPDIR", capsule.join("control")).current_dir(&capsule)
+        .env("VIGGO_STATUS_FIXTURE_CAPSULE", &capsule)
+        .env("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", engine_sha)
+        .env("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", formatter_sha)
+        .arg("recover").arg(&root).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let output = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+    if let Some(drifted_hash) = drifted_hash {
+        assert_eq!(output.status.code(), Some(1));
+        let refusal: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(refusal["ok"], false);
+        assert_eq!(refusal["error"], "Fixture editor preimage drift");
+        assert_eq!(Sha256::digest(fs::read(&note).unwrap()), drifted_hash);
+        assert_eq!(Sha256::digest(fs::read(&pending).unwrap()), pending_hash);
+        assert!(!receipt.exists());
+        return;
+    }
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let result: Value = serde_json::from_slice(&output.stdout).unwrap();
+    if stage == "receipt" {
+        assert_eq!(result["confirmed"], true, "{result}");
+        assert_eq!(Sha256::digest(fs::read(&note).unwrap()), Sha256::digest(postimage));
+        assert!(receipt.is_file());
+    } else {
+        assert_eq!(result["rolled_back"], true, "{result}");
+        assert_eq!(Sha256::digest(fs::read(&note).unwrap()), Sha256::digest(&original));
+        assert!(!receipt.exists());
+    }
+    assert!(!pending.exists());
+    assert!(!state.join("editor-request.json").exists());
+}
 
 fn work_status_host(mode: &str) -> Bridge {
     let mut host = Bridge::new(Config::current(), false);
