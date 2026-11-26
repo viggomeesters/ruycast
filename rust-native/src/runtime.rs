@@ -888,7 +888,7 @@ impl WindowRuntime {
         if self.visibility_intent.is_some_and(|last| received < last) {
             return Err("A newer palette action superseded this request.".into());
         }
-        ui.begin_open_trace(self.show_serial.wrapping_add(1));
+        ui.begin_open_trace(self.show_serial.wrapping_add(1), received);
         if self.session.clipboard_mode {if !self.clipboard_hidden_cleared {self.capture_clipboard_results();}self.clipboard_scan=None;self.clipboard_unpublished=false;self.clipboard_hidden_cleared=false;self.clipboard_hidden_selected=None;self.clipboard_deferred.clear();self.session.clipboard_mode=false;self.config_revision=u64::MAX;}
         self.session.launcher_scope = None;
         self.native_source = "launcher";
@@ -4239,6 +4239,9 @@ fn finish_executions(
     if completed.is_empty() {
         return deliveries;
     }
+    for item in &completed {
+        if let Some(run) = item.run { crate::performance_trace::shared().mark_run(run, crate::performance_trace::RunPoint::FinalizeStart); }
+    }
     // Filesystem observation is only a hint. Reconcile actual current storage
     // before attributing completed effects, including an event still queued.
     let current_configuration = state.reload_watched().is_ok();
@@ -4329,7 +4332,10 @@ fn finish_executions(
                     };
                     let saved = interpreted.response.clone();
                     match private::start_capture_open(state, window, context, saved.clone(), request) {
-                        Ok(()) => continue,
+                        Ok(()) => {
+                            if let Some(run) = finished.run { crate::performance_trace::shared().finish_run(run, crate::performance_trace::RunOutcome::Handoff); }
+                            continue;
+                        },
                         Err(returned) => {
                             context = *returned;
                             context.capture_result = None;
@@ -4397,6 +4403,7 @@ fn finish_executions(
             response["diagnosticID"] = json!(context.trace);
         }
         let current_origin = current_configuration && origin_valid(state, &context);
+        if let Some(run) = finished.run { crate::performance_trace::shared().finish_run(run, crate::performance_trace::RunOutcome::OwnerProcessed); }
         match context.destination {
             ExecutionDestination::Cli(request) => {
                 deliveries.push(request.respond(response));

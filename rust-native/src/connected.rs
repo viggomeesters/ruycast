@@ -2,7 +2,7 @@
 //! view. No AppKit handles or second search/session model cross this boundary.
 use crate::{
     control::HostEvent,
-    performance_trace::{self, Span, Stage},
+    performance_trace::{self, Run, RunKind, RunOutcome, RunPoint, Span, Stage},
     presentation,
     session::Session,
 };
@@ -356,6 +356,7 @@ pub struct HideToken {
 }
 struct OpenTrace {
     serial: u64,
+    run: Run,
     ready: Span,
     phase: Stage,
     span: Span,
@@ -365,6 +366,7 @@ impl OpenTrace {
         let trace = performance_trace::shared();
         trace.finish(self.span, cancelled || self.phase != Stage::OpenAppKit);
         trace.finish(self.ready, cancelled);
+        trace.finish_run(self.run, if !cancelled && self.phase == Stage::OpenAppKit { RunOutcome::Ready } else { RunOutcome::Cancelled });
     }
 }
 pub struct Connection {
@@ -446,15 +448,18 @@ impl Connection {
             outcome: Mutex::new(None),
         })
     }
-    pub fn begin_open_trace(&self, serial: u64) {
+    pub fn begin_open_trace(&self, serial: u64, received: Instant) {
         let mut pending = self.performance_open.lock().unwrap_or_else(|p| p.into_inner());
         if self.stop_requested() || self.stopped() { return; }
         if let Some(previous) = pending.take() {
             previous.finish(true);
         }
         let (ready, span) = performance_trace::shared().begin_open();
+        let run = performance_trace::shared().begin_run(RunKind::Launcher, received);
+        performance_trace::shared().mark_run(run, RunPoint::OpenPublish);
         *pending = Some(OpenTrace {
             serial,
+            run,
             ready,
             phase: Stage::OpenPublish,
             span,
@@ -464,10 +469,14 @@ impl Connection {
         let mut pending = self.performance_open.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(open) = pending.as_mut().filter(|open| open.serial == serial && open.phase == phase) {
             let trace = performance_trace::shared();
-            if let Some(span) = trace.advance(open.ready, open.span, next) {
-                open.phase = next;
-                open.span = span;
-            }
+            let next_span = trace.advance(open.ready, open.span, next);
+                match next {
+                    Stage::OpenMainQueue => trace.mark_run(open.run, RunPoint::OpenMainQueue),
+                    Stage::OpenAppKit => trace.mark_run(open.run, RunPoint::OpenAppKit),
+                    _ => {}
+                }
+            open.phase = next;
+            if let Some(span) = next_span { open.span = span; } else { trace.finish(open.span, true); }
         }
     }
     pub fn apply_open_trace(&self, serial: u64) {
@@ -1173,8 +1182,8 @@ mod tests {
     fn open_trace_late_serial_cannot_finish_replacement_and_stop_retires_it() {
         let (sender, _) = std::sync::mpsc::sync_channel(4);
         let ui = Connection::new(sender, true);
-        ui.begin_open_trace(1);
-        ui.begin_open_trace(2);
+        ui.begin_open_trace(1, Instant::now());
+        ui.begin_open_trace(2, Instant::now());
         ui.finish_open_trace(1, true);
         ui.publish(View { visible: true, show_serial: 2, ..View::default() });
         ui.apply_open_trace(1);
@@ -1183,17 +1192,17 @@ mod tests {
         assert_eq!(ui.performance_open.lock().unwrap().as_ref().map(|open| open.phase), Some(Stage::OpenAppKit));
         ui.finish_open_trace(2, false);
         assert!(ui.performance_open.lock().unwrap().is_none());
-        ui.begin_open_trace(3);
+        ui.begin_open_trace(3, Instant::now());
         ui.request_stop();
         assert!(ui.performance_open.lock().unwrap().is_none());
-        ui.begin_open_trace(4);
+        ui.begin_open_trace(4, Instant::now());
         ui.finish_open_trace(3, true);
         assert!(ui.performance_open.lock().unwrap().is_none());
         let (sender, _) = std::sync::mpsc::sync_channel(4);
         let finished = Connection::new(sender, true);
-        finished.begin_open_trace(1);
+        finished.begin_open_trace(1, Instant::now());
         finished.finish(Ok(serde_json::json!({"ok":true})));
-        finished.begin_open_trace(2);
+        finished.begin_open_trace(2, Instant::now());
         assert!(finished.performance_open.lock().unwrap().is_none());
     }
     #[cfg(feature = "test-tools")]

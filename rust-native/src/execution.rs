@@ -105,6 +105,7 @@ pub enum WorkspaceMode {
 }
 struct Job<C> {
     id: u64,
+    run: Option<crate::performance_trace::Run>,
     context: Option<C>,
     stop: Arc<AtomicBool>,
     admission_gate: Option<(Arc<Mutex<()>>, Arc<AtomicBool>)>,
@@ -116,6 +117,7 @@ struct Job<C> {
 }
 pub struct Finished<C> {
     pub id: u64,
+    pub(crate) run: Option<crate::performance_trace::Run>,
     pub context: C,
     pub result: Result<Outcome, String>,
 }
@@ -229,7 +231,7 @@ impl<C> Manager<C> {
             context,
             Kind::Script,
             true,
-            move |live| {
+            move |live, run| {
                 crate::supervision::run(
                     &helper,
                     &command,
@@ -238,6 +240,7 @@ impl<C> Manager<C> {
                     diagnostic_id.as_deref(),
                     admission,
                     deadline,
+                    run,
                     || !live(),
                 )
                 .map(Outcome::Script)
@@ -313,7 +316,7 @@ impl<C> Manager<C> {
             context,
             Kind::Workspace(dispatch.clone()),
             false,
-            move |live| {
+            move |live, _| {
                 #[cfg(feature = "test-tools")]
                 let prepared = (|| {
                     if let WorkspaceMode::Fixture(home) = &mode {
@@ -375,7 +378,7 @@ impl<C> Manager<C> {
             context,
             Kind::Snippet(dispatch),
             false,
-            move |live| Ok(Outcome::Snippet(work(live))),
+            move |live, _| Ok(Outcome::Snippet(work(live))),
         )
     }
     #[allow(clippy::too_many_arguments)]
@@ -390,7 +393,7 @@ impl<C> Manager<C> {
         work: F,
     ) -> Result<u64, (String, C)>
     where
-        F: FnOnce(Live) -> Result<Outcome, String> + Send + 'static,
+        F: FnOnce(Live, Option<crate::performance_trace::Run>) -> Result<Outcome, String> + Send + 'static,
     {
         self.reap_finished();
         if (!live_checked && !live()) || deadline.is_some_and(|d| Instant::now() >= d) {
@@ -415,14 +418,17 @@ impl<C> Manager<C> {
         let cancel = stop.clone();
         let sender = self.sender.clone();
         let worker_kind = kind.clone();
+        let run = matches!(&kind, Kind::Script).then(|| crate::performance_trace::shared().begin_run(crate::performance_trace::RunKind::Script, Instant::now()));
         let worker = thread::Builder::new()
             .name("ruycast-execution".into())
             .spawn(move || {
+                if let Some(run) = run { crate::performance_trace::shared().mark_run(run, crate::performance_trace::RunPoint::WorkerStart); }
                 let _lease = lease; // Held through result publication and actual work completion.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    work(Arc::new(move || !cancel.load(Ordering::Acquire) && live()))
+                    work(Arc::new(move || !cancel.load(Ordering::Acquire) && live()), run)
                 }))
                 .unwrap_or_else(|_| worker_kind.fallback());
+                if let Some(run) = run { crate::performance_trace::shared().mark_run(run, crate::performance_trace::RunPoint::WorkerResult); }
                 let mut slot = output.lock().unwrap_or_else(|p| p.into_inner());
                 if matches!(*slot, Slot::Pending) {
                     *slot = Slot::Ready(outcome);
@@ -432,12 +438,16 @@ impl<C> Manager<C> {
             });
         let thread = match worker {
             Ok(thread) => thread,
-            Err(_) => return Err(("Could not start the script worker.".into(), context)),
+            Err(_) => {
+                if let Some(run) = run { crate::performance_trace::shared().finish_run(run, crate::performance_trace::RunOutcome::SpawnFailed); }
+                return Err(("Could not start the script worker.".into(), context));
+            }
         };
         self.serial = self.serial.wrapping_add(1);
         let id = self.serial;
         self.jobs.push(Job {
             id,
+            run,
             context: Some(context),
             stop,
             admission_gate: None,
@@ -465,8 +475,10 @@ impl<C> Manager<C> {
             }
             if matches!(*slot, Slot::Ready(_)) {
                 if let Slot::Ready(result) = std::mem::replace(&mut *slot, Slot::Retired) {
+                    if let Some(run) = job.run { crate::performance_trace::shared().mark_run(run, crate::performance_trace::RunPoint::OwnerHarvest); }
                     output.push(Finished {
                         id: job.id,
+                        run: job.run.take(),
                         context: job.context.take().expect("undelivered context"),
                         result,
                     });
@@ -525,6 +537,7 @@ impl<C> Manager<C> {
             };
             output.push(Finished {
                 id: job.id,
+                run: job.run.take(),
                 context: job.context.take().expect("undelivered context"),
                 result,
             });
@@ -563,6 +576,7 @@ impl<C> Manager<C> {
             if let Some(context) = job.context {
                 output.push(Finished {
                     id: job.id,
+                    run: job.run,
                     context,
                     result,
                 });
@@ -573,7 +587,9 @@ impl<C> Manager<C> {
 }
 impl<C> Drop for Manager<C> {
     fn drop(&mut self) {
-        let _ = self.shutdown();
+        for finished in self.shutdown() {
+            if let Some(run) = finished.run { crate::performance_trace::shared().finish_run(run, crate::performance_trace::RunOutcome::Cancelled); }
+        }
     }
 }
 
@@ -704,7 +720,7 @@ mod tests {
                 context,
                 Kind::Workspace(Arc::new(crate::workspace::Dispatch::default())),
                 false,
-                move |_| {
+                move |_, _| {
                     entered.send(()).unwrap();
                     let _ = wait.recv_timeout(Duration::from_secs(5));
                     Err("Own late fixture result".into())
@@ -843,6 +859,7 @@ mod tests {
         });
         manager.jobs.push(Job {
             id: 1,
+            run: None,
             admission_gate: None,
             context: Some(7),
             kind: Kind::Script,

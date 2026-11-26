@@ -1120,6 +1120,7 @@ fn private_finished(
     capture.stdout.valid_utf8 = true;
     crate::execution::Finished {
         id: 1,
+        run: None,
         context: ExecutionContext {
             diagnostic_id: None,
             capture_result: None,

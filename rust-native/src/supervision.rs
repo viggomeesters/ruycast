@@ -364,6 +364,7 @@ pub(crate) fn run(
     diagnostic_id: Option<&str>,
     admission: Option<Admission>,
     deadline: Option<Instant>,
+    run: Option<crate::performance_trace::Run>,
     mut cancelled: impl FnMut() -> bool,
 ) -> Result<Outcome, String> {
     if cancelled() || deadline.is_some_and(|d| Instant::now() >= d) {
@@ -389,6 +390,7 @@ pub(crate) fn run(
         }
         None => (None, None),
     };
+    if let Some(run) = run { crate::performance_trace::shared().mark_run(run, crate::performance_trace::RunPoint::CapabilityChecked); }
     let (grant, inherited) = if let Some(authority) = admission {
         let (parent, child) = UnixStream::pair().map_err(|_| "Could not prepare writer admission.")?;
         parent.set_nonblocking(true).map_err(|_| "Could not prepare writer admission.")?;
@@ -444,6 +446,7 @@ pub(crate) fn run(
     let trace = crate::performance_trace::shared();
     let child = trace.measure(crate::performance_trace::Stage::ScriptHelperSpawn, || launcher.spawn())
         .map_err(|_| "The script runner could not start. Check the app installation.")?;
+    if let Some(run) = run { trace.mark_run(run, crate::performance_trace::RunPoint::HelperSpawned); }
     drop(inherited);
     let mut grant = grant;
     let mut helper = Helper {
@@ -473,6 +476,7 @@ pub(crate) fn run(
         let ready = line(&mut helper, 4096, Some(startup), &mut cancelled, false, None)?;
         validate_ready(&ready)?;
     }
+    if let Some(run) = run { trace.mark_run(run, crate::performance_trace::RunPoint::HelperReady); }
     let dispatch_timing = trace.scope(crate::performance_trace::Stage::ScriptDispatch);
     let mut sent = 0;
     while sent < header.len() {
@@ -531,12 +535,15 @@ pub(crate) fn run(
         }
     }
     drop(dispatch_timing);
+    if let Some(run) = run { trace.mark_run(run, crate::performance_trace::RunPoint::Dispatched); }
     let response = {
         let _timing = trace.scope(crate::performance_trace::Stage::ScriptResponse);
         line(&mut helper, RESPONSE_LIMIT, deadline, &mut cancelled, true, grant.as_mut())?
     };
+    if let Some(run) = run { trace.mark_run(run, crate::performance_trace::RunPoint::ResponseReceived); }
     let _timing = trace.scope(crate::performance_trace::Stage::ScriptFinalize);
     let status = helper.wait()?;
+    if let Some(run) = run { trace.mark_run(run, crate::performance_trace::RunPoint::HelperExited); }
     if !status.success() {
         return Err(UNKNOWN.into());
     }
@@ -566,7 +573,7 @@ pub fn probe(
     deadline: Option<Instant>,
     cancelled: impl FnMut() -> bool,
 ) -> Result<Value, String> {
-    let outcome = run(path, command, home, None, None, None, deadline, cancelled)?;
+    let outcome = run(path, command, home, None, None, None, deadline, None, cancelled)?;
     Ok(json!({"response":outcome.response,"capture":outcome.capture}))
 }
 

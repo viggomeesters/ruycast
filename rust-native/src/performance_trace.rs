@@ -8,6 +8,7 @@ use std::{
 
 const ACTIVE_LIMIT: usize = 32;
 const SAMPLE_LIMIT: usize = 256;
+const RUN_LIMIT: usize = 32;
 const SCOPE: &str = "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -132,6 +133,34 @@ impl Stage {
 pub struct Span {
     id: Option<u64>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RunKind { Launcher, Script }
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum RunOutcome { Ready, OwnerProcessed, SpawnFailed, Cancelled, Handoff }
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Run { id: Option<u64> }
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum RunPoint { WorkerStart, WorkerResult, OwnerHarvest, OpenPublish, OpenMainQueue, OpenAppKit, CapabilityChecked, HelperSpawned, HelperReady, Dispatched, ResponseReceived, HelperExited, FinalizeStart }
+impl RunPoint {
+    fn index(self) -> usize { self as usize }
+    fn name(self) -> &'static str { match self {
+        Self::WorkerStart => "workerStart", Self::WorkerResult => "workerResult", Self::OwnerHarvest => "ownerHarvest",
+        Self::OpenPublish => "ownerStart", Self::OpenMainQueue => "published", Self::OpenAppKit => "appKitStart",
+        Self::CapabilityChecked => "capabilityPhaseEnd", Self::HelperSpawned => "helperSpawned", Self::HelperReady => "helperReady", Self::Dispatched => "dispatched", Self::ResponseReceived => "responseReceived", Self::HelperExited => "helperExited", Self::FinalizeStart => "ownerFinalizeStart",
+    } }
+}
+struct RunEntry { kind: RunKind, started: Instant, points: [Option<f64>; 13] }
+#[derive(Clone)]
+struct CompletedRun { kind: RunKind, outcome: RunOutcome, elapsed_ms: f64, points: [Option<f64>; 13] }
+impl CompletedRun {
+    fn json(&self) -> Value {
+        let mut points = serde_json::Map::new();
+        for point in [RunPoint::WorkerStart, RunPoint::WorkerResult, RunPoint::OwnerHarvest, RunPoint::OpenPublish, RunPoint::OpenMainQueue, RunPoint::OpenAppKit, RunPoint::CapabilityChecked, RunPoint::HelperSpawned, RunPoint::HelperReady, RunPoint::Dispatched, RunPoint::ResponseReceived, RunPoint::HelperExited, RunPoint::FinalizeStart] {
+            if let Some(value) = self.points[point.index()] { points.insert(point.name().into(), json!(value)); }
+        }
+        json!({"kind": match self.kind { RunKind::Launcher => "paletteOpen", RunKind::Script => "script" }, "outcome": match self.outcome { RunOutcome::Ready => "ready", RunOutcome::OwnerProcessed => "ownerProcessed", RunOutcome::SpawnFailed => "spawnFailed", RunOutcome::Cancelled => "cancelled", RunOutcome::Handoff => "handoff" }, "elapsedMS": self.elapsed_ms, "pointsMS": points})
+    }
+}
 struct Entry {
     started: Instant,
     stage: Stage,
@@ -161,10 +190,12 @@ struct State {
     active: BTreeMap<u64, Entry>,
     metrics: [Metric; Stage::ALL.len()],
     pending_input: Option<(Span, u64)>,
+    runs: BTreeMap<u64, RunEntry>,
+    completed_runs: VecDeque<CompletedRun>,
 }
 impl Default for State {
     fn default() -> Self {
-        Self { sequence: 0, active: BTreeMap::new(), metrics: std::array::from_fn(|_| Metric::default()), pending_input: None }
+        Self { sequence: 0, active: BTreeMap::new(), metrics: std::array::from_fn(|_| Metric::default()), pending_input: None, runs: BTreeMap::new(), completed_runs: VecDeque::new() }
     }
 }
 impl State {
@@ -226,6 +257,30 @@ impl Drop for Guard<'_> {
     }
 }
 impl Trace {
+    pub(crate) fn begin_run(&self, kind: RunKind, started: Instant) -> Run {
+        let mut state = self.lock();
+        let Some(id) = state.sequence.checked_add(1) else { return Run { id: None }; };
+        state.sequence = id;
+        if state.runs.len() >= ACTIVE_LIMIT { state.runs.pop_first(); }
+        state.runs.insert(id, RunEntry { kind, started, points: [None; 13] });
+        Run { id: Some(id) }
+    }
+    pub(crate) fn mark_run(&self, run: Run, point: RunPoint) {
+        let mut state = self.lock();
+        if let Some(entry) = run.id.and_then(|id| state.runs.get_mut(&id)) {
+            if entry.points[point.index()].is_none() {
+                entry.points[point.index()] = Some(entry.started.elapsed().as_secs_f64() * 1000.);
+            }
+        }
+    }
+    pub(crate) fn finish_run(&self, run: Run, outcome: RunOutcome) {
+        let mut state = self.lock();
+        if let Some(entry) = run.id.and_then(|id| state.runs.remove(&id)) {
+            let value = CompletedRun { kind: entry.kind, outcome, elapsed_ms: entry.started.elapsed().as_secs_f64() * 1000., points: entry.points };
+            if state.completed_runs.len() == RUN_LIMIT { state.completed_runs.pop_front(); }
+            state.completed_runs.push_back(value);
+        }
+    }
     pub fn launcher_open(&self) -> Guard<'_> {
         let stage = if self.launcher_open_seen.swap(true, Ordering::Relaxed) {
             Stage::LauncherOpenLater
@@ -306,11 +361,13 @@ impl Trace {
         state.active.clear();
         state.metrics = std::array::from_fn(|_| Metric::default());
         state.pending_input = None;
+        state.runs.clear();
+        state.completed_runs.clear();
     }
     pub fn snapshot(&self) -> Value {
-        let (active, metrics) = {
+        let (active, metrics, active_runs, completed_runs) = {
             let state = self.lock();
-            (state.active.len(), state.metrics.clone())
+            (state.active.len(), state.metrics.clone(), state.runs.len(), state.completed_runs.clone())
         };
         let mut stages = serde_json::Map::new();
         for stage in Stage::ALL {
@@ -324,13 +381,68 @@ impl Trace {
             };
             stages.insert(stage.name().into(), json!({"count":metric.total,"retainedSamples":samples.len(),"cancelled":metric.cancelled,"p50MS":percentile(0.5),"p95MS":percentile(0.95),"maxMS":samples.last()}));
         }
-        json!({"schema":2,"scope":SCOPE,"sampleLimitPerStage":SAMPLE_LIMIT,"activeIntervals":active,"stages":stages})
+        let completed_runs: Vec<_> = completed_runs.iter().map(CompletedRun::json).collect();
+        json!({"schema":2,"scope":SCOPE,"sampleLimitPerStage":SAMPLE_LIMIT,"activeIntervals":active,"activeRuns":active_runs,"completedRunLimit":RUN_LIMIT,"completedRuns":completed_runs,"stages":stages})
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn correlated_run_outlives_legacy_span_eviction() {
+        let trace = Trace::default();
+        let (ready, publish) = trace.begin_open();
+        let run = trace.begin_run(RunKind::Launcher, Instant::now());
+        let spans: Vec<_> = (0..31).map(|_| trace.begin(Stage::SearchModel)).collect();
+        assert!(trace.advance(ready, publish, Stage::OpenMainQueue).is_none());
+        trace.finish(publish, true);
+        trace.mark_run(run, RunPoint::OpenMainQueue);
+        trace.mark_run(run, RunPoint::OpenAppKit);
+        trace.finish_run(run, RunOutcome::Ready);
+        let snapshot = trace.snapshot();
+        assert_eq!(snapshot["completedRuns"][0]["outcome"], "ready");
+        assert_eq!(snapshot["stages"]["open.publish"]["count"], 0);
+        assert_eq!(snapshot["stages"]["open.publish"]["cancelled"], 1);
+        for span in spans { trace.finish(span, true); }
+    }
+    #[test]
+    fn correlated_runs_are_bounded_private_and_reset_does_not_resurrect_old_work() {
+        let trace = Trace::default();
+        let old = trace.begin_run(RunKind::Script, Instant::now());
+        let other = trace.begin_run(RunKind::Launcher, Instant::now());
+        trace.mark_run(old, RunPoint::WorkerStart);
+        trace.finish_run(other, RunOutcome::Cancelled);
+        trace.reset();
+        trace.mark_run(old, RunPoint::WorkerResult);
+        trace.finish_run(old, RunOutcome::OwnerProcessed);
+        assert_eq!(trace.snapshot()["completedRuns"].as_array().unwrap().len(), 0);
+        let evicted = trace.begin_run(RunKind::Script, Instant::now());
+        let live: Vec<_> = (0..ACTIVE_LIMIT).map(|_| trace.begin_run(RunKind::Script, Instant::now())).collect();
+        trace.finish_run(evicted, RunOutcome::OwnerProcessed);
+        assert_eq!(trace.snapshot()["completedRuns"].as_array().unwrap().len(), 0);
+        for run in live { trace.finish_run(run, RunOutcome::Cancelled); }
+        trace.reset();
+        for _ in 0..(RUN_LIMIT + 3) {
+            let run = trace.begin_run(RunKind::Script, Instant::now());
+            trace.mark_run(run, RunPoint::WorkerStart);
+            trace.mark_run(run, RunPoint::WorkerResult);
+            trace.mark_run(run, RunPoint::OwnerHarvest);
+            trace.finish_run(run, RunOutcome::OwnerProcessed);
+            trace.finish_run(run, RunOutcome::Ready);
+        }
+        let snapshot = trace.snapshot();
+        let runs = snapshot["completedRuns"].as_array().unwrap();
+        assert_eq!(runs.len(), RUN_LIMIT);
+        for run in runs {
+            assert_eq!(run["kind"], "script");
+            assert_eq!(run["outcome"], "ownerProcessed");
+            let start = run["pointsMS"]["workerStart"].as_f64().unwrap();
+            let end = run["pointsMS"]["workerResult"].as_f64().unwrap();
+            assert!(start <= end && end <= run["elapsedMS"].as_f64().unwrap());
+            assert!(!run.to_string().contains("path"));
+        }
+    }
     #[test]
     fn original_retention_field_ownership_cancellation_reset_and_overflow_contract() {
         let trace = Trace::default();
