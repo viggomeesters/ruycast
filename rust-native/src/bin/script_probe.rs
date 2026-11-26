@@ -222,11 +222,29 @@ fn old_supervisor_fixture() {
 fn run_tree(args: &[String]) {
     assert_eq!(args.len(), 4);
     let mode = args[1].as_str();
-    if mode == "child-resistant" || mode == "child-ordinary" {
-        if mode == "child-resistant" {
+    if mode == "child-resistant" || mode == "child-ordinary" || mode == "child-resistant-ready" {
+        if mode == "child-resistant" || mode == "child-resistant-ready" {
             unsafe {
                 libc::signal(libc::SIGTERM, libc::SIG_IGN);
             }
+        }
+        if mode == "child-resistant-ready" {
+            use std::os::fd::AsRawFd;
+            let lock = std::fs::OpenOptions::new().write(true).create_new(true)
+                .open(format!("{}.lock", &args[2])).unwrap();
+            assert_eq!(unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX) }, 0);
+            std::fs::write(&args[2], b"ready").unwrap();
+            let release = format!("{}.release", &args[2]);
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while !std::path::Path::new(&release).is_file() {
+                if Instant::now() >= deadline || !std::path::Path::new(&args[2]).parent().unwrap().is_dir() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            std::fs::write(&args[3], "bad").unwrap();
+            drop(lock);
+            return;
         }
         std::thread::sleep(Duration::from_millis(800));
         std::fs::write(&args[3], "bad").unwrap();
@@ -238,21 +256,32 @@ fn run_tree(args: &[String]) {
             libc::signal(libc::SIGTERM, libc::SIG_IGN);
         }
     }
-    assert!(mode == "leader" || mode == "early");
-    std::process::Command::new(std::env::current_exe().unwrap())
-        .args([
+    assert!(mode == "leader" || mode == "early" || mode == "early-resistant-closed");
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+    child.args([
             "script-tree",
             if mode == "leader" {
                 "child-resistant"
+            } else if mode == "early-resistant-closed" {
+                "child-resistant-ready"
             } else {
                 "child-ordinary"
             },
             &args[2],
             &args[3],
-        ])
-        .spawn()
-        .unwrap();
-    if mode == "early" {
+        ]);
+    if mode == "early-resistant-closed" {
+        child.stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    }
+    child.spawn().unwrap();
+    if mode == "early-resistant-closed" {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !std::path::Path::new(&args[2]).is_file() {
+            assert!(Instant::now() < deadline, "owned child did not become ready");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+    if mode == "early" || mode == "early-resistant-closed" {
         println!("done");
     } else {
         std::thread::sleep(Duration::from_secs(10));
