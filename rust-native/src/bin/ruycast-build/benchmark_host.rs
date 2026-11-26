@@ -229,6 +229,7 @@ fn child_env(home: &Path) -> BTreeMap<std::ffi::OsString, std::ffi::OsString> {
                 "RUYCAST_HOME",
                 "RUSTCAST_HOME",
                 "RUYCAST_CONFIG_DIR",
+                "RUSTCAST_CONFIG_DIR",
                 "RUYCAST_APP_BINARY",
             ]
             .contains(&key.as_ref())
@@ -458,7 +459,10 @@ fn cli_measure(
 
 fn probe(options: &Options, pid: u32, deadline: Duration) -> Result<Value> {
     let mut command = Command::new(&options.probe);
-    command.arg(pid.to_string());
+    command
+        .arg(pid.to_string())
+        .env_remove("RUYCAST_CONFIG_DIR")
+        .env_remove("RUSTCAST_CONFIG_DIR");
     let output = process::capture(command, deadline, 1024 * 1024)?;
     if !output.status.success() {
         return Err(format!(

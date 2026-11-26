@@ -185,6 +185,10 @@ fn probe() {
 }
 
 fn main() {
+    if mode() == "guard" {
+        assert!(std::env::var_os("RUYCAST_CONFIG_DIR").is_none());
+        assert!(std::env::var_os("RUSTCAST_CONFIG_DIR").is_none());
+    }
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     if arguments.iter().any(|value| value == "--init-config") {
         let root = PathBuf::from(std::env::var_os("RUYCAST_HOME").unwrap());
