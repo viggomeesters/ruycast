@@ -236,6 +236,168 @@ fn real_work_status_admission_and_recovery_fixture() {
     assert!(!state.join("editor-request.json").exists());
 }
 
+#[test]
+#[ignore = "requires an explicitly prepared synthetic Work capsule and v2 capture fixture"]
+fn real_work_capture_journal_recovery_fixture() {
+    use sha2::{Digest, Sha256};
+    use std::{io::{Read, Write}, os::{fd::AsRawFd, unix::{fs::{MetadataExt, OpenOptionsExt}, process::ExitStatusExt}}, path::PathBuf, process::{Command, Stdio}};
+    let capsule = PathBuf::from(std::env::var_os("VIGGO_CAPTURE_FIXTURE_CAPSULE").expect("prepared capsule"));
+    let base = Path::new("/Users/viggomeesters/Dev/obsidian-test-vault/.tmp");
+    assert_eq!(base.canonicalize().unwrap(), base);
+    assert_eq!(capsule.parent(), Some(base));
+    assert_eq!(capsule.canonicalize().unwrap(), capsule);
+    let root = capsule.join("work");
+    let state = root.join(".work-command-state");
+    let stage = std::env::var("VIGGO_CAPTURE_FIXTURE_STAGE").unwrap();
+    let kind = std::env::var("VIGGO_CAPTURE_FIXTURE_KIND").unwrap();
+    let case = std::env::var("VIGGO_CAPTURE_FIXTURE_CASE").unwrap_or_else(|_| "host-loss".into());
+    assert!(["before-grant", "journal"].contains(&stage.as_str()));
+    assert!(["note", "task"].contains(&kind.as_str()));
+    assert!(["host-loss", "refuse-publication", "refuse-before-grant"].contains(&case.as_str()));
+    assert!(case == "host-loss" || (stage == "journal" && case == "refuse-publication") || (stage == "before-grant" && case == "refuse-before-grant"));
+    let engine = std::env::var("VIGGO_STATUS_FIXTURE_ENGINE_SHA256").unwrap();
+    let formatter = std::env::var("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256").unwrap();
+    let source_path = PathBuf::from(std::env::var_os("VIGGO_CAPTURE_FIXTURE_WRITER").unwrap());
+    let meta = fs::symlink_metadata(&source_path).unwrap();
+    assert!(meta.is_file() && !meta.file_type().is_symlink() && meta.uid() == unsafe { libc::getuid() } && meta.nlink() == 1 && meta.len() < 128 * 1024 * 1024);
+    assert_eq!(source_path.canonicalize().unwrap(), source_path);
+    let mut source = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&source_path).unwrap();
+    let opened = source.metadata().unwrap();
+    assert_eq!((opened.dev(), opened.ino()), (meta.dev(), meta.ino()));
+    let mut bytes = Vec::new();
+    Read::by_ref(&mut source).take(128 * 1024 * 1024 + 1).read_to_end(&mut bytes).unwrap();
+    assert!(bytes.len() <= 128 * 1024 * 1024);
+    assert_eq!(format!("{:x}", Sha256::digest(&bytes)), std::env::var("VIGGO_CAPTURE_FIXTURE_WRITER_SHA256").unwrap());
+    let mut host = Bridge::new(Config::current(), false);
+    for (key, value) in [("VIGGO_STATUS_FIXTURE_CAPSULE", capsule.as_os_str().to_owned()), ("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", engine.clone().into()), ("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", formatter.clone().into()), ("VIGGO_STATUS_FIXTURE_CHECKPOINT", stage.clone().into())] { host.env.insert(key.into(), value); }
+    let directory = host.base.join(".local/libexec");
+    fs::create_dir_all(&directory).unwrap();
+    let writer = directory.join("viggo-work-writer");
+    fs::OpenOptions::new().write(true).create_new(true).mode(0o700).open(&writer).unwrap().write_all(&bytes).unwrap();
+    fs::set_permissions(&writer, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut identity = Command::new(&writer);
+    identity.env_clear().env("PATH", "/usr/bin:/bin").env("TMPDIR", capsule.join("control")).current_dir(&capsule)
+        .env("VIGGO_STATUS_FIXTURE_CAPSULE", &capsule).env("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", &engine)
+        .env("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", &formatter).env("VIGGO_STATUS_FIXTURE_CHECKPOINT", &stage)
+        .arg("--fixture-capture-identity-v1").stdout(Stdio::piped()).stderr(Stdio::piped());
+    let identity = child_output::wait(identity.spawn().unwrap(), Duration::from_secs(10));
+    assert!(identity.status.success());
+    assert_eq!(serde_json::from_slice::<Value>(&identity.stdout).unwrap(), json!({"ok":true,"schema":"viggo.work-capture-fixture.v1","capsule":capsule,"root":root}));
+    assert!(!state.exists(), "fresh fixture required");
+    let marker = capsule.join(format!("control/capture-{stage}.ready"));
+    assert!(!marker.exists());
+    assert!(!capsule.join(format!("control/capture-{stage}.release")).exists());
+    assert!(!capsule.join(format!("control/capture-{stage}.refused")).exists());
+    assert!(!capsule.join("control/capture-invocation.json").exists());
+    assert!(!capsule.join("control/capture-journal.json").exists());
+    let id = if kind == "note" { "capture.quick-note" } else { "capture.quick-task" };
+    let mut config = default_config();
+    config["commands"].as_array_mut().unwrap().push(json!({"id":id,"title":"Fictional Capture","aliases":["capturefixture"],"kind":"script","target":writer,"arguments":["{invocation-provenance}","capture",root,kind,"{uuid}","{input}"],"inputPrompt":"Message","timeout":60}));
+    host.replace(&config, None); host.start(); host.settled(|_| true);
+    actions::show(&host, "capturefixture");
+    actions::key(&host, 36, 0, "\r", false);
+    actions::view(&host, |view| view["runInputInline"] == true);
+    actions::key(&host, 36, actions::CMD, "\r", false);
+    actions::view(&host, |view| view["formVisible"] == true);
+    host.probe("run-input-type", json!({"text":"Fictional capture\n\nOwned body."}));
+    actions::key(&host, 36, actions::CMD, "\r", false);
+    let deadline = Instant::now() + Duration::from_secs(40);
+    while !marker.is_file() {
+        if Instant::now() >= deadline {
+            let logs = host.rpc(&json!({"op":"logs","commandID":id}));
+            panic!("capture did not reach its barrier: {logs}");
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    if stage == "before-grant" {
+        if case == "refuse-before-grant" {
+            fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
+                .open(capsule.join("control/capture-before-grant.release")).unwrap().write_all(b"release").unwrap();
+        } else {
+            actions::key(&host, 53, 0, "", false);
+        }
+        host.wait(|s| s["scriptsRunning"] == 0);
+        if case == "refuse-before-grant" {
+            assert_eq!(fs::read(capsule.join("control/capture-before-grant.refused")).unwrap(), b"refused");
+        }
+        assert!(!state.exists());
+        assert!(!capsule.join("control/capture-invocation.json").exists());
+        return;
+    }
+    let pending = state.join("pending.json");
+    let pending_bytes = fs::read(&pending).unwrap();
+    let plan: Value = serde_json::from_slice(&pending_bytes).unwrap();
+    assert_eq!(plan["schema"], "viggo.work-capture.v1");
+    assert_eq!(plan["root"], json!(root));
+    assert_eq!(plan["kind"], kind);
+    assert_eq!(plan["input"], "Fictional capture\n\nOwned body.");
+    let body = plan["body"].as_str().unwrap();
+    assert_eq!(plan["post_hash"], format!("{:x}", Sha256::digest(body.as_bytes())));
+    let binding: Value = serde_json::from_slice(&fs::read(capsule.join("control/capture-invocation.json")).unwrap()).unwrap();
+    let capture_id = binding["id"].as_str().unwrap();
+    let receipt = format!("{:x}.json", Sha256::digest(capture_id.as_bytes()));
+    assert_eq!(plan["receipt"], receipt);
+    assert_eq!(binding["kind"], kind);
+    assert!(body.contains(&format!("type: {kind}\n")));
+    assert!(body.contains(&format!("capture-id: \"{capture_id}\"")));
+    assert!(body.contains("# Fictional capture"));
+    assert_eq!(body.matches("Owned body.").count(), 1);
+    assert_eq!(body.matches("[!activity-message|").count(), 1);
+    let relative = plan["path"].as_str().unwrap();
+    let pieces: Vec<_> = Path::new(relative).components().collect();
+    assert!(matches!(pieces.as_slice(), [std::path::Component::Normal(a), std::path::Component::Normal(b), std::path::Component::Normal(c)] if *a == "00-inbox" && b.to_str().is_some_and(|s| s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-') && c.to_str() == Some(format!("{s}.md").as_str()))));
+    assert!(!root.join(relative).parent().unwrap().exists());
+    assert!(!state.join("capture.md").exists());
+    assert!(!state.join("package").exists());
+    let pending_hash = Sha256::digest(&pending_bytes);
+    let starts_before = host.rpc(&json!({"op":"logs","commandID":id}));
+    let starts_before: Vec<_> = starts_before["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.start").map(|row| row["traceID"].as_str().unwrap().to_owned()).collect();
+    assert_eq!(starts_before.len(), 1);
+    if case == "host-loss" {
+        assert_eq!(host.host.stop(false).unwrap().status.signal(), Some(libc::SIGKILL));
+    } else {
+        fs::OpenOptions::new().write(true).create_new(true).mode(0o600)
+            .open(capsule.join("control/capture-journal.release")).unwrap().write_all(b"release").unwrap();
+        host.wait(|s| s["scriptsRunning"] == 0);
+        assert_eq!(fs::read(capsule.join("control/capture-journal.refused")).unwrap(), b"refused");
+        assert_eq!(Sha256::digest(fs::read(&pending).unwrap()), pending_hash);
+        assert!(!state.join("capture.md").exists());
+        assert!(!root.join(relative).exists());
+        let entries = host.rpc(&json!({"op":"logs","commandID":id}));
+        let finishes: Vec<_> = entries["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.finish").collect();
+        assert_eq!(finishes.len(), 1);
+        assert_eq!(finishes[0]["success"], false);
+    }
+    let lock = fs::OpenOptions::new().read(true).write(true).open(state.join("lock")).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 { break; }
+        assert_eq!(std::io::Error::last_os_error().kind(), std::io::ErrorKind::WouldBlock);
+        assert!(Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(20));
+    }
+    drop(lock);
+    if case == "host-loss" { host.start(); host.settled(|s| s["scriptsRunning"] == 0); }
+    assert_eq!(Sha256::digest(fs::read(&pending).unwrap()), pending_hash);
+    let starts_after = host.rpc(&json!({"op":"logs","commandID":id}));
+    let starts_after: Vec<_> = starts_after["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.start").map(|row| row["traceID"].as_str().unwrap().to_owned()).collect();
+    assert_eq!(starts_after, starts_before, "host must not replay the capture");
+    let mut recovery = Command::new(&writer);
+    recovery.env_clear().env("PATH", "/usr/bin:/bin").env("TMPDIR", capsule.join("control")).current_dir(&capsule)
+        .env("VIGGO_STATUS_FIXTURE_CAPSULE", &capsule).env("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", engine)
+        .env("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", formatter).arg("recover").arg(&root)
+        .stdout(Stdio::piped()).stderr(Stdio::piped());
+    let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let recovered: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(recovered["rolled_back"], true);
+    assert!(!pending.exists());
+    assert!(!root.join(relative).exists());
+    assert!(!state.join("capture.md").exists());
+    assert!(!state.join("package").exists());
+    assert!(!state.join(receipt).exists());
+}
+
 fn work_status_host(mode: &str) -> Bridge {
     let mut host = Bridge::new(Config::current(), false);
     fs::write(host.base.join("owned-work-writer-fixture"), b"fixture").unwrap();
