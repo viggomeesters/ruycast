@@ -280,3 +280,50 @@ fn early_success_closes_inherited_pipes() {
     std::thread::sleep(Duration::from_millis(850));
     assert!(!sentinel.exists());
 }
+#[test]
+fn closed_pipes_do_not_prove_term_resistant_descendant_is_gone() {
+    use std::os::fd::AsRawFd;
+    let control = OwnedDir::new();
+    let control_ready = control.0.join("resistant-ready");
+    let control_sentinel = control.0.join("resistant-survived");
+    let output = Command::new(env!("CARGO_BIN_EXE_script-probe"))
+        .arg("script-tree")
+        .arg("early-resistant-closed")
+        .arg(&control_ready)
+        .arg(&control_sentinel)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(control_ready.is_file());
+    fs::write(control.0.join("resistant-ready.release"), b"release").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !control_sentinel.is_file() {
+        assert!(Instant::now() < deadline, "control descendant did not run");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let h = OwnedDir::new();
+    let ready = h.0.join("resistant-ready");
+    let sentinel = h.0.join("resistant-survived");
+    let c = command(
+        env!("CARGO_BIN_EXE_script-probe"),
+        json!(["script-tree", "early-resistant-closed", ready, sentinel]),
+    );
+    let result = probe(&h.0, c);
+    assert!(ready.is_file(), "the resistant child must be ready before leader exit");
+    assert_eq!(result["response"]["result"]["stdout"], "done\n");
+    assert_eq!(result["capture"]["stdout"]["eof"], true);
+    assert_eq!(result["capture"]["stderr"]["eof"], true);
+    let lock = fs::OpenOptions::new().write(true).open(h.0.join("resistant-ready.lock")).unwrap();
+    fs::write(h.0.join("resistant-ready.release"), b"release").unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 {
+            break;
+        }
+        let error = std::io::Error::last_os_error();
+        assert_eq!(error.kind(), std::io::ErrorKind::WouldBlock);
+        assert!(Instant::now() < deadline, "owned descendant retained its lock");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!sentinel.exists(), "the descendant survived closed output pipes");
+}

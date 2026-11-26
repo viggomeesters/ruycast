@@ -6,6 +6,8 @@ The full Swift-comparison/F1 campaign ended on 10 November 2026. It is not a cur
 
 The Rust probes measure software and process behavior. They do not establish physical keyboard-to-display latency, energy use, a Raycast comparison, or a repository-wide Rust performance gain. The measurements later in this document describe historical Swift-host revisions and remain historical evidence.
 
+Script cleanup retains its bounded signal schedule before reaping the process-group leader. The owned `closed_pipes_do_not_prove_term_resistant_descendant_is_gone` process test demonstrates why EOF is not enough to end cleanup: a ready descendant can ignore TERM while both output pipes are closed. A control confirms that the descendant otherwise continues; the protected run checks kernel lock release and absence of its side effect. This does not prove every descendant or scheduler case, nor a hard deadline for kernel reap. See [#1933](https://github.com/viggomeesters/ruycast/issues/1933) for the latency investigation.
+
 ### Optional retrospective F1 dataset validator
 
 The Rust build tool retains an opt-in validator for a completed full F1 dataset. This validates supplied evidence; it does not launch the installed app or collect workloads. It is not required for current issue or release acceptance. Invoke the Rust entrypoint directly when an independently reviewed authority and complete preserved dataset are available:
