@@ -253,6 +253,283 @@ fn real_work_capture_journal_recovery_fixture() {
         fs::rename(staged, release).unwrap();
         fs::File::open(folder).unwrap().sync_all().unwrap();
     }
+    #[cfg(target_os = "macos")]
+    fn reject_replaced_pending(
+        mut recovery: Command,
+        capsule: &Path,
+        target: &Path,
+        receipt_name: &str,
+        original: &[u8],
+    ) {
+        use std::{
+            ffi::OsString,
+            fs::{File, Metadata, OpenOptions},
+            io::{self, BufRead, BufReader},
+            mem::MaybeUninit,
+            net::Shutdown,
+            os::{
+                fd::FromRawFd,
+                unix::{net::UnixStream, process::CommandExt},
+            },
+            process::Child,
+        };
+
+        fn identity(info: &Metadata) -> (u64, u64) {
+            (info.dev(), info.ino())
+        }
+        fn directory(path: &Path) -> File {
+            let file = OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW_ANY)
+                .open(path)
+                .unwrap();
+            let info = file.metadata().unwrap();
+            assert!(info.is_dir() && info.uid() == unsafe { libc::getuid() });
+            assert_eq!(info.mode() & 0o7777, 0o700);
+            assert_eq!(identity(&info), identity(&fs::symlink_metadata(path).unwrap()));
+            file
+        }
+        fn roster(path: &Path) -> Vec<OsString> {
+            let mut names = fs::read_dir(path)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name())
+                .collect::<Vec<_>>();
+            names.sort_unstable();
+            names
+        }
+        #[derive(Debug, PartialEq, Eq)]
+        struct Record {
+            identity: (u64, u64),
+            mode: u32,
+            modified: (i64, i64),
+            changed: (i64, i64),
+            bytes: Vec<u8>,
+        }
+        fn record(path: &Path) -> Record {
+            let mut file = OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_NOFOLLOW_ANY | libc::O_NONBLOCK)
+                .open(path)
+                .unwrap();
+            let info = file.metadata().unwrap();
+            assert!(info.is_file() && info.uid() == unsafe { libc::getuid() });
+            assert_eq!(info.mode() & 0o7077, 0);
+            assert_eq!(info.nlink(), 1);
+            let mut bytes = Vec::new();
+            Read::by_ref(&mut file).take(4 * 1024 * 1024 + 1).read_to_end(&mut bytes).unwrap();
+            assert!(bytes.len() <= 4 * 1024 * 1024);
+            assert_eq!(bytes.len() as u64, info.len());
+            assert_eq!(identity(&info), identity(&fs::symlink_metadata(path).unwrap()));
+            Record {
+                identity: identity(&info),
+                mode: info.mode(),
+                modified: (info.mtime(), info.mtime_nsec()),
+                changed: (info.ctime(), info.ctime_nsec()),
+                bytes,
+            }
+        }
+        struct Recovery(Option<Child>);
+        impl Drop for Recovery {
+            fn drop(&mut self) {
+                if let Some(child) = &mut self.0 {
+                    if matches!(child.try_wait(), Ok(None)) {
+                        let _ = child.kill();
+                    }
+                    let _ = child.wait();
+                }
+            }
+        }
+        struct Stage<'a> {
+            directory: &'a File,
+            identity: (u64, u64),
+            armed: bool,
+        }
+        const EVIDENCE_NAME: &std::ffi::CStr = c"original-pending.json";
+        impl Drop for Stage<'_> {
+            fn drop(&mut self) {
+                if !self.armed {
+                    return;
+                }
+                let fd = self.directory.as_raw_fd();
+                let mut stat = MaybeUninit::<libc::stat>::uninit();
+                if unsafe { libc::fstatat(fd, EVIDENCE_NAME.as_ptr(), stat.as_mut_ptr(), libc::AT_SYMLINK_NOFOLLOW) } == 0 {
+                    let stat = unsafe { stat.assume_init() };
+                    if (stat.st_dev as u64, stat.st_ino) == self.identity {
+                        unsafe { libc::unlinkat(fd, EVIDENCE_NAME.as_ptr(), 0) };
+                    }
+                }
+            }
+        }
+
+        assert_eq!(unsafe { libc::getuid() }, unsafe { libc::geteuid() });
+        let base = Path::new("/Users/viggomeesters/Dev/obsidian-test-vault/.tmp");
+        assert_eq!(base.canonicalize().unwrap(), base);
+        assert_eq!(capsule.parent(), Some(base));
+        assert_eq!(capsule.canonicalize().unwrap(), capsule);
+        let root = capsule.join("work");
+        let state = root.join(".work-command-state");
+        let inbox = root.join("00-inbox");
+        let control = capsule.join("control");
+        let pending = state.join("pending.json");
+        let lock_path = state.join("lock");
+        let capsule_fd = directory(capsule);
+        let root_fd = directory(&root);
+        let state_fd = directory(&state);
+        let inbox_fd = directory(&inbox);
+        let control_fd = directory(&control);
+        assert_eq!(record(&capsule.join(".status-fixture")).bytes, b"synthetic-status-recovery-fixture-v1");
+        assert!(target.starts_with(&inbox));
+        let evidence = capsule.join(".pending-same-bytes-proof");
+        let created = unsafe {
+            libc::mkdirat(capsule_fd.as_raw_fd(), c".pending-same-bytes-proof".as_ptr(), 0o700)
+        };
+        assert_eq!(created, 0, "{}", io::Error::last_os_error());
+        let evidence_fd = directory(&evidence);
+        assert_eq!(evidence_fd.metadata().unwrap().dev(), state_fd.metadata().unwrap().dev());
+        let preserved_path = evidence.join("original-pending.json");
+        let rebind = || {
+            for (path, held) in [
+                (capsule, &capsule_fd),
+                (root.as_path(), &root_fd),
+                (state.as_path(), &state_fd),
+                (inbox.as_path(), &inbox_fd),
+                (control.as_path(), &control_fd),
+                (evidence.as_path(), &evidence_fd),
+            ] {
+                assert_eq!(identity(&directory(path).metadata().unwrap()), identity(&held.metadata().unwrap()));
+            }
+        };
+        let old = record(&pending);
+        assert_eq!(old.bytes, original);
+        let lock_record = record(&lock_path);
+        let lock = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW_ANY).open(&lock_path).unwrap();
+        assert_eq!(identity(&lock.metadata().unwrap()), lock_record.identity);
+        let pending_sha256 = format!("{:x}", Sha256::digest(original));
+        let seal = control.join("capture-journal.json");
+        let stable_paths = [
+            lock_path,
+            state.join(format!("capture-admission-{receipt_name}")),
+            seal.clone(),
+            control.join("capture-invocation.json"),
+            control.join("capture-journal.ready"),
+            capsule.join(".status-binding.json"),
+            capsule.join(".status-fixture"),
+        ];
+        let stable = stable_paths.each_ref().map(|path| record(path));
+        assert_eq!(
+            serde_json::from_slice::<Value>(&record(&seal).bytes).unwrap(),
+            json!({"schema":"viggo.capture-fixture-journal.v1","sha256":pending_sha256,
+                "state":identity(&state_fd.metadata().unwrap()),"lock":lock_record.identity,"pending":old.identity})
+        );
+        let rosters = || [&state, &control, &inbox].map(|path| roster(path));
+        let before = rosters();
+        let assert_unpublished = || {
+            for path in [target.parent().unwrap().to_owned(), state.join("package"), state.join("capture.md"), state.join(receipt_name)] {
+                assert_eq!(fs::symlink_metadata(path).unwrap_err().kind(), io::ErrorKind::NotFound);
+            }
+        };
+        assert_unpublished();
+
+        let evidence_dir_fd = evidence_fd.as_raw_fd();
+        let raw = unsafe {
+            libc::openat(evidence_dir_fd, EVIDENCE_NAME.as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                0o600 as libc::c_int)
+        };
+        assert!(raw >= 0, "{}", io::Error::last_os_error());
+        let mut file = unsafe { File::from_raw_fd(raw) };
+        let mut staged = Stage { directory: &evidence_fd, identity: identity(&file.metadata().unwrap()), armed: true };
+        file.write_all(original).unwrap();
+        file.sync_all().unwrap();
+        evidence_fd.sync_all().unwrap();
+        capsule_fd.sync_all().unwrap();
+        let staged_record = record(&preserved_path);
+        assert_eq!(staged_record.identity, staged.identity);
+        assert_ne!(staged_record.identity, old.identity);
+        assert_eq!(staged_record.bytes, old.bytes);
+        assert_eq!(staged_record.mode, old.mode);
+        let evidence_roster = roster(&evidence);
+        assert_eq!(evidence_roster, [OsString::from("original-pending.json")]);
+
+        let (endpoint, mut peer) = UnixStream::pair().unwrap();
+        let fd = endpoint.as_raw_fd();
+        recovery.env("VIGGO_CAPTURE_FIXTURE_RECHECK_FD", fd.to_string())
+            .env("VIGGO_CAPTURE_FIXTURE_RECHECK_PARENT_PID", std::process::id().to_string())
+            .stdin(Stdio::null());
+        // Make only the dedicated test endpoint inheritable in the owned child.
+        unsafe {
+            recovery.pre_exec(move || {
+                let flags = libc::fcntl(fd, libc::F_GETFD);
+                if flags < 0 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) < 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let child = recovery.spawn().unwrap();
+        let pid = child.id();
+        let mut child = Recovery(Some(child));
+        drop(endpoint);
+        peer.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        peer.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        let mut ready = Vec::new();
+        BufReader::new(&mut peer).take(1025).read_until(b'\n', &mut ready).unwrap();
+        assert!(ready.len() <= 1024 && ready.last() == Some(&b'\n'));
+        assert_eq!(
+            serde_json::from_slice::<Value>(&ready).unwrap(),
+            json!({"schema":"viggo.capture-fixture-recheck.v1","pid":pid,
+                "capsule":identity(&capsule_fd.metadata().unwrap()),"state":identity(&state_fd.metadata().unwrap()),
+                "lock":lock_record.identity,"pending":old.identity,"pending_sha256":pending_sha256})
+        );
+        rebind();
+        assert_eq!(record(&pending), old);
+        assert_eq!(rosters(), before);
+        let lock_attempt = unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        assert_eq!(lock_attempt, -1, "recovery child must already own this exact lock");
+        assert_eq!(io::Error::last_os_error().kind(), io::ErrorKind::WouldBlock);
+
+        assert_eq!(record(&preserved_path), staged_record);
+        let swapped = unsafe {
+            libc::renameatx_np(
+                evidence_dir_fd,
+                EVIDENCE_NAME.as_ptr(),
+                state_fd.as_raw_fd(),
+                c"pending.json".as_ptr(),
+                libc::RENAME_SWAP,
+            )
+        };
+        assert_eq!(swapped, 0, "{}", io::Error::last_os_error());
+        // The evidence path now holds the displaced inode. Preserve it even if verification fails.
+        staged.armed = false;
+        state_fd.sync_all().unwrap();
+        evidence_fd.sync_all().unwrap();
+        rebind();
+        let replacement = record(&pending);
+        assert_eq!(replacement.bytes, staged_record.bytes);
+        assert_eq!(replacement.mode, staged_record.mode);
+        assert_eq!(replacement.identity, staged.identity);
+        let preserved = record(&preserved_path);
+        assert_eq!(preserved.bytes, old.bytes);
+        assert_eq!(preserved.mode, old.mode);
+        assert_eq!(preserved.identity, old.identity);
+        assert_eq!(rosters(), before);
+        assert_eq!(roster(&evidence), evidence_roster);
+
+        peer.write_all(b"A").unwrap();
+        peer.shutdown(Shutdown::Write).unwrap();
+        let result = child_output::wait(child.0.take().unwrap(), Duration::from_secs(20));
+        assert_eq!(result.status.code(), Some(1));
+        assert_eq!(serde_json::from_slice::<Value>(&result.stdout).unwrap(),
+            json!({"ok":false,"error":"Capture fixture journal seal changed"}));
+        rebind();
+        assert_eq!(record(&pending), replacement);
+        assert_eq!(record(&preserved_path), preserved);
+        assert_eq!(stable_paths.each_ref().map(|path| record(path)), stable);
+        assert_eq!(rosters(), before);
+        assert_eq!(roster(&evidence), evidence_roster);
+        assert_unpublished();
+        assert_eq!(unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) }, 0);
+    }
     let capsule = PathBuf::from(std::env::var_os("VIGGO_CAPTURE_FIXTURE_CAPSULE").expect("prepared capsule"));
     let base = Path::new("/Users/viggomeesters/Dev/obsidian-test-vault/.tmp");
     assert_eq!(base.canonicalize().unwrap(), base);
@@ -265,8 +542,9 @@ fn real_work_capture_journal_recovery_fixture() {
     let case = std::env::var("VIGGO_CAPTURE_FIXTURE_CASE").unwrap_or_else(|_| "host-loss".into());
     assert!(["before-grant", "journal"].contains(&stage.as_str()));
     assert!(["note", "task"].contains(&kind.as_str()));
-    assert!(["host-loss", "refuse-publication", "refuse-before-grant"].contains(&case.as_str()));
-    assert!(case == "host-loss" || (stage == "journal" && case == "refuse-publication") || (stage == "before-grant" && case == "refuse-before-grant"));
+    assert!(case == "host-loss" || (stage == "journal" && matches!(case.as_str(), "refuse-publication" | "pending-same-bytes")) || (stage == "before-grant" && case == "refuse-before-grant"));
+    let host_loss = matches!(case.as_str(), "host-loss" | "pending-same-bytes");
+    assert!(case != "pending-same-bytes" || cfg!(target_os = "macos"));
     let engine = std::env::var("VIGGO_STATUS_FIXTURE_ENGINE_SHA256").unwrap();
     let formatter = std::env::var("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256").unwrap();
     let source_path = PathBuf::from(std::env::var_os("VIGGO_CAPTURE_FIXTURE_WRITER").unwrap());
@@ -369,7 +647,7 @@ fn real_work_capture_journal_recovery_fixture() {
     let starts_before = host.rpc(&json!({"op":"logs","commandID":id}));
     let starts_before: Vec<_> = starts_before["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.start").map(|row| row["traceID"].as_str().unwrap().to_owned()).collect();
     assert_eq!(starts_before.len(), 1);
-    if case == "host-loss" {
+    if host_loss {
         assert_eq!(host.host.stop(false).unwrap().status.signal(), Some(libc::SIGKILL));
     } else {
         publish_release(&capsule, "journal");
@@ -392,7 +670,7 @@ fn real_work_capture_journal_recovery_fixture() {
         thread::sleep(Duration::from_millis(20));
     }
     drop(lock);
-    if case == "host-loss" { host.start(); host.settled(|s| s["scriptsRunning"] == 0); }
+    if host_loss { host.start(); host.settled(|s| s["scriptsRunning"] == 0); }
     assert_eq!(Sha256::digest(fs::read(&pending).unwrap()), pending_hash);
     let starts_after = host.rpc(&json!({"op":"logs","commandID":id}));
     let starts_after: Vec<_> = starts_after["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.start").map(|row| row["traceID"].as_str().unwrap().to_owned()).collect();
@@ -402,6 +680,18 @@ fn real_work_capture_journal_recovery_fixture() {
         .env("VIGGO_STATUS_FIXTURE_CAPSULE", &capsule).env("VIGGO_STATUS_FIXTURE_ENGINE_SHA256", engine)
         .env("VIGGO_STATUS_FIXTURE_FORMATTER_SHA256", formatter).arg("recover").arg(&root)
         .stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(target_os = "macos")]
+    if case == "pending-same-bytes" {
+        let mut pinned = fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW_ANY | libc::O_NONBLOCK).open(&writer).unwrap();
+        let info = pinned.metadata().unwrap();
+        assert!(info.is_file() && info.nlink() == 1 && info.uid() == unsafe { libc::getuid() });
+        assert_eq!(info.mode() & 0o7777, 0o700);
+        let mut candidate = Vec::new();
+        Read::by_ref(&mut pinned).take(128 * 1024 * 1024 + 1).read_to_end(&mut candidate).unwrap();
+        assert_eq!(candidate, bytes, "the gated recovery must use the original pinned fixture binary");
+        reject_replaced_pending(recovery, &capsule, &root.join(relative), &receipt, &pending_bytes);
+        return;
+    }
     let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
     assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
     let recovered: Value = serde_json::from_slice(&result.stdout).unwrap();
