@@ -170,6 +170,62 @@ fn configured_host(marker: &str, delay: bool) -> Bridge {
     assert_eq!(actions::probe(&host, "read")["windowShown"], false);
     host
 }
+#[test]
+fn owned_action_records_correlated_private_software_phases() {
+    let secret = "owned-phase-secret";
+    let host = configured_host(secret, false);
+    let action = host.rpc(&json!({"op":"execute","id":"script.fixture"}));
+    assert_eq!(action["ok"], true, "owned command: {action}");
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while !host.base.join(secret).exists() && Instant::now() < deadline { thread::sleep(Duration::from_millis(10)); }
+    assert_eq!(fs::read_to_string(host.base.join(secret)).ok().as_deref(), Some(secret), "fixture logs: {}", host.rpc(&json!({"op":"logs", "commandID":"script.fixture"})));
+    host.wait(|status| status["scriptsRunning"] == 0);
+    let response = host.rpc(&json!({"op":"performance"}));
+    let result = &response["result"];
+    let runs = result["completedRuns"].as_array().unwrap();
+    eprintln!("owned software runs: {runs:?}");
+    let script = runs.iter().rev().find(|run| run["kind"] == "script").unwrap();
+    assert_eq!(script["outcome"], "ownerProcessed");
+    let points = script["pointsMS"].as_object().unwrap();
+    for key in ["workerStart", "capabilityPhaseEnd", "helperSpawned", "helperReady", "dispatched", "responseReceived", "helperExited", "workerResult", "ownerHarvest", "ownerFinalizeStart"] {
+        assert!(points.get(key).and_then(Value::as_f64).is_some(), "missing {key}: {script}");
+    }
+    assert!(!result.to_string().contains(secret));
+    let reset = host.rpc(&json!({"op":"performance.reset"}));
+    assert_eq!(reset["ok"], true);
+    assert!(host.rpc(&json!({"op":"performance"}))["result"]["completedRuns"].as_array().unwrap().is_empty());
+}
+#[test]
+#[ignore = "manual isolated software timing measurement"]
+fn owned_script_timing_samples() {
+    let mut host = Bridge::new(Config::current(), false);
+    let mut config = default_config();
+    for (id, args) in [
+        ("fixture.quick", json!(["execution-write", host.base.join("quick"), "synthetic"])),
+        ("fixture.delay", json!(["execution-delay", host.base.join("delayed"), "100", ""])),
+    ] {
+        config["commands"].as_array_mut().unwrap().push(json!({"id":id,"title":"Synthetic", "kind":"script", "target":env!("CARGO_BIN_EXE_private-results-fixture"), "arguments":args, "timeout":3}));
+    }
+    host.replace(&config, None);
+    host.start();
+    host.settled(|_| true);
+    for id in ["fixture.quick", "fixture.delay"] {
+        let mut total = Vec::new();
+        let mut external = Vec::new();
+        for _ in 0..20 {
+            let response = host.rpc(&json!({"op":"execute","id":id}));
+            assert_eq!(response["ok"], true);
+            let trace = host.rpc(&json!({"op":"performance"}));
+            let runs = trace["result"]["completedRuns"].as_array().unwrap();
+            let run = runs.iter().rev().find(|run| run["kind"] == "script").unwrap();
+            total.push(run["elapsedMS"].as_f64().unwrap());
+            external.push(run["pointsMS"]["responseReceived"].as_f64().unwrap() - run["pointsMS"]["dispatched"].as_f64().unwrap());
+        }
+        total.sort_by(f64::total_cmp);
+        external.sort_by(f64::total_cmp);
+        eprintln!("synthetic={id} n=20 total_p50_ms={:.2} total_p95_ms={:.2} response_p50_ms={:.2} response_p95_ms={:.2}", total[9], total[18], external[9], external[18]);
+    }
+}
 struct GracefulBridge(Bridge);
 impl std::ops::Deref for GracefulBridge {
     type Target = Bridge;
