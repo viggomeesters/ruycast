@@ -66,6 +66,8 @@ pub struct InlineOutcome {
 }
 struct Draft {
     alive: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    capture_lease: std::sync::Arc<std::sync::Mutex<bool>>,
+    capture_consumed: std::sync::Arc<std::sync::atomic::AtomicBool>,
     discovered_app: bool,
     discovered_service: bool,
     view: EditorView,
@@ -95,6 +97,8 @@ impl Clone for Draft {
     fn clone(&self) -> Self {
         Self {
             alive: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            capture_lease: std::sync::Arc::new(std::sync::Mutex::new(true)),
+            capture_consumed: self.capture_consumed.clone(),
             discovered_app: self.discovered_app,
             discovered_service: self.discovered_service,
             view: self.view.clone(),
@@ -107,6 +111,7 @@ impl Clone for Draft {
 }
 impl Drop for Draft {
     fn drop(&mut self) {
+        *self.capture_lease.lock().unwrap_or_else(|p| p.into_inner()) = false;
         self.alive
             .store(false, std::sync::atomic::Ordering::Release);
     }
@@ -120,6 +125,18 @@ pub struct Editing {
     pub menu_token: u64,
 }
 impl Editing {
+    pub(crate) fn capture_lease(&self, token: u64) -> Option<(std::sync::Arc<std::sync::Mutex<bool>>, std::sync::Arc<std::sync::atomic::AtomicBool>)> {
+        self.editor.as_ref().filter(|d| d.view.token == token && d.view.mode == Mode::Input).map(|d| (d.capture_lease.clone(), d.capture_consumed.clone()))
+    }
+    pub(crate) fn ensure_capture_not_consumed(&self, token: u64) -> Result<(), String> {
+        if let Some((lease, consumed)) = self.capture_lease(token) {
+            let _guard = lease.lock().unwrap_or_else(|p| p.into_inner());
+            if consumed.load(std::sync::atomic::Ordering::Acquire) {
+                return Err("This capture may already be in Work. Check the inbox and Work recovery before starting a new capture.".into());
+            }
+        }
+        Ok(())
+    }
     pub fn liveness_guard(&self) -> Option<crate::execution::Live> {
         self.editor.as_ref().map(|draft| {
             let alive = draft.alive.clone();
@@ -178,6 +195,8 @@ impl Editing {
         let serial = self.next_token();
         self.editor = Some(Draft {
             alive: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            capture_lease: std::sync::Arc::new(std::sync::Mutex::new(true)),
+            capture_consumed: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             discovered_app: command.kind == "app"
                 && !store.current().commands.iter().any(|c| c.id == command.id),
             discovered_service: service_binding(command)
@@ -263,6 +282,7 @@ impl Editing {
             .ok_or("Command changed. Reopen it before editing.")?;
         crate::execution::budget(current, None)?;
         let current = current.clone();
+        if let Some(draft) = self.editor.as_ref() { *draft.capture_lease.lock().unwrap_or_else(|p| p.into_inner()) = false; }
         self.suspended_input = self.editor.take();
         self.open(store, &current, mode);
         self.editor
@@ -300,6 +320,7 @@ impl Editing {
             let old = draft.view.token;
             let serial = self.next_token();
             draft.view.token = serial;
+            draft.capture_lease = std::sync::Arc::new(std::sync::Mutex::new(true));
             draft.view.resumed_input_from = Some(old);
             draft.view.origin_inline = None;
             draft.view.origin_menu = None;

@@ -6,18 +6,18 @@ use std::{fs, os::unix::fs::MetadataExt, path::Path};
 pub(crate) const ENV: &str = "VIGGOBSIDIAN_DIAGNOSTIC_ID";
 const SCHEMA: &str = "ruycast.work-failure-context.v1";
 
-pub(crate) fn invocation(original: &Command, prepared: &Command, home: &Path) -> Option<String> {
+fn trusted_writer(original: &Command, home: &Path) -> bool {
     let target = original
         .target
         .strip_prefix("~/")
         .map(|p| home.join(p))
         .unwrap_or_else(|| original.target.as_str().into());
     if original.kind != "script" || target != home.join(".local/libexec/viggo-work-writer") {
-        return None;
+        return false;
     }
-    let info = fs::symlink_metadata(&target).ok()?;
-    if fs::canonicalize(&target).ok()? != target {
-        return None;
+    let Ok(info) = fs::symlink_metadata(&target) else { return false; };
+    if fs::canonicalize(&target).ok().as_deref() != Some(target.as_path()) {
+        return false;
     }
     if !info.is_file()
         || info.file_type().is_symlink()
@@ -25,8 +25,67 @@ pub(crate) fn invocation(original: &Command, prepared: &Command, home: &Path) ->
         || info.mode() & 0o6022 != 0
         || info.mode() & 0o111 == 0
     {
-        return None;
+        return false;
     }
+    true
+}
+fn uuid(id: &str) -> bool {
+    id.len() == 36 && id.bytes().enumerate().all(|(i, c)| if [8, 13, 18, 23].contains(&i) { c == b'-' } else { c.is_ascii_hexdigit() })
+}
+pub(crate) fn valid_capture_receipt(command: &Command, request_id: &str, response: &Value, capture: Option<&Capture>) -> bool {
+    use sha2::{Digest, Sha256};
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Receipt { ok: bool, path: String, note_path: String, kind: String, reused: bool }
+    let Some(capture) = capture else { return false; };
+    if !capture.stdout.eof || capture.stdout.truncated || !capture.stdout.valid_utf8 || !capture.stderr.eof || capture.stderr.truncated || !capture.stderr.valid_utf8 || response["ok"] != true || response["result"]["exitCode"] != 0 { return false; }
+    let Some(stdout) = response["result"]["stdout"].as_str() else { return false; };
+    let Ok(receipt) = serde_json::from_str::<Receipt>(stdout) else { return false; };
+    let expected_kind = match command.id.as_str() { "capture.quick-note" => "note", "capture.quick-task" => "task", _ => return false };
+    if !receipt.ok || receipt.kind != expected_kind || receipt.path != receipt.note_path { return false; }
+    let _ = receipt.reused;
+    let args = command.arguments.as_slice();
+    let offset = usize::from(args.first().is_some_and(|v| v == "{invocation-provenance}"));
+    let Some(root) = args.get(offset + 1).and_then(|path| fs::canonicalize(path).ok()) else { return false; };
+    if !uuid(request_id) { return false; }
+    let path = Path::new(&receipt.path);
+    if !fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_file() && !metadata.file_type().is_symlink()) { return false; }
+    if fs::canonicalize(path).ok().as_deref() != Some(path) { return false; }
+    let Ok(relative) = path.strip_prefix(root) else { return false; };
+    let parts: Vec<_> = relative.components().collect();
+    if parts.len() != 3 { return false; }
+    let [std::path::Component::Normal(inbox), std::path::Component::Normal(folder), std::path::Component::Normal(file)] = parts.as_slice() else { return false; };
+    let digest = format!("{:x}", Sha256::digest(request_id.as_bytes()));
+    *inbox == std::ffi::OsStr::new("00-inbox") && folder.to_str().is_some_and(|name| name.ends_with(&format!("-{}", &digest[..20])) && file.to_str().is_some_and(|file| file == format!("{name}.md")))
+}
+pub(crate) fn pregrant_capture_error(response: &Value, capture: Option<&Capture>) -> Option<&'static str> {
+    let capture = capture?;
+    if response["ok"] != false || !capture.stdout.eof || capture.stdout.truncated || !capture.stdout.valid_utf8 { return None; }
+    let body: Value = serde_json::from_str(response["stdout"].as_str()?).ok()?;
+    if body["ok"] != false { return None; }
+    match body["error"].as_str()? {
+        "Writer-toestemming vereist de gecontroleerde Work-root" => Some("Writer-toestemming vereist de gecontroleerde Work-root"),
+        "Work-root mag geen symlink zijn" => Some("Work-root mag geen symlink zijn"),
+        "Kies de expliciete Work-root met lokale providerbinding" => Some("Kies de expliciete Work-root met lokale providerbinding"),
+        "Work-captureprovider is niet aan deze root gebonden" => Some("Work-captureprovider is niet aan deze root gebonden"),
+        "Geef note/task, volledige tekst en een geldige request-id" => Some("Geef note/task, volledige tekst en een geldige request-id"),
+        _ => None,
+    }
+}
+pub(crate) fn capture_admission(original: &Command, prepared: &Command, home: &Path) -> Result<bool, String> {
+    let expected_kind = match original.id.as_str() { "capture.quick-note" => "note", "capture.quick-task" => "task", _ => return Ok(false) };
+    let target = original.target.strip_prefix("~/").map(|p| home.join(p)).unwrap_or_else(|| original.target.as_str().into());
+    if target != home.join(".local/libexec/viggo-work-writer") { return Ok(false); }
+    let args = original.arguments.as_slice();
+    let offset = usize::from(args.first().is_some_and(|v| v == "{invocation-provenance}"));
+    let args = args.get(offset..).unwrap_or_default();
+    let valid = trusted_writer(original, home) && original.kind == prepared.kind && original.target == prepared.target
+        && args.len() == 5 && args[0] == "capture" && Path::new(&args[1]).is_absolute() && args[2] == expected_kind && args[3] == "{uuid}" && args[4] == "{input}"
+        && prepared.arguments.len() == 5 && prepared.arguments[0] == args[0] && prepared.arguments[1] == args[1] && prepared.arguments[2] == args[2] && uuid(&prepared.arguments[3]);
+    if valid { Ok(true) } else { Err("The Work capture configuration could not be verified.".into()) }
+}
+pub(crate) fn invocation(original: &Command, prepared: &Command, home: &Path) -> Option<String> {
+    if !trusted_writer(original, home) { return None; }
     let args = original.arguments.as_slice();
     let offset = usize::from(args.first().is_some_and(|v| v == "{invocation-provenance}"));
     let args = args.get(offset..)?;
@@ -60,15 +119,7 @@ pub(crate) fn invocation(original: &Command, prepared: &Command, home: &Path) ->
         return None;
     }
     let id = prepared.arguments.get(2)?;
-    if id.len() != 36
-        || !id.bytes().enumerate().all(|(i, c)| {
-            if [8, 13, 18, 23].contains(&i) {
-                c == b'-'
-            } else {
-                c.is_ascii_hexdigit()
-            }
-        })
-    {
+    if !uuid(id) {
         return None;
     }
     Some(id.clone())
@@ -167,6 +218,58 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::os::unix::fs::PermissionsExt;
+    #[test]
+    fn capture_admission_requires_exact_native_writer_and_literal_template() {
+        let home = std::env::temp_dir().join(format!("ruycast-capture-admission-{}", std::process::id()));
+        fs::create_dir_all(home.join(".local/libexec")).unwrap();
+        let home = home.canonicalize().unwrap();
+        let target = home.join(".local/libexec/viggo-work-writer");
+        fs::write(&target, b"owned fictional writer").unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o700)).unwrap();
+        for (id, kind) in [("capture.quick-note", "note"), ("capture.quick-task", "task")] {
+            let original: Command = serde_json::from_value(json!({"id":id,"title":"Fixture","kind":"script","target":target,"arguments":["capture","/fictional-work",kind,"{uuid}","{input}"]})).unwrap();
+            let mut prepared = original.clone();
+            prepared.arguments[3] = "12345678-1234-1234-1234-123456789abc".into();
+            prepared.arguments[4] = "fictional".into();
+            assert_eq!(capture_admission(&original, &prepared, &home), Ok(true));
+            let mut changed = prepared.clone();
+            changed.arguments[1] = "/other".into();
+            assert!(capture_admission(&original, &changed, &home).is_err());
+            changed = prepared.clone(); changed.arguments[3] = "bad".into();
+            assert!(capture_admission(&original, &changed, &home).is_err());
+            let mut unrelated = original.clone(); unrelated.id = "capture.private-quick-note".into();
+            assert_eq!(capture_admission(&unrelated, &prepared, &home), Ok(false));
+        }
+        fs::remove_dir_all(home).unwrap();
+    }
+    #[test]
+    fn admitted_capture_requires_complete_scoped_typed_receipt() {
+        use sha2::{Digest, Sha256};
+        let root = std::env::temp_dir().join(format!("ruycast-capture-receipt-{}", std::process::id()));
+        fs::create_dir(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        let command: Command = serde_json::from_value(json!({"id":"capture.quick-note","title":"Fixture","kind":"script","target":"/fixture","arguments":["capture",root,"note","{uuid}","{input}"]})).unwrap();
+        let id = "12345678-1234-1234-1234-123456789abc";
+        let digest = format!("{:x}", Sha256::digest(id.as_bytes()));
+        let folder = format!("example-{}", &digest[..20]);
+        let note = root.join("00-inbox").join(&folder).join(format!("{folder}.md"));
+        fs::create_dir_all(note.parent().unwrap()).unwrap(); fs::write(&note, b"fictional").unwrap();
+        let path = note.to_string_lossy().into_owned();
+        let receipt = json!({"ok":true,"path":path,"note_path":path,"kind":"note","reused":false});
+        let reply = |value: &Value| json!({"ok":true,"result":{"exitCode":0,"stdout":value.to_string()}});
+        let capture = Capture::empty();
+        assert!(valid_capture_receipt(&command, id, &reply(&receipt), Some(&capture)));
+        assert!(!valid_capture_receipt(&command, "aaaaaaaa-1234-1234-1234-123456789abc", &reply(&receipt), Some(&capture)));
+        for invalid in [json!({"ok":true}), json!({"ok":true,"path":"/outside","note_path":"/outside","kind":"note","reused":false}), json!({"ok":true,"path":path,"note_path":path,"kind":"task","reused":false}), json!({"ok":true,"path":path,"note_path":path,"kind":"note","reused":"false"})] {
+            assert!(!valid_capture_receipt(&command, id, &reply(&invalid), Some(&capture)));
+        }
+        let mut truncated = capture.clone(); truncated.stdout.truncated = true;
+        assert!(!valid_capture_receipt(&command, id, &reply(&receipt), Some(&truncated)));
+        assert!(!valid_capture_receipt(&command, id, &reply(&receipt), None));
+        fs::remove_file(&note).unwrap(); fs::create_dir(&note).unwrap();
+        assert!(!valid_capture_receipt(&command, id, &reply(&receipt), Some(&capture)));
+        fs::remove_dir_all(root).unwrap();
+    }
     fn result(id: &str, path: &str, ok: bool) -> Value {
         let body = json!({"ok":ok,"error":"failure","detail":"failure","failureContext":{"schema":SCHEMA,"scope":"work","invocationID":id,"relativePath":path}});
         json!({"ok":true,"result":{"stdout":body.to_string()}})

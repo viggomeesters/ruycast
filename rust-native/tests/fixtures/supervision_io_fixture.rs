@@ -58,7 +58,7 @@ fn helper_protocol() {
         | "parent-panic" | "stderr-flood" => {}
         _ => panic!("Unknown owned helper protocol mode"),
     }
-    println!("{}", serde_json::json!({"scriptSupervisor":4,"ready":true}));
+    println!("{}", serde_json::json!({"scriptSupervisor":5,"ready":true}));
     std::io::stdout().flush().unwrap();
     let mut header = String::new();
     std::io::stdin().lock().read_line(&mut header).unwrap();
@@ -89,19 +89,19 @@ fn helper_protocol() {
             std::io::stderr().write_all(&vec![b'x'; 1000000]).unwrap();
             println!(
                 "{}",
-                serde_json::json!({"ok":true,"scriptSupervisor":4,"response":{"ok":true,"result":{"exitCode":0,"stdout":"","stderr":""}},"capture":{"stdout":{"truncated":false,"eof":true,"validUtf8":true},"stderr":{"truncated":false,"eof":true,"validUtf8":true}}})
+                serde_json::json!({"ok":true,"scriptSupervisor":5,"response":{"ok":true,"result":{"exitCode":0,"stdout":"","stderr":""}},"capture":{"stdout":{"truncated":false,"eof":true,"validUtf8":true},"stderr":{"truncated":false,"eof":true,"validUtf8":true}}})
             );
         }
         "partial" => print!("partial"),
         "malformed" => println!("not json"),
         "missing-capture" => println!(
             "{}",
-                serde_json::json!({"ok":true,"scriptSupervisor":4,"response":{"ok":true}})
+                serde_json::json!({"ok":true,"scriptSupervisor":5,"response":{"ok":true}})
         ),
         "wrong-exit" => {
             println!(
                 "{}",
-                serde_json::json!({"ok":true,"scriptSupervisor":4,"response":{"ok":false,"error":"failure"}})
+                serde_json::json!({"ok":true,"scriptSupervisor":5,"response":{"ok":false,"error":"failure"}})
             );
             std::io::stdout().flush().unwrap();
             std::process::exit(7);

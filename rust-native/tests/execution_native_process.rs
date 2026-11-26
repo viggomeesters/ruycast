@@ -256,6 +256,107 @@ fn work_status_host(mode: &str) -> Bridge {
     actions::show(&host, "workstatusfixture");
     host
 }
+fn capture_work_host(kind: &str, mode: &str) -> Bridge {
+    let mut host = Bridge::new(Config::current(), false);
+    fs::write(host.base.join("owned-work-writer-fixture"), b"fixture").unwrap();
+    fs::write(host.base.join("fixture-mode"), mode).unwrap();
+    fs::create_dir(host.base.join("fictional-work")).unwrap();
+    if mode == "legacy" { fs::write(host.base.join("legacy-writer"), b"fixture").unwrap(); }
+    let dir = host.base.join(".local/libexec"); fs::create_dir_all(&dir).unwrap();
+    let writer = dir.join("viggo-work-writer");
+    fs::copy(env!("CARGO_BIN_EXE_work-failure-fixture"), &writer).unwrap();
+    fs::set_permissions(&writer, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut config = default_config();
+    let id = if kind == "note" { "capture.quick-note" } else { "capture.quick-task" };
+    config["commands"].as_array_mut().unwrap().push(json!({"id":id,"title":"Owned Capture","aliases":["capturefixture"],"kind":"script","target":writer,"arguments":["capture",host.base.join("fictional-work"),kind,"{uuid}","{input}"],"inputPrompt":"Message","timeout":3}));
+    host.replace(&config, None); host.start(); host.settled(|_| true);
+    actions::show(&host, "capturefixture");
+    actions::key(&host, 36, 0, "\r", false);
+    actions::view(&host, |view| view["runInputInline"] == true);
+    actions::key(&host, 36, actions::CMD, "\r", false);
+    actions::view(&host, |view| view["formVisible"] == true);
+    host.probe("run-input-type", json!({"text":"fictional"}));
+    actions::key(&host, 36, actions::CMD, "\r", false);
+    host
+}
+
+#[test]
+fn v2_capture_cancel_before_grant_and_finish_after_grant() {
+    for kind in ["note", "task"] {
+        let host = capture_work_host(kind, "before");
+        wait_marker(&host.base.join("before-grant"), "ready");
+        eprintln!("{kind}: before grant reached");
+        actions::key(&host, 53, 0, "", false);
+        host.wait(|s| s["scriptsRunning"] == 0);
+        eprintln!("{kind}: before grant cancelled");
+        assert!(!host.base.join("postimage").exists());
+        assert!(!host.base.join("receipt").exists());
+        drop(host);
+        let host = capture_work_host(kind, "after");
+        wait_marker(&host.base.join("postimage"), "written");
+        eprintln!("{kind}: after grant reached");
+        actions::key(&host, 53, 0, "", false);
+        actions::key(&host, 53, 0, "", false);
+        host.wait(|s| s["nativeUI"]["visible"] == false);
+        eprintln!("{kind}: dismissed");
+        fs::write(host.base.join("release-after"), b"go").unwrap();
+        host.wait(|s| s["scriptsRunning"] == 0);
+        eprintln!("{kind}: completed");
+        wait_marker(&host.base.join("receipt"), "committed");
+        assert_eq!(host.rpc(&json!({"op":"status"}))["result"]["nativeUI"]["visible"], false);
+    }
+}
+#[test]
+fn v2_capture_reopen_revokes_pending_grant_and_cannot_retarget_admitted_result() {
+    let host = capture_work_host("note", "before");
+    wait_marker(&host.base.join("before-grant"), "ready");
+    actions::show(&host, "capturefixture");
+    fs::write(host.base.join("release-before"), b"go").unwrap();
+    host.wait(|s| s["scriptsRunning"] == 0);
+    assert!(!host.base.join("postimage").exists());
+    drop(host);
+    let host = capture_work_host("note", "after");
+    wait_marker(&host.base.join("postimage"), "written");
+    actions::show(&host, "capturefixture");
+    fs::write(host.base.join("release-after"), b"go").unwrap();
+    host.wait(|s| s["scriptsRunning"] == 0);
+    wait_marker(&host.base.join("receipt"), "committed");
+    assert_eq!(actions::probe(&host, "read")["input"], "capturefixture");
+    assert_eq!(fs::read_to_string(host.base.join("capture-count")).unwrap(), "1");
+}
+
+#[test]
+fn v2_capture_unknown_outcome_retires_draft_without_replay() {
+    for mode in ["unknown", "incomplete"] {
+    let host = capture_work_host("note", mode);
+    wait_marker(&host.base.join("postimage"), "written");
+    fs::write(host.base.join("release-after"), b"go").unwrap();
+    host.wait(|s| s["scriptsRunning"] == 0);
+    let screen = actions::view(&host, |v| v["formVisible"] == false);
+    assert!(screen.to_string().contains("may already be in Work"), "missing uncertain outcome notice: {screen}");
+    assert!(!screen.to_string().contains("fictional"));
+    actions::key(&host, 36, actions::CMD, "\r", false);
+    assert_eq!(fs::read_to_string(host.base.join("capture-count")).unwrap(), "1");
+    let logs = host.rpc(&json!({"op":"logs","commandID":"capture.quick-note","errorsOnly":true}));
+    assert!(!logs.to_string().contains("fictional"));
+    }
+}
+#[test]
+fn v2_capture_rejects_missing_grant_and_unsupported_writer() {
+    for mode in ["legacy", "silent", "decline", "pre-error", "pre-private"] {
+        let host = capture_work_host("task", mode);
+        host.wait(|s| s["scriptsRunning"] == 0);
+        assert!(!host.base.join("postimage").exists());
+        assert!(!host.base.join("receipt").exists());
+        let screen = actions::view(&host, |view| view["formVisible"] == true);
+        if mode == "pre-error" { assert!(screen.to_string().contains("gecontroleerde Work-root")); }
+        if mode == "pre-private" {
+            assert!(!screen.to_string().contains("SECRET_PAYLOAD"));
+            let logs = host.rpc(&json!({"op":"logs","commandID":"capture.quick-task","errorsOnly":true}));
+            assert!(!logs.to_string().contains("SECRET_PAYLOAD"));
+        }
+    }
+}
 
 #[test]
 fn work_status_cancel_before_admission_does_not_write() {

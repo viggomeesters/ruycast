@@ -228,7 +228,7 @@ fn line(
             let mut message = [0u8; 1];
             match channel.socket.read(&mut message) {
                 Ok(0) => { channel.active = false; channel.decision = GrantDecision::Missing; },
-                Ok(1) if message == [b'D'] => { channel.active = false; channel.decision = GrantDecision::Declined; },
+                Ok(1) if message == [b'D'] && channel.authority.protocol == WriterProtocol::StatusV1 => { channel.active = false; channel.decision = GrantDecision::Declined; },
                 Ok(1) if message == [b'W'] => {
                     channel.active = false;
                     if (channel.authority.authorize)(&mut channel.socket, &channel.authority.granted).is_err() {
@@ -301,24 +301,28 @@ pub(crate) struct Invocation {
 }
 #[derive(Clone)]
 pub struct Admission {
+    pub protocol: WriterProtocol,
     pub granted: Arc<AtomicBool>,
     pub authorize: Arc<dyn Fn(&mut UnixStream, &AtomicBool) -> io::Result<()> + Send + Sync>,
     pub hard_stop: Arc<AtomicBool>,
     pub gate: Arc<Mutex<()>>,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WriterProtocol { StatusV1, CaptureV2 }
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum GrantDecision { Pending, Granted, Declined, Missing, Rejected }
 struct GrantChannel { socket: UnixStream, authority: Admission, active: bool, decision: GrantDecision }
 
 // Probe an exact trusted writer with a read-only command before arming the
 // protocol. Older writers reject the unknown command before any mutation.
-fn writer_supports_admission(command: &Command, home: &Path, cancelled: &mut dyn FnMut() -> bool) -> Result<(bool, rustcast_core::script::WriterIdentity), String> {
+fn writer_supports_admission(command: &Command, home: &Path, protocol: WriterProtocol, cancelled: &mut dyn FnMut() -> bool) -> Result<(bool, rustcast_core::script::WriterIdentity), String> {
     let target = command.target.strip_prefix("~/").map(|tail| home.join(tail)).unwrap_or_else(|| PathBuf::from(&command.target));
     let before = fs::symlink_metadata(&target).map_err(|_| "The writer capability could not be verified.")?;
     if !before.is_file() || before.file_type().is_symlink() || before.uid() != unsafe { libc::getuid() } || before.mode() & 0o6022 != 0 || before.mode() & 0o111 == 0 || fs::canonicalize(&target).ok().as_deref() != Some(target.as_path()) {
         return Err("The writer capability could not be verified.".into());
     }
-    let mut child = Process::new(&target).arg("--ruycast-writer-capability-v1")
+    let probe = match protocol { WriterProtocol::StatusV1 => "--ruycast-writer-capability-v1", WriterProtocol::CaptureV2 => "--ruycast-writer-capability-v2" };
+    let mut child = Process::new(&target).arg(probe)
         .stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn()
         .map_err(|_| "The writer capability could not be verified.")?;
     let deadline = Instant::now() + Duration::from_secs(2);
@@ -351,8 +355,9 @@ fn writer_supports_admission(command: &Command, home: &Path, cancelled: &mut dyn
     }
     let value: Value = serde_json::from_slice(&bytes).map_err(|_| "The writer capability could not be verified.")?;
     let identity = rustcast_core::script::WriterIdentity { dev: after.dev(), ino: after.ino() };
-    if status.success() && value == serde_json::json!({"ok":true,"workStatusAdmission":1}) { return Ok((true, identity)); }
-    if !status.success() && value["ok"] == false && value["error"] == "Gebruik: viggo-work-writer capture ROOT note|task REQUEST-ID TEKST" { return Ok((false, identity)); }
+    let expected = match protocol { WriterProtocol::StatusV1 => serde_json::json!({"ok":true,"workStatusAdmission":1}), WriterProtocol::CaptureV2 => serde_json::json!({"ok":true,"workMutationAdmission":2,"routes":["capture"]}) };
+    if status.success() && value == expected { return Ok((true, identity)); }
+    if protocol == WriterProtocol::StatusV1 && !status.success() && value["ok"] == false && value["error"] == "Gebruik: viggo-work-writer capture ROOT note|task REQUEST-ID TEKST" { return Ok((false, identity)); }
     Err("The writer capability could not be verified.".into())
 }
 
@@ -381,11 +386,13 @@ pub(crate) fn run(
         #[serde(skip_serializing_if = "Option::is_none")]
         admission_fd: Option<i32>,
         #[serde(skip_serializing_if = "Option::is_none")]
+        admission_protocol: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         writer_identity: Option<rustcast_core::script::WriterIdentity>,
     }
     let (admission, writer_identity) = match admission {
         Some(authority) => {
-            let (supported, identity) = crate::performance_trace::shared().measure(crate::performance_trace::Stage::ScriptCapability, || writer_supports_admission(command, home, &mut cancelled))?;
+            let (supported, identity) = crate::performance_trace::shared().measure(crate::performance_trace::Stage::ScriptCapability, || writer_supports_admission(command, home, authority.protocol, &mut cancelled))?;
             (supported.then_some(authority), Some(identity))
         }
         None => (None, None),
@@ -400,6 +407,7 @@ pub(crate) fn run(
         command,
         home_bytes: home.as_os_str().as_bytes(),
         admission_fd: inherited.as_ref().map(AsRawFd::as_raw_fd),
+        admission_protocol: grant.as_ref().and_then(|channel| (channel.authority.protocol == WriterProtocol::CaptureV2).then_some(2)),
         writer_identity,
     })
     .map_err(|e| e.to_string())?;
@@ -624,8 +632,9 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
     #[test]
     fn ready_frame_rejects_old_duplicate_unknown_and_mistyped_fields() {
-        assert!(validate_ready(br#"{"scriptSupervisor":4,"ready":true}"#).is_ok());
+        assert!(validate_ready(br#"{"scriptSupervisor":5,"ready":true}"#).is_ok());
         for raw in [
+            br#"{"scriptSupervisor":4,"ready":true}"#.as_slice(),
             br#"{"scriptSupervisor":1,"ready":true}"#.as_slice(),
             br#"{"scriptSupervisor":3,"ready":false}"#,
             br#"{"scriptSupervisor":3,"ready":"true"}"#,
@@ -636,7 +645,7 @@ mod tests {
         }
     }
     #[test]
-    fn version_four_reply_requires_known_capture_for_completed_processes() {
+    fn version_five_reply_requires_known_capture_for_completed_processes() {
         let raw = json!({"ok":true,"scriptSupervisor":rustcast_core::script::SUPERVISOR_VERSION,
             "response":{"ok":true,"result":{"exitCode":0,"stdout":"","stderr":""}},
             "capture":rustcast_core::script::Capture::empty()});
@@ -665,7 +674,7 @@ mod tests {
         let bytes = serde_json::to_string(&raw).unwrap();
         let duplicate = bytes.replacen("{", "{\"capture\":null,", 1);
         assert!(decode_reply(duplicate.as_bytes()).is_err());
-        let failure = json!({"ok":true,"scriptSupervisor":4,"response":{"ok":false,"error":"start failed"},"capture":null});
+        let failure = json!({"ok":true,"scriptSupervisor":5,"response":{"ok":false,"error":"start failed"},"capture":null});
         assert!(decode_reply(&serde_json::to_vec(&failure).unwrap()).is_ok());
         let mut bad = failure;
         bad["response"] = json!({"ok":false,"error":"exit7","exitCode":7,"stdout":"","stderr":""});
