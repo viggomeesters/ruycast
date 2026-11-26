@@ -160,6 +160,7 @@ rust-native/src/native_callback_roster.rs
 rust-native/src/native_keyboard.rs
 rust-native/src/native_library.rs
 rust-native/src/native_menu_bar.rs
+rust-native/src/native_presence.rs
 rust-native/src/native_model.rs
 rust-native/src/native_notice.rs
 rust-native/src/native_paste.rs
