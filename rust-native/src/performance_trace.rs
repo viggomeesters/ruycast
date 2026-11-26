@@ -30,6 +30,13 @@ pub enum Stage {
     OpenActivate,
     OpenFocus,
     MenuHealth,
+    MenuHealthState,
+    MenuHealthActivation,
+    MenuHealthLaunch,
+    MenuHealthTerminate,
+    MenuHealthAccessibility,
+    MenuHealthInputMonitoring,
+    MenuHealthRaycast,
     LauncherBecomeKey,
     LauncherOutsideMonitors,
     LauncherMakeKey,
@@ -48,8 +55,20 @@ pub enum Stage {
     LauncherParkedFallback,
     ScriptCapability,
 }
+#[derive(Clone, Copy)]
+pub enum MenuHealthTrigger { State, Activation, Launch, Terminate }
+impl MenuHealthTrigger {
+    fn stage(self) -> Stage {
+        match self {
+            Self::State => Stage::MenuHealthState,
+            Self::Activation => Stage::MenuHealthActivation,
+            Self::Launch => Stage::MenuHealthLaunch,
+            Self::Terminate => Stage::MenuHealthTerminate,
+        }
+    }
+}
 impl Stage {
-    const ALL: [Self; 34] = [
+    const ALL: [Self; 41] = [
         Self::SearchModel,
         Self::ClipboardSearchSlice,
         Self::InputModel,
@@ -67,6 +86,13 @@ impl Stage {
         Self::OpenActivate,
         Self::OpenFocus,
         Self::MenuHealth,
+        Self::MenuHealthState,
+        Self::MenuHealthActivation,
+        Self::MenuHealthLaunch,
+        Self::MenuHealthTerminate,
+        Self::MenuHealthAccessibility,
+        Self::MenuHealthInputMonitoring,
+        Self::MenuHealthRaycast,
         Self::LauncherBecomeKey,
         Self::LauncherOutsideMonitors,
         Self::LauncherMakeKey,
@@ -104,6 +130,13 @@ impl Stage {
             Self::OpenActivate => "open.activate",
             Self::OpenFocus => "open.focus",
             Self::MenuHealth => "menu.health",
+            Self::MenuHealthState => "menu.health.state",
+            Self::MenuHealthActivation => "menu.health.activation",
+            Self::MenuHealthLaunch => "menu.health.launch",
+            Self::MenuHealthTerminate => "menu.health.terminate",
+            Self::MenuHealthAccessibility => "menu.health.accessibility",
+            Self::MenuHealthInputMonitoring => "menu.health.inputMonitoring",
+            Self::MenuHealthRaycast => "menu.health.raycast",
             Self::LauncherBecomeKey => "launcher.becomeKey",
             Self::LauncherOutsideMonitors => "launcher.outsideMonitors",
             Self::LauncherMakeKey => "launcher.makeKey",
@@ -253,7 +286,9 @@ pub struct Guard<'a> {
 }
 impl Drop for Guard<'_> {
     fn drop(&mut self) {
-        self.trace.finish(self.span, false);
+        if self.span.id.is_some() {
+            self.trace.finish(self.span, false);
+        }
     }
 }
 impl Trace {
@@ -328,6 +363,53 @@ impl Trace {
         let _scope = self.scope(stage);
         work()
     }
+    pub fn measure_menu_health(
+        &self,
+        reason: MenuHealthTrigger,
+        accessibility: impl FnOnce() -> bool,
+        input_monitoring: impl FnOnce() -> bool,
+        raycast_absent: impl FnOnce() -> bool,
+    ) -> bool {
+        fn timed(work: impl FnOnce() -> bool) -> (bool, Duration) {
+            let began = Instant::now();
+            let result = work();
+            (result, began.elapsed())
+        }
+        let mut guard = self.scope(Stage::MenuHealth);
+        let start = Instant::now();
+        let mut elapsed = [None; 3];
+        let (ax, ax_time) = timed(accessibility);
+        elapsed[0] = Some(ax_time);
+        let healthy = if ax {
+            let (input, input_time) = timed(input_monitoring);
+            elapsed[1] = Some(input_time);
+            if input {
+                let (raycast, raycast_time) = timed(raycast_absent);
+                elapsed[2] = Some(raycast_time);
+                raycast
+            } else { false }
+        } else { false };
+        let ended = Instant::now();
+        let total = ended.duration_since(start);
+        let span = std::mem::replace(&mut guard.span, Span { id: None });
+        let mut state = self.lock();
+        let Some(entry) = span.id.and_then(|id| state.active.remove(&id)) else {
+            return healthy;
+        };
+        if let Some(interval) = entry.signpost {
+            crate::performance_signposts::end(interval);
+        }
+        state.metrics[Stage::MenuHealth.index()].finish(ended.duration_since(entry.started).as_secs_f64() * 1000., false);
+        state.metrics[reason.stage().index()].finish(total.as_secs_f64() * 1000., false);
+        for (stage, duration) in [Stage::MenuHealthAccessibility, Stage::MenuHealthInputMonitoring, Stage::MenuHealthRaycast]
+            .into_iter().zip(elapsed)
+        {
+            if let Some(duration) = duration {
+                state.metrics[stage.index()].finish(duration.as_secs_f64() * 1000., false);
+            }
+        }
+        healthy
+    }
     pub fn input_changed(&self, owner: u64) {
         crate::performance_signposts::prepare();
         let mut state = self.lock();
@@ -389,6 +471,42 @@ impl Trace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn menu_health_preserves_short_circuit_and_counts_only_executed_checks() {
+        use std::cell::RefCell;
+        let trace = Trace::default();
+        for (pass_ax, pass_input, pass_raycast, expected) in [
+            (false, true, true, vec!["ax"]),
+            (true, false, true, vec!["ax", "input"]),
+            (true, true, false, vec!["ax", "input", "raycast"]),
+            (true, true, true, vec!["ax", "input", "raycast"]),
+        ] {
+            let calls = RefCell::new(Vec::new());
+            assert_eq!(trace.measure_menu_health(MenuHealthTrigger::Launch,
+                || { calls.borrow_mut().push("ax"); pass_ax },
+                || { calls.borrow_mut().push("input"); pass_input },
+                || { calls.borrow_mut().push("raycast"); pass_raycast },
+            ), pass_ax && pass_input && pass_raycast);
+            assert_eq!(*calls.borrow(), expected);
+        }
+        let snapshot = trace.snapshot();
+        assert_eq!(snapshot["stages"]["menu.health.launch"]["count"], 4);
+        assert_eq!(snapshot["stages"]["menu.health.accessibility"]["count"], 4);
+        assert_eq!(snapshot["stages"]["menu.health.inputMonitoring"]["count"], 3);
+        assert_eq!(snapshot["stages"]["menu.health.raycast"]["count"], 2);
+        trace.reset();
+        assert_eq!(trace.snapshot()["stages"]["menu.health.launch"]["count"], 0);
+    }
+    #[test]
+    fn menu_health_reset_during_preflight_discards_the_entire_measurement() {
+        let trace = Trace::default();
+        assert!(trace.measure_menu_health(MenuHealthTrigger::Activation,
+            || { trace.reset(); true }, || true, || true));
+        let snapshot = trace.snapshot();
+        for stage in ["menu.health", "menu.health.activation", "menu.health.accessibility", "menu.health.inputMonitoring", "menu.health.raycast"] {
+            assert_eq!(snapshot["stages"][stage]["count"], 0, "{stage}");
+        }
+    }
     #[test]
     fn correlated_run_outlives_legacy_span_eviction() {
         let trace = Trace::default();

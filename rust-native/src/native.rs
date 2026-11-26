@@ -617,7 +617,7 @@ define_class!(
     unsafe impl NSTextFieldDelegate for Controller {}
     unsafe impl NSApplicationDelegate for Controller{
         #[unsafe(method(applicationDidBecomeActive:))]
-        fn app_became_active(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self);self.reconcile();});}
+        fn app_became_active(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self, ruycast_native::performance_trace::MenuHealthTrigger::Activation);self.reconcile();});}
         #[unsafe(method(applicationDidResignActive:))]
         fn app_resigned(&self,_:&NSNotification){self.guard_callback(||{
             self.ivars().inline_autosave_allowed.set(false);self.ivars().settings.stop_recording();self.ivars().surface.stop();
@@ -775,8 +775,10 @@ define_class!(
         fn cancel_action(&self,_:Option<&NSObject>){self.cancel_editor();}
         #[unsafe(method(saveEditor:))]
         fn save_action(&self,_:Option<&NSObject>){self.save_editor();}
-        #[unsafe(method(refreshMenuHealth:))]
-        fn refresh_menu_health(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self);});}
+        #[unsafe(method(refreshMenuHealthLaunch:))]
+        fn refresh_menu_health_launch(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self, ruycast_native::performance_trace::MenuHealthTrigger::Launch);});}
+        #[unsafe(method(refreshMenuHealthTerminate:))]
+        fn refresh_menu_health_terminate(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self, ruycast_native::performance_trace::MenuHealthTrigger::Terminate);});}
         #[unsafe(method(managementResized:))]
         fn management_resized(&self,_:&NSNotification){self.guard_callback(||{if !self.ivars().reconciling.get(){self.reconcile();}});}
         #[unsafe(method(recordSetting:))]
@@ -1303,8 +1305,8 @@ impl Controller {
             unsafe { NSNotificationCenter::defaultCenter().addObserver_selector_name_object(&controller,sel!(managementResized:),Some(ns_string!("NSWindowDidResizeNotification")),Some(&*controller.ivars().panel)); }
         }
         if !management && controller.ivars().panel.ivars().ordering_allowed {
-            for name in ["NSWorkspaceDidLaunchApplicationNotification","NSWorkspaceDidTerminateApplicationNotification"] {
-                unsafe{NSWorkspace::sharedWorkspace().notificationCenter().addObserver_selector_name_object(&controller,sel!(refreshMenuHealth:),Some(&NSString::from_str(name)),None);}
+            for (name, selector) in [("NSWorkspaceDidLaunchApplicationNotification",sel!(refreshMenuHealthLaunch:)),("NSWorkspaceDidTerminateApplicationNotification",sel!(refreshMenuHealthTerminate:))] {
+                unsafe{NSWorkspace::sharedWorkspace().notificationCenter().addObserver_selector_name_object(&controller,selector,Some(&NSString::from_str(name)),None);}
             }
         }
 
