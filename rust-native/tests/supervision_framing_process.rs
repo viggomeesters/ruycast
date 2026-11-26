@@ -179,6 +179,41 @@ fn partial_header_eof_and_invalid_header_cannot_launch() {
     }
 }
 #[test]
+fn invalid_capture_admission_headers_cannot_launch() {
+    let home = runtime_host::OwnedDir::new();
+    let marker = home.0.join("must-not-launch");
+    for extra in [
+        json!({"admissionProtocol":1}),
+        json!({"admissionProtocol":2}),
+        json!({"admissionProtocol":2,"writerIdentity":{"dev":1,"ino":1}}),
+        json!({"admissionProtocol":2,"admissionFd":0}),
+        json!({"admissionProtocol":3}),
+        json!({"admissionProtocol":"2"}),
+    ] {
+        let mut child = PendingChild(Some(spawn(&cli(), &["__run-script-supervised"])));
+        let ready: Value =
+            serde_json::from_slice(&ready_line(child.0.as_mut().unwrap()).unwrap()).unwrap();
+        assert_eq!(ready, json!({"scriptSupervisor":5,"ready":true}));
+        let mut request = json!({
+            "command":command(&marker),
+            "homeBytes":home.0.as_os_str().as_encoded_bytes()
+        });
+        request.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        let mut payload = serde_json::to_vec(&request).unwrap();
+        payload.push(b'\n');
+        let mut stdin = child.0.as_mut().unwrap().stdin.take().unwrap();
+        stdin.write_all(&payload).unwrap();
+        let output = child_output::wait(child.0.take().unwrap(), Duration::from_secs(6));
+        drop(stdin);
+        assert!(!marker.exists(), "invalid protocol launched the command");
+        assert!(
+            !output.status.success()
+                || serde_json::from_slice::<Value>(&output.stdout)
+                    .is_ok_and(|value| value["response"]["ok"] == false)
+        );
+    }
+}
+#[test]
 fn oversized_header_and_invalid_home_fail_before_launch() {
     let mut payload = vec![b'x'; 8 * 1024 * 1024 + 1];
     payload.push(b'\n');
