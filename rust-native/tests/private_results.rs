@@ -848,9 +848,9 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
         let result = &reply["result"];
         assert_eq!(result["schema"], 2);
         assert_eq!(result["sampleLimitPerStage"], 256);
-        assert_eq!(result["scope"], "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt");
+        assert_eq!(result["scope"], "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt; open.presented is an estimated display refresh after the Core Animation commit, not photon latency");
         let stages = result["stages"].as_object().unwrap();
-        assert_eq!(stages.len(), 41);
+        assert_eq!(stages.len(), 44);
         for name in [
             "search.model",
             "clipboard.searchSlice",
@@ -863,6 +863,9 @@ fn public_performance_cli_and_rpc_preserve_real_search_reset_schema_and_privacy(
             "launcher.parkedFallback",
             "script.helperSpawn",
             "script.writerCapability",
+            "hotkey.eventAge",
+            "open.presented",
+            "open.fromEvent",
             "script.helperReady",
             "script.dispatch",
             "script.response",

@@ -55,7 +55,8 @@ fn name(stage: Stage) -> Option<&'static [u8]> {
         Stage::HostDraw => &HOST_DRAW,
         Stage::HotkeyHandler => &HOTKEY_HANDLER,
         Stage::HotkeyQueue | Stage::ClipboardSearchSlice => return None,
-        Stage::ScriptHelperSpawn | Stage::ScriptHelperReady | Stage::ScriptDispatch | Stage::ScriptResponse | Stage::ScriptFinalize | Stage::LauncherOpenFirst | Stage::LauncherOpenLater | Stage::LauncherFieldFocus | Stage::LauncherActiveSpace | Stage::LauncherFocusFallback | Stage::LauncherParkedCheck | Stage::LauncherParkedFallback | Stage::ScriptCapability => return None,
+        Stage::ScriptHelperSpawn | Stage::ScriptHelperReady | Stage::ScriptDispatch | Stage::ScriptResponse | Stage::ScriptFinalize | Stage::LauncherOpenFirst | Stage::LauncherOpenLater | Stage::LauncherFieldFocus | Stage::LauncherActiveSpace | Stage::LauncherFocusFallback | Stage::LauncherParkedCheck | Stage::LauncherParkedFallback | Stage::ScriptCapability
+        | Stage::HotkeyEventAge | Stage::OpenPresented | Stage::OpenFromEvent => return None,
         Stage::OpenPublish => &OPEN_PUBLISH,
         Stage::OpenMainQueue => &OPEN_QUEUE,
         Stage::OpenAppKit => &OPEN_APPKIT,

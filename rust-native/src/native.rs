@@ -4278,7 +4278,13 @@ fn apply_view(
                 state.panel.enforce_hidden_fixture();
             }
             connection.applied(next.revision);
-            if opening { connection.finish_open_trace(next.show_serial, open_ready); }
+            if opening {
+                let ready = connection.finish_open_trace(next.show_serial, open_ready);
+                // Only a visible search opening has a display refresh to estimate.
+                if let Some(opened) = ready.filter(|_| search_opening && open_ready) {
+                    ruycast_native::presentation_probe::after_ready(opened);
+                }
+            }
         })
         .is_some()
 }

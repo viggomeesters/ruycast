@@ -155,6 +155,9 @@ The historical Swift-host comparison used the pre-migration Python runner. That 
 - `hotkey.handler`: handler delivery to callback return; excludes hardware/OS delivery before the handler.
 - `hotkey.queue`: elapsed time from the registered shortcut callback to the runtime handler for a valid launcher shortcut, including toggling it closed.
 - `open.ready`: show request through the queued native focus request; excludes compositor/display presentation. Closing or superseding an open cancels the interval.
+- `hotkey.eventAge`: the macOS Carbon event timestamp of the launcher hotkey to Ruycast's callback receipt (`GetCurrentEventTime() - GetEventTime(event)`, one system-uptime clock). It covers OS event delivery after the window server stamped the event; keyboard scan, USB/Bluetooth transport and HID processing before that stamp are not observed. Fixture events carry no OS timestamp and record nothing; the HID hook route is not covered.
+- `open.presented`: show request through the estimated first display refresh after a visible search opening reached `open.ready`. A one-shot main run-loop observer ordered after Core Animation's commit observer marks the commit; the first display-link callback starting after it supplies the refresh output time. WindowServer may composite one refresh later, and the display link follows the active displays rather than the launcher's own screen, so this is an estimate, not photon latency. A superseding opening, failed setup or no refresh within one second records a cancellation.
+- `open.fromEvent`: `hotkey.eventAge` plus `open.presented` for the same opening, when the opening began in the latest launcher hotkey callback (receipt within 5 ms). Each hotkey sample is combined at most once; CLI, menu and HID-hook openings record only `open.presented`.
 - `open.publish`, `open.mainQueue` and `open.appKit`: show request to model publication, publication to AppKit processing, and AppKit processing through the field focus request. These stages help locate delay in the same software path as `open.ready`. A completed earlier phase may still appear when the opening is later cancelled.
 - AppKit substeps: `open.layout` applies the model and window geometry, `open.reconcile` prepares the views, `open.keyWindow` measures AppKit making the window key and ordering it front, `open.activate` measures app activation, and `open.focus` measures the explicit responder request. Hidden fixtures skip window ordering and activation.
 - Native work around launcher openings: `menu.health` measures visible menu-bar permission and app checks, `launcher.outsideMonitors` measures outside-click monitor registration. The `launcher.makeKey` and `launcher.orderFront` timings measure the AppKit requests for keyboard focus and front ordering. Use matching signpost timestamps to find them inside `open.keyWindow`. The `launcher.becomeKey` callback can itself be nested inside `launcher.makeKey`, so use interval boundaries to avoid counting it twice. These timings cover the Rust panel overrides when AppKit calls them. Hidden fixtures skip these system calls.
@@ -166,6 +169,17 @@ The historical Swift-host comparison used the pre-migration Python runner. That 
 
 The Rust `interaction-trace-process` route in `rust-native/examples/ui_completion.rs` drives 100 updates through a retained native search field, requires reconciliation before each offscreen capture, and checks a real host draw per cycle. It also checks hidden-window state, trace privacy, and cancellation after the palette closes. `rust-native/src/performance_trace.rs` tests bounded samples, field ownership, cancellation, reset identity, and active-span limits. These are software and offscreen-host checks; they do not prove physical desktop input, visible presentation, or key-to-screen latency. Launcher recency and argument privacy are checked by `execution_native_process::only_real_launcher_success_writes_recency_without_argument_text`.
 
+
+### User-driven launcher latency protocol (#1938)
+
+Ruycast never posts keys for this measurement. With the owner's agreement, the owner presses the launcher hotkey; the agent only reads aggregates.
+
+1. Record version, build, host/CLI SHA-256, Mac model, macOS version, display refresh rate, power source and running apps. Close the launcher and let the Mac idle for one minute.
+2. Cold: quit and restart the installed app, wait until `ruycast status` answers, then open the launcher once with the hotkey and close it with Escape. Read `ruycast performance` and save `launcher.openFirst`, `hotkey.eventAge`, `open.presented` and `open.fromEvent`. Repeat for the agreed number of cold starts.
+3. Warm: `ruycast performance reset --confirm`, then 30 hotkey openings, each closed with Escape after the field is visible, at least two seconds apart. Save the summary; report count, cancellations, p50, p95 and maximum per stage.
+4. Sustained use: run `sample-performance` against the installed app's PID for the agreed window (for example 30 to 60 minutes) with ordinary use or a declared idle session, and record CPU, wakeups and footprint start/end/maximum.
+
+Report physical-side stages separately from the headless `benchmark-host` results. Display photons, keyboard transport and a Raycast comparison remain outside this protocol.
 
 ## 0.7.14: typed search transfer
 

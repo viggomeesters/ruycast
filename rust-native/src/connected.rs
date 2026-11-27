@@ -356,17 +356,21 @@ pub struct HideToken {
 }
 struct OpenTrace {
     serial: u64,
+    opened: Instant,
     run: Run,
     ready: Span,
     phase: Stage,
     span: Span,
 }
 impl OpenTrace {
-    fn finish(self, cancelled: bool) {
+    /// Returns the opening receipt only when software readiness completed.
+    fn finish(self, cancelled: bool) -> Option<Instant> {
         let trace = performance_trace::shared();
+        let ready = !cancelled && self.phase == Stage::OpenAppKit;
         trace.finish(self.span, cancelled || self.phase != Stage::OpenAppKit);
         trace.finish(self.ready, cancelled);
-        trace.finish_run(self.run, if !cancelled && self.phase == Stage::OpenAppKit { RunOutcome::Ready } else { RunOutcome::Cancelled });
+        trace.finish_run(self.run, if ready { RunOutcome::Ready } else { RunOutcome::Cancelled });
+        ready.then_some(self.opened)
     }
 }
 pub struct Connection {
@@ -459,6 +463,7 @@ impl Connection {
         performance_trace::shared().mark_run(run, RunPoint::OpenPublish);
         *pending = Some(OpenTrace {
             serial,
+            opened: received,
             run,
             ready,
             phase: Stage::OpenPublish,
@@ -482,15 +487,14 @@ impl Connection {
     pub fn apply_open_trace(&self, serial: u64) {
         self.advance_open_trace(serial, Stage::OpenMainQueue, Stage::OpenAppKit);
     }
-    pub fn finish_open_trace(&self, serial: u64, ready: bool) {
+    /// Returns the opening receipt when this opening reached software readiness.
+    pub fn finish_open_trace(&self, serial: u64, ready: bool) -> Option<Instant> {
         let mut pending = self.performance_open.lock().unwrap_or_else(|p| p.into_inner());
         let open = if pending.as_ref().is_some_and(|open| open.serial == serial) {
             pending.take()
         } else { None };
         drop(pending);
-        if let Some(open) = open {
-            open.finish(!ready);
-        }
+        open.and_then(|open| open.finish(!ready))
     }
     pub fn cancel_open_trace(&self) {
         let open = self.performance_open.lock().unwrap_or_else(|p| p.into_inner()).take();

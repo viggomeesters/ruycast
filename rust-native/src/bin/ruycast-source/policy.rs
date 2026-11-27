@@ -176,6 +176,7 @@ rust-native/src/observe.rs
 rust-native/src/owned_host_entry.rs
 rust-native/src/paste.rs
 rust-native/src/presentation.rs
+rust-native/src/presentation_probe.rs
 rust-native/src/profile.rs
 rust-native/src/profile_io.rs
 rust-native/src/profile_io_abi.rs

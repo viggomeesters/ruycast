@@ -44,6 +44,9 @@ type Register = unsafe extern "C" fn(u32, u32, HotkeyId, *mut c_void, u32, *mut 
 type Parameter =
     unsafe extern "C" fn(*mut c_void, u32, u32, *mut u32, usize, *mut usize, *mut c_void) -> i32;
 type EventPart = unsafe extern "C" fn(*mut c_void) -> u32;
+/// Carbon `EventTime`: seconds since system startup, shared by both calls.
+type EventTime = unsafe extern "C" fn(*mut c_void) -> f64;
+type CurrentTime = unsafe extern "C" fn() -> f64;
 #[link(name = "Carbon", kind = "framework")]
 extern "C" {
     fn GetApplicationEventTarget() -> *mut c_void;
@@ -76,6 +79,8 @@ extern "C" {
     ) -> i32;
     fn GetEventClass(event: *mut c_void) -> u32;
     fn GetEventKind(event: *mut c_void) -> u32;
+    fn GetEventTime(event: *mut c_void) -> f64;
+    fn GetCurrentEventTime() -> f64;
 }
 #[derive(Clone, Copy)]
 struct Api {
@@ -87,6 +92,8 @@ struct Api {
     parameter: Parameter,
     class: EventPart,
     kind: EventPart,
+    /// Absent for fixtures: synthetic events carry no OS delivery timestamp.
+    clock: Option<(EventTime, CurrentTime)>,
 }
 impl Api {
     fn load(fixture: bool) -> Result<Self, String> {
@@ -100,6 +107,7 @@ impl Api {
                 parameter: GetEventParameter,
                 class: GetEventClass,
                 kind: GetEventKind,
+                clock: Some((GetEventTime, GetCurrentEventTime)),
             });
         }
         #[cfg(feature = "test-tools")]
@@ -136,6 +144,7 @@ impl Api {
                 parameter: std::mem::transmute::<*mut c_void, Parameter>(pointers[5]),
                 class: std::mem::transmute::<*mut c_void, EventPart>(pointers[6]),
                 kind: std::mem::transmute::<*mut c_void, EventPart>(pointers[7]),
+                clock: None,
             })
         }
         #[cfg(not(feature = "test-tools"))]
@@ -210,6 +219,18 @@ unsafe extern "C" fn pressed(_call: *mut c_void, event: *mut c_void, data: *mut 
             .get(&id.id)
             .cloned();
         if let Some(route) = route {
+            if route.action == "@launcher" {
+                if let Some((event_time, current_time)) = api.clock {
+                    let received = std::time::Instant::now();
+                    let (now, stamped) = unsafe { (current_time(), event_time(event)) };
+                    let age = now - stamped;
+                    // A zero timestamp, clock skew or a stale replay is not a sample.
+                    if stamped > 0.0 && age.is_finite() && (0.0..5.0).contains(&age) {
+                        crate::performance_trace::shared()
+                            .note_hotkey_event(received, std::time::Duration::from_secs_f64(age));
+                    }
+                }
+            }
             // No mutex/registry borrow spans a downstream callback.
             (state.sink)(route);
             0
@@ -499,7 +520,7 @@ mod source_owner_tests {
             // Addresses only: none of these original Carbon functions is called.
             api: Api { target: GetApplicationEventTarget, install: InstallEventHandler, remove: RemoveEventHandler,
                 register: RegisterEventHotKey, unregister: UnregisterEventHotKey, parameter: GetEventParameter,
-                class: GetEventClass, kind: GetEventKind },
+                class: GetEventClass, kind: GetEventKind, clock: None },
             routes: Mutex::new(BTreeMap::new()), enabled: Arc::new(AtomicBool::new(true)), failed: Arc::new(AtomicBool::new(false)),
             alive: AtomicBool::new(true), sink: Arc::new(move |_| { std::hint::black_box(&probe); }),
             source_ticket: std::cell::Cell::new(None),

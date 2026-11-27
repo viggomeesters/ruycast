@@ -37,6 +37,7 @@ pub mod observe;
 #[cfg(feature = "test-tools")]
 pub mod owned_host_entry;
 pub mod presentation;
+pub mod presentation_probe;
 pub mod profile;
 pub mod profile_io_abi;
 pub mod profile_io;

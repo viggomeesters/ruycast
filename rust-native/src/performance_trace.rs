@@ -9,7 +9,9 @@ use std::{
 const ACTIVE_LIMIT: usize = 32;
 const SAMPLE_LIMIT: usize = 256;
 const RUN_LIMIT: usize = 32;
-const SCOPE: &str = "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt";
+/// The opening snapshot is taken in the same synchronous Carbon callback.
+const HOTKEY_CORRELATION: Duration = Duration::from_millis(5);
+const SCOPE: &str = "software stages; field reconciliation is not result drawing or physical presentation; host.drawCallback may be absent for layer-backed display; hotkey queue timing begins at callback receipt; open.presented is an estimated display refresh after the Core Animation commit, not photon latency";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
@@ -54,6 +56,9 @@ pub enum Stage {
     LauncherParkedCheck,
     LauncherParkedFallback,
     ScriptCapability,
+    HotkeyEventAge,
+    OpenPresented,
+    OpenFromEvent,
 }
 #[derive(Clone, Copy)]
 pub enum MenuHealthTrigger { State, Activation, Launch, Terminate }
@@ -68,7 +73,7 @@ impl MenuHealthTrigger {
     }
 }
 impl Stage {
-    const ALL: [Self; 41] = [
+    const ALL: [Self; 44] = [
         Self::SearchModel,
         Self::ClipboardSearchSlice,
         Self::InputModel,
@@ -110,6 +115,9 @@ impl Stage {
         Self::LauncherParkedCheck,
         Self::LauncherParkedFallback,
         Self::ScriptCapability,
+        Self::HotkeyEventAge,
+        Self::OpenPresented,
+        Self::OpenFromEvent,
     ];
     fn name(self) -> &'static str {
         match self {
@@ -154,6 +162,9 @@ impl Stage {
             Self::LauncherParkedCheck => "launcher.parkedCheck",
             Self::LauncherParkedFallback => "launcher.parkedFallback",
             Self::ScriptCapability => "script.writerCapability",
+            Self::HotkeyEventAge => "hotkey.eventAge",
+            Self::OpenPresented => "open.presented",
+            Self::OpenFromEvent => "open.fromEvent",
         }
     }
     fn index(self) -> usize {
@@ -225,10 +236,13 @@ struct State {
     pending_input: Option<(Span, u64)>,
     runs: BTreeMap<u64, RunEntry>,
     completed_runs: VecDeque<CompletedRun>,
+    /// Latest launcher Carbon callback receipt and its OS event age. Consumed
+    /// by at most one presentation sample whose opening began in that callback.
+    last_hotkey: Option<(Instant, Duration)>,
 }
 impl Default for State {
     fn default() -> Self {
-        Self { sequence: 0, active: BTreeMap::new(), metrics: std::array::from_fn(|_| Metric::default()), pending_input: None, runs: BTreeMap::new(), completed_runs: VecDeque::new() }
+        Self { sequence: 0, active: BTreeMap::new(), metrics: std::array::from_fn(|_| Metric::default()), pending_input: None, runs: BTreeMap::new(), completed_runs: VecDeque::new(), last_hotkey: None }
     }
 }
 impl State {
@@ -445,6 +459,29 @@ impl Trace {
         state.pending_input = None;
         state.runs.clear();
         state.completed_runs.clear();
+        state.last_hotkey = None;
+    }
+    /// OS hotkey-event timestamp to Carbon callback receipt for the launcher
+    /// shortcut. Only a duration is retained; no key or route identity.
+    pub fn note_hotkey_event(&self, received: Instant, age: Duration) {
+        let mut state = self.lock();
+        state.metrics[Stage::HotkeyEventAge.index()].finish(age.as_secs_f64() * 1000., false);
+        state.last_hotkey = Some((received, age));
+    }
+    /// Opening request receipt to the estimated first display refresh after
+    /// its commit. When that opening began inside the latest launcher hotkey
+    /// callback, `open.fromEvent` adds that event's OS age exactly once.
+    pub fn record_presented(&self, opened: Instant, elapsed: Duration) {
+        let mut state = self.lock();
+        state.metrics[Stage::OpenPresented.index()].finish(elapsed.as_secs_f64() * 1000., false);
+        if let Some((callback, age)) = state.last_hotkey.take() {
+            if opened.checked_duration_since(callback).is_some_and(|gap| gap <= HOTKEY_CORRELATION) {
+                state.metrics[Stage::OpenFromEvent.index()].finish((age + elapsed).as_secs_f64() * 1000., false);
+            }
+        }
+    }
+    pub fn cancel_presented(&self) {
+        self.lock().metrics[Stage::OpenPresented.index()].finish(0., true);
     }
     pub fn snapshot(&self) -> Value {
         let (active, metrics, active_runs, completed_runs) = {
@@ -471,6 +508,28 @@ impl Trace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn presentation_correlates_only_the_opening_from_the_latest_hotkey_callback() {
+        let trace = Trace::default();
+        let callback = Instant::now();
+        trace.note_hotkey_event(callback, Duration::from_millis(3));
+        trace.record_presented(callback + Duration::from_millis(1), Duration::from_millis(20));
+        // The hotkey sample is consumed; a later CLI opening is not combined.
+        trace.record_presented(Instant::now(), Duration::from_millis(30));
+        trace.note_hotkey_event(callback, Duration::from_millis(2));
+        trace.record_presented(callback + Duration::from_millis(50), Duration::from_millis(10));
+        trace.cancel_presented();
+        let value = trace.snapshot();
+        assert_eq!(value["stages"]["hotkey.eventAge"]["count"], 2);
+        assert_eq!(value["stages"]["open.presented"]["count"], 3);
+        assert_eq!(value["stages"]["open.presented"]["cancelled"], 1);
+        assert_eq!(value["stages"]["open.fromEvent"]["count"], 1);
+        assert!((value["stages"]["open.fromEvent"]["maxMS"].as_f64().unwrap() - 23.).abs() < 1e-9);
+        trace.note_hotkey_event(callback, Duration::from_millis(2));
+        trace.reset();
+        trace.record_presented(callback, Duration::from_millis(5));
+        assert_eq!(trace.snapshot()["stages"]["open.fromEvent"]["count"], 0);
+    }
     #[test]
     fn menu_health_preserves_short_circuit_and_counts_only_executed_checks() {
         use std::cell::RefCell;
