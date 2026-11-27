@@ -4326,8 +4326,15 @@ fn finish_executions(
             response = json!({"ok":false,"error":error});
         }
         const CAPTURE_UNKNOWN: &str = "This capture may already be in Work. Check the inbox and Work recovery before starting a new capture.";
-        let capture_uncertain = context.capture_granted.as_ref().is_some_and(|granted| granted.load(std::sync::atomic::Ordering::Acquire))
-            && saved_capture.is_none() && !context.capture_request_id.as_deref().is_some_and(|id| crate::failure_context::valid_capture_receipt(&context.command, id, &response, capture.as_ref()));
+        // Any capture success, including a writer-side reuse that never asked
+        // for a grant, must carry a receipt for this exact request.
+        let capture_uncertain = context.capture_granted.as_ref().is_some_and(|granted| {
+            crate::failure_context::capture_result_uncertain(
+                granted.load(std::sync::atomic::Ordering::Acquire),
+                &response,
+                context.capture_request_id.as_deref().is_some_and(|id| crate::failure_context::valid_capture_receipt(&context.command, id, &response, capture.as_ref())),
+            )
+        }) && saved_capture.is_none();
         if capture_uncertain { response = json!({"ok":false,"error":CAPTURE_UNKNOWN}); }
         if let Some(saved) = saved_capture.as_ref() {
             response = crate::script_result::capture_open_finished(saved.clone(), &response);

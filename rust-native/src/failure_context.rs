@@ -58,6 +58,11 @@ pub(crate) fn valid_capture_receipt(command: &Command, request_id: &str, respons
     let digest = format!("{:x}", Sha256::digest(request_id.as_bytes()));
     *inbox == std::ffi::OsStr::new("00-inbox") && folder.to_str().is_some_and(|name| name.ends_with(&format!("-{}", &digest[..20])) && file.to_str().is_some_and(|file| file == format!("{name}.md")))
 }
+/// A granted capture is confirmed only by its receipt. Before a grant, only an
+/// explicit failure proves that nothing was written; a success still needs one.
+pub(crate) fn capture_result_uncertain(granted: bool, response: &Value, receipt_valid: bool) -> bool {
+    (granted || response["ok"] != false) && !receipt_valid
+}
 pub(crate) fn pregrant_capture_error(response: &Value, capture: Option<&Capture>) -> Option<&'static str> {
     let capture = capture?;
     if response["ok"] != false || !capture.stdout.eof || capture.stdout.truncated || !capture.stdout.valid_utf8 { return None; }
@@ -269,6 +274,17 @@ mod tests {
         fs::remove_file(&note).unwrap(); fs::create_dir(&note).unwrap();
         assert!(!valid_capture_receipt(&command, id, &reply(&receipt), Some(&capture)));
         fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn capture_success_without_grant_still_requires_a_receipt() {
+        let success = json!({"ok":true,"result":{"exitCode":0,"stdout":"{}"}});
+        let failure = json!({"ok":false,"error":"Script exited with status 1.","exitCode":1});
+        assert!(capture_result_uncertain(false, &success, false));
+        assert!(!capture_result_uncertain(false, &success, true));
+        assert!(!capture_result_uncertain(false, &failure, false));
+        assert!(capture_result_uncertain(true, &failure, false));
+        assert!(capture_result_uncertain(true, &success, false));
+        assert!(!capture_result_uncertain(true, &success, true));
     }
     fn result(id: &str, path: &str, ok: bool) -> Value {
         let body = json!({"ok":ok,"error":"failure","detail":"failure","failureContext":{"schema":SCHEMA,"scope":"work","invocationID":id,"relativePath":path}});
