@@ -163,7 +163,9 @@ impl Service {
         let epoch = self.epoch.load(Ordering::Acquire);
         let reply = self.worker.borrow().as_ref().map(|worker| worker.poll());
         let epoch_changed = epoch != self.seen_epoch.get();
-        if !epoch_changed && matches!(&reply, None | Some(Ok(None))) { return; }
+        let limit = self.worker.borrow().as_ref().map(|worker| worker.limit());
+        let expired = limit.is_some_and(|limit| self.presence.borrow_mut().expire_overdue(std::time::Instant::now(), limit));
+        if !epoch_changed && !expired && matches!(&reply, None | Some(Ok(None))) { return; }
         let eligible = self.eligible(MenuHealthTrigger::State);
         let mut invalidated = false;
         if self.last_eligible.replace(eligible) != eligible {
