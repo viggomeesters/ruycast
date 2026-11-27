@@ -6,6 +6,47 @@ pub struct State {
     pub requires_input: bool,
 }
 
+/// What the status item shows for a visible menu. A pending lookup keeps the
+/// neutral template icon instead of reporting a false error; it never claims
+/// a healthy state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Presentation {
+    Checking,
+    Running,
+    NeedsAttention,
+}
+
+impl Presentation {
+    pub fn of(healthy: bool, checking: bool) -> Self {
+        if checking {
+            Self::Checking
+        } else if healthy {
+            Self::Running
+        } else {
+            Self::NeedsAttention
+        }
+    }
+    pub fn tool_tip(self) -> &'static str {
+        match self {
+            Self::Checking => "Ruycast · Checking…",
+            Self::Running => "Ruycast · Running",
+            Self::NeedsAttention => "Ruycast · Needs attention",
+        }
+    }
+    pub fn accessibility_label(self) -> &'static str {
+        match self {
+            Self::Checking => "Ruycast, checking",
+            Self::Running => "Ruycast, running",
+            Self::NeedsAttention => "Ruycast, needs attention",
+        }
+    }
+    /// The template (non-warning) icon is used unless attention is needed.
+    pub fn neutral_icon(self) -> bool {
+        !matches!(self, Self::NeedsAttention)
+    }
+}
+
 /// Main-thread bookkeeping for a bounded, single-flight presence probe.
 /// Invalidation immediately removes the old answer; stale replies are never
 /// adopted and at most one replacement probe is queued.
@@ -168,7 +209,23 @@ impl Drop for PresenceWorker {
 
 #[cfg(test)]
 mod tests {
-    use super::{PresenceRefresh, PresenceWorker};
+    use super::{Presentation, PresenceRefresh, PresenceWorker};
+
+    #[test]
+    fn pending_check_is_neutral_but_never_reported_as_running() {
+        assert_eq!(Presentation::of(true, false), Presentation::Running);
+        assert_eq!(Presentation::of(false, false), Presentation::NeedsAttention);
+        assert_eq!(Presentation::of(false, true), Presentation::Checking);
+        assert_eq!(Presentation::of(true, true), Presentation::Checking);
+        assert!(Presentation::Checking.neutral_icon());
+        assert!(Presentation::Running.neutral_icon());
+        assert!(!Presentation::NeedsAttention.neutral_icon());
+        assert_eq!(Presentation::Checking.tool_tip(), "Ruycast · Checking…");
+        assert_eq!(Presentation::Checking.accessibility_label(), "Ruycast, checking");
+        assert_eq!(Presentation::Running.accessibility_label(), "Ruycast, running");
+        assert_eq!(Presentation::NeedsAttention.accessibility_label(), "Ruycast, needs attention");
+        assert_eq!(serde_json::to_value(Presentation::NeedsAttention).unwrap(), "needsAttention");
+    }
 
     #[test]
     fn coalesces_invalidations_and_rejects_stale_replies() {

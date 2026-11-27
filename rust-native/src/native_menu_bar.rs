@@ -5,7 +5,7 @@ use objc2::{define_class, msg_send, sel, DefinedClass, MainThreadOnly};
 use objc2_app_kit::*;
 use objc2_foundation::{NSObject, NSPoint, NSRect, NSSize, NSString};
 use ruycast_native::performance_trace::{shared, MenuHealthTrigger};
-use ruycast_native::menu_bar::{PresenceRefresh, PresenceWorker};
+use ruycast_native::menu_bar::{PresenceRefresh, PresenceWorker, Presentation};
 use std::cell::{Cell, RefCell};
 use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
 #[cfg(feature = "test-tools")]
@@ -51,6 +51,7 @@ pub struct Service {
     stopped: Cell<bool>,
     last_eligible: Cell<bool>,
     checking: Cell<bool>,
+    presented: Cell<Option<Presentation>>,
     #[cfg(feature = "test-tools")]
     fixture: RefCell<Option<Arc<Fixture>>>,
     #[cfg(feature = "test-tools")]
@@ -78,6 +79,7 @@ impl Default for Service {
             stopped: Cell::new(false),
             last_eligible: Cell::new(false),
             checking: Cell::new(false),
+            presented: Cell::new(None),
             #[cfg(feature = "test-tools")]
             fixture: RefCell::new(None),
             #[cfg(feature = "test-tools")]
@@ -302,24 +304,18 @@ impl Service {
                 self.registrations.set(self.registrations.get() + 1);
             }
         }
+        let presentation =
+            Presentation::of(state.as_ref().is_some_and(|s| s.healthy), checking);
+        // Recorded for fixtures too, which never register a status item, so the
+        // presentation a visible menu would show is directly observable.
+        self.presented.set(Some(presentation));
         if let Some(item) = &*self.item.borrow() {
             if let Some(button) = item.button(owner.mtm()) {
-                let healthy = state.as_ref().is_some_and(|s| s.healthy);
-                button.setImage(Some(&icon(healthy || checking)));
-                button.setToolTip(Some(&NSString::from_str(if checking {
-                    "Ruycast · Checking…"
-                } else if healthy {
-                    "Ruycast · Running"
-                } else {
-                    "Ruycast · Needs attention"
-                })));
-                button.setAccessibilityLabel(Some(&NSString::from_str(if checking {
-                    "Ruycast, checking"
-                } else if healthy {
-                    "Ruycast, running"
-                } else {
-                    "Ruycast, needs attention"
-                })));
+                button.setImage(Some(&icon(presentation.neutral_icon())));
+                button.setToolTip(Some(&NSString::from_str(presentation.tool_tip())));
+                button.setAccessibilityLabel(Some(&NSString::from_str(
+                    presentation.accessibility_label(),
+                )));
             }
         }
         *self.state.borrow_mut() = state;
@@ -337,6 +333,7 @@ impl Service {
     pub fn retire(&self) {
         self.serial
             .set(self.serial.get().checked_add(1).unwrap_or(0));
+        self.presented.set(None);
         if let Some(menu) = self.menu.take() {
             for row in menu.itemArray().iter() {
                 unsafe {
@@ -423,7 +420,8 @@ impl Service {
         let starts = self.fixture.borrow().as_ref().and_then(|fixture| fixture.state.lock().ok().map(|state| state.starts));
         let calls = self.fixture.borrow().as_ref().map(|fixture| (fixture.ax_calls.load(Ordering::Relaxed), fixture.input_calls.load(Ordering::Relaxed)));
         let completed = self.fixture.borrow().as_ref().map(|fixture| fixture.completed.load(Ordering::Acquire));
-        serde_json::json!({"state":*self.state.borrow(),"checking":self.checking.get(),"fixtureStarts":starts,"fixtureCompleted":completed,"fixtureBusy":self.presence.borrow().waiting(),"fixtureCalls":calls,"serial":self.serial.get(),"hiddenSubstitution":self.hidden.get(),"nativeRegistrations":self.registrations.get(),"items":self.menu.borrow().as_ref().map(|m|m.itemArray().iter().map(|r|r.title().to_string()).collect::<Vec<_>>())})
+        let presentation = self.presented.get().map(|p| serde_json::json!({"state":p,"toolTip":p.tool_tip(),"accessibilityLabel":p.accessibility_label(),"neutralIcon":p.neutral_icon()}));
+        serde_json::json!({"state":*self.state.borrow(),"checking":self.checking.get(),"presentation":presentation,"fixtureStarts":starts,"fixtureCompleted":completed,"fixtureBusy":self.presence.borrow().waiting(),"fixtureCalls":calls,"serial":self.serial.get(),"hiddenSubstitution":self.hidden.get(),"nativeRegistrations":self.registrations.get(),"items":self.menu.borrow().as_ref().map(|m|m.itemArray().iter().map(|r|r.title().to_string()).collect::<Vec<_>>())})
     }
     #[cfg(feature = "test-tools")]
     pub fn click(&self, index: usize) -> bool {

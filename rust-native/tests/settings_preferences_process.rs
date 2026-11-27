@@ -295,9 +295,16 @@ fn menu_health_discards_stale_work_and_respects_permission_revoke() {
             thread::sleep(Duration::from_millis(10));
         }
     };
+    let shown = |v: &Value, state: &str, neutral: bool| {
+        assert_eq!(v["presentation"]["state"], state, "rendered menu state: {v}");
+        assert_eq!(v["presentation"]["neutralIcon"], neutral, "rendered icon: {v}");
+    };
     h.probe("menu-health-fixture-enable", json!({}));
     let first = menu_wait(&|v| v["fixtureStarts"] == 1 && v["checking"] == true);
     assert_eq!(first["nativeRegistrations"], 0);
+    shown(&first, "checking", true);
+    assert_eq!(first["presentation"]["accessibilityLabel"], "Ruycast, checking");
+    assert_eq!(first["presentation"]["toolTip"], "Ruycast · Checking…");
     let calls_before = first["fixtureCalls"].clone();
     h.probe("menu-health-fixture-pump", json!({}));
     assert_eq!(h.probe("menu-bar-read", json!({}))["fixtureCalls"], calls_before);
@@ -306,6 +313,7 @@ fn menu_health_discards_stale_work_and_respects_permission_revoke() {
     let denied = h.probe("menu-bar-read", json!({}));
     assert_eq!(denied["checking"], false);
     assert_eq!(denied["state"]["healthy"], false);
+    shown(&denied, "needsAttention", false);
     let input_before = denied["fixtureCalls"][1].as_u64().unwrap();
     h.probe("menu-health-fixture-change", json!({"event":true}));
     let denied_again = h.probe("menu-bar-read", json!({}));
@@ -316,31 +324,46 @@ fn menu_health_discards_stale_work_and_respects_permission_revoke() {
     h.probe("menu-health-fixture-change", json!({"ax":true}));
     let second = menu_wait(&|v| v["fixtureStarts"] == 2 && v["checking"] == true);
     assert_eq!(second["nativeRegistrations"], 0);
+    shown(&second, "checking", true);
     h.probe("menu-health-fixture-change", json!({"hold":true,"release":true,"answer":true}));
     menu_wait(&|v| v["fixtureCompleted"] == 2);
     h.probe("menu-health-fixture-change", json!({"event":true}));
     h.probe("menu-health-fixture-change", json!({"hold":false}));
     let latest = menu_wait(&|v| v["fixtureStarts"] == 3 && v["checking"] == true);
     assert_eq!(latest["state"]["healthy"], false, "stale healthy reply was adopted");
+    shown(&latest, "checking", true);
     h.probe("menu-health-fixture-change", json!({"release":true,"answer":true}));
     let done = menu_wait(&|v| v["fixtureBusy"] == false && v["checking"] == false);
     assert_eq!(done["state"]["healthy"], true);
     assert_eq!(done["fixtureStarts"], 3);
+    shown(&done, "running", true);
+    assert_eq!(done["presentation"]["accessibilityLabel"], "Ruycast, running");
+    // A competing app appearing must surface as needing attention, not as a
+    // lingering neutral checking state.
     h.probe("menu-health-fixture-change", json!({"event":true}));
-    menu_wait(&|v| v["fixtureStarts"] == 4 && v["checking"] == true);
+    shown(&menu_wait(&|v| v["fixtureStarts"] == 4 && v["checking"] == true), "checking", true);
+    h.probe("menu-health-fixture-change", json!({"release":true,"answer":false}));
+    let conflict = menu_wait(&|v| v["fixtureBusy"] == false && v["checking"] == false);
+    assert_eq!(conflict["state"]["healthy"], false);
+    shown(&conflict, "needsAttention", false);
+    assert_eq!(conflict["presentation"]["accessibilityLabel"], "Ruycast, needs attention");
+    h.probe("menu-health-fixture-change", json!({"event":true}));
+    menu_wait(&|v| v["fixtureStarts"] == 5 && v["checking"] == true);
     h.probe("menu-health-fixture-change", json!({"visible":false}));
     h.probe("menu-health-fixture-change", json!({"release":true,"answer":true}));
     let hidden = menu_wait(&|v| v["fixtureBusy"] == false && v["state"]["visible"] == false);
-    assert_eq!(hidden["fixtureStarts"], 4);
+    assert_eq!(hidden["fixtureStarts"], 5);
+    assert!(hidden["presentation"].is_null(), "hidden menu kept a presentation: {hidden}");
     h.probe("menu-health-fixture-change", json!({"visible":true}));
-    menu_wait(&|v| v["fixtureStarts"] == 5 && v["checking"] == true);
+    shown(&menu_wait(&|v| v["fixtureStarts"] == 6 && v["checking"] == true), "checking", true);
     h.probe("menu-health-fixture-stop", json!({}));
     let stopped = h.probe("menu-bar-read", json!({}));
     h.probe("menu-health-fixture-change", json!({"event":true,"release":true,"answer":true}));
-    menu_wait(&|v| v["fixtureCompleted"] == 5);
+    menu_wait(&|v| v["fixtureCompleted"] == 6);
     let after_stop = h.probe("menu-bar-read", json!({}));
     assert_eq!(after_stop["state"], stopped["state"]);
-    assert_eq!(after_stop["fixtureStarts"], 5);
+    assert_eq!(after_stop["fixtureStarts"], 6);
+    assert_eq!(after_stop["presentation"], stopped["presentation"]);
     assert_eq!(after_stop["nativeRegistrations"], 0);
 }
 
