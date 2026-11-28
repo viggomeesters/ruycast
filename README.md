@@ -43,6 +43,8 @@ Clipboard history and analytics stay on your Mac. Dashboard analytics record cou
 
 Ruycast keeps all repository-owned executable code in Rust, including tests, helpers and build tools. Read the [Rust-only source policy](CONTRIBUTING.md#rust-only-source-policy) before contributing.
 
+The [native development guide](rust-native/README.md#current-build-and-validation-routes) lists the locked Cargo commands for building the host and CLI, running the macOS validation matrix, and checking disk space or cleaning build caches. See [Source export](docs/SOURCE-EXPORT.md) for the standalone Rust exporter and verification command. A local build or export does not install or publish Ruycast.
+
 [Report a bug or suggest a feature](https://github.com/viggomeesters/ruycast/issues/new/choose) · [Development and testing](CONTRIBUTING.md) · [Architecture](docs/ARCHITECTURE.md) · [Changelog](CHANGELOG.md)
 
 Ruycast is available under the [MIT license](LICENSE).

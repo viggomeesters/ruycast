@@ -23,6 +23,8 @@ The shared lease transfers a live descriptor with checked root/device/inode/owne
 
 Native validation retains the full ordered leaf-validator matrix. Explicit-target outputs may be copied to old hardcoded test paths only with fresh hash binding and `productionAuthority: false`. Production package/install authority never reads those compatibility aliases. The full Swift-comparison/F1 campaign ended on 10 November 2026 and is not a current release requirement. Current changes use focused behavior checks and short launcher-time or memory measurements when relevant; those do not replace final product acceptance. None of these development receipts alone declares the whole rewrite accepted.
 
+For current commands, use the [native build and validation routes](../rust-native/README.md#current-build-and-validation-routes) and the [source export guide](SOURCE-EXPORT.md). The historical helper paths below are not build prerequisites or runnable entrypoints in the current checkout.
+
 ## Historical hybrid architecture (0.8.x, removed from the checkout)
 
 The remaining sections describe the previous shipped Swift host and its measurements. They are preserved as migration contracts and test-oracle history, not the current production language, version or build authority. That split was selected on 24 October 2026 and later superseded by the complete Rust decision.
