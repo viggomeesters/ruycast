@@ -134,7 +134,7 @@
     "rust-native/.gitignore": "306fd52e74fca6746e12acc750f232de15e71da917756a1270d74c91f5eb7368",
     "rust-native/Cargo.lock": "3ea0eb855d24f0b7b143746b49fa4dd1f311116e46c6561c7b5984e2383094e5",
     "rust-native/Cargo.toml": "46c6731dc2e6663f33aa6ff9d8b806bb12b486688aab60416ab855711850520c",
-    "rust-native/README.md": "ef40a038ef50674b36c748076fbb65be6d2e6828912a59cd5ce8d8b55f1ea495",
+    "rust-native/README.md": "2fa67ac17a4ab6071d68fb5a03652138ebe148521e6439e3326f5fd99c01620a",
     "rust-native/examples/clipboard_history_sdk_probe.rs": "205bd28c8953954ffb9063d1f4244629ac189327fe87e96cdb68e7283b9387c6",
     "rust-native/examples/snippet_effects_probe.rs": "5d9fa47bbca1517764e65d15ec54919f2c8ae11ae26c98d40dca1db74aedec58",
     "rust-native/examples/ui_completion.rs": "032f978254959e4d8ef7a05314ac2937243a93dca17f848b120a7895804ac349",
