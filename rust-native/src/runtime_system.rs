@@ -143,10 +143,16 @@ impl Shared {
         !self.cli.is_empty() || self.monitor.busy() || self.monitor_effect.is_some()
     }
 }
+type SearchStamp = (u64, u64, u64, u64, String);
+
 struct Search {
-    stamp: (u64, u64, u64, u64, String),
+    stamp: SearchStamp,
     pending: Pending<Results>,
     intent: u64,
+}
+struct SearchRetry {
+    stamp: SearchStamp,
+    deadline: Instant,
 }
 struct ActionJob {
     allow_revision:bool,
@@ -276,10 +282,10 @@ pub(super) struct Owner {
     refreshing:bool,
     pub scope: Scope,
     search: Option<Search>,
-    completed: Option<(u64, u64, u64, u64, String)>,
+    completed: Option<SearchStamp>,
     pub snapshot: Results,
     action: Option<ActionJob>,
-    retry: Option<Instant>,
+    retry: Option<SearchRetry>,
     scope_live: Arc<AtomicBool>,
 }
 impl Default for Owner {
@@ -309,7 +315,7 @@ impl Owner {
             .map(|s| s.pending.deadline)
             .into_iter()
             .chain(self.action.as_ref().map(|a| a.pending.deadline()))
-            .chain(self.retry)
+            .chain(self.retry.as_ref().map(|retry| retry.deadline))
             .chain(self.next_refresh)
             .min()
     }
@@ -470,6 +476,10 @@ pub(super) fn tick(w: &mut WindowRuntime, state: &SharedState, ui: &Arc<Connecti
     if w.system.search.as_ref().is_some_and(|s| s.stamp != stamp) {
         w.system.refresh();
     }
+    if w.system.retry.as_ref().is_some_and(|retry| retry.stamp != stamp) {
+        // An earlier provider admission must not delay new local results.
+        w.system.retry = None;
+    }
     if let Some(result) = w.system.search.as_ref().and_then(|s| s.pending.poll()) {
         let search = w.system.search.take().unwrap();
         if search.stamp == stamp
@@ -509,7 +519,7 @@ pub(super) fn tick(w: &mut WindowRuntime, state: &SharedState, ui: &Arc<Connecti
     if w.system.search.is_some()
         || w.system.completed.as_ref() == Some(&stamp)
         || w.system.action.is_some()
-        || w.system.retry.is_some_and(|d| Instant::now() < d)
+        || w.system.retry.as_ref().is_some_and(|retry| Instant::now() < retry.deadline)
     {
         return;
     }
@@ -551,7 +561,12 @@ pub(super) fn tick(w: &mut WindowRuntime, state: &SharedState, ui: &Arc<Connecti
                 intent: ui.latest_intent(),
             })
         }
-        Err(_) => w.system.retry = Some(Instant::now() + Duration::from_millis(25)),
+        Err(_) => {
+            w.system.retry = Some(SearchRetry {
+                stamp,
+                deadline: Instant::now() + Duration::from_millis(25),
+            });
+        }
     }
     w.stamp = None;
 }
@@ -2414,6 +2429,44 @@ mod shortcut_budget_tests {
         assert_eq!(case.window.system.completed,completed);
         assert_eq!(case.window.session.rows().map(|c|c.id.clone()).collect::<Vec<_>>(),ids);
         assert!(case.window.system.search.is_none());assert!(case.fixture.effects.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn configuration_reload_publishes_current_local_rows_during_optional_search_retry() {
+        let mut case = BrowserCase::new();
+        let discovered = &mut case.state.applications[0];
+        discovered.kind = "app".into();
+        discovered.target = "org.example.owned".into();
+        let mut configured = discovered.clone();
+        configured.id = "fixture.configured".into();
+
+        let (entered, release) = case.hold();
+        case.query("Owned");
+        entered.recv_timeout(Duration::from_secs(1)).unwrap();
+        case.query("Owned Local");
+        assert!(case.window.system.search.is_none());
+        assert_eq!(case.window.session.rows().next().unwrap().id, "fixture.local");
+        let deadline = Instant::now() + Duration::from_secs(60);
+        case.window.system.retry.as_mut().expect("held worker must cause a retry").deadline = deadline;
+        tick(&mut case.window, &case.state, &case.ui);
+        assert_eq!(case.window.system.retry.as_ref().unwrap().deadline, deadline);
+
+        let mut updated = serde_json::to_value(case.state.configuration.current()).unwrap();
+        updated["commands"] = json!([configured]);
+        crate::private_storage::write(
+            &case.state.configuration.file,
+            &serde_json::to_vec(&updated).unwrap(),
+            true,
+        )
+        .unwrap();
+        assert!(case.state.reload_watched().unwrap());
+        case.window.publish(&case.state, &case.ui);
+        release.send(()).unwrap();
+
+        assert_eq!(case.window.session.query, "Owned Local");
+        assert_eq!(
+            case.ui.view().rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+            ["fixture.configured"]
+        );
     }
     #[test]
     fn browser_main_missing_denied_throttle_cache_and_explicit_refresh_never_prompt() {

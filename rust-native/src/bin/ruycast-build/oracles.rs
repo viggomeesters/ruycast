@@ -1674,10 +1674,10 @@ const SEARCH_CASES: &[(&str, &str, &str)] = &[
 ];
 fn search_source_bindings() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "c102789a5dfa97e9512a6ad7bcc95e8085bf158ed836c4cf6cbf932663c52e95"),
-        ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "4e296e302592ba61095c77d5413cca15065b7542b3d062e9a3051930f9c27a08"),
-        ("rust/src/lib.rs", include_str!("../../../../rust/src/lib.rs"), "291731f83d4278ad4b1f892558a6b155de3288e8478cf64caed9489b9fa61d49"),
-        ("rust-native/src/session.rs", include_str!("../../session.rs"), "c23e3d163e5cc8b87e6cdd11c80ed5380980885281499e5472065a169aac6d61"),
+        ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "2448462f511e52c4f0483d52a4e832754afae6ab7cdca28f578dab2ec736b9e9"),
+        ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "078c68ecb20f029becff638f751212142eb9e248a1563d323e5aa2af2dbce1c4"),
+        ("rust/src/lib.rs", include_str!("../../../../rust/src/lib.rs"), "49b5fd77ea0b7da38b8bc162880f45170751042dff0d3cb911dbd650c20be988"),
+        ("rust-native/src/session.rs", include_str!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
     ]
 }
 fn search_crosswalk(mappings: &serde_json::Value) -> Result<serde_json::Value> {
