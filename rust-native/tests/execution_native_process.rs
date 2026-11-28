@@ -587,17 +587,20 @@ fn real_work_capture_journal_recovery_fixture() {
     let stage = std::env::var("VIGGO_CAPTURE_FIXTURE_STAGE").unwrap();
     let kind = std::env::var("VIGGO_CAPTURE_FIXTURE_KIND").unwrap();
     let case = std::env::var("VIGGO_CAPTURE_FIXTURE_CASE").unwrap_or_else(|_| "host-loss".into());
-    assert!(["before-grant", "journal", "publication"].contains(&stage.as_str()));
+    assert!(["before-grant", "journal", "publication", "receipt"].contains(&stage.as_str()));
     assert!(["note", "task"].contains(&kind.as_str()));
-    let publication = stage == "publication";
-    assert!(if publication {
+    let receipt_phase = stage == "receipt";
+    let publication = matches!(stage.as_str(), "publication" | "receipt");
+    assert!(if receipt_phase {
+        cfg!(target_os = "macos") && matches!(case.as_str(), "host-loss" | "bad-receipt-inode")
+    } else if publication {
         cfg!(target_os = "macos") && matches!(case.as_str(), "host-loss" | "bad-publication-release" | "bad-publication-seal")
     } else {
         case == "host-loss"
             || (stage == "journal" && matches!(case.as_str(), "refuse-publication" | "pending-same-bytes"))
             || (stage == "before-grant" && case == "refuse-before-grant")
     });
-    let host_loss = matches!(case.as_str(), "host-loss" | "pending-same-bytes" | "bad-publication-seal");
+    let host_loss = matches!(case.as_str(), "host-loss" | "pending-same-bytes" | "bad-publication-seal" | "bad-receipt-inode");
     assert!(case != "pending-same-bytes" || cfg!(target_os = "macos"));
     const SIGNALS_SHA_ENV: &str = "VIGGO_CAPTURE_FIXTURE_SIGNALS_SHA256";
     let signals_sha = std::env::var_os(SIGNALS_SHA_ENV).map(|raw| {
@@ -762,12 +765,15 @@ fn real_work_capture_journal_recovery_fixture() {
         let control = capsule.join("control");
         let journal = fs::read(control.join("capture-journal.json")).unwrap();
         let journal_sha = format!("{:x}", Sha256::digest(&journal));
-        let release = json!({
+        let mut release = json!({
             "schema": "viggo.capture-fixture-publication-release.v1",
             "writer_pid": if case == "bad-publication-release" { 1 } else { ready_pid },
             "invocation_sha256": format!("{:x}", Sha256::digest(&invocation_bytes)),
             "journal_sha256": journal_sha,
         });
+        if receipt_phase {
+            release["checkpoint"] = json!("receipt");
+        }
         publish_control_file(&control, "capture-journal.publication-release.json", release.to_string().as_bytes());
         if case == "bad-publication-release" {
             host.wait(|status| status["scriptsRunning"] == 0);
@@ -785,6 +791,9 @@ fn real_work_capture_journal_recovery_fixture() {
             return;
         }
         assert_eq!(wait_ready(&control.join("capture-publication.ready")), ready_pid);
+        if receipt_phase {
+            assert_eq!(wait_ready(&control.join("capture-receipt.ready")), ready_pid);
+        }
         let seal_bytes = fs::read(control.join("capture-publication.json")).unwrap();
         let seal: Value = serde_json::from_slice(&seal_bytes).unwrap();
         let target = root.join(relative);
@@ -816,9 +825,32 @@ fn real_work_capture_journal_recovery_fixture() {
         }));
         assert_eq!(fs::read(&stage_path).unwrap(), body.as_bytes());
         assert_eq!(fs::read(&target).unwrap(), body.as_bytes());
-        assert!(!state.join(&receipt).exists());
+        let receipt_proof = if receipt_phase {
+            let receipt_path = state.join(&receipt);
+            let meta = fs::symlink_metadata(&receipt_path).unwrap();
+            assert!(meta.is_file());
+            assert_eq!(meta.nlink(), 1);
+            let bytes = fs::read(&receipt_path).unwrap();
+            let record: Value = serde_json::from_slice(&bytes).unwrap();
+            for field in ["kind", "path", "input", "input_hash", "post_hash", "provenance"] {
+                assert_eq!(record[field], plan[field]);
+            }
+            let receipt_seal = fs::read(control.join("capture-receipt.json")).unwrap();
+            assert_eq!(serde_json::from_slice::<Value>(&receipt_seal).unwrap(), json!({
+                "schema":"viggo.capture-fixture-receipt.v1",
+                "publication_seal_sha256":format!("{:x}", Sha256::digest(&seal_bytes)),
+                "receipt":receipt,
+                "receipt_inode":[meta.dev(), meta.ino()],
+                "links":1,
+                "receipt_sha256":format!("{:x}", Sha256::digest(&bytes)),
+            }));
+            Some((receipt_seal, bytes, (meta.dev(), meta.ino())))
+        } else {
+            assert!(!state.join(&receipt).exists());
+            None
+        };
         let identity = (stage_meta.dev(), stage_meta.ino(), stage_meta.nlink());
-        Some((seal_bytes, identity, (directory.dev(), directory.ino())))
+        Some((seal_bytes, identity, (directory.dev(), directory.ino()), receipt_proof))
     } else {
         None
     };
@@ -872,7 +904,7 @@ fn real_work_capture_journal_recovery_fixture() {
         return;
     }
     let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
-    if let Some((seal, note_identity, directory_identity)) = publication_proof {
+    if let Some((seal, note_identity, directory_identity, receipt_proof)) = publication_proof {
         let expect_refusal = |status: std::process::ExitStatus, stdout: &[u8], error: &str| {
             assert_eq!(status.code(), Some(1));
             assert_eq!(
@@ -884,7 +916,7 @@ fn real_work_capture_journal_recovery_fixture() {
         let seal_path = capsule.join("control/capture-publication.json");
         let target = root.join(relative);
         let original_lock = fs::symlink_metadata(state.join("lock")).unwrap();
-        let assert_intact = |expected_seal: &[u8]| {
+        let assert_intact = |expected_seal: &[u8], replaced_receipt: Option<(u64, u64)>| {
             assert_eq!(fs::read(&seal_path).unwrap(), expected_seal);
             assert_eq!(fs::read(&pending).unwrap(), pending_bytes);
             for path in [target.clone(), state.join("capture.md")] {
@@ -896,12 +928,64 @@ fn real_work_capture_journal_recovery_fixture() {
             let directory = fs::symlink_metadata(target.parent().unwrap()).unwrap();
             assert!(directory.is_dir());
             assert_eq!((directory.dev(), directory.ino()), directory_identity);
-            assert!(!state.join(&receipt).exists());
+            if let Some((_, bytes, identity)) = &receipt_proof {
+                let path = state.join(&receipt);
+                let meta = fs::symlink_metadata(&path).unwrap();
+                assert_eq!((meta.dev(), meta.ino()), replaced_receipt.unwrap_or(*identity));
+                assert_eq!(fs::read(path).unwrap(), *bytes);
+            } else {
+                assert!(!state.join(&receipt).exists());
+            }
             let lock = fs::symlink_metadata(state.join("lock")).unwrap();
             assert_eq!((lock.dev(), lock.ino()), (original_lock.dev(), original_lock.ino()));
         };
-        assert_intact(&seal);
+        assert_intact(&seal, None);
         recovery.env("VIGGO_STATUS_FIXTURE_CHECKPOINT", "publication");
+        if let Some((receipt_seal, receipt_bytes, receipt_identity)) = &receipt_proof {
+            let wrong_mode = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+            expect_refusal(wrong_mode.status, &wrong_mode.stdout, "Capture fixture publication release chain changed");
+            assert_intact(&seal, None);
+            recovery.env("VIGGO_STATUS_FIXTURE_CHECKPOINT", "receipt");
+            let receipt_seal_path = capsule.join("control/capture-receipt.json");
+            if case == "bad-receipt-inode" {
+                let receipt_path = state.join(&receipt);
+                let original = fs::File::open(&receipt_path).unwrap();
+                fs::remove_file(&receipt_path).unwrap();
+                let mut replacement = fs::OpenOptions::new().create_new(true).write(true)
+                    .mode(0o600).open(&receipt_path).unwrap();
+                replacement.write_all(receipt_bytes).unwrap();
+                replacement.sync_all().unwrap();
+                let meta = replacement.metadata().unwrap();
+                let replacement_identity = (meta.dev(), meta.ino());
+                assert_ne!(replacement_identity, *receipt_identity);
+                let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+                expect_refusal(result.status, &result.stdout, "Capture fixture receipt seal changed");
+                assert_eq!(fs::read(&receipt_seal_path).unwrap(), *receipt_seal);
+                let original_meta = original.metadata().unwrap();
+                assert_eq!((original_meta.dev(), original_meta.ino()), *receipt_identity);
+                assert_intact(&seal, Some(replacement_identity));
+                return;
+            }
+            let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+            assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+            assert_eq!(serde_json::from_slice::<Value>(&result.stdout).unwrap(),
+                json!({"ok":true,"recovered":true,"confirmed":true,"rolled_back":false}));
+            assert_eq!(fs::read(&target).unwrap(), body.as_bytes());
+            let meta = fs::symlink_metadata(&target).unwrap();
+            assert_eq!((meta.dev(), meta.ino(), meta.nlink()), (note_identity.0, note_identity.1, 1));
+            let directory = fs::symlink_metadata(target.parent().unwrap()).unwrap();
+            assert_eq!((directory.dev(), directory.ino()), directory_identity);
+            let receipt_path = state.join(&receipt);
+            let meta = fs::symlink_metadata(&receipt_path).unwrap();
+            assert_eq!((meta.dev(), meta.ino()), *receipt_identity);
+            assert_eq!(fs::read(receipt_path).unwrap(), *receipt_bytes);
+            assert_eq!(fs::read(receipt_seal_path).unwrap(), *receipt_seal);
+            assert_eq!(fs::read(&seal_path).unwrap(), seal);
+            for path in [&pending, &state.join("capture.md"), &state.join("package")] {
+                assert!(!path.exists());
+            }
+            return;
+        }
         if case == "bad-publication-seal" {
             let mut drift: Value = serde_json::from_slice(&seal).unwrap();
             drift["links"] = json!(3);
@@ -909,7 +993,7 @@ fn real_work_capture_journal_recovery_fixture() {
             fs::write(&seal_path, drift.as_bytes()).unwrap();
             let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
             expect_refusal(result.status, &result.stdout, "Capture fixture publication seal changed");
-            assert_intact(drift.as_bytes());
+            assert_intact(drift.as_bytes(), None);
             return;
         }
         let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
