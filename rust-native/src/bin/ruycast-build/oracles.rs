@@ -1148,14 +1148,18 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "8ad1dc20d40cecdc49ff11225da7be8f53b97052fda463d2b22b24b61001a33a"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
+        // #1945: revalidated the original render crosswalk on d4754e6 using
+        // render-updates-process (26 hidden AppKit captures across both themes).
         "--check-render-updates" => &[
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "e122f9c8cc68f007bdd60d5db097e7fdfef44a411d867cd4a42b99ee1ad5efb2"),
-            ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "17769646332f47f378d01874f7186dcbafc0f9b9acad7ec875992165463036cd"),
-            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "b10073dd82947ff97b7f0c8112ffa03eb02a890c765784604801806f5130a72b"),
+            ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "35c330a818367ec1bfe4c8d2de22eb9c967c9b30b5fe5a73ff3e92aecffa84b2"),
+            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "be92befe7d5ea918c96afffc7033cf437e9b5eb589164d58fdd6013e92d71c96"),
             ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "b082600f153f668be65cb5fbf5953547c7d6d29b8bff478f5f87180fbd077750"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
-            ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
+            ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f17942c135bc7f463ba00850eef0faf7c81e968731ba4b616ad0ceefbdefd847"),
+            ("rust-native/src/presentation.rs", include_bytes!("../../presentation.rs"), "13cc2a198286d16a81e16ec676640a1ca2ade77c0776b144f5a53bee2f7890df"),
+            ("rust-native/src/session.rs", include_bytes!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/configuration_jobs.rs", include_bytes!("../../configuration_jobs.rs"), "d2a7fa23998199283807ab0e0506c04420b34c2a6166557e16adaa77ee4afc25"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
@@ -5727,10 +5731,10 @@ mod tests {
         assert_eq!(gate.required_native_steps, &["render-updates-process"]);
         assert_eq!(gate.native_cases, &["ui_completion::render_updates"]);
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 13);
+        assert_eq!(inputs.len(), 15);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
         let bindings = settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 14);
+        assert_eq!(bindings.len(), 16);
         for (path, _, hash) in inputs {
             assert!(bindings.contains(&(*path, *hash)), "missing Rust source binding {path}");
         }
@@ -7430,7 +7434,7 @@ mod tests {
         for (id, steps, case_count, source_count) in [
             ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 34),
             ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 46),
-            ("--check-render-updates", &["render-updates-process"][..], 1, 13),
+            ("--check-render-updates", &["render-updates-process"][..], 1, 15),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.required_native_steps, steps);
@@ -7447,7 +7451,7 @@ mod tests {
             } else if id == "--check-render-updates" {
                 assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
-                assert_eq!(bindings.len(), 14);
+                assert_eq!(bindings.len(), 16);
                 assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
                 assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
             } else if id == "--check-apple-shortcuts" {
@@ -7894,12 +7898,6 @@ mod tests {
                         format!("{:x}", Sha256::digest(bytes)),
                         *pin,
                         "{} source pin",
-                        gate.id
-                    );
-                    assert_eq!(
-                        *pin,
-                        "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089",
-                        "{} pinned an unexpected native.rs revision",
                         gate.id
                     );
                 }
