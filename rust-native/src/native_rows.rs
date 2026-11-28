@@ -490,7 +490,10 @@ pub fn check_cache(main: MainThreadMarker) -> Result<(), String> {
     let file_calls = Cell::new(0);
     let file_resolve = |path: &str| {
         file_calls.set(file_calls.get() + 1);
-        std::path::Path::new(path).is_file().then(|| image.clone())
+        let key = ruycast_native::local_icons::Key::Path(path.to_owned());
+        resolve_local_icon(&key).image.and_then(|png| {
+            NSImage::initWithData(NSImage::alloc(), &objc2_foundation::NSData::with_bytes(&png))
+        })
     };
     require(
         path_image_at(path, || clock.get(), file_resolve).is_some(),

@@ -779,6 +779,9 @@ const SETTINGS: &[SettingsGate] = &[
         "website_icons::tests::two_thousand_origins_bound_admission_and_deduplicate_while_four_workers_wait",
         "website_icons::tests::cache_special_files_and_close_are_bounded",
         "website_icons::tests::active_download_close_cancels_and_joins_without_cache_publication",
+        "local_icons::tests::blocked_lookup_does_not_block_request_or_shutdown_and_deduplicates",
+        "local_icons::tests::blocked_path_does_not_delay_application_or_allow_unbounded_queue",
+        "local_icons::tests::overflow_preserves_retry_for_evicted_visible_keys",
         "native_rows::check_cache",
         "native_process::loaded_config_alias_unicode_disabled_and_native_labels",
     ], unproven_invariants:&[] },
@@ -1181,7 +1184,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "b082600f153f668be65cb5fbf5953547c7d6d29b8bff478f5f87180fbd077750"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
-            ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f17942c135bc7f463ba00850eef0faf7c81e968731ba4b616ad0ceefbdefd847"),
+            ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "bb4002d7fb567b0f68f5cfdcb4e2ed7f5e096ba74b38e5a23f809138e5f75113"),
             ("rust-native/src/presentation.rs", include_bytes!("../../presentation.rs"), "13cc2a198286d16a81e16ec676640a1ca2ade77c0776b144f5a53bee2f7890df"),
             ("rust-native/src/session.rs", include_bytes!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
@@ -1417,13 +1420,16 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/native_rows.rs",
                 include_bytes!("../../native_rows.rs"),
-                "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309",
+                "bb4002d7fb567b0f68f5cfdcb4e2ed7f5e096ba74b38e5a23f809138e5f75113",
             ),
             (
                 "rust-native/src/native.rs",
                 include_bytes!("../../native.rs"),
-                "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089",
+                "be92befe7d5ea918c96afffc7033cf437e9b5eb589164d58fdd6013e92d71c96",
             ),
+            ("rust-native/src/local_icons.rs", include_bytes!("../../local_icons.rs"), "f248208cd056de353c428ffcc7839f4bb15af1ec1b8e0fcd3b1577cacd0613c5"),
+            ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
+            ("rust-native/src/session.rs", include_bytes!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
         ],
         _ => &[],
     }
@@ -3394,11 +3400,13 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "status": "source-retired; unconsumed development preview",
             "scope": "The --render-icons developer route and its standalone sheet have no tracked consumers. The shared CommandGlyph remains for palette validation and WebsiteIcons."
         });
+        let visual_assets = SETTINGS.iter().find(|gate| gate.id == "--check-visual-assets")
+            .ok_or("Missing Visual Assets gate.")?;
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::checkVisualAssets"] = serde_json::json!({
-            "originalSourceSHA256": "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
-            "status": "source-qualified-rust-case-crosswalk; Swift check route retired",
+            "originalSourceSHA256": VISUAL_ASSET_ORACLE_SHA256,
+            "status": format!("{}; Swift check route retired", settings_mapping_state(visual_assets)),
             "scope": "The visual-assets check and both unconsumed SwiftUI screenshot generators are retired. Product WebsiteIcons behavior remains in the dedicated app module and Rust implementation.",
-            "nativeCases": ["presentation::icon_tests::original_compact_keycaps_and_sided_accessibility_labels", "website_icons::tests::origin_and_candidate_privacy", "website_icons::tests::actual_transport_stream_bounds_status_cookies_and_redirects", "website_icons::tests::four_workers_cache_publication_and_cancel_join", "website_icons::tests::two_thousand_origins_bound_admission_and_deduplicate_while_four_workers_wait", "website_icons::tests::cache_special_files_and_close_are_bounded", "website_icons::tests::active_download_close_cancels_and_joins_without_cache_publication", "native_rows::check_cache", "native_process::loaded_config_alias_unicode_disabled_and_native_labels"]
+            "nativeCases": visual_assets.native_cases
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::file"] = serde_json::json!({
             "originalSourceSHA256": "e86146a3b3d15a10c652d34d9158b93efce730157b175407f7a0852bcce93f55",
@@ -5931,12 +5939,12 @@ mod tests {
     fn visual_assets_provenance_keeps_all_current_inputs_and_gate_status() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-visual-assets").unwrap();
         assert_eq!(gate.required_native_steps, &["unit", "native-profile-process"]);
-        assert_eq!(gate.native_cases.len(), 9);
+        assert_eq!(gate.native_cases.len(), 12);
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 10);
+        assert_eq!(inputs.len(), 13);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("config/")));
         let bindings = settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 11);
+        assert_eq!(bindings.len(), 14);
         for (path, _, hash) in inputs {
             assert!(bindings.contains(&(*path, *hash)), "missing current source binding {path}");
         }
