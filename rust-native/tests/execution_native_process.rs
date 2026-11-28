@@ -591,13 +591,13 @@ fn real_work_capture_journal_recovery_fixture() {
     assert!(["note", "task"].contains(&kind.as_str()));
     let publication = stage == "publication";
     assert!(if publication {
-        cfg!(target_os = "macos") && matches!(case.as_str(), "host-loss" | "bad-publication-release")
+        cfg!(target_os = "macos") && matches!(case.as_str(), "host-loss" | "bad-publication-release" | "bad-publication-seal")
     } else {
         case == "host-loss"
             || (stage == "journal" && matches!(case.as_str(), "refuse-publication" | "pending-same-bytes"))
             || (stage == "before-grant" && case == "refuse-before-grant")
     });
-    let host_loss = matches!(case.as_str(), "host-loss" | "pending-same-bytes");
+    let host_loss = matches!(case.as_str(), "host-loss" | "pending-same-bytes" | "bad-publication-seal");
     assert!(case != "pending-same-bytes" || cfg!(target_os = "macos"));
     const SIGNALS_SHA_ENV: &str = "VIGGO_CAPTURE_FIXTURE_SIGNALS_SHA256";
     let signals_sha = std::env::var_os(SIGNALS_SHA_ENV).map(|raw| {
@@ -873,25 +873,60 @@ fn real_work_capture_journal_recovery_fixture() {
     }
     let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
     if let Some((seal, note_identity, directory_identity)) = publication_proof {
-        assert_eq!(result.status.code(), Some(1));
+        let expect_refusal = |status: std::process::ExitStatus, stdout: &[u8], error: &str| {
+            assert_eq!(status.code(), Some(1));
+            assert_eq!(
+                serde_json::from_slice::<Value>(stdout).unwrap(),
+                json!({"ok":false,"error":error}),
+            );
+        };
+        expect_refusal(result.status, &result.stdout, "Fixture contains an unowned or linked entry");
+        let seal_path = capsule.join("control/capture-publication.json");
+        let target = root.join(relative);
+        let original_lock = fs::symlink_metadata(state.join("lock")).unwrap();
+        let assert_intact = |expected_seal: &[u8]| {
+            assert_eq!(fs::read(&seal_path).unwrap(), expected_seal);
+            assert_eq!(fs::read(&pending).unwrap(), pending_bytes);
+            for path in [target.clone(), state.join("capture.md")] {
+                let meta = fs::symlink_metadata(&path).unwrap();
+                assert!(meta.is_file());
+                assert_eq!((meta.dev(), meta.ino(), meta.nlink()), note_identity);
+                assert_eq!(fs::read(path).unwrap(), body.as_bytes());
+            }
+            let directory = fs::symlink_metadata(target.parent().unwrap()).unwrap();
+            assert!(directory.is_dir());
+            assert_eq!((directory.dev(), directory.ino()), directory_identity);
+            assert!(!state.join(&receipt).exists());
+            let lock = fs::symlink_metadata(state.join("lock")).unwrap();
+            assert_eq!((lock.dev(), lock.ino()), (original_lock.dev(), original_lock.ino()));
+        };
+        assert_intact(&seal);
+        recovery.env("VIGGO_STATUS_FIXTURE_CHECKPOINT", "publication");
+        if case == "bad-publication-seal" {
+            let mut drift: Value = serde_json::from_slice(&seal).unwrap();
+            drift["links"] = json!(3);
+            let drift = drift.to_string();
+            fs::write(&seal_path, drift.as_bytes()).unwrap();
+            let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+            expect_refusal(result.status, &result.stdout, "Capture fixture publication seal changed");
+            assert_intact(drift.as_bytes());
+            return;
+        }
+        let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
         assert_eq!(
             serde_json::from_slice::<Value>(&result.stdout).unwrap(),
-            json!({"ok":false,"error":"Fixture contains an unowned or linked entry"}),
+            json!({"ok":true,"recovered":true,"confirmed":false,"rolled_back":true}),
         );
-        assert_eq!(fs::read(capsule.join("control/capture-publication.json")).unwrap(), seal);
-        assert_eq!(fs::read(&pending).unwrap(), pending_bytes);
-        assert_eq!(fs::read(root.join(relative)).unwrap(), body.as_bytes());
-        assert_eq!(fs::read(state.join("capture.md")).unwrap(), body.as_bytes());
-        let target = root.join(relative);
-        for path in [target.clone(), state.join("capture.md")] {
-            let meta = fs::symlink_metadata(path).unwrap();
-            assert!(meta.is_file());
-            assert_eq!((meta.dev(), meta.ino(), meta.nlink()), note_identity);
+        assert_eq!(fs::read(&seal_path).unwrap(), seal);
+        for path in [target.parent().unwrap().to_path_buf(), pending.clone(), state.join("capture.md"),
+            state.join("package"), state.join(&receipt)] {
+            assert!(!path.exists(), "rollback left owned state: {path:?}");
         }
-        let directory = fs::symlink_metadata(target.parent().unwrap()).unwrap();
-        assert!(directory.is_dir());
-        assert_eq!((directory.dev(), directory.ino()), directory_identity);
-        assert!(!state.join(&receipt).exists());
+        let lock = fs::symlink_metadata(state.join("lock")).unwrap();
+        assert_eq!((lock.dev(), lock.ino()), (original_lock.dev(), original_lock.ino()));
+        let admission = state.join(format!("capture-admission-{receipt}"));
+        assert!(admission.is_file());
         return;
     }
     assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
