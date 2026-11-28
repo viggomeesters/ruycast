@@ -904,11 +904,13 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "a4a171e74c80e06295d175dcb1d4858313a0a414fabf43926c6a9b72ebcaeef0"),
         ],
 
+        // #1945: revalidated all eight original Actions routes on d4754e6 plus the
+        // current Edit badge and native alias-preservation test.
         "--check-actions-menu" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "a4a171e74c80e06295d175dcb1d4858313a0a414fabf43926c6a9b72ebcaeef0"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "7e6e2194d2de003c6d1dcc80544298bfe171d692553bbffa42ed0fec070db098"),
-            ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "efaba95818f4668834be05942525865bb261de779f08f702a25babbbe4d779dc"),
+            ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "c1af22025769b1ab01f1171b6c66138686e60c8aeb874226242e8cb85f02530c"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "3daa927ea7f7312fced525cfcbdba488a0a5a178cedeb0e12d403e00d44f0dc4"),
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
@@ -917,12 +919,12 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             // The final eight binding fields and real queued-recorder ACK are
             // carried by item-binding-original-process, never by Polish alone.
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "e122f9c8cc68f007bdd60d5db097e7fdfef44a411d867cd4a42b99ee1ad5efb2"),
-            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089"),
-            ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "584c7ced0c27437458f68f028177ae86089b899d5ecb39be95d3a0875c9c93a7"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "b10073dd82947ff97b7f0c8112ffa03eb02a890c765784604801806f5130a72b"),
+            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "be92befe7d5ea918c96afffc7033cf437e9b5eb589164d58fdd6013e92d71c96"),
+            ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "ef75d8ef3de247b8e45e29fed46d9b94ea288c319e6ab5cb7b8cf337543e92be"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "032f978254959e4d8ef7a05314ac2937243a93dca17f848b120a7895804ac349"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "9c0ff67d51c0a00cfe47d35bd9b5e637a3f8296119b5d209c03845d1d0fda1bf"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -932,6 +934,13 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "7ac4dfb6af7e66a9584ef1052973805a34bbc0eeb53c8043c5f8ce8eb02b6366"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
+            ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "b082600f153f668be65cb5fbf5953547c7d6d29b8bff478f5f87180fbd077750"),
+            ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "35c330a818367ec1bfe4c8d2de22eb9c967c9b30b5fe5a73ff3e92aecffa84b2"),
+            ("rust-native/src/session.rs", include_bytes!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
+            ("rust-native/src/presentation.rs", include_bytes!("../../presentation.rs"), "13cc2a198286d16a81e16ec676640a1ca2ade77c0776b144f5a53bee2f7890df"),
+            ("rust-native/src/keyboard_service.rs", include_bytes!("../../keyboard_service.rs"), "bbfb6f586e3bfc3ca1647058b44f2d5bef7f2144199f4fd212cb4d5b65ad79c6"),
+            ("rust-native/src/native_keyboard.rs", include_bytes!("../../native_keyboard.rs"), "bd02dd40ff7bb4fd700a2fac1cb8874556cd1e90a3547594858a4f8bf5ded00a"),
+            ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
 
         "--check-interactions" => &[
@@ -1165,7 +1174,7 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "032f978254959e4d8ef7a05314ac2937243a93dca17f848b120a7895804ac349"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "9c0ff67d51c0a00cfe47d35bd9b5e637a3f8296119b5d209c03845d1d0fda1bf"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -7592,9 +7601,9 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["actions-process", "actions-menu-process", "input-process-rust", "feedback-actions-process", "snippet-hotkey-process", "native-keyboard-process", "polish-original-process", "item-binding-original-process"]);
         assert_eq!(gate.native_cases.len(), 11);
-        assert_eq!(inputs.len(), 25);
-        assert_eq!(bindings.len(), 28);
-        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 28);
+        assert_eq!(inputs.len(), 32);
+        assert_eq!(bindings.len(), 35);
+        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 35);
         assert_eq!(provenance.1, "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f");
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/FeedbackChecks.swift"));
@@ -8114,7 +8123,7 @@ mod tests {
         for (id, count, input_count, complete) in [
             ("--check-polish", 16, 33, true),
             ("--check-feedback", 23, 36, true),
-            ("--check-actions-menu", 11, 25, true),
+            ("--check-actions-menu", 11, 32, true),
             ("--check-interactions", 16, 44, true),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
