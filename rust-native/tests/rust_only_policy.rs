@@ -123,6 +123,51 @@ fn rust_changes_and_data_remain_allowed() {
 }
 
 #[test]
+fn repository_owned_inline_interpreter_programs_are_refused() {
+    for (path, program) in [
+        (
+            "rust/src/helper.rs",
+            r#"fn helper() { std::process::Command::new("python3").args(["-c", "print(42)"]); }"#,
+        ),
+        (
+            "rust-native/tests/helper.rs",
+            r#"fn helper() { std::process::Command::new("/usr/bin/osascript").arg("-e").arg("return 42"); }"#,
+        ),
+        (
+            "bench/f1-runner/src/helper.rs",
+            r#"fn helper() { std::process::Command::new(concat!("/bin/", "sh")).arg("-c").arg(format!("printf {}", 42)); }"#,
+        ),
+    ] {
+        let fixture = Fixture::new();
+        fixture.write(path, program);
+        assert_refusal(
+            &fixture.0,
+            &format!("repository-owned inline interpreter program: {path}"),
+        );
+    }
+}
+
+#[test]
+fn native_tools_user_scripts_and_literal_refusal_fixtures_remain_allowed() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "rust/src/helper.rs",
+        r##"
+        use std::process::Command;
+        fn helper(interpreter: &str, user_script: &str) {
+            Command::new("/usr/bin/codesign").args(["-s", "-"]);
+            Command::new("/usr/bin/osascript").arg("-e").arg(user_script);
+            Command::new(interpreter).arg("-c").arg(user_script);
+            Command::new("/usr/bin/osascript").arg("-l").arg("JavaScript").arg(user_script);
+            // Command::new("python3").args(["-c", "print(42)"]);
+            let _negative_fixture = r#"Command::new("python3").args(["-c", "print(42)"])"#;
+        }
+    "##,
+    );
+    assert_eq!(verify(&fixture.0)["ok"], true);
+}
+
+#[test]
 fn retired_paths_fail_even_with_no_swift_bytes() {
     for path in [
         "Sources",

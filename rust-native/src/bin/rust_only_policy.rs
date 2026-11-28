@@ -87,6 +87,19 @@ impl Scan {
                 self.errors
                     .push(format!("nonregular {scope} input: {name}"));
             } else if path.extension().is_some_and(|ext| ext == "rs") {
+                if runtime.is_some() || scope == "tooling" || scope == "product" {
+                    let source = fs::read_to_string(&path)?;
+                    let syntax = syn::parse_file(&source).map_err(|error| {
+                        io::Error::new(io::ErrorKind::InvalidData, format!("{name}: {error}"))
+                    })?;
+                    let mut check = InlineInterpreter::default();
+                    syn::visit::Visit::visit_file(&mut check, &syntax);
+                    if check.found {
+                        self.errors.push(format!(
+                            "repository-owned inline interpreter program: {name}"
+                        ));
+                    }
+                }
                 if let Some(index) = runtime {
                     self.runtime_files[index] += 1;
                 }
@@ -99,6 +112,123 @@ impl Scan {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Default)]
+struct InlineInterpreter {
+    found: bool,
+}
+
+impl<'ast> syn::visit::Visit<'ast> for InlineInterpreter {
+    fn visit_expr_method_call(&mut self, node: &'ast syn::ExprMethodCall) {
+        if !self.found {
+            self.found = inline_interpreter_call(node);
+            if !self.found {
+                syn::visit::visit_expr_method_call(self, node);
+            }
+        }
+    }
+}
+
+// This checks direct Command::new builder chains, not aliases, variable data flow,
+// arbitrary macro expansion, or the behavior of user-configured commands.
+fn inline_interpreter_call(mut node: &syn::ExprMethodCall) -> bool {
+    let mut groups = Vec::new();
+    let call = loop {
+        groups.push(node);
+        match node.receiver.as_ref() {
+            syn::Expr::MethodCall(parent) => node = parent,
+            syn::Expr::Call(call) => break call,
+            _ => return false,
+        }
+    };
+    let syn::Expr::Path(constructor) = call.func.as_ref() else {
+        return false;
+    };
+    let mut names = constructor.path.segments.iter().rev().map(|s| &s.ident);
+    if names.next().is_none_or(|name| name != "new")
+        || names.next().is_none_or(|name| name != "Command")
+        || call.args.len() != 1
+    {
+        return false;
+    }
+    let Some(program) = literal_string(&call.args[0]) else {
+        return false;
+    };
+    let executable = program.rsplit('/').next().unwrap_or_default();
+    let flags: &[&str] = match executable {
+        "sh" | "bash" | "zsh" | "dash" | "ksh" | "fish" | "python" | "python2" | "python3" => {
+            &["-c"]
+        }
+        name if name
+            .strip_prefix("python3.")
+            .is_some_and(|v| !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit())) =>
+        {
+            &["-c"]
+        }
+        "osascript" | "perl" | "ruby" | "swift" => &["-e"],
+        "node" | "nodejs" => &["-e", "--eval", "-p", "--print"],
+        _ => return false,
+    };
+    let mut pending = false;
+    for method in groups.into_iter().rev() {
+        if method.args.len() != 1 {
+            continue;
+        }
+        let expression = &method.args[0];
+        let args: Box<dyn Iterator<Item = &syn::Expr>> = if method.method == "arg" {
+            Box::new(std::iter::once(expression))
+        } else if method.method == "args" {
+            match expression {
+                syn::Expr::Array(array) => Box::new(array.elems.iter()),
+                syn::Expr::Reference(reference)
+                    if matches!(&*reference.expr, syn::Expr::Array(_)) =>
+                {
+                    let syn::Expr::Array(array) = &*reference.expr else {
+                        unreachable!()
+                    };
+                    Box::new(array.elems.iter())
+                }
+                _ => {
+                    pending = false;
+                    continue;
+                }
+            }
+        } else {
+            continue;
+        };
+        for arg in args {
+            if pending && (literal_string(arg).is_some() || string_builder(arg, "format")) {
+                return true;
+            }
+            pending = literal_string(arg).is_some_and(|value| flags.contains(&value.as_str()));
+        }
+    }
+    false
+}
+
+fn string_builder(expr: &syn::Expr, name: &str) -> bool {
+    matches!(expr, syn::Expr::Macro(mac) if mac.mac.path.is_ident(name))
+}
+
+fn literal_string(expr: &syn::Expr) -> Option<String> {
+    match expr {
+        syn::Expr::Lit(lit) => match &lit.lit {
+            syn::Lit::Str(value) => Some(value.value()),
+            _ => None,
+        },
+        syn::Expr::Paren(paren) => literal_string(&paren.expr),
+        syn::Expr::Macro(mac) if mac.mac.path.is_ident("concat") => {
+            let parts = mac
+                .mac
+                .parse_body_with(
+                    syn::punctuated::Punctuated::<syn::LitStr, syn::Token![,]>::parse_terminated,
+                )
+                .ok()?;
+            Some(parts.iter().map(syn::LitStr::value).collect())
+        }
+        _ => None,
     }
 }
 
