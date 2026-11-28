@@ -21,7 +21,7 @@ pub enum End {
 }
 
 /// Internal supervisor metadata, never merged into the legacy CLI response.
-pub const SUPERVISOR_VERSION: u64 = 4;
+pub const SUPERVISOR_VERSION: u64 = 5;
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct WriterIdentity { pub dev: u64, pub ino: u64 }
@@ -347,8 +347,22 @@ pub fn run_with_admission(
     deadline: Option<Instant>,
     admission: Option<OwnedFd>,
     writer_identity: Option<WriterIdentity>,
+    cancelled: impl FnMut() -> bool,
+) -> Result<Completion, String> {
+    run_with_admission_version(command, home, deadline, admission, writer_identity, 1, cancelled)
+}
+pub fn run_with_admission_version(
+    command: &Command,
+    home: &Path,
+    deadline: Option<Instant>,
+    admission: Option<OwnedFd>,
+    writer_identity: Option<WriterIdentity>,
+    admission_version: u8,
     mut cancelled: impl FnMut() -> bool,
 ) -> Result<Completion, String> {
+    if !matches!(admission_version, 1 | 2) || (admission_version == 2 && (admission.is_none() || writer_identity.is_none())) {
+        return Err("Invalid writer admission protocol.".into());
+    }
     let timeout = command.timeout.unwrap_or(30.);
     if command.kind != "script" {
         return Err("The script runner requires a script command.".into());
@@ -394,7 +408,7 @@ pub fn run_with_admission(
         if fd < 3 || unsafe { libc::fcntl(fd, libc::F_GETFD) } < 0 {
             return Err("Invalid writer admission descriptor.".into());
         }
-        launcher.arg("--ruycast-writer-grant-v1").arg(fd.to_string());
+        launcher.arg(if admission_version == 2 { "--ruycast-writer-grant-v2" } else { "--ruycast-writer-grant-v1" }).arg(fd.to_string());
     }
     // Use the fork/exec error-pipe path so a failed exec is reaped by std.
     // The child hook performs no allocation, locks or non-async-safe calls.

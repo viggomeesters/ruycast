@@ -1122,6 +1122,8 @@ fn private_finished(
         id: 1,
         run: None,
         context: ExecutionContext {
+            capture_granted: None,
+            capture_request_id: None,
             diagnostic_id: None,
             capture_result: None,
             initial_result,

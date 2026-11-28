@@ -58,6 +58,8 @@ fn log_secrets(values: &Value) -> Vec<String> {
     values.as_object().into_iter().flat_map(|v| v.values()).filter_map(Value::as_str).map(str::to_owned).collect()
 }
 struct ExecutionContext {
+    capture_granted: Option<Arc<std::sync::atomic::AtomicBool>>,
+    capture_request_id: Option<String>,
     diagnostic_id: Option<String>,
     capture_result: Option<Value>,
     initial_result: Option<u64>,
@@ -2865,6 +2867,8 @@ fn start_snippet(
     let source = destination.source();
     let history_operation=matches!(origin,ExecutionOrigin::Clipboard(_));
     let context = ExecutionContext {
+        capture_granted: None,
+        capture_request_id: None,
         diagnostic_id: None,
         capture_result: None,
         initial_result: None,
@@ -3041,6 +3045,8 @@ fn start_cli_open(
     let revoked = services_permit.live();
     let services = state.services.clone();
     let context = ExecutionContext {
+        capture_granted: None,
+        capture_request_id: None,
         diagnostic_id: None,
         capture_result: None,
         initial_result: None,
@@ -3192,6 +3198,8 @@ fn start_native_open(
     let logged_id =
         crate::activity::Activity::log_id(analytics_id(&command), &values, &state.configuration.paths.home);
     let context = ExecutionContext {
+        capture_granted: None,
+        capture_request_id: None,
         diagnostic_id: None,
         capture_result: None,
         initial_result: None,
@@ -3301,6 +3309,7 @@ fn start_execution(
     live: crate::execution::Live,
     deadline: Option<Instant>,
     initial_result: Option<u64>,
+    capture_lease: Option<(Arc<std::sync::Mutex<bool>>, Arc<std::sync::atomic::AtomicBool>)>,
 ) -> Result<(), String> {
     let trace = uuid();
     let logged_id =
@@ -3308,10 +3317,25 @@ fn start_execution(
     let source = destination.source();
     let invocation_id = crate::execution::invocation_id(&command, &prepared);
     let diagnostic_id = crate::failure_context::invocation(&command, &prepared, &state.configuration.paths.home);
-    // Only the exact trusted task-status router gets the private admission
-    // channel. The writer itself grants only after identifying a Work source.
-    let eligible = diagnostic_id.is_some() && matches!(prepared.arguments.get(1).map(String::as_str), Some("todo" | "backlog" | "in-progress" | "waiting" | "done" | "cancelled"));
-    let (live, admission) = if let (true, ExecutionDestination::Native { ui, result_origin: None, .. }) = (eligible, &destination) {
+    // The writer grants only after verifying its bound Work source.
+    let capture_route = if matches!(&destination, ExecutionDestination::Native { .. }) {
+        crate::failure_context::capture_admission(&command, &prepared, &state.configuration.paths.home)?
+    } else { false };
+    if capture_route && matches!(&destination, ExecutionDestination::Native { result_origin: Some(_), .. }) {
+        return Err("Reopen the capture input before running it.".into());
+    }
+    let protocol = if matches!(&destination, ExecutionDestination::Native { result_origin: None, .. }) {
+        if capture_route {
+            Some(crate::supervision::WriterProtocol::CaptureV2)
+        } else if diagnostic_id.is_some() && matches!(prepared.arguments.get(1).map(String::as_str), Some("todo" | "backlog" | "in-progress" | "waiting" | "done" | "cancelled")) {
+            Some(crate::supervision::WriterProtocol::StatusV1)
+        } else { None }
+    } else { None };
+    if protocol == Some(crate::supervision::WriterProtocol::CaptureV2) && capture_lease.is_none() {
+        return Err("Reopen the capture input before running it.".into());
+    }
+    let capture_lease = if protocol == Some(crate::supervision::WriterProtocol::CaptureV2) { capture_lease } else { None };
+    let (live, admission, capture_granted) = if let (Some(protocol), ExecutionDestination::Native { ui, result_origin: None, .. }) = (protocol, &destination) {
         let granted = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let admitted = granted.clone();
         let hard_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -3323,19 +3347,32 @@ fn start_execution(
         let time_limit = deadline.map_or(time_limit, |end| end.min(time_limit));
         let soft_live = live.clone();
         let weak = ui.clone();
+        let authorize_lease = capture_lease.clone();
         let authorize = Arc::new(move |socket: &mut std::os::unix::net::UnixStream, flag: &std::sync::atomic::AtomicBool| {
             let _guard = guard_gate.lock().unwrap_or_else(|p| p.into_inner());
             if stopped.load(std::sync::atomic::Ordering::Acquire) || Instant::now() >= time_limit {
                 return Err(std::io::ErrorKind::Interrupted.into());
             }
             let ui = weak.upgrade().ok_or(std::io::ErrorKind::Interrupted)?;
-            ui.authorize_writer(&|| soft_live() && !stopped.load(std::sync::atomic::Ordering::Acquire) && Instant::now() < time_limit, socket, flag)
+            if let Some((lease, consumed)) = &authorize_lease {
+                let active = lease.lock().unwrap_or_else(|p| p.into_inner());
+                if !*active || consumed.load(std::sync::atomic::Ordering::Acquire) { return Err(std::io::ErrorKind::Interrupted.into()); }
+                let result = ui.authorize_writer(&|| soft_live() && !stopped.load(std::sync::atomic::Ordering::Acquire) && Instant::now() < time_limit, socket, flag);
+                if result.is_ok() { consumed.store(true, std::sync::atomic::Ordering::Release); }
+                result
+            } else {
+                ui.authorize_writer(&|| soft_live() && !stopped.load(std::sync::atomic::Ordering::Acquire) && Instant::now() < time_limit, socket, flag)
+            }
         });
         let watched = live.clone();
-        let protected: crate::execution::Live = Arc::new(move || admitted.load(std::sync::atomic::Ordering::Acquire) || watched());
-        (protected, Some(crate::supervision::Admission { granted, authorize, hard_stop, gate }))
-    } else { (live, None) };
+        let watched_lease = capture_lease.clone();
+        let protected: crate::execution::Live = Arc::new(move || admitted.load(std::sync::atomic::Ordering::Acquire) || (watched() && watched_lease.as_ref().is_none_or(|(lease, consumed)| *lease.lock().unwrap_or_else(|p| p.into_inner()) && !consumed.load(std::sync::atomic::Ordering::Acquire))));
+        let capture_granted = (protocol == crate::supervision::WriterProtocol::CaptureV2).then(|| granted.clone());
+        (protected, Some(crate::supervision::Admission { protocol, granted, authorize, hard_stop, gate }), capture_granted)
+    } else { (live, None, None) };
     let context = ExecutionContext {
+        capture_granted,
+        capture_request_id: capture_route.then(|| prepared.arguments[3].clone()),
         diagnostic_id: diagnostic_id.clone(),
         capture_result: None,
         initial_result,
@@ -3472,6 +3509,7 @@ fn admit_request(
                 ExecutionDestination::Cli(request),
                 Arc::new(move || context.is_live()),
                 Some(deadline),
+                None,
                 None,
             );
         }
@@ -3982,6 +4020,7 @@ fn begin_native_job(
     let initial_result = window.results.token().filter(|t| {
         window.results.command_id(*t) == Some(command.id.as_str())
     });
+    let capture_lease = input_token.and_then(|token| window.editing.capture_lease(token));
     start_execution(
         state,
         command,
@@ -4000,6 +4039,7 @@ fn begin_native_job(
         }),
         None,
         initial_result,
+        capture_lease,
     )?;
     window.execution_serial = serial;
     window.execution_effect = None;
@@ -4019,6 +4059,7 @@ fn submit_native_input(
 ) -> Result<(), String> {
     state.reload_watched()?;
     window.sync(state);
+    window.editing.ensure_capture_not_consumed(token)?;
     let (base, input, file) = window
         .editing
         .input(token)
@@ -4280,6 +4321,21 @@ fn finish_executions(
         };
         let work_context = context.diagnostic_id.as_deref().and_then(|id| crate::failure_context::take(&mut response, capture.as_ref(), id));
         let saved_capture = context.capture_result.take();
+        if context.capture_granted.as_ref().is_some_and(|granted| !granted.load(std::sync::atomic::Ordering::Acquire)) && response["ok"] == false {
+            let error = crate::failure_context::pregrant_capture_error(&response, capture.as_ref()).unwrap_or("The Work capture could not be confirmed. Check Work before retrying.");
+            response = json!({"ok":false,"error":error});
+        }
+        const CAPTURE_UNKNOWN: &str = "This capture may already be in Work. Check the inbox and Work recovery before starting a new capture.";
+        // Any capture success, including a writer-side reuse that never asked
+        // for a grant, must carry a receipt for this exact request.
+        let capture_uncertain = context.capture_granted.as_ref().is_some_and(|granted| {
+            crate::failure_context::capture_result_uncertain(
+                granted.load(std::sync::atomic::Ordering::Acquire),
+                &response,
+                context.capture_request_id.as_deref().is_some_and(|id| crate::failure_context::valid_capture_receipt(&context.command, id, &response, capture.as_ref())),
+            )
+        }) && saved_capture.is_none();
+        if capture_uncertain { response = json!({"ok":false,"error":CAPTURE_UNKNOWN}); }
         if let Some(saved) = saved_capture.as_ref() {
             response = crate::script_result::capture_open_finished(saved.clone(), &response);
             script = true;
@@ -4480,7 +4536,7 @@ fn finish_executions(
                 // Finalize the owned draft independently of optional palette effects.
                 // A newer query/intent may prevent hiding, never offer this effect again.
                 if let Some(token) = bound_input {
-                    if known_completed {
+                    if known_completed || capture_uncertain {
                         window.editing.cancel(token);
                     } else {
                         window.editing.fail(
@@ -4526,6 +4582,11 @@ fn finish_executions(
                                 .selected()
                                 .is_none_or(|c| c.id != context.command.id)))
                 {
+                    continue;
+                }
+                if capture_uncertain {
+                    window.notify(CAPTURE_UNKNOWN.into(), false);
+                    window.message = CAPTURE_UNKNOWN.into();
                     continue;
                 }
                 if snippet && known_completed {
