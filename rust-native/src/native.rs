@@ -775,10 +775,6 @@ define_class!(
         fn cancel_action(&self,_:Option<&NSObject>){self.cancel_editor();}
         #[unsafe(method(saveEditor:))]
         fn save_action(&self,_:Option<&NSObject>){self.save_editor();}
-        #[unsafe(method(refreshMenuHealthLaunch:))]
-        fn refresh_menu_health_launch(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self, ruycast_native::performance_trace::MenuHealthTrigger::Launch);});}
-        #[unsafe(method(refreshMenuHealthTerminate:))]
-        fn refresh_menu_health_terminate(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self, ruycast_native::performance_trace::MenuHealthTrigger::Terminate);});}
         #[unsafe(method(managementResized:))]
         fn management_resized(&self,_:&NSNotification){self.guard_callback(||{if !self.ivars().reconciling.get(){self.reconcile();}});}
         #[unsafe(method(recordSetting:))]
@@ -1303,11 +1299,6 @@ impl Controller {
         }
         if management {
             unsafe { NSNotificationCenter::defaultCenter().addObserver_selector_name_object(&controller,sel!(managementResized:),Some(ns_string!("NSWindowDidResizeNotification")),Some(&*controller.ivars().panel)); }
-        }
-        if !management && controller.ivars().panel.ivars().ordering_allowed {
-            for (name, selector) in [("NSWorkspaceDidLaunchApplicationNotification",sel!(refreshMenuHealthLaunch:)),("NSWorkspaceDidTerminateApplicationNotification",sel!(refreshMenuHealthTerminate:))] {
-                unsafe{NSWorkspace::sharedWorkspace().notificationCenter().addObserver_selector_name_object(&controller,selector,Some(&NSString::from_str(name)),None);}
-            }
         }
 
         controller
@@ -1996,7 +1987,6 @@ impl Drop for Cleanup<'_> {
         if let Model::Live { connection, .. } = &*self.0.ivars().session.borrow() { connection.cancel_open_trace(); }
         unsafe {
             NSNotificationCenter::defaultCenter().removeObserver(self.0);
-            if self.0.ivars().panel.ivars().ordering_allowed{NSWorkspace::sharedWorkspace().notificationCenter().removeObserver(self.0);}
         }
         self.0.ivars().inline_autosave.borrow_mut().take();
         self.0.ivars().dashboard.cleanup();

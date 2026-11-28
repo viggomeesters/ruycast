@@ -7,8 +7,8 @@ pub struct State {
 }
 
 /// What the status item shows for a visible menu. A pending lookup keeps the
-/// neutral template icon instead of reporting a false error; it never claims
-/// a healthy state.
+/// neutral template icon instead of reporting a false error; a previously
+/// confirmed conflict remains a warning until a fresh lookup clears it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Presentation {
@@ -62,6 +62,7 @@ pub struct PresenceRefresh {
     active: Option<u64>,
     pending: bool,
     known: Option<bool>,
+    confirmed_conflict: bool,
     closed: bool,
     started: Option<std::time::Instant>,
     expired: bool,
@@ -116,6 +117,7 @@ impl PresenceRefresh {
         }
         if generation == self.generation {
             self.known = value;
+            if let Some(absent) = value { self.confirmed_conflict = !absent; }
         }
         if self.pending {
             self.pending = false;
@@ -129,6 +131,10 @@ impl PresenceRefresh {
 
     pub fn known(&self) -> Option<bool> {
         self.known
+    }
+    /// Preserve a confirmed warning until a current lookup proves it resolved.
+    pub fn confirmed_conflict(&self) -> bool {
+        self.confirmed_conflict
     }
     pub fn waiting(&self) -> bool {
         !self.closed && !self.expired && (self.active.is_some() || self.pending)

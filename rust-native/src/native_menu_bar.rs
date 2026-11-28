@@ -262,6 +262,7 @@ impl Service {
                 if s.visible && s.requires_input { s.healthy = false; }
             }
         }
+        if self.presence.borrow().confirmed_conflict() { checking = false; }
         if *self.state.borrow() == state && self.checking.get() == checking {
             return;
         }
