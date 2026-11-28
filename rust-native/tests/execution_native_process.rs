@@ -286,17 +286,19 @@ fn real_work_capture_journal_recovery_fixture() {
         file
     }
 
-    fn publish_release(capsule: &Path, point: &str) {
-        let folder = capsule.join("control");
-        let staged = folder.join(format!("capture-{point}.release-staged"));
-        let release = folder.join(format!("capture-{point}.release"));
+    fn publish_control_file(folder: &Path, name: &str, bytes: &[u8]) {
+        let staged = folder.join(format!("{name}-staged"));
+        let release = folder.join(name);
         assert!(!release.exists());
         let mut file = fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&staged).unwrap();
-        file.write_all(b"release").unwrap();
+        file.write_all(bytes).unwrap();
         file.sync_all().unwrap();
         drop(file);
         fs::rename(staged, release).unwrap();
         fs::File::open(folder).unwrap().sync_all().unwrap();
+    }
+    fn publish_release(capsule: &Path, point: &str) {
+        publish_control_file(&capsule.join("control"), &format!("capture-{point}.release"), b"release");
     }
     #[cfg(target_os = "macos")]
     fn reject_replaced_pending(
@@ -585,9 +587,16 @@ fn real_work_capture_journal_recovery_fixture() {
     let stage = std::env::var("VIGGO_CAPTURE_FIXTURE_STAGE").unwrap();
     let kind = std::env::var("VIGGO_CAPTURE_FIXTURE_KIND").unwrap();
     let case = std::env::var("VIGGO_CAPTURE_FIXTURE_CASE").unwrap_or_else(|_| "host-loss".into());
-    assert!(["before-grant", "journal"].contains(&stage.as_str()));
+    assert!(["before-grant", "journal", "publication"].contains(&stage.as_str()));
     assert!(["note", "task"].contains(&kind.as_str()));
-    assert!(case == "host-loss" || (stage == "journal" && matches!(case.as_str(), "refuse-publication" | "pending-same-bytes")) || (stage == "before-grant" && case == "refuse-before-grant"));
+    let publication = stage == "publication";
+    assert!(if publication {
+        cfg!(target_os = "macos") && matches!(case.as_str(), "host-loss" | "bad-publication-release")
+    } else {
+        case == "host-loss"
+            || (stage == "journal" && matches!(case.as_str(), "refuse-publication" | "pending-same-bytes"))
+            || (stage == "before-grant" && case == "refuse-before-grant")
+    });
     let host_loss = matches!(case.as_str(), "host-loss" | "pending-same-bytes");
     assert!(case != "pending-same-bytes" || cfg!(target_os = "macos"));
     const SIGNALS_SHA_ENV: &str = "VIGGO_CAPTURE_FIXTURE_SIGNALS_SHA256";
@@ -646,7 +655,9 @@ fn real_work_capture_journal_recovery_fixture() {
     }
     assert_eq!(serde_json::from_slice::<Value>(&identity.stdout).unwrap(), expected_identity);
     assert!(!state.exists(), "fresh fixture required");
-    let marker = capsule.join(format!("control/capture-{stage}.ready"));
+    assert!(!publication || signals_sha.is_some());
+    let initial_point = if publication { "journal" } else { &stage };
+    let marker = capsule.join(format!("control/capture-{initial_point}.ready"));
     assert!(!marker.exists());
     assert!(!capsule.join(format!("control/capture-{stage}.release")).exists());
     assert!(!capsule.join(format!("control/capture-{stage}.release-staged")).exists());
@@ -664,23 +675,26 @@ fn real_work_capture_journal_recovery_fixture() {
     actions::view(&host, |view| view["formVisible"] == true);
     host.probe("run-input-type", json!({"text":"Fictional capture\n\nOwned body."}));
     actions::key(&host, 36, actions::CMD, "\r", false);
-    let deadline = Instant::now() + Duration::from_secs(40);
-    let ready_pid = loop {
-        let pid = fs::OpenOptions::new().read(true)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-            .open(&marker).and_then(|file| {
-                let mut bytes = Vec::new();
-                file.take(33).read_to_end(&mut bytes)?;
-                Ok(std::str::from_utf8(&bytes).ok().and_then(|text| text.parse::<i32>().ok())
-                    .filter(|pid| *pid > 1 && bytes == pid.to_string().as_bytes()))
-            }).unwrap_or(None);
-        if let Some(pid) = pid { break pid; }
-        if Instant::now() >= deadline {
-            let logs = host.rpc(&json!({"op":"logs","commandID":id}));
-            panic!("capture did not reach its barrier: {logs}");
+    let wait_ready = |marker: &Path| {
+        let deadline = Instant::now() + Duration::from_secs(40);
+        loop {
+            let pid = fs::OpenOptions::new().read(true)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+                .open(marker).and_then(|file| {
+                    let mut bytes = Vec::new();
+                    file.take(33).read_to_end(&mut bytes)?;
+                    Ok(std::str::from_utf8(&bytes).ok().and_then(|text| text.parse::<i32>().ok())
+                        .filter(|pid| *pid > 1 && bytes == pid.to_string().as_bytes()))
+                }).unwrap_or(None);
+            if let Some(pid) = pid { break pid; }
+            if Instant::now() >= deadline {
+                let logs = host.rpc(&json!({"op":"logs","commandID":id}));
+                panic!("capture did not reach its barrier: {logs}");
+            }
+            thread::sleep(Duration::from_millis(20));
         }
-        thread::sleep(Duration::from_millis(20));
     };
+    let ready_pid = wait_ready(&marker);
     if stage == "before-grant" {
         if case == "refuse-before-grant" {
             publish_release(&capsule, "before-grant");
@@ -704,7 +718,8 @@ fn real_work_capture_journal_recovery_fixture() {
     assert_eq!(plan["input"], "Fictional capture\n\nOwned body.");
     let body = plan["body"].as_str().unwrap();
     assert_eq!(plan["post_hash"], format!("{:x}", Sha256::digest(body.as_bytes())));
-    let binding: Value = serde_json::from_slice(&fs::read(capsule.join("control/capture-invocation.json")).unwrap()).unwrap();
+    let invocation_bytes = fs::read(capsule.join("control/capture-invocation.json")).unwrap();
+    let binding: Value = serde_json::from_slice(&invocation_bytes).unwrap();
     let capture_id = binding["id"].as_str().unwrap();
     let receipt = format!("{:x}.json", Sha256::digest(capture_id.as_bytes()));
     assert_eq!(plan["receipt"], receipt);
@@ -743,6 +758,70 @@ fn real_work_capture_journal_recovery_fixture() {
     };
     #[cfg(not(target_os = "macos"))]
     let _ = ready_pid;
+    let publication_proof = if publication {
+        let control = capsule.join("control");
+        let journal = fs::read(control.join("capture-journal.json")).unwrap();
+        let journal_sha = format!("{:x}", Sha256::digest(&journal));
+        let release = json!({
+            "schema": "viggo.capture-fixture-publication-release.v1",
+            "writer_pid": if case == "bad-publication-release" { 1 } else { ready_pid },
+            "invocation_sha256": format!("{:x}", Sha256::digest(&invocation_bytes)),
+            "journal_sha256": journal_sha,
+        });
+        publish_control_file(&control, "capture-journal.publication-release.json", release.to_string().as_bytes());
+        if case == "bad-publication-release" {
+            host.wait(|status| status["scriptsRunning"] == 0);
+            assert!(!control.join("capture-publication.ready").exists());
+            assert!(!control.join("capture-publication.json").exists());
+            assert_eq!(fs::read(&pending).unwrap(), pending_bytes);
+            assert!(!root.join(relative).parent().unwrap().exists());
+            assert!(!state.join("capture.md").exists());
+            assert!(!state.join(&receipt).exists());
+            let entries = host.rpc(&json!({"op":"logs","commandID":id}));
+            let finishes: Vec<_> = entries["result"].as_array().unwrap().iter()
+                .filter(|row| row["phase"] == "command.finish").collect();
+            assert_eq!(finishes.len(), 1);
+            assert_eq!(finishes[0]["success"], false);
+            return;
+        }
+        assert_eq!(wait_ready(&control.join("capture-publication.ready")), ready_pid);
+        let seal_bytes = fs::read(control.join("capture-publication.json")).unwrap();
+        let seal: Value = serde_json::from_slice(&seal_bytes).unwrap();
+        let target = root.join(relative);
+        let stage_path = state.join("capture.md");
+        let stage_meta = fs::symlink_metadata(&stage_path).unwrap();
+        let target_meta = fs::symlink_metadata(&target).unwrap();
+        assert!(stage_meta.is_file() && target_meta.is_file());
+        assert_eq!((stage_meta.dev(), stage_meta.ino()), (target_meta.dev(), target_meta.ino()));
+        assert_eq!((stage_meta.nlink(), target_meta.nlink()), (2, 2));
+        let directory = fs::symlink_metadata(target.parent().unwrap()).unwrap();
+        let journal: Value = serde_json::from_slice(&journal).unwrap();
+        #[cfg(target_os = "macos")]
+        drop(assert_live_writer_and_busy_journal_lock(
+            ready_pid,
+            host.host.process.as_ref().unwrap().id(),
+            &writer,
+            &state.join("lock"),
+            &journal,
+        ));
+        assert_eq!(seal, json!({
+            "schema":"viggo.capture-fixture-publication.v1",
+            "journal_seal_sha256":journal_sha, "state":journal["state"],
+            "lock":journal["lock"], "pending":journal["pending"],
+            "id":capture_id, "target":relative,
+            "target_directory":[directory.dev(),directory.ino()],
+            "stage":[stage_meta.dev(),stage_meta.ino()],
+            "target_note":[target_meta.dev(),target_meta.ino()],
+            "links":2, "post_sha256":plan["post_hash"],
+        }));
+        assert_eq!(fs::read(&stage_path).unwrap(), body.as_bytes());
+        assert_eq!(fs::read(&target).unwrap(), body.as_bytes());
+        assert!(!state.join(&receipt).exists());
+        let identity = (stage_meta.dev(), stage_meta.ino(), stage_meta.nlink());
+        Some((seal_bytes, identity, (directory.dev(), directory.ino())))
+    } else {
+        None
+    };
     if host_loss {
         assert_eq!(host.host.stop(false).unwrap().status.signal(), Some(libc::SIGKILL));
     } else {
@@ -793,6 +872,28 @@ fn real_work_capture_journal_recovery_fixture() {
         return;
     }
     let result = child_output::wait(recovery.spawn().unwrap(), Duration::from_secs(20));
+    if let Some((seal, note_identity, directory_identity)) = publication_proof {
+        assert_eq!(result.status.code(), Some(1));
+        assert_eq!(
+            serde_json::from_slice::<Value>(&result.stdout).unwrap(),
+            json!({"ok":false,"error":"Fixture contains an unowned or linked entry"}),
+        );
+        assert_eq!(fs::read(capsule.join("control/capture-publication.json")).unwrap(), seal);
+        assert_eq!(fs::read(&pending).unwrap(), pending_bytes);
+        assert_eq!(fs::read(root.join(relative)).unwrap(), body.as_bytes());
+        assert_eq!(fs::read(state.join("capture.md")).unwrap(), body.as_bytes());
+        let target = root.join(relative);
+        for path in [target.clone(), state.join("capture.md")] {
+            let meta = fs::symlink_metadata(path).unwrap();
+            assert!(meta.is_file());
+            assert_eq!((meta.dev(), meta.ino(), meta.nlink()), note_identity);
+        }
+        let directory = fs::symlink_metadata(target.parent().unwrap()).unwrap();
+        assert!(directory.is_dir());
+        assert_eq!((directory.dev(), directory.ino()), directory_identity);
+        assert!(!state.join(&receipt).exists());
+        return;
+    }
     assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
     let recovered: Value = serde_json::from_slice(&result.stdout).unwrap();
     assert_eq!(recovered["rolled_back"], true);
