@@ -487,6 +487,22 @@ fn test_native_preferences_save_is_revision_guarded_and_validated() {
         actual["clipboard"]["excludedApps"],
         json!(["dev.fixture.private"])
     );
+    for enabled in [false, true] {
+        let revision = h.rpc(&json!({"op":"status"}))["result"]["configurationRevision"]
+            .as_u64()
+            .unwrap();
+        settings_probe(&h, "clipboard-preferences-save", json!({"enabled":enabled}));
+        h.wait(|status| {
+            status["configurationRevision"].as_u64().is_some_and(|current| current > revision)
+                && status["configurationUpdating"] == false
+                && status["clipboardEnabled"] == enabled
+                && status["managementUI"]["revision"] == status["managementUI"]["appliedRevision"]
+        });
+        let persisted: Value = serde_json::from_slice(&fs::read(&h.config).unwrap()).unwrap();
+        let mut expected = actual.clone();
+        expected["clipboard"]["enabled"] = json!(enabled);
+        assert_eq!(persisted, expected);
+    }
 }
 
 const SOURCES: &[&str] = &[

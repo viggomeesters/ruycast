@@ -2161,7 +2161,7 @@ fn feedback_actions(root: &Path) {
         h.wait(|_|h.probe(false,"read",json!({}))["selectedId"]=="snippet.fixture");
         key(40,1<<20,"k");
         let largest=h.probe(false,"read",json!({}));
-        assert_eq!(largest["actionLabels"],json!(["Insert Snippet","Copy Template","Edit","Set Alias…   ⌥ ⌘ ,","Set Hotkey…   ⇧ ⌘ ,","Disable","Remove","Settings","New Snippet…","New Quicklink…","New Shell Command…"]));
+        assert_eq!(largest["actionLabels"],json!(["Insert Snippet","Copy Template","Edit   ⌘ E","Set Alias…   ⌥ ⌘ ,","Set Hotkey…   ⇧ ⌘ ,","Disable","Remove","Settings","New Snippet…","New Quicklink…","New Shell Command…"]));
         for _ in 0..20 {key(125,0,"");}
         assert_eq!(h.probe(false,"read",json!({}))["actionSelection"],10);
         for width in [600.,760.] {

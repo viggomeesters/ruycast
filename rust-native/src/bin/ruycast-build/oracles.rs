@@ -554,24 +554,34 @@ const SETTINGS: &[SettingsGate] = &[
         "keyword_rich_process::large_cursor_runs_bounded_batches_and_allows_cancellation",
         "keyword_rich_process::cursor_panic_balances_keyup_and_poison_only_keyword_component",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","input-process-rust","native-choice-host-process","native-open-basic-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process-rust","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
+    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","input-process-rust","native-choice-host-process","native-open-basic-process","creation-process","library-process","library-navigation-process","settings-preferences-process","clipboard-history-host-process","actions-process","feedback-actions-process","native-snippet-choice-process-rust","remaining-macos-process","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
         "bridge_process::show_search_and_local_native_query_share_the_owner",
         "bridge_process::rapid_arrows_and_click_on_other_row_keep_intended_identity",
+        "native_process::loaded_config_alias_unicode_disabled_and_native_labels",
         "input_process::expand_preserves_actual_field_editor_text_and_token_without_execution",
         "input_process::marked_text_blocks_run_and_escape_without_effects",
         "native_open_basic_process::saved_app_hides_exact_panel_before_sdk_and_records_success",
         "creation_process::external_changes_survive_and_identity_collision_never_overwrites",
+        "creation_process::quicklinks_normalize_domain_and_file_path_without_hidden_general_clipboard",
         "library_lifecycle_process::toolbar_add_is_private_until_save_then_shared_with_palette",
+        "library_navigation_process::cli_settings_is_separate_and_reusable_without_showing_a_window",
         "settings_preferences_process::general_actual_controls_write_config_preserve_unknown_fields_and_themes",
+        "clipboard_history_host_process::test_native_preferences_save_is_revision_guarded_and_validated",
         "native_choice_host_process::live_trigger_uses_original_anchor_and_single_use_replacement",
         "native_choice_host_process::changed_anchor_and_secure_policy_fail_closed",
+        "actions_process::actions_keyboard_badges_and_escape_keeps_palette",
         "ui_completion::feedback_actions",
         "native_edit::check_snippet_replacement",
         "native_snippet_choice_process::option_selection_and_arrow_clamping_without_os_menu",
         "native_snippet_choice_process::repeat_modifiers_and_marked_text_do_not_submit",
         "native_snippet_choice_process::cancel_and_external_hide_have_distinct_restore_policy",
         "native_open_basic_process::new_show_after_sdk_entry_cannot_be_hidden_or_receive_old_failure",
-    ], unproven_invariants:&[] },
+        "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly",
+        "remaining_macos_process::scoped_launcher_native_results_execute_and_reset_without_settings_navigation",
+        "remaining_macos_process::scoped_cli_search_uses_configuration_catalog_in_clipboard_and_utility_modes",
+    ], unproven_invariants:&[
+        "The original Settings setter enabled snippet expansion and verified configuration adoption. A current native Settings control for that write has no mapped case.",
+    ] },
     SettingsGate { id:"--check-actions-menu", original_source:"Sources/RuycastApp/ActionMenuChecks.swift", required_native_steps:&["actions-process","actions-menu-process","input-process-rust","feedback-actions-process","snippet-hotkey-process","native-keyboard-process","polish-original-process","item-binding-original-process"], native_cases:&[
         "ui_completion::actions_menu",
         "ui_completion::feedback_actions",
@@ -769,6 +779,9 @@ const SETTINGS: &[SettingsGate] = &[
         "website_icons::tests::two_thousand_origins_bound_admission_and_deduplicate_while_four_workers_wait",
         "website_icons::tests::cache_special_files_and_close_are_bounded",
         "website_icons::tests::active_download_close_cancels_and_joins_without_cache_publication",
+        "local_icons::tests::blocked_lookup_does_not_block_request_or_shutdown_and_deduplicates",
+        "local_icons::tests::blocked_path_does_not_delay_application_or_allow_unbounded_queue",
+        "local_icons::tests::overflow_preserves_retry_for_evicted_visible_keys",
         "native_rows::check_cache",
         "native_process::loaded_config_alias_unicode_disabled_and_native_labels",
     ], unproven_invariants:&[] },
@@ -904,11 +917,13 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "a4a171e74c80e06295d175dcb1d4858313a0a414fabf43926c6a9b72ebcaeef0"),
         ],
 
+        // #1945: revalidated all eight original Actions routes on d4754e6 plus the
+        // current Edit badge and native alias-preservation test.
         "--check-actions-menu" => &[
             ("rust-native/tests/native_keyboard_process.rs", include_bytes!("../../../tests/native_keyboard_process.rs"), "a4a171e74c80e06295d175dcb1d4858313a0a414fabf43926c6a9b72ebcaeef0"),
             ("rust-native/tests/support/native_keyboard.rs", include_bytes!("../../../tests/support/native_keyboard.rs"), "76ff8a46006068ede9b84376c3ee0f96293c5efbae60c8a82032dcc6fd89ada3"),
             ("rust-native/src/bin/private_results_fixture.rs", include_bytes!("../private_results_fixture.rs"), "7e6e2194d2de003c6d1dcc80544298bfe171d692553bbffa42ed0fec070db098"),
-            ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "efaba95818f4668834be05942525865bb261de779f08f702a25babbbe4d779dc"),
+            ("rust-native/tests/actions_process.rs", include_bytes!("../../../tests/actions_process.rs"), "c1af22025769b1ab01f1171b6c66138686e60c8aeb874226242e8cb85f02530c"),
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
             ("rust-native/tests/support/native_bridge.rs", include_bytes!("../../../tests/support/native_bridge.rs"), "3daa927ea7f7312fced525cfcbdba488a0a5a178cedeb0e12d403e00d44f0dc4"),
             ("rust-native/tests/support/runtime_host.rs", include_bytes!("../../../tests/support/runtime_host.rs"), "7ee547661e2140346ef50fdbcad5d4979382fe7085a73c546a722f7d93fde323"),
@@ -917,12 +932,12 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/support/child_output.rs", include_bytes!("../../../tests/support/child_output.rs"), "417c818c0cf77cd5fb87dfa96ecf139860771791327090bcb157ca38e14d4e28"),
             // The final eight binding fields and real queued-recorder ACK are
             // carried by item-binding-original-process, never by Polish alone.
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "e122f9c8cc68f007bdd60d5db097e7fdfef44a411d867cd4a42b99ee1ad5efb2"),
-            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089"),
-            ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "584c7ced0c27437458f68f028177ae86089b899d5ecb39be95d3a0875c9c93a7"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "b10073dd82947ff97b7f0c8112ffa03eb02a890c765784604801806f5130a72b"),
+            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "be92befe7d5ea918c96afffc7033cf437e9b5eb589164d58fdd6013e92d71c96"),
+            ("rust-native/src/actions.rs", include_bytes!("../../actions.rs"), "ef75d8ef3de247b8e45e29fed46d9b94ea288c319e6ab5cb7b8cf337543e92be"),
             ("rust-native/src/processes.rs", include_bytes!("../../processes.rs"), "3dd132e3eaaf7c74c5e73c1cbeb11fc32bee276f88d9fe5764149b8fd3800de5"),
             ("rust-native/src/system_search/providers.rs", include_bytes!("../../system_search/providers.rs"), "446b1ecb5c9784957d5f8df22a3b3d1135e801f24f9ba6c60ca25aadbd216f0b"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "032f978254959e4d8ef7a05314ac2937243a93dca17f848b120a7895804ac349"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "9c0ff67d51c0a00cfe47d35bd9b5e637a3f8296119b5d209c03845d1d0fda1bf"),
             ("rust-native/tests/creation_process.rs", include_bytes!("../../../tests/creation_process.rs"), "0163bdfdaae3a99825d9a680dca56d9af7cdad280af50b61e5bed89b62859b6f"),
             ("rust-native/tests/input_process.rs", include_bytes!("../../../tests/input_process.rs"), "ed5a3adb94c3e9c24feb333265969c18e197a62d3928508a0e5f33c414527d17"),
             ("rust-native/tests/library_checkbox_process.rs", include_bytes!("../../../tests/library_checkbox_process.rs"), "5f9c6a687290d3f516d4b08f7c733652e582ee9c10a3dd222c4abdb2e4e80557"),
@@ -932,9 +947,21 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/settings_preferences_process.rs", include_bytes!("../../../tests/settings_preferences_process.rs"), "94f965cbaa9ac8270d1775d4d1695806e1155e7328be9481602021536510de34"),
             ("rust-native/tests/utility_process.rs", include_bytes!("../../../tests/utility_process.rs"), "7ac4dfb6af7e66a9584ef1052973805a34bbc0eeb53c8043c5f8ce8eb02b6366"),
             ("rust-native/tests/native_choice_host_process.rs", include_bytes!("../../../tests/native_choice_host_process.rs"), "1eae948c8766cd6c7c006b24aedd3366bdc053209cecfd4ca257f9b8f287be87"),
+            ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "b082600f153f668be65cb5fbf5953547c7d6d29b8bff478f5f87180fbd077750"),
+            ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "35c330a818367ec1bfe4c8d2de22eb9c967c9b30b5fe5a73ff3e92aecffa84b2"),
+            ("rust-native/src/session.rs", include_bytes!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
+            ("rust-native/src/presentation.rs", include_bytes!("../../presentation.rs"), "13cc2a198286d16a81e16ec676640a1ca2ade77c0776b144f5a53bee2f7890df"),
+            ("rust-native/src/keyboard_service.rs", include_bytes!("../../keyboard_service.rs"), "bbfb6f586e3bfc3ca1647058b44f2d5bef7f2144199f4fd212cb4d5b65ad79c6"),
+            ("rust-native/src/native_keyboard.rs", include_bytes!("../../native_keyboard.rs"), "bd02dd40ff7bb4fd700a2fac1cb8874556cd1e90a3547594858a4f8bf5ded00a"),
+            ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
 
         "--check-interactions" => &[
+            ("rust-native/tests/native_process.rs", include_bytes!("../../../tests/native_process.rs"), "f86e9575dbaee80d9c8e00471abfeece4c5b416c0852cfa6e426cd84352254c7"),
+            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "1039a6072a74f984cac6fcdd19110eb475cb6fa163b0c0d9f0c0169bdfd1bd20"),
+            ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "0d58b800263b4891d79c9ddf12b41be9b2328d296311ab57d4e681bd875a9b26"),
+            ("rust-native/src/native_clipboard_preferences.rs", include_bytes!("../../native_clipboard_preferences.rs"), "543b821350085b99f29e919a696605e87d6f34645953d6e786b5ccaf24408ee0"),
+            ("rust-native/src/native_settings.rs", include_bytes!("../../native_settings.rs"), "5d662f5ad70e3be4407acf74babbf97345ac0b05079fcdd88069181d63a23041"),
             ("rust-native/tests/native_open_basic_process.rs", include_bytes!("../../../tests/native_open_basic_process.rs"), "629c4befb66bc921ed3b645ee44cc25052374a9a131c53e53ddeab20a72c4c32"),
             ("rust-native/tests/fixtures/workspace_fixture.rs", include_bytes!("../../../tests/fixtures/workspace_fixture.rs"), "893eaba2a1a537958085554a78d7cd69131003c0c705d0a6c5952b16a9f5cb06"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -1148,20 +1175,24 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             ("rust-native/tests/private_results.rs", include_bytes!("../../../tests/private_results.rs"), "8ad1dc20d40cecdc49ff11225da7be8f53b97052fda463d2b22b24b61001a33a"),
             ("config/default.json", include_bytes!("../../../../config/default.json"), "a13a90a2ccfd5c92cc39dba19e3792a55c04700c26118721636ad036eb7ebd7c"),
         ],
+        // #1945: revalidated the original render crosswalk on d4754e6 using
+        // render-updates-process (26 hidden AppKit captures across both themes).
         "--check-render-updates" => &[
-            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "e122f9c8cc68f007bdd60d5db097e7fdfef44a411d867cd4a42b99ee1ad5efb2"),
-            ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "17769646332f47f378d01874f7186dcbafc0f9b9acad7ec875992165463036cd"),
-            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089"),
+            ("rust-native/src/runtime.rs", include_bytes!("../../runtime.rs"), "b10073dd82947ff97b7f0c8112ffa03eb02a890c765784604801806f5130a72b"),
+            ("rust-native/src/connected.rs", include_bytes!("../../connected.rs"), "35c330a818367ec1bfe4c8d2de22eb9c967c9b30b5fe5a73ff3e92aecffa84b2"),
+            ("rust-native/src/native.rs", include_bytes!("../../native.rs"), "be92befe7d5ea918c96afffc7033cf437e9b5eb589164d58fdd6013e92d71c96"),
             ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
             ("rust-native/src/native_surface.rs", include_bytes!("../../native_surface.rs"), "b082600f153f668be65cb5fbf5953547c7d6d29b8bff478f5f87180fbd077750"),
             ("rust-native/src/native_editor.rs", include_bytes!("../../native_editor.rs"), "42e192f5f311792de41ec9a6e1d0cdc5db3c09efe96a902fba509826d5eb3b14"),
-            ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309"),
+            ("rust-native/src/native_rows.rs", include_bytes!("../../native_rows.rs"), "bb4002d7fb567b0f68f5cfdcb4e2ed7f5e096ba74b38e5a23f809138e5f75113"),
+            ("rust-native/src/presentation.rs", include_bytes!("../../presentation.rs"), "13cc2a198286d16a81e16ec676640a1ca2ade77c0776b144f5a53bee2f7890df"),
+            ("rust-native/src/session.rs", include_bytes!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
             ("rust-native/src/native_services.rs", include_bytes!("../../native_services.rs"), "13e89ec76488a84fb9c9970aff9285e62639742fca6e3b0bc4723b382b8504f7"),
             ("rust-native/src/configuration_jobs.rs", include_bytes!("../../configuration_jobs.rs"), "d2a7fa23998199283807ab0e0506c04420b34c2a6166557e16adaa77ee4afc25"),
             ("rust-native/src/config_effects.rs", include_bytes!("../../config_effects.rs"), "7eb5168b123f15def09d4b22d8ce15a31e7e8cc7ead68cbdc95789af869e169e"),
             ("rust-native/src/observe.rs", include_bytes!("../../observe.rs"), "b12d21a4673556e09d603c69cae28eb720c92287b195f7244110fce5769cef8f"),
             ("rust-native/src/profile.rs", include_bytes!("../../profile.rs"), "6c32d019b3df9d25a8ce5543c17ab33d6c1acd1fc67b1f53eb2898b805e66426"),
-            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "032f978254959e4d8ef7a05314ac2937243a93dca17f848b120a7895804ac349"),
+            ("rust-native/examples/ui_completion.rs", include_bytes!("../../../examples/ui_completion.rs"), "9c0ff67d51c0a00cfe47d35bd9b5e637a3f8296119b5d209c03845d1d0fda1bf"),
         ],
         "--check-browser-tabs" => &[
             ("rust-native/tests/support/native_actions.rs", include_bytes!("../../../tests/support/native_actions.rs"), "b972915f1a9cfabe18298d65e45e3442bbccd48bff002333e1c38f20562bc2fb"),
@@ -1389,13 +1420,16 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
             (
                 "rust-native/src/native_rows.rs",
                 include_bytes!("../../native_rows.rs"),
-                "f6c5ae61b701dcd876c09220c6900a86be261d957d6708ce968e70ce3d73d309",
+                "bb4002d7fb567b0f68f5cfdcb4e2ed7f5e096ba74b38e5a23f809138e5f75113",
             ),
             (
                 "rust-native/src/native.rs",
                 include_bytes!("../../native.rs"),
-                "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089",
+                "be92befe7d5ea918c96afffc7033cf437e9b5eb589164d58fdd6013e92d71c96",
             ),
+            ("rust-native/src/local_icons.rs", include_bytes!("../../local_icons.rs"), "f248208cd056de353c428ffcc7839f4bb15af1ec1b8e0fcd3b1577cacd0613c5"),
+            ("rust-native/src/native_model.rs", include_bytes!("../../native_model.rs"), "edf6196b295eadc26e546b99fb741a378d0f775c3cbcdf1b7636546ed2581d31"),
+            ("rust-native/src/session.rs", include_bytes!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
         ],
         _ => &[],
     }
@@ -1661,10 +1695,10 @@ const SEARCH_CASES: &[(&str, &str, &str)] = &[
 ];
 fn search_source_bindings() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "c102789a5dfa97e9512a6ad7bcc95e8085bf158ed836c4cf6cbf932663c52e95"),
-        ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "4e296e302592ba61095c77d5413cca15065b7542b3d062e9a3051930f9c27a08"),
-        ("rust/src/lib.rs", include_str!("../../../../rust/src/lib.rs"), "291731f83d4278ad4b1f892558a6b155de3288e8478cf64caed9489b9fa61d49"),
-        ("rust-native/src/session.rs", include_str!("../../session.rs"), "c23e3d163e5cc8b87e6cdd11c80ed5380980885281499e5472065a169aac6d61"),
+        ("rust-native/src/runtime_private_tests.rs", include_str!("../../runtime_private_tests.rs"), "2448462f511e52c4f0483d52a4e832754afae6ab7cdca28f578dab2ec736b9e9"),
+        ("rust-native/src/runtime_system.rs", include_str!("../../runtime_system.rs"), "078c68ecb20f029becff638f751212142eb9e248a1563d323e5aa2af2dbce1c4"),
+        ("rust/src/lib.rs", include_str!("../../../../rust/src/lib.rs"), "49b5fd77ea0b7da38b8bc162880f45170751042dff0d3cb911dbd650c20be988"),
+        ("rust-native/src/session.rs", include_str!("../../session.rs"), "42c95e55850a8e140324f867a2cdea37b32b9d9fc2054327ef53badc8947463f"),
     ]
 }
 fn search_crosswalk(mappings: &serde_json::Value) -> Result<serde_json::Value> {
@@ -3366,11 +3400,13 @@ pub(super) fn inventory(kind: &str) -> Result<serde_json::Value> {
             "status": "source-retired; unconsumed development preview",
             "scope": "The --render-icons developer route and its standalone sheet have no tracked consumers. The shared CommandGlyph remains for palette validation and WebsiteIcons."
         });
+        let visual_assets = SETTINGS.iter().find(|gate| gate.id == "--check-visual-assets")
+            .ok_or("Missing Visual Assets gate.")?;
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/VisualAssetChecks.swift::checkVisualAssets"] = serde_json::json!({
-            "originalSourceSHA256": "4bd5994c6cc34a504e3f1576a0a21ca903636ed8293986ccde561a4c3b7304f0",
-            "status": "source-qualified-rust-case-crosswalk; Swift check route retired",
+            "originalSourceSHA256": VISUAL_ASSET_ORACLE_SHA256,
+            "status": format!("{}; Swift check route retired", settings_mapping_state(visual_assets)),
             "scope": "The visual-assets check and both unconsumed SwiftUI screenshot generators are retired. Product WebsiteIcons behavior remains in the dedicated app module and Rust implementation.",
-            "nativeCases": ["presentation::icon_tests::original_compact_keycaps_and_sided_accessibility_labels", "website_icons::tests::origin_and_candidate_privacy", "website_icons::tests::actual_transport_stream_bounds_status_cookies_and_redirects", "website_icons::tests::four_workers_cache_publication_and_cancel_join", "website_icons::tests::two_thousand_origins_bound_admission_and_deduplicate_while_four_workers_wait", "website_icons::tests::cache_special_files_and_close_are_bounded", "website_icons::tests::active_download_close_cancels_and_joins_without_cache_publication", "native_rows::check_cache", "native_process::loaded_config_alias_unicode_disabled_and_native_labels"]
+            "nativeCases": visual_assets.native_cases
         });
         inventory["retiredSwiftChecks"]["Sources/RuycastApp/AnalyticsChecks.swift::file"] = serde_json::json!({
             "originalSourceSHA256": "e86146a3b3d15a10c652d34d9158b93efce730157b175407f7a0852bcce93f55",
@@ -5727,10 +5763,10 @@ mod tests {
         assert_eq!(gate.required_native_steps, &["render-updates-process"]);
         assert_eq!(gate.native_cases, &["ui_completion::render_updates"]);
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 13);
+        assert_eq!(inputs.len(), 15);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/")));
         let bindings = settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 14);
+        assert_eq!(bindings.len(), 16);
         for (path, _, hash) in inputs {
             assert!(bindings.contains(&(*path, *hash)), "missing Rust source binding {path}");
         }
@@ -5903,12 +5939,12 @@ mod tests {
     fn visual_assets_provenance_keeps_all_current_inputs_and_gate_status() {
         let gate = SETTINGS.iter().find(|gate| gate.id == "--check-visual-assets").unwrap();
         assert_eq!(gate.required_native_steps, &["unit", "native-profile-process"]);
-        assert_eq!(gate.native_cases.len(), 9);
+        assert_eq!(gate.native_cases.len(), 12);
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 10);
+        assert_eq!(inputs.len(), 13);
         assert!(inputs.iter().all(|(path, _, _)| path.starts_with("rust-native/") || path.starts_with("config/")));
         let bindings = settings_source_bindings(gate.id);
-        assert_eq!(bindings.len(), 11);
+        assert_eq!(bindings.len(), 14);
         for (path, _, hash) in inputs {
             assert!(bindings.contains(&(*path, *hash)), "missing current source binding {path}");
         }
@@ -7041,14 +7077,14 @@ mod tests {
             .find(|gate| gate.id == "--check-interactions")
             .unwrap();
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 44);
+        assert_eq!(inputs.len(), 49);
         assert_eq!(
             inputs
                 .iter()
                 .map(|entry| entry.0)
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            44
+            49
         );
         let source = std::str::from_utf8(
             inputs
@@ -7430,7 +7466,7 @@ mod tests {
         for (id, steps, case_count, source_count) in [
             ("--check-window-search", &["unit",  "system-search-cli-process", "system-search-sdk"][..], 18, 34),
             ("--check-apple-shortcuts", &["unit",  "system-search-cli-process", "system-search-sdk", "private-results-process", "script-process", "script-result-process", "script-result-native-process"][..], 10, 46),
-            ("--check-render-updates", &["render-updates-process"][..], 1, 13),
+            ("--check-render-updates", &["render-updates-process"][..], 1, 15),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.required_native_steps, steps);
@@ -7447,7 +7483,7 @@ mod tests {
             } else if id == "--check-render-updates" {
                 assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
                 let bindings = settings_source_bindings(id);
-                assert_eq!(bindings.len(), 14);
+                assert_eq!(bindings.len(), 16);
                 assert!(bindings.contains(&(gate.original_source, RENDER_UPDATES_ORACLE_SHA256)));
                 assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
             } else if id == "--check-apple-shortcuts" {
@@ -7588,9 +7624,9 @@ mod tests {
 
         assert_eq!(gate.required_native_steps, &["actions-process", "actions-menu-process", "input-process-rust", "feedback-actions-process", "snippet-hotkey-process", "native-keyboard-process", "polish-original-process", "item-binding-original-process"]);
         assert_eq!(gate.native_cases.len(), 11);
-        assert_eq!(inputs.len(), 25);
-        assert_eq!(bindings.len(), 28);
-        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 28);
+        assert_eq!(inputs.len(), 32);
+        assert_eq!(bindings.len(), 35);
+        assert_eq!(bindings.iter().collect::<std::collections::BTreeSet<_>>().len(), 35);
         assert_eq!(provenance.1, "7aa714222112b9d350949dc96992d9ac34f8afe21082ecacc2d60c62d0c6bb9f");
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
         assert!(!inputs.iter().any(|(path, _, _)| *path == "Sources/RuycastApp/FeedbackChecks.swift"));
@@ -7896,12 +7932,6 @@ mod tests {
                         "{} source pin",
                         gate.id
                     );
-                    assert_eq!(
-                        *pin,
-                        "a7783ba352e6456fea2fb0caf3bb2e15107558e8a0b0264624050cfb6b7e5089",
-                        "{} pinned an unexpected native.rs revision",
-                        gate.id
-                    );
                 }
             }
         }
@@ -7979,6 +8009,11 @@ mod tests {
         let provenance = (gate.original_source, RENDER_UPDATES_ORACLE_SHA256);
         let bindings = settings_source_bindings(gate.id);
         let case_sources = [
+            ("native_process::", "rust-native/tests/native_process.rs"),
+            ("library_navigation_process::", "rust-native/tests/library_navigation_process.rs"),
+            ("remaining_macos_process::", "rust-native/tests/remaining_macos_process.rs"),
+            ("clipboard_history_host_process::", "rust-native/tests/clipboard_history_host_process.rs"),
+            ("actions_process::", "rust-native/tests/actions_process.rs"),
             ("bridge_process::", "rust-native/tests/bridge_process.rs"),
             ("input_process::", "rust-native/tests/input_process.rs"),
             ("native_open_basic_process::", "rust-native/tests/native_open_basic_process.rs"),
@@ -7991,10 +8026,10 @@ mod tests {
             ("native_snippet_choice_process::", "rust-native/tests/native_snippet_choice_process.rs"),
         ];
 
-        assert_eq!(gate.required_native_steps, &["bridge-process", "native-profile-process", "input-process-rust", "native-choice-host-process", "native-open-basic-process", "creation-process", "library-process", "settings-preferences-process", "feedback-actions-process", "native-snippet-choice-process-rust", "native-light-600", "native-light-760", "native-dark-600", "native-dark-760"]);
-        assert_eq!(gate.native_cases.len(), 16);
-        assert_eq!(inputs.len(), 44);
-        assert_eq!(bindings.len(), 47);
+        assert_eq!(gate.required_native_steps, &["bridge-process", "native-profile-process", "input-process-rust", "native-choice-host-process", "native-open-basic-process", "creation-process", "library-process", "library-navigation-process", "settings-preferences-process", "clipboard-history-host-process", "actions-process", "feedback-actions-process", "native-snippet-choice-process-rust", "remaining-macos-process", "native-light-600", "native-light-760", "native-dark-600", "native-dark-760"]);
+        assert_eq!(gate.native_cases.len(), 24);
+        assert_eq!(inputs.len(), 49);
+        assert_eq!(bindings.len(), 52);
         assert_eq!(provenance.1, "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858");
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
@@ -8018,8 +8053,20 @@ mod tests {
             let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
             assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
         }
-        assert_eq!(gate.required_native_steps.len(), 14);
-        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(gate.unproven_invariants.len(), 1);
+        assert!(gate.unproven_invariants[0].contains("enabled snippet expansion"));
+        assert_eq!(settings_mapping_state(gate), "mapped-with-unproven-invariants");
+        let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
+        let render_steps = plan["renders"].as_array().unwrap().iter().map(|entry| {
+            format!("native-{}-{}", entry[0].as_str().unwrap(), entry[1].as_str().unwrap())
+        }).collect::<BTreeSet<_>>();
+        for step in gate.required_native_steps {
+            assert!(
+                render_steps.contains(*step)
+                    || plan["steps"].as_array().unwrap().iter().any(|entry| entry["name"] == *step),
+                "missing interactions route: {step}"
+            );
+        }
         let settings_inventory = inventory("settings").unwrap();
         assert_eq!(settings_inventory["productionAccepted"], false);
         let crosswalk = inventory("check").unwrap();
@@ -8076,7 +8123,7 @@ mod tests {
         assert_eq!(settings_routing["nativeSteps"], serde_json::json!(["library-navigation-process", "remaining-macos-process"]));
         assert_eq!(settings_routing["nativeCases"], serde_json::json!(["library_navigation_process::cli_settings_is_separate_and_reusable_without_showing_a_window", "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"]));
         assert_eq!(settings_routing["productionAccepted"], false);
-        assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn polish_composition_and_partial_original_gates_keep_precise_cases_and_refusals() {
@@ -8111,13 +8158,16 @@ mod tests {
             ("library_drafts_process::", "rust-native/tests/library_drafts_process.rs"),
             ("library_navigation_process::", "rust-native/tests/library_navigation_process.rs"),
             ("settings_preferences_process::", "rust-native/tests/settings_preferences_process.rs"),
+            ("native_process::", "rust-native/tests/native_process.rs"),
+            ("remaining_macos_process::", "rust-native/tests/remaining_macos_process.rs"),
+            ("clipboard_history_host_process::", "rust-native/tests/clipboard_history_host_process.rs"),
             ("native_choice_host_process::", "rust-native/tests/native_choice_host_process.rs"),
         ];
         for (id, count, input_count, complete) in [
             ("--check-polish", 16, 33, true),
             ("--check-feedback", 23, 36, true),
-            ("--check-actions-menu", 11, 25, true),
-            ("--check-interactions", 16, 44, true),
+            ("--check-actions-menu", 11, 32, true),
+            ("--check-interactions", 24, 49, false),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.native_cases.len(), count);
@@ -8150,14 +8200,14 @@ mod tests {
         assert!(matrix.contains("clipboard-preview-failure-after-success|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::failed_reopen_releases_published_preview_and_clears_on_deselect --locked -- --exact"));
         assert!(matrix.contains("clipboard-preview-stale-success-same-id|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::stale_success_cannot_replace_same_id_reopened_preview --locked -- --exact"));
         assert!(matrix.contains("actions-menu-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --actions-menu-only"));
-        assert!(require_complete("settings").is_ok());
+        assert!(require_complete("settings").is_err());
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
-    fn settings_inventory_qualifies_all_crosswalks_without_product_acceptance() {
+    fn settings_inventory_retains_unproven_interactions_without_product_acceptance() {
         let value = inventory("settings").unwrap();
         let unresolved = value["unmappedGateIDs"].as_array().unwrap();
-        let expected_unresolved = serde_json::json!([]);
+        let expected_unresolved = serde_json::json!(["--check-interactions"]);
         assert_eq!(
             unresolved,
             expected_unresolved
@@ -8177,7 +8227,6 @@ mod tests {
                 || gate[0] == "--check-actions-menu"
                 || gate[0] == "--check-performance-pipeline"
                 || gate[0] == "--check-feedback"
-                || gate[0] == "--check-interactions"
                 || gate[0] == "--check-window-search"
                 || gate[0] == "--check-menu-actions"
                 || gate[0] == "--check-rich-resources"
@@ -8186,6 +8235,8 @@ mod tests {
                 || gate[0] == "--check-settings"
             {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
+            } else if gate[0] == "--check-interactions" {
+                assert_eq!(gate[1], "mapped-with-unproven-invariants");
             } else {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
             }
@@ -8240,7 +8291,7 @@ mod tests {
             .iter()
             .any(|id| gate["id"] == *id)
                 || !gate["unprovenInvariants"].as_array().unwrap().is_empty()));
-        assert!(require_complete("settings").is_ok());
+        assert!(require_complete("settings").is_err());
         assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!([]));
         assert_eq!(
             inventory("check").unwrap()["gates"].as_array().unwrap().iter()

@@ -90,23 +90,34 @@ fn actions_keyboard_badges_and_escape_keeps_palette() {
 }
 #[test]
 fn alias_save_clear_and_cli_resolution() {
-    let h = host();
+    let mut h = Bridge::new(Config::current(), false);
+    let mut config = default_config();
+    let finder = config["commands"].as_array_mut().unwrap().iter_mut()
+        .find(|command| command["id"] == "app.finder").unwrap();
+    finder["hotkey"] = json!("shift+right-cmd+n");
+    h.replace(&config, None);
+    h.start();
+    h.settled(|_| true);
     show(&h, "finder");
-    alias(&h);
-    p(&h, "alias-input", json!({"text":"myfinder, büro"}));
+    let original = command(&h, "app.finder");
+    assert_eq!(original["hotkey"], "shift+right-cmd+n");
+    assert_eq!(alias(&h)["aliasValue"], "finder");
+    k(&h, 0, CMD, "a");
+    p(&h, "alias-type", json!({"text":"myfinder, büro"}));
+    assert_eq!(probe(&h, "read")["aliasValue"], "myfinder, büro");
     h.capture("alias-edit");
-    k(&h, 36, CMD, "\r");
+    k(&h, 36, 0, "\r");
     saved(&h);
-    assert_eq!(
-        command(&h, "app.finder")["aliases"],
-        json!(["myfinder", "büro"])
-    );
+    let mut expected = original;
+    expected["aliases"] = json!(["myfinder", "büro"]);
+    assert_eq!(command(&h, "app.finder"), expected);
     assert_eq!(h.cli(&["search", "büro"])["result"][0]["id"], "app.finder");
     alias(&h);
     p(&h, "alias-input", json!({"text":""}));
-    probe(&h, "save-editor");
+    k(&h, 36, CMD, "\r");
     saved(&h);
-    assert_eq!(command(&h, "app.finder")["aliases"], json!([]));
+    expected["aliases"] = json!([]);
+    assert_eq!(command(&h, "app.finder"), expected);
 }
 #[test]
 fn alias_conflict_keeps_draft_and_allows_repair() {
