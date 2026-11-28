@@ -554,24 +554,34 @@ const SETTINGS: &[SettingsGate] = &[
         "keyword_rich_process::large_cursor_runs_bounded_batches_and_allows_cancellation",
         "keyword_rich_process::cursor_panic_balances_keyup_and_poison_only_keyword_component",
     ], unproven_invariants:&[] },
-    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","input-process-rust","native-choice-host-process","native-open-basic-process","creation-process","library-process","settings-preferences-process","feedback-actions-process","native-snippet-choice-process-rust","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
+    SettingsGate { id:"--check-interactions", original_source:"Sources/RuycastApp/InteractionChecks.swift", required_native_steps:&["bridge-process","native-profile-process","input-process-rust","native-choice-host-process","native-open-basic-process","creation-process","library-process","library-navigation-process","settings-preferences-process","clipboard-history-host-process","actions-process","feedback-actions-process","native-snippet-choice-process-rust","remaining-macos-process","native-light-600","native-light-760","native-dark-600","native-dark-760"], native_cases:&[
         "bridge_process::show_search_and_local_native_query_share_the_owner",
         "bridge_process::rapid_arrows_and_click_on_other_row_keep_intended_identity",
+        "native_process::loaded_config_alias_unicode_disabled_and_native_labels",
         "input_process::expand_preserves_actual_field_editor_text_and_token_without_execution",
         "input_process::marked_text_blocks_run_and_escape_without_effects",
         "native_open_basic_process::saved_app_hides_exact_panel_before_sdk_and_records_success",
         "creation_process::external_changes_survive_and_identity_collision_never_overwrites",
+        "creation_process::quicklinks_normalize_domain_and_file_path_without_hidden_general_clipboard",
         "library_lifecycle_process::toolbar_add_is_private_until_save_then_shared_with_palette",
+        "library_navigation_process::cli_settings_is_separate_and_reusable_without_showing_a_window",
         "settings_preferences_process::general_actual_controls_write_config_preserve_unknown_fields_and_themes",
+        "clipboard_history_host_process::test_native_preferences_save_is_revision_guarded_and_validated",
         "native_choice_host_process::live_trigger_uses_original_anchor_and_single_use_replacement",
         "native_choice_host_process::changed_anchor_and_secure_policy_fail_closed",
+        "actions_process::actions_keyboard_badges_and_escape_keeps_palette",
         "ui_completion::feedback_actions",
         "native_edit::check_snippet_replacement",
         "native_snippet_choice_process::option_selection_and_arrow_clamping_without_os_menu",
         "native_snippet_choice_process::repeat_modifiers_and_marked_text_do_not_submit",
         "native_snippet_choice_process::cancel_and_external_hide_have_distinct_restore_policy",
         "native_open_basic_process::new_show_after_sdk_entry_cannot_be_hidden_or_receive_old_failure",
-    ], unproven_invariants:&[] },
+        "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly",
+        "remaining_macos_process::scoped_launcher_native_results_execute_and_reset_without_settings_navigation",
+        "remaining_macos_process::scoped_cli_search_uses_configuration_catalog_in_clipboard_and_utility_modes",
+    ], unproven_invariants:&[
+        "The original Settings setter enabled snippet expansion and verified configuration adoption. A current native Settings control for that write has no mapped case.",
+    ] },
     SettingsGate { id:"--check-actions-menu", original_source:"Sources/RuycastApp/ActionMenuChecks.swift", required_native_steps:&["actions-process","actions-menu-process","input-process-rust","feedback-actions-process","snippet-hotkey-process","native-keyboard-process","polish-original-process","item-binding-original-process"], native_cases:&[
         "ui_completion::actions_menu",
         "ui_completion::feedback_actions",
@@ -944,6 +954,11 @@ fn settings_sources(id: &str) -> &'static [(&'static str, &'static [u8], &'stati
         ],
 
         "--check-interactions" => &[
+            ("rust-native/tests/native_process.rs", include_bytes!("../../../tests/native_process.rs"), "f86e9575dbaee80d9c8e00471abfeece4c5b416c0852cfa6e426cd84352254c7"),
+            ("rust-native/tests/remaining_macos_process.rs", include_bytes!("../../../tests/remaining_macos_process.rs"), "1039a6072a74f984cac6fcdd19110eb475cb6fa163b0c0d9f0c0169bdfd1bd20"),
+            ("rust-native/tests/clipboard_history_host_process.rs", include_bytes!("../../../tests/clipboard_history_host_process.rs"), "0d58b800263b4891d79c9ddf12b41be9b2328d296311ab57d4e681bd875a9b26"),
+            ("rust-native/src/native_clipboard_preferences.rs", include_bytes!("../../native_clipboard_preferences.rs"), "543b821350085b99f29e919a696605e87d6f34645953d6e786b5ccaf24408ee0"),
+            ("rust-native/src/native_settings.rs", include_bytes!("../../native_settings.rs"), "5d662f5ad70e3be4407acf74babbf97345ac0b05079fcdd88069181d63a23041"),
             ("rust-native/tests/native_open_basic_process.rs", include_bytes!("../../../tests/native_open_basic_process.rs"), "629c4befb66bc921ed3b645ee44cc25052374a9a131c53e53ddeab20a72c4c32"),
             ("rust-native/tests/fixtures/workspace_fixture.rs", include_bytes!("../../../tests/fixtures/workspace_fixture.rs"), "893eaba2a1a537958085554a78d7cd69131003c0c705d0a6c5952b16a9f5cb06"),
             ("rust-native/tests/fixtures/workspace_sdk.rs", include_bytes!("../../../tests/fixtures/workspace_sdk.rs"), "750f2ab8558a4ee887d64ad21c4022527019af91ca5390ccf89f23a6c125ef05"),
@@ -7054,14 +7069,14 @@ mod tests {
             .find(|gate| gate.id == "--check-interactions")
             .unwrap();
         let inputs = settings_sources(gate.id);
-        assert_eq!(inputs.len(), 44);
+        assert_eq!(inputs.len(), 49);
         assert_eq!(
             inputs
                 .iter()
                 .map(|entry| entry.0)
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            44
+            49
         );
         let source = std::str::from_utf8(
             inputs
@@ -7986,6 +8001,11 @@ mod tests {
         let provenance = (gate.original_source, RENDER_UPDATES_ORACLE_SHA256);
         let bindings = settings_source_bindings(gate.id);
         let case_sources = [
+            ("native_process::", "rust-native/tests/native_process.rs"),
+            ("library_navigation_process::", "rust-native/tests/library_navigation_process.rs"),
+            ("remaining_macos_process::", "rust-native/tests/remaining_macos_process.rs"),
+            ("clipboard_history_host_process::", "rust-native/tests/clipboard_history_host_process.rs"),
+            ("actions_process::", "rust-native/tests/actions_process.rs"),
             ("bridge_process::", "rust-native/tests/bridge_process.rs"),
             ("input_process::", "rust-native/tests/input_process.rs"),
             ("native_open_basic_process::", "rust-native/tests/native_open_basic_process.rs"),
@@ -7998,10 +8018,10 @@ mod tests {
             ("native_snippet_choice_process::", "rust-native/tests/native_snippet_choice_process.rs"),
         ];
 
-        assert_eq!(gate.required_native_steps, &["bridge-process", "native-profile-process", "input-process-rust", "native-choice-host-process", "native-open-basic-process", "creation-process", "library-process", "settings-preferences-process", "feedback-actions-process", "native-snippet-choice-process-rust", "native-light-600", "native-light-760", "native-dark-600", "native-dark-760"]);
-        assert_eq!(gate.native_cases.len(), 16);
-        assert_eq!(inputs.len(), 44);
-        assert_eq!(bindings.len(), 47);
+        assert_eq!(gate.required_native_steps, &["bridge-process", "native-profile-process", "input-process-rust", "native-choice-host-process", "native-open-basic-process", "creation-process", "library-process", "library-navigation-process", "settings-preferences-process", "clipboard-history-host-process", "actions-process", "feedback-actions-process", "native-snippet-choice-process-rust", "remaining-macos-process", "native-light-600", "native-light-760", "native-dark-600", "native-dark-760"]);
+        assert_eq!(gate.native_cases.len(), 24);
+        assert_eq!(inputs.len(), 49);
+        assert_eq!(bindings.len(), 52);
         assert_eq!(provenance.1, "7f629804da223ea12989179e5a7f87c0fa374e1b0b237c659d3d0196c0b57858");
         assert_eq!(settings_provenance_source(gate.id), Some(provenance));
         assert!(!inputs.iter().any(|(path, _, _)| *path == gate.original_source));
@@ -8025,8 +8045,20 @@ mod tests {
             let name = case.strip_prefix(*prefix).unwrap().rsplit('.').next().unwrap();
             assert!(source.contains(&format!("fn {name}(")) || source.contains(&format!("def {name}(")), "{}: {case}", gate.id);
         }
-        assert_eq!(gate.required_native_steps.len(), 14);
-        assert_eq!(settings_mapping_state(gate), "source-qualified-rust-case-crosswalk");
+        assert_eq!(gate.unproven_invariants.len(), 1);
+        assert!(gate.unproven_invariants[0].contains("enabled snippet expansion"));
+        assert_eq!(settings_mapping_state(gate), "mapped-with-unproven-invariants");
+        let plan = super::super::validation::plan("aarch64-apple-darwin").unwrap();
+        let render_steps = plan["renders"].as_array().unwrap().iter().map(|entry| {
+            format!("native-{}-{}", entry[0].as_str().unwrap(), entry[1].as_str().unwrap())
+        }).collect::<BTreeSet<_>>();
+        for step in gate.required_native_steps {
+            assert!(
+                render_steps.contains(*step)
+                    || plan["steps"].as_array().unwrap().iter().any(|entry| entry["name"] == *step),
+                "missing interactions route: {step}"
+            );
+        }
         let settings_inventory = inventory("settings").unwrap();
         assert_eq!(settings_inventory["productionAccepted"], false);
         let crosswalk = inventory("check").unwrap();
@@ -8083,7 +8115,7 @@ mod tests {
         assert_eq!(settings_routing["nativeSteps"], serde_json::json!(["library-navigation-process", "remaining-macos-process"]));
         assert_eq!(settings_routing["nativeCases"], serde_json::json!(["library_navigation_process::cli_settings_is_separate_and_reusable_without_showing_a_window", "remaining_macos_process::builtin_reload_uses_existing_writer_and_headless_ui_builtins_fail_explicitly"]));
         assert_eq!(settings_routing["productionAccepted"], false);
-        assert!(!settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
+        assert!(settings_inventory["unmappedGateIDs"].as_array().unwrap().contains(&serde_json::json!(gate.id)));
     }
     #[test]
     fn polish_composition_and_partial_original_gates_keep_precise_cases_and_refusals() {
@@ -8118,13 +8150,16 @@ mod tests {
             ("library_drafts_process::", "rust-native/tests/library_drafts_process.rs"),
             ("library_navigation_process::", "rust-native/tests/library_navigation_process.rs"),
             ("settings_preferences_process::", "rust-native/tests/settings_preferences_process.rs"),
+            ("native_process::", "rust-native/tests/native_process.rs"),
+            ("remaining_macos_process::", "rust-native/tests/remaining_macos_process.rs"),
+            ("clipboard_history_host_process::", "rust-native/tests/clipboard_history_host_process.rs"),
             ("native_choice_host_process::", "rust-native/tests/native_choice_host_process.rs"),
         ];
         for (id, count, input_count, complete) in [
             ("--check-polish", 16, 33, true),
             ("--check-feedback", 23, 36, true),
             ("--check-actions-menu", 11, 32, true),
-            ("--check-interactions", 16, 44, true),
+            ("--check-interactions", 24, 49, false),
         ] {
             let gate = SETTINGS.iter().find(|gate| gate.id == id).unwrap();
             assert_eq!(gate.native_cases.len(), count);
@@ -8157,14 +8192,14 @@ mod tests {
         assert!(matrix.contains("clipboard-preview-failure-after-success|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::failed_reopen_releases_published_preview_and_clears_on_deselect --locked -- --exact"));
         assert!(matrix.contains("clipboard-preview-stale-success-same-id|c|test --manifest-path rust-native/Cargo.toml --features test-tools --lib clipboard_preview::tests::stale_success_cannot_replace_same_id_reopened_preview --locked -- --exact"));
         assert!(matrix.contains("actions-menu-process|c|run --manifest-path rust-native/Cargo.toml --features test-tools --example ui_completion --locked -- --actions-menu-only"));
-        assert!(require_complete("settings").is_ok());
+        assert!(require_complete("settings").is_err());
         assert_eq!(inventory("settings").unwrap()["productionAccepted"], false);
     }
     #[test]
-    fn settings_inventory_qualifies_all_crosswalks_without_product_acceptance() {
+    fn settings_inventory_retains_unproven_interactions_without_product_acceptance() {
         let value = inventory("settings").unwrap();
         let unresolved = value["unmappedGateIDs"].as_array().unwrap();
-        let expected_unresolved = serde_json::json!([]);
+        let expected_unresolved = serde_json::json!(["--check-interactions"]);
         assert_eq!(
             unresolved,
             expected_unresolved
@@ -8184,7 +8219,6 @@ mod tests {
                 || gate[0] == "--check-actions-menu"
                 || gate[0] == "--check-performance-pipeline"
                 || gate[0] == "--check-feedback"
-                || gate[0] == "--check-interactions"
                 || gate[0] == "--check-window-search"
                 || gate[0] == "--check-menu-actions"
                 || gate[0] == "--check-rich-resources"
@@ -8193,6 +8227,8 @@ mod tests {
                 || gate[0] == "--check-settings"
             {
                 assert_eq!(gate[1], "source-qualified-rust-case-crosswalk");
+            } else if gate[0] == "--check-interactions" {
+                assert_eq!(gate[1], "mapped-with-unproven-invariants");
             } else {
                 assert_eq!(gate[1], "mapped-requires-source-requalification");
             }
@@ -8247,7 +8283,7 @@ mod tests {
             .iter()
             .any(|id| gate["id"] == *id)
                 || !gate["unprovenInvariants"].as_array().unwrap().is_empty()));
-        assert!(require_complete("settings").is_ok());
+        assert!(require_complete("settings").is_err());
         assert_eq!(inventory("check").unwrap()["unmappedGateIDs"], serde_json::json!([]));
         assert_eq!(
             inventory("check").unwrap()["gates"].as_array().unwrap().iter()
