@@ -777,5 +777,6 @@ fn source_export_omits_retired_check_helpers() {
     assert!(!paths.contains("Sources/RuycastApp/PolishChecks.swift"));
     assert!(paths.contains("rust-native/tests/clipboard_poll_benchmark_process.rs"));
     assert!(paths.contains("rust-native/src/local_icons.rs"));
+    assert!(paths.contains("rust-native/src/native_presence.rs"));
     assert!(paths.contains("rust-native/src/clipboard_queries.rs"));
 }

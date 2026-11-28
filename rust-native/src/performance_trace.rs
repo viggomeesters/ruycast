@@ -37,6 +37,7 @@ pub enum Stage {
     MenuHealthAccessibility,
     MenuHealthInputMonitoring,
     MenuHealthRaycast,
+    MenuHealthRaycastLookup,
     LauncherBecomeKey,
     LauncherOutsideMonitors,
     LauncherMakeKey,
@@ -68,7 +69,7 @@ impl MenuHealthTrigger {
     }
 }
 impl Stage {
-    const ALL: [Self; 41] = [
+    const ALL: [Self; 42] = [
         Self::SearchModel,
         Self::ClipboardSearchSlice,
         Self::InputModel,
@@ -93,6 +94,7 @@ impl Stage {
         Self::MenuHealthAccessibility,
         Self::MenuHealthInputMonitoring,
         Self::MenuHealthRaycast,
+        Self::MenuHealthRaycastLookup,
         Self::LauncherBecomeKey,
         Self::LauncherOutsideMonitors,
         Self::LauncherMakeKey,
@@ -137,6 +139,7 @@ impl Stage {
             Self::MenuHealthAccessibility => "menu.health.accessibility",
             Self::MenuHealthInputMonitoring => "menu.health.inputMonitoring",
             Self::MenuHealthRaycast => "menu.health.raycast",
+            Self::MenuHealthRaycastLookup => "menu.health.raycastLookup",
             Self::LauncherBecomeKey => "launcher.becomeKey",
             Self::LauncherOutsideMonitors => "launcher.outsideMonitors",
             Self::LauncherMakeKey => "launcher.makeKey",
@@ -370,6 +373,23 @@ impl Trace {
         input_monitoring: impl FnOnce() -> bool,
         raycast_absent: impl FnOnce() -> bool,
     ) -> bool {
+        self.measure_menu_checks(reason, accessibility, input_monitoring, Some(raycast_absent))
+    }
+    pub fn measure_menu_permissions(
+        &self,
+        reason: MenuHealthTrigger,
+        accessibility: impl FnOnce() -> bool,
+        input_monitoring: impl FnOnce() -> bool,
+    ) -> bool {
+        self.measure_menu_checks(reason, accessibility, input_monitoring, None::<fn() -> bool>)
+    }
+    fn measure_menu_checks(
+        &self,
+        reason: MenuHealthTrigger,
+        accessibility: impl FnOnce() -> bool,
+        input_monitoring: impl FnOnce() -> bool,
+        raycast_absent: Option<impl FnOnce() -> bool>,
+    ) -> bool {
         fn timed(work: impl FnOnce() -> bool) -> (bool, Duration) {
             let began = Instant::now();
             let result = work();
@@ -384,9 +404,11 @@ impl Trace {
             let (input, input_time) = timed(input_monitoring);
             elapsed[1] = Some(input_time);
             if input {
-                let (raycast, raycast_time) = timed(raycast_absent);
-                elapsed[2] = Some(raycast_time);
-                raycast
+                if let Some(raycast_absent) = raycast_absent {
+                    let (raycast, raycast_time) = timed(raycast_absent);
+                    elapsed[2] = Some(raycast_time);
+                    raycast
+                } else { true }
             } else { false }
         } else { false };
         let ended = Instant::now();
@@ -471,6 +493,22 @@ impl Trace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn permission_snapshot_short_circuits_and_reset_is_atomic() {
+        let trace = Trace::default();
+        let input_calls = std::cell::Cell::new(0);
+        assert!(!trace.measure_menu_permissions(MenuHealthTrigger::State, || false, || { input_calls.set(1); true }));
+        assert_eq!(input_calls.get(), 0);
+        assert!(trace.measure_menu_permissions(MenuHealthTrigger::Launch, || true, || true));
+        let snapshot = trace.snapshot();
+        assert_eq!(snapshot["stages"]["menu.health.accessibility"]["count"], 2);
+        assert_eq!(snapshot["stages"]["menu.health.inputMonitoring"]["count"], 1);
+        assert_eq!(snapshot["stages"]["menu.health.raycast"]["count"], 0);
+        assert!(trace.measure_menu_permissions(MenuHealthTrigger::Activation, || { trace.reset(); true }, || true));
+        for stage in ["menu.health", "menu.health.activation", "menu.health.accessibility", "menu.health.inputMonitoring"] {
+            assert_eq!(trace.snapshot()["stages"][stage]["count"], 0);
+        }
+    }
     #[test]
     fn menu_health_preserves_short_circuit_and_counts_only_executed_checks() {
         use std::cell::RefCell;

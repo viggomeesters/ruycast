@@ -775,10 +775,6 @@ define_class!(
         fn cancel_action(&self,_:Option<&NSObject>){self.cancel_editor();}
         #[unsafe(method(saveEditor:))]
         fn save_action(&self,_:Option<&NSObject>){self.save_editor();}
-        #[unsafe(method(refreshMenuHealthLaunch:))]
-        fn refresh_menu_health_launch(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self, ruycast_native::performance_trace::MenuHealthTrigger::Launch);});}
-        #[unsafe(method(refreshMenuHealthTerminate:))]
-        fn refresh_menu_health_terminate(&self,_:&NSNotification){self.guard_callback(||{self.ivars().menu_bar.refresh(self, ruycast_native::performance_trace::MenuHealthTrigger::Terminate);});}
         #[unsafe(method(managementResized:))]
         fn management_resized(&self,_:&NSNotification){self.guard_callback(||{if !self.ivars().reconciling.get(){self.reconcile();}});}
         #[unsafe(method(recordSetting:))]
@@ -1303,11 +1299,6 @@ impl Controller {
         }
         if management {
             unsafe { NSNotificationCenter::defaultCenter().addObserver_selector_name_object(&controller,sel!(managementResized:),Some(ns_string!("NSWindowDidResizeNotification")),Some(&*controller.ivars().panel)); }
-        }
-        if !management && controller.ivars().panel.ivars().ordering_allowed {
-            for (name, selector) in [("NSWorkspaceDidLaunchApplicationNotification",sel!(refreshMenuHealthLaunch:)),("NSWorkspaceDidTerminateApplicationNotification",sel!(refreshMenuHealthTerminate:))] {
-                unsafe{NSWorkspace::sharedWorkspace().notificationCenter().addObserver_selector_name_object(&controller,selector,Some(&NSString::from_str(name)),None);}
-            }
         }
 
         controller
@@ -1996,7 +1987,6 @@ impl Drop for Cleanup<'_> {
         if let Model::Live { connection, .. } = &*self.0.ivars().session.borrow() { connection.cancel_open_trace(); }
         unsafe {
             NSNotificationCenter::defaultCenter().removeObserver(self.0);
-            if self.0.ivars().panel.ivars().ordering_allowed{NSWorkspace::sharedWorkspace().notificationCenter().removeObserver(self.0);}
         }
         self.0.ivars().inline_autosave.borrow_mut().take();
         self.0.ivars().dashboard.cleanup();
@@ -3021,6 +3011,7 @@ fn run_graph(
                 if let Err(error)=source_clipboard_monitor.borrow_mut().pump(){windows[0].1.request_stop();panic!("{error}");}
                 if let Some(monitor)=source_auto_quit.borrow_mut().as_mut(){if let Err(error)=monitor.pump(){windows[0].1.request_stop();panic!("{error}");}}
                 let icons_changed=crate::native_rows::poll();
+                windows[0].0.ivars().menu_bar.pump(&windows[0].0);
                 #[cfg(feature = "test-tools")]
                 source_f1_owner.borrow_mut().pump(&windows[0].0, &windows[0].1, false,services.owned_pending());
                 for (current, connected) in &windows {
@@ -3236,6 +3227,7 @@ fn run_graph(
             keyboard.attach_wake(wake.clone());
         }
         services_client.attach_wake(wake.clone());
+        controller.ivars().menu_bar.start(&controller, wake.clone(), hidden);
         crate::native_rows::start(wake.clone(),hidden);
         let _icon_cleanup=crate::native_rows::Cleanup;
         if let Some(monitor)=auto_quit_monitor.borrow_mut().as_mut(){monitor.start(wake.clone())?;}
@@ -4301,6 +4293,7 @@ fn revoke_and_hide(owners: &[&Controller]) {
     }
     for owner in owners {
         let state = owner.ivars();
+        state.menu_bar.stop();
         state.inline_autosave_allowed.set(false);
         owner.cancel_resident_preparation();
         let autosave = state.inline_autosave.borrow_mut().take();
@@ -6725,6 +6718,10 @@ fn native_probe(
                 id: request["id"].as_str().map(str::to_owned),
             }),
             Some("menu-bar-read")=>return Ok(serde_json::json!({"ok":true,"result":state.menu_bar.probe()})),
+            Some("menu-health-fixture-enable")=>{if !state.menu_bar.fixture_enable(controller){return Err("Menu health fixture unavailable".into());}},
+            Some("menu-health-fixture-change")=>{if !state.menu_bar.fixture_change(controller, request){return Err("Menu health fixture unavailable".into());}},
+            Some("menu-health-fixture-pump")=>state.menu_bar.pump(controller),
+            Some("menu-health-fixture-stop")=>state.menu_bar.stop(),
             Some("menu-bar-click")=>{if !state.menu_bar.click(request["index"].as_u64().unwrap_or(0) as usize){return Err("Menu item unavailable".into());}},
             Some("menu-bar-retain")=>state.menu_bar.retain(),
             Some("menu-bar-stale")=>state.menu_bar.stale(),
