@@ -241,6 +241,51 @@ fn real_work_status_admission_and_recovery_fixture() {
 fn real_work_capture_journal_recovery_fixture() {
     use sha2::{Digest, Sha256};
     use std::{io::{Read, Write}, os::{fd::AsRawFd, unix::{fs::{MetadataExt, OpenOptionsExt}, process::ExitStatusExt}}, path::PathBuf, process::{Command, Stdio}};
+    #[cfg(target_os = "macos")]
+    fn assert_live_writer_and_busy_journal_lock(pid: i32, host_pid: u32, writer: &Path, lock: &Path, seal: &Value) -> fs::File {
+        use std::os::unix::ffi::OsStrExt;
+        let process = |pid: i32| {
+            assert!(pid > 1);
+            let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
+            let size = std::mem::size_of::<libc::proc_bsdinfo>() as i32;
+            assert_eq!(
+                unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0, info.as_mut_ptr().cast(), size) },
+                size,
+                "fixture process {pid} must still be live",
+            );
+            let info = unsafe { info.assume_init() };
+            assert_eq!(info.pbi_pid, pid as u32);
+            assert_eq!(info.pbi_uid, unsafe { libc::getuid() });
+            info
+        };
+        let first = process(pid);
+        let helper = process(first.pbi_ppid as i32);
+        assert_eq!(helper.pbi_ppid, host_pid, "fixture writer must descend from the owned host through its helper");
+        let mut path = [0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
+        let length = unsafe { libc::proc_pidpath(pid, path.as_mut_ptr().cast(), path.len() as u32) };
+        assert!(length > 0);
+        let end = path.iter().position(|&byte| byte == 0).unwrap();
+        let expected = writer.canonicalize().unwrap();
+        assert_eq!(&path[..end], expected.as_os_str().as_bytes());
+
+        let file = fs::OpenOptions::new().read(true).write(true)
+            .custom_flags(libc::O_NOFOLLOW_ANY | libc::O_NONBLOCK)
+            .open(lock).unwrap();
+        let metadata = file.metadata().unwrap();
+        assert!(metadata.is_file());
+        assert_eq!(metadata.uid(), unsafe { libc::getuid() });
+        assert_eq!(metadata.nlink(), 1);
+        assert_eq!(seal["lock"], json!([metadata.dev(), metadata.ino()]));
+        assert_eq!(unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) }, -1);
+        assert_eq!(std::io::Error::last_os_error().kind(), std::io::ErrorKind::WouldBlock);
+        let still = process(pid);
+        assert_eq!(
+            (first.pbi_ppid, first.pbi_start_tvsec, first.pbi_start_tvusec),
+            (still.pbi_ppid, still.pbi_start_tvsec, still.pbi_start_tvusec),
+        );
+        file
+    }
+
     fn publish_release(capsule: &Path, point: &str) {
         let folder = capsule.join("control");
         let staged = folder.join(format!("capture-{point}.release-staged"));
@@ -620,17 +665,22 @@ fn real_work_capture_journal_recovery_fixture() {
     host.probe("run-input-type", json!({"text":"Fictional capture\n\nOwned body."}));
     actions::key(&host, 36, actions::CMD, "\r", false);
     let deadline = Instant::now() + Duration::from_secs(40);
-    while !fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK).open(&marker).and_then(|file| {
-        let mut bytes = Vec::new();
-        file.take(33).read_to_end(&mut bytes)?;
-        Ok(!bytes.is_empty() && bytes.len() <= 32 && bytes.iter().all(u8::is_ascii_digit))
-    }).unwrap_or(false) {
+    let ready_pid = loop {
+        let pid = fs::OpenOptions::new().read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+            .open(&marker).and_then(|file| {
+                let mut bytes = Vec::new();
+                file.take(33).read_to_end(&mut bytes)?;
+                Ok(std::str::from_utf8(&bytes).ok().and_then(|text| text.parse::<i32>().ok())
+                    .filter(|pid| *pid > 1 && bytes == pid.to_string().as_bytes()))
+            }).unwrap_or(None);
+        if let Some(pid) = pid { break pid; }
         if Instant::now() >= deadline {
             let logs = host.rpc(&json!({"op":"logs","commandID":id}));
             panic!("capture did not reach its barrier: {logs}");
         }
         thread::sleep(Duration::from_millis(20));
-    }
+    };
     if stage == "before-grant" {
         if case == "refuse-before-grant" {
             publish_release(&capsule, "before-grant");
@@ -674,6 +724,25 @@ fn real_work_capture_journal_recovery_fixture() {
     let starts_before = host.rpc(&json!({"op":"logs","commandID":id}));
     let starts_before: Vec<_> = starts_before["result"].as_array().unwrap().iter().filter(|row| row["phase"] == "command.start").map(|row| row["traceID"].as_str().unwrap().to_owned()).collect();
     assert_eq!(starts_before.len(), 1);
+    #[cfg(target_os = "macos")]
+    let lock = {
+        let seal: Value = serde_json::from_slice(&fs::read(capsule.join("control/capture-journal.json")).unwrap()).unwrap();
+        assert_eq!(seal["sha256"], format!("{pending_hash:x}"));
+        for (name, path) in [("state", &state), ("pending", &pending)] {
+            let metadata = fs::symlink_metadata(path).unwrap();
+            assert!(!metadata.file_type().is_symlink());
+            assert_eq!(seal[name], json!([metadata.dev(), metadata.ino()]));
+        }
+        assert_live_writer_and_busy_journal_lock(
+            ready_pid,
+            host.host.process.as_ref().unwrap().id(),
+            &writer,
+            &state.join("lock"),
+            &seal,
+        )
+    };
+    #[cfg(not(target_os = "macos"))]
+    let _ = ready_pid;
     if host_loss {
         assert_eq!(host.host.stop(false).unwrap().status.signal(), Some(libc::SIGKILL));
     } else {
@@ -688,6 +757,7 @@ fn real_work_capture_journal_recovery_fixture() {
         assert_eq!(finishes.len(), 1);
         assert_eq!(finishes[0]["success"], false);
     }
+    #[cfg(not(target_os = "macos"))]
     let lock = fs::OpenOptions::new().read(true).write(true).open(state.join("lock")).unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
